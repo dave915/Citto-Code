@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Session, PermissionMode } from '../store/sessions'
+import { useSessionsStore } from '../store/sessions'
 import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
 import type { DirEntry, OpenWithApp, SelectedFile } from '../../electron/preload'
@@ -48,6 +49,8 @@ export function ChatView({
   const [openWithMenuOpen, setOpenWithMenuOpen] = useState(false)
   const [openWithApps, setOpenWithApps] = useState<OpenWithApp[]>([])
   const [openWithLoading, setOpenWithLoading] = useState(false)
+  const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
+  const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
   const isNewSession = session.messages.length === 0
   const showPreviewPane = selectedEntry !== null
   const filePanelOpen = rightPanel === 'files'
@@ -62,6 +65,24 @@ export function ChatView({
   const totalToolCalls = session.messages.reduce((sum, message) => sum + message.toolCalls.length, 0)
   const totalAttachments = session.messages.reduce((sum, message) => sum + (message.attachedFiles?.length ?? 0), 0)
   const contextUsagePercent = estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
+  const preferredOpenWithApp = openWithApps.find((app) => app.id === preferredOpenWithAppId) ?? null
+  const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null
+
+  useEffect(() => {
+    let cancelled = false
+
+    window.claude.listOpenWithApps()
+      .then((apps) => {
+        if (!cancelled) setOpenWithApps(apps)
+      })
+      .catch(() => {
+        if (!cancelled) setOpenWithApps([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -262,9 +283,24 @@ export function ChatView({
     window.addEventListener('mouseup', onMouseUp)
   }
 
-  const handleOpenWith = async (appId: string) => {
+  const handleOpenWith = async (appId: string, persistPreference = true) => {
     const result = await window.claude.openPathWithApp({ targetPath: openTargetPath, appId })
+    if (result.ok && persistPreference) {
+      setPreferredOpenWithAppId(appId)
+    }
     setOpenWithMenuOpen(false)
+    if (!result.ok) {
+      window.alert(result.error ?? '앱에서 열지 못했습니다.')
+    }
+  }
+
+  const handleDefaultOpen = async () => {
+    if (defaultOpenWithApp) {
+      await handleOpenWith(defaultOpenWithApp.id, false)
+      return
+    }
+
+    const result = await window.claude.openPathWithApp({ targetPath: openTargetPath, appId: 'default' })
     if (!result.ok) {
       window.alert(result.error ?? '앱에서 열지 못했습니다.')
     }
@@ -302,24 +338,27 @@ export function ChatView({
 
           <div className="flex items-center gap-2">
             <div ref={openWithMenuRef} className="relative">
-              <button
-                onClick={() => setOpenWithMenuOpen((open) => !open)}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  openWithMenuOpen
-                    ? 'border-claude-border bg-claude-bg text-claude-text'
-                    : 'border-claude-border/80 text-claude-text hover:bg-claude-bg'
-                }`}
-                title="다음에서 열기"
-              >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h9v9" />
-                </svg>
-                <span>열기</span>
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
+              <div className="flex overflow-hidden rounded-xl border border-claude-border/80">
+                <button
+                  onClick={() => void handleDefaultOpen()}
+                  className="flex items-center gap-2 bg-white px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-claude-bg"
+                  title={defaultOpenWithApp ? `${defaultOpenWithApp.label}에서 열기` : '기본 앱으로 열기'}
+                >
+                  <OpenWithAppIcon app={defaultOpenWithApp} />
+                  <span>열기</span>
+                </button>
+                <button
+                  onClick={() => setOpenWithMenuOpen((open) => !open)}
+                  className={`border-l border-claude-border/80 px-2 py-1.5 text-claude-text transition-colors ${
+                    openWithMenuOpen ? 'bg-claude-bg' : 'bg-white hover:bg-claude-bg'
+                  }`}
+                  title="다음에서 열기"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
 
               {openWithMenuOpen && (
                 <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-claude-border bg-white p-2 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
@@ -340,10 +379,13 @@ export function ChatView({
                           onClick={() => void handleOpenWith(app.id)}
                           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-bg"
                         >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-claude-bg text-[11px] font-semibold uppercase text-claude-muted">
-                            {openWithMonogram(app.label)}
-                          </span>
-                          <span>{app.label}</span>
+                          <OpenWithAppIcon app={app} className="h-8 w-8" />
+                          <span className="flex-1">{app.label}</span>
+                          {preferredOpenWithAppId === app.id && (
+                            <svg className="h-4 w-4 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -599,6 +641,31 @@ function SessionInfoPanel({
 function openWithMonogram(label: string): string {
   const compact = label.replace(/[^a-z0-9]/gi, '')
   return compact.slice(0, 2) || label.slice(0, 2)
+}
+
+function OpenWithAppIcon({
+  app,
+  className = 'h-4 w-4',
+}: {
+  app: OpenWithApp | null
+  className?: string
+}) {
+  if (app?.iconDataUrl) {
+    return <img src={app.iconDataUrl} alt="" className={`${className} rounded-md object-contain`} />
+  }
+
+  if (app?.iconPath) {
+    return <img src={encodeURI(`file://${app.iconPath}`)} alt="" className={`${className} rounded-md object-contain`} />
+  }
+
+  return (
+    <span className={`flex items-center justify-center rounded-lg bg-claude-bg text-claude-muted ${className}`}>
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h9v9" />
+      </svg>
+    </span>
+  )
 }
 
 function InfoRow({

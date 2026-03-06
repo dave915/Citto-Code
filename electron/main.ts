@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
-import { join, dirname } from 'path'
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } from 'electron'
+import { join, dirname, extname } from 'path'
+import { tmpdir } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import { existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { request as httpsRequest } from 'https'
@@ -22,6 +23,8 @@ export type ModelInfo = {
 type OpenWithApp = {
   id: string
   label: string
+  iconDataUrl?: string
+  iconPath?: string
 }
 
 type MacOpenWithApp = OpenWithApp & {
@@ -60,24 +63,109 @@ function resolveTargetPath(targetPath: string): string {
   return targetPath === '~' ? (process.env.HOME ?? '') : targetPath
 }
 
-function isBundleInstalled(bundleId: string): boolean {
+function findBundlePath(bundleId: string): string | null {
   try {
     const result = spawnSync('mdfind', [`kMDItemCFBundleIdentifier == "${bundleId}"`], {
       encoding: 'utf-8',
       timeout: 2000,
     })
-    return result.status === 0 && result.stdout.trim().length > 0
+    if (result.status !== 0) return null
+    const firstPath = result.stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean)
+    return firstPath ?? null
   } catch {
-    return false
+    return null
   }
 }
 
-function listOpenWithApps(): OpenWithApp[] {
+async function listOpenWithApps(): Promise<OpenWithApp[]> {
   if (process.platform !== 'darwin') return []
 
-  return MAC_OPEN_WITH_APPS
-    .filter((app) => app.bundleIds.some(isBundleInstalled))
-    .map(({ id, label }) => ({ id, label }))
+  const apps = await Promise.all(
+    MAC_OPEN_WITH_APPS.map(async (app) => {
+      const appPath = app.bundleIds.map(findBundlePath).find(Boolean)
+      if (!appPath) return null
+
+      let iconDataUrl: string | undefined
+      let iconPath: string | undefined
+      try {
+        const bundleIconPath = resolveBundleIconPath(appPath)
+        const convertedIconPath = bundleIconPath ? convertIcnsToPng(bundleIconPath, app.id) : undefined
+        if (convertedIconPath) {
+          iconPath = convertedIconPath
+        }
+
+        iconDataUrl = iconPath ? convertPngToDataUrl(iconPath) : undefined
+        if (!iconDataUrl) {
+          const icon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createFromPath(appPath)
+          if (icon && !icon.isEmpty()) {
+            iconDataUrl = icon.resize({ width: 32, height: 32 }).toDataURL()
+          }
+        }
+      } catch {
+        iconDataUrl = undefined
+      }
+
+      return { id: app.id, label: app.label, iconDataUrl, iconPath }
+    })
+  )
+
+  return apps.filter((entry): entry is OpenWithApp => Boolean(entry))
+}
+
+function resolveBundleIconPath(appPath: string): string | null {
+  try {
+    const infoPlistPath = join(appPath, 'Contents', 'Info.plist')
+    if (!existsSync(infoPlistPath)) return null
+
+    const iconNameRaw = execSync(`/usr/libexec/PlistBuddy -c "Print :CFBundleIconFile" "${infoPlistPath}"`, {
+      encoding: 'utf-8',
+      timeout: 2000,
+    }).trim()
+
+    if (!iconNameRaw) return null
+
+    const iconName = extname(iconNameRaw) ? iconNameRaw : `${iconNameRaw}.icns`
+    const iconPath = join(appPath, 'Contents', 'Resources', iconName)
+    return existsSync(iconPath) ? iconPath : null
+  } catch {
+    return null
+  }
+}
+
+function convertPngToDataUrl(iconPath: string): string | undefined {
+  try {
+    const data = readFileSync(iconPath)
+    return `data:image/png;base64,${data.toString('base64')}`
+  } catch {
+    return undefined
+  }
+}
+
+function convertIcnsToPng(iconPath: string, cacheKey: string): string | undefined {
+  const outputPath = join(tmpdir(), `claude-ui-open-with-${cacheKey}.png`)
+
+  try {
+    if (existsSync(outputPath)) {
+      return outputPath
+    }
+
+    const result = spawnSync('sips', ['-s', 'format', 'png', iconPath, '--out', outputPath], {
+      encoding: 'utf-8',
+      timeout: 5000,
+    })
+
+    if (result.status !== 0 || !existsSync(outputPath)) {
+      return undefined
+    }
+
+    return outputPath
+  } catch {
+    try { if (existsSync(outputPath)) unlinkSync(outputPath) } catch { /* ignore */ }
+    return undefined
+  }
 }
 
 function openPathWithApp(targetPath: string, appId: string): { ok: boolean; error?: string } {
@@ -92,7 +180,7 @@ function openPathWithApp(targetPath: string, appId: string): { ok: boolean; erro
   const app = MAC_OPEN_WITH_APPS.find((candidate) => candidate.id === appId)
   if (!app) return { ok: false, error: '지원하지 않는 앱입니다.' }
 
-  const bundleId = app.bundleIds.find(isBundleInstalled)
+  const bundleId = app.bundleIds.find((candidate) => Boolean(findBundlePath(candidate)))
   if (!bundleId) return { ok: false, error: `${app.label} 앱을 찾지 못했습니다.` }
 
   try {

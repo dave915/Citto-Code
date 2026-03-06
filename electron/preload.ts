@@ -43,6 +43,8 @@ export type ClaudeInstallationStatus = {
 export type OpenWithApp = {
   id: string
   label: string
+  iconDataUrl?: string
+  iconPath?: string
 }
 
 export type ClaudeAPI = {
