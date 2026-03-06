@@ -3,8 +3,42 @@ import { createPortal } from 'react-dom'
 import type { SelectedFile, ModelInfo, FileEntry } from '../../electron/preload'
 import type { PermissionMode } from '../store/sessions'
 
+type SlashCommand = {
+  name: string
+  path: string
+  dir: string
+  legacy: boolean
+  description?: string
+  kind?: 'builtin' | 'custom'
+}
+
+const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+  { name: 'add-dir', path: '', dir: '', legacy: false, kind: 'builtin', description: '작업 디렉토리 추가' },
+  { name: 'agents', path: '', dir: '', legacy: false, kind: 'builtin', description: '에이전트 관리' },
+  { name: 'bug', path: '', dir: '', legacy: false, kind: 'builtin', description: '버그 리포트 전송' },
+  { name: 'clear', path: '', dir: '', legacy: false, kind: 'builtin', description: '대화 기록 지우기' },
+  { name: 'compact', path: '', dir: '', legacy: false, kind: 'builtin', description: '대화 압축' },
+  { name: 'config', path: '', dir: '', legacy: false, kind: 'builtin', description: '설정 보기/수정' },
+  { name: 'cost', path: '', dir: '', legacy: false, kind: 'builtin', description: '토큰 사용량 보기' },
+  { name: 'doctor', path: '', dir: '', legacy: false, kind: 'builtin', description: '설치 상태 점검' },
+  { name: 'help', path: '', dir: '', legacy: false, kind: 'builtin', description: '도움말' },
+  { name: 'init', path: '', dir: '', legacy: false, kind: 'builtin', description: 'CLAUDE.md 초기화' },
+  { name: 'login', path: '', dir: '', legacy: false, kind: 'builtin', description: '계정 전환' },
+  { name: 'logout', path: '', dir: '', legacy: false, kind: 'builtin', description: '로그아웃' },
+  { name: 'mcp', path: '', dir: '', legacy: false, kind: 'builtin', description: 'MCP 연결 관리' },
+  { name: 'memory', path: '', dir: '', legacy: false, kind: 'builtin', description: 'CLAUDE.md 메모리 편집' },
+  { name: 'model', path: '', dir: '', legacy: false, kind: 'builtin', description: '모델 선택/변경' },
+  { name: 'permissions', path: '', dir: '', legacy: false, kind: 'builtin', description: '권한 보기/수정' },
+  { name: 'pr_comments', path: '', dir: '', legacy: false, kind: 'builtin', description: 'PR 댓글 보기' },
+  { name: 'review', path: '', dir: '', legacy: false, kind: 'builtin', description: '코드 리뷰 요청' },
+  { name: 'status', path: '', dir: '', legacy: false, kind: 'builtin', description: '상태 보기' },
+  { name: 'terminal-setup', path: '', dir: '', legacy: false, kind: 'builtin', description: 'Shift+Enter 줄바꿈 설정' },
+  { name: 'vim', path: '', dir: '', legacy: false, kind: 'builtin', description: 'vim 모드 전환' },
+]
+
 type Props = {
   cwd: string
+  promptHistory: string[]
   onSend: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
   isStreaming: boolean
@@ -155,7 +189,7 @@ function ModelPicker({
 }
 
 export function InputArea({
-  cwd, onSend, onAbort, isStreaming, disabled,
+  cwd, promptHistory, onSend, onAbort, isStreaming, disabled,
   permissionMode, planMode, model,
   onPermissionModeChange, onPlanModeChange, onModelChange,
 }: Props) {
@@ -163,9 +197,11 @@ export function InputArea({
   const [attachedFiles, setAttachedFiles] = useState<SelectedFile[]>([])
   const [isAttaching, setIsAttaching] = useState(false)
   const [models, setModels] = useState<ModelInfo[]>([])
+  const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isComposingRef = useRef(false)
   const compositionEndedAtRef = useRef(0)
+  const escapePressedAtRef = useRef(0)
 
   // @ 파일 참조 상태
   const [atMention, setAtMention] = useState<{ query: string; startPos: number } | null>(null)
@@ -173,16 +209,33 @@ export function InputArea({
   const [atSelectedIndex, setAtSelectedIndex] = useState(0)
   const atQueryRef = useRef<string | null>(null)
   const atItemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const [slashMention, setSlashMention] = useState<{ query: string; startPos: number } | null>(null)
+  const [slashResults, setSlashResults] = useState<SlashCommand[]>([])
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
+  const slashItemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null)
+  const draftTextRef = useRef('')
 
   // 앱 시작 시 모델 목록 로드 (5분 캐시는 main process에서 처리)
   useEffect(() => {
     window.claude.getModels().then(setModels).catch(() => {})
+    window.claude.listSkills()
+      .then((commands) => {
+        const customCommands = commands.map((command) => ({ ...command, kind: 'custom' as const }))
+        setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...customCommands])
+      })
+      .catch(() => setSlashCommands(BUILTIN_SLASH_COMMANDS))
   }, [])
 
   const closeAtMention = useCallback(() => {
     setAtMention(null)
     setAtResults([])
     atQueryRef.current = null
+  }, [])
+
+  const closeSlashMention = useCallback(() => {
+    setSlashMention(null)
+    setSlashResults([])
   }, [])
 
   const handleAtSelect = useCallback(async (file: FileEntry) => {
@@ -208,6 +261,23 @@ export function InputArea({
     atItemRefs.current[atSelectedIndex]?.scrollIntoView({ block: 'nearest' })
   }, [atSelectedIndex])
 
+  useEffect(() => {
+    slashItemRefs.current[slashSelectedIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [slashSelectedIndex])
+
+  const handleSlashSelect = useCallback((command: SlashCommand) => {
+    if (!slashMention) return
+    const cursor = textareaRef.current?.selectionStart ?? (slashMention.startPos + slashMention.query.length + 1)
+    const newText = `${text.slice(0, slashMention.startPos)}/${command.name} ${text.slice(cursor)}`
+    setText(newText)
+    closeSlashMention()
+    requestAnimationFrame(() => {
+      const nextCursor = slashMention.startPos + command.name.length + 2
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor)
+    })
+  }, [slashMention, text, closeSlashMention])
+
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
     if ((!trimmed && attachedFiles.length === 0) || isStreaming || disabled) return
@@ -215,10 +285,135 @@ export function InputArea({
     setText('')
     setAttachedFiles([])
     closeAtMention()
+    closeSlashMention()
+    setHistoryIndex(null)
+    draftTextRef.current = ''
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-  }, [text, attachedFiles, isStreaming, disabled, onSend, closeAtMention])
+  }, [text, attachedFiles, isStreaming, disabled, onSend, closeAtMention, closeSlashMention])
+
+  useEffect(() => {
+    setHistoryIndex(null)
+    draftTextRef.current = ''
+  }, [promptHistory])
+
+  const syncTextareaHeight = (value: string) => {
+    if (!textareaRef.current) return
+    textareaRef.current.style.height = 'auto'
+    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    if (value.length === 0) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }
+
+  const applyHistoryText = (value: string) => {
+    setText(value)
+    requestAnimationFrame(() => {
+      syncTextareaHeight(value)
+      const end = value.length
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(end, end)
+    })
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget
+    const cursor = textarea.selectionStart
+    const hasSelection = textarea.selectionStart !== textarea.selectionEnd
+    const beforeCursor = textarea.value.slice(0, cursor)
+    const afterCursor = textarea.value.slice(cursor)
+    const isAtFirstLine = !beforeCursor.includes('\n')
+    const isAtLastLine = !afterCursor.includes('\n')
+
+    if (e.key === 'Escape') {
+      const now = Date.now()
+
+      if (slashResults.length > 0) {
+        e.preventDefault()
+        closeSlashMention()
+        escapePressedAtRef.current = 0
+        return
+      }
+
+      if (atResults.length > 0) {
+        e.preventDefault()
+        closeAtMention()
+        escapePressedAtRef.current = 0
+        return
+      }
+
+      if (isStreaming) {
+        e.preventDefault()
+        if (now - escapePressedAtRef.current < 600) {
+          escapePressedAtRef.current = 0
+          onAbort()
+        } else {
+          escapePressedAtRef.current = now
+        }
+        return
+      }
+
+      escapePressedAtRef.current = 0
+      return
+    }
+
+    escapePressedAtRef.current = 0
+
+    if (!hasSelection && slashResults.length === 0 && atResults.length === 0 && promptHistory.length > 0) {
+      if (e.key === 'ArrowUp' && isAtFirstLine) {
+        e.preventDefault()
+        const uniqueHistory = [...new Set(promptHistory)].reverse()
+        if (uniqueHistory.length === 0) return
+        const nextIndex = historyIndex === null ? 0 : Math.min(historyIndex + 1, uniqueHistory.length - 1)
+        if (historyIndex === null) {
+          draftTextRef.current = text
+        }
+        setHistoryIndex(nextIndex)
+        applyHistoryText(uniqueHistory[nextIndex])
+        return
+      }
+
+      if (e.key === 'ArrowDown' && historyIndex !== null && isAtLastLine) {
+        e.preventDefault()
+        const uniqueHistory = [...new Set(promptHistory)].reverse()
+        if (historyIndex <= 0) {
+          setHistoryIndex(null)
+          applyHistoryText(draftTextRef.current)
+        } else {
+          const nextIndex = historyIndex - 1
+          setHistoryIndex(nextIndex)
+          applyHistoryText(uniqueHistory[nextIndex])
+        }
+        return
+      }
+    }
+
+    if (slashResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSlashSelectedIndex((i) => (i + 1) % slashResults.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSlashSelectedIndex((i) => (i - 1 + slashResults.length) % slashResults.length)
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const native = e.nativeEvent as KeyboardEvent
+        const isIme = isComposingRef.current || native.isComposing || (native.keyCode || native.which) === 229
+        if (!isIme) {
+          e.preventDefault()
+          handleSlashSelect(slashResults[slashSelectedIndex])
+          return
+        }
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        handleSlashSelect(slashResults[slashSelectedIndex])
+        return
+      }
+    }
+
     // @ 드롭다운 키보드 탐색
     if (atResults.length > 0) {
       if (e.key === 'ArrowDown') {
@@ -239,11 +434,6 @@ export function InputArea({
           handleAtSelect(atResults[atSelectedIndex])
           return
         }
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeAtMention()
-        return
       }
       if (e.key === 'Tab') {
         e.preventDefault()
@@ -272,6 +462,13 @@ export function InputArea({
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setText(val)
+    if (historyIndex === null) {
+      draftTextRef.current = val
+    }
+    if (historyIndex !== null) {
+      setHistoryIndex(null)
+      draftTextRef.current = val
+    }
     const ta = e.target
     ta.style.height = 'auto'
     ta.style.height = Math.min(ta.scrollHeight, 200) + 'px'
@@ -279,17 +476,29 @@ export function InputArea({
     // @ 파일 참조 감지
     const cursor = ta.selectionStart
     const match = val.slice(0, cursor).match(/@([^\s@]*)$/)
-    if (match && cwd && cwd !== '~') {
+    const slashMatch = val.slice(0, cursor).match(/(^|\s)\/([^\s/]*)$/)
+
+    if (match && cwd) {
       const query = match[1]
       const startPos = cursor - match[0].length
       setAtMention({ query, startPos })
       setAtSelectedIndex(0)
       atQueryRef.current = query
+      closeSlashMention()
       window.claude.listFiles(cwd, query).then((files) => {
         if (atQueryRef.current === query) setAtResults(files)
       }).catch(() => { if (atQueryRef.current === query) setAtResults([]) })
+    } else if (slashMatch) {
+      const query = slashMatch[2].toLowerCase()
+      const startPos = cursor - query.length - 1
+      const filtered = slashCommands.filter((command) => command.name.toLowerCase().includes(query))
+      setSlashMention({ query, startPos })
+      setSlashResults(filtered)
+      setSlashSelectedIndex(0)
+      closeAtMention()
     } else {
       closeAtMention()
+      closeSlashMention()
     }
   }
 
@@ -300,6 +509,9 @@ export function InputArea({
     const textBefore = text.slice(0, cursor)
     if (!textBefore.match(/@([^\s@]*)$/)) {
       closeAtMention()
+    }
+    if (!textBefore.match(/(^|\s)\/([^\s/]*)$/)) {
+      closeSlashMention()
     }
   }
 
@@ -349,17 +561,49 @@ export function InputArea({
       {/* 입력 컨테이너 (@ 드롭다운 포함) */}
       <div className="relative">
         {/* @ 파일 참조 드롭다운 */}
-        {atResults.length > 0 && (
+        {(slashResults.length > 0 || atResults.length > 0) && (
           <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 bg-white border border-claude-border rounded-xl shadow-lg overflow-hidden">
             <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-claude-border/50 bg-claude-bg/50">
-              <svg className="w-3 h-3 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-              </svg>
-              <span className="text-xs font-medium text-claude-muted">파일 참조</span>
+              {slashResults.length > 0 ? (
+                <svg className="w-3 h-3 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 3L8 21M8 3h8" />
+                </svg>
+              ) : (
+                <svg className="w-3 h-3 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                </svg>
+              )}
+              <span className="text-xs font-medium text-claude-muted">
+                {slashResults.length > 0 ? '슬래시 명령어' : '파일 참조'}
+              </span>
               <span className="text-xs text-claude-muted/60 ml-auto">↑↓ 탐색 · Enter 선택 · Esc 닫기</span>
             </div>
             <div className="max-h-48 overflow-y-auto py-1">
-              {atResults.map((file, i) => (
+              {slashResults.length > 0 ? (
+                slashResults.map((command, i) => (
+                  <button
+                    key={command.path}
+                    ref={(el) => { slashItemRefs.current[i] = el }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSlashSelect(command)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${
+                      i === slashSelectedIndex ? 'bg-claude-orange/10 text-claude-text' : 'hover:bg-claude-bg text-claude-text'
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 3L8 21M8 3h8" />
+                    </svg>
+                    <span className="font-medium truncate">/{command.name}</span>
+                    <span className="text-xs text-claude-muted truncate ml-auto max-w-[40%]">
+                      {command.kind === 'builtin'
+                        ? (command.description ?? '내장 명령어')
+                        : command.legacy
+                          ? `commands/${command.name}`
+                          : `skills/${command.name}`}
+                    </span>
+                  </button>
+                ))
+              ) : atResults.map((file, i) => (
                 <button
                   key={file.path}
                   ref={(el) => { atItemRefs.current[i] = el }}
@@ -390,7 +634,7 @@ export function InputArea({
             onChange={handleInput}
             onKeyDown={handleKeyDown}
             onSelect={handleSelect}
-            onBlur={() => setTimeout(closeAtMention, 150)}
+            onBlur={() => setTimeout(() => { closeAtMention(); closeSlashMention() }, 150)}
             onCompositionStart={() => { isComposingRef.current = true }}
             onCompositionEnd={() => {
               isComposingRef.current = false
@@ -399,7 +643,7 @@ export function InputArea({
             placeholder={
               isStreaming ? '응답을 기다리는 중...'
               : attachedFiles.length > 0 ? '파일에 대해 질문하거나 지시사항을 입력하세요...'
-              : 'Claude에게 메시지 보내기... (@로 파일 참조)'
+              : '@로 파일참조 · /로 명령어 · Shift+Enter: 줄바꿈 · Enter: 전송'
             }
             rows={1}
             disabled={isStreaming || disabled}
@@ -409,7 +653,6 @@ export function InputArea({
 
         {/* 하단 툴바 */}
         <div className="flex items-center gap-1.5 px-3 pb-2.5 border-t border-claude-border/50 pt-2">
-
           {/* 파일 첨부 */}
           <button
             onClick={handleAttachFiles}

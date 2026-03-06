@@ -22,6 +22,12 @@ export type FileEntry = {
   relativePath: string
 }
 
+export type DirEntry = {
+  name: string
+  path: string
+  type: 'file' | 'directory'
+}
+
 export type ModelInfo = {
   id: string
   displayName: string
@@ -44,6 +50,7 @@ export type ClaudeAPI = {
   openFile: (filePath: string) => Promise<void>
   getModels: () => Promise<ModelInfo[]>
   listFiles: (cwd: string, query: string) => Promise<FileEntry[]>
+  listCurrentDir: (path: string) => Promise<DirEntry[]>
   readFile: (filePath: string) => Promise<SelectedFile | null>
   readClaudeSettings: () => Promise<Record<string, unknown>>
   writeSettings: (settings: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>
@@ -66,6 +73,7 @@ const claudeAPI: ClaudeAPI = {
   openFile: (filePath) => ipcRenderer.invoke('claude:open-file', filePath),
   getModels: () => ipcRenderer.invoke('claude:get-models'),
   listFiles: (cwd, query) => ipcRenderer.invoke('claude:list-files', { cwd, query }),
+  listCurrentDir: (path) => ipcRenderer.invoke('claude:list-current-dir', { path }),
   readFile: (filePath) => ipcRenderer.invoke('claude:read-file', { filePath }),
   readClaudeSettings: () => ipcRenderer.invoke('claude:read-settings'),
   writeSettings: (settings) => ipcRenderer.invoke('claude:write-settings', { settings }),

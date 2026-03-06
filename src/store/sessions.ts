@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { nanoid } from './nanoid'
 
 export type ToolCallStatus = 'running' | 'done' | 'error'
@@ -77,12 +78,6 @@ type SessionsStore = {
 
 const DEFAULT_CWD = '~'
 
-function loadSidebarMode(): SidebarMode {
-  if (typeof window === 'undefined') return 'session'
-  const stored = window.localStorage.getItem('sidebarMode')
-  return stored === 'project' ? 'project' : 'session'
-}
-
 function makeDefaultSession(cwd: string, name: string): Session {
   return {
     id: nanoid(),
@@ -99,14 +94,16 @@ function makeDefaultSession(cwd: string, name: string): Session {
   }
 }
 
-export const useSessionsStore = create<SessionsStore>((set) => {
-  const firstSession = makeDefaultSession(DEFAULT_CWD, '~')
+export const useSessionsStore = create<SessionsStore>()(
+  persist(
+    (set) => {
+      const firstSession = makeDefaultSession(DEFAULT_CWD, '~')
 
-  return {
-    sessions: [firstSession],
-    activeSessionId: firstSession.id,
-    envVars: {},
-    sidebarMode: loadSidebarMode(),
+      return {
+        sessions: [firstSession],
+        activeSessionId: firstSession.id,
+        envVars: {},
+        sidebarMode: 'session',
 
     setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
     removeEnvVar: (key) => set((s) => {
@@ -120,12 +117,7 @@ export const useSessionsStore = create<SessionsStore>((set) => {
       return session.id
     },
 
-    setSidebarMode: (mode) => {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('sidebarMode', mode)
-      }
-      set({ sidebarMode: mode })
-    },
+    setSidebarMode: (mode) => set({ sidebarMode: mode }),
 
     removeSession: (id) => {
       set((s) => {
@@ -299,15 +291,48 @@ export const useSessionsStore = create<SessionsStore>((set) => {
       }))
     },
 
-    setModel: (tabId, model) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, model } : sess
-        )
-      }))
+        setModel: (tabId, model) => {
+          set((s) => ({
+            sessions: s.sessions.map((sess) =>
+              sess.id === tabId ? { ...sess, model } : sess
+            )
+          }))
+        },
+      }
     },
-  }
-})
+    {
+      name: 'claude-ui-sessions',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        sessions: state.sessions,
+        activeSessionId: state.activeSessionId,
+        envVars: state.envVars,
+        sidebarMode: state.sidebarMode,
+      }),
+      merge: (persisted, current) => {
+        const persistedState = persisted as Partial<SessionsStore>
+        const restoredSessions = (persistedState.sessions ?? []).map((session) => ({
+          ...session,
+          isStreaming: false,
+          currentAssistantMsgId: null,
+          error: session.error ?? null,
+        }))
+
+        const sessions = restoredSessions.length > 0 ? restoredSessions : current.sessions
+        const activeSessionId = sessions.some((session) => session.id === persistedState.activeSessionId)
+          ? persistedState.activeSessionId ?? sessions[0]?.id ?? null
+          : sessions[0]?.id ?? null
+
+        return {
+          ...current,
+          ...persistedState,
+          sessions,
+          activeSessionId,
+        }
+      },
+    }
+  )
+)
 
 export function findTabByClaudeSessionId(
   sessions: Session[],

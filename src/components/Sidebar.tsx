@@ -223,7 +223,7 @@ export function Sidebar({
   }, [sidebarMode, projectGroups, activeSessionId])
 
   return (
-    <aside className="w-60 flex-shrink-0 bg-claude-sidebar flex flex-col h-full select-none">
+    <aside className="w-full flex-shrink-0 bg-claude-sidebar flex flex-col h-full select-none">
       <div className="pt-10 pb-2 draggable-region" />
 
       <div className="px-3 mb-2 flex flex-col gap-1">

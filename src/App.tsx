@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useSessionsStore, findTabByClaudeSessionId } from './store/sessions'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
@@ -32,6 +32,7 @@ export default function App() {
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(240)
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) ?? null : null
 
   const pendingTabIdRef = useRef<string | null>(null)
@@ -54,6 +55,25 @@ export default function App() {
     const cleanup = window.claude.onClaudeEvent(handleClaudeEvent)
     return cleanup
   }, [])
+
+  const handleSidebarResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = sidebarWidth
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const nextWidth = Math.min(420, Math.max(180, startWidth + (moveEvent.clientX - startX)))
+      setSidebarWidth(nextWidth)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
 
   function resolveTabId(claudeSessionId: string | null | undefined): string | null {
     if (!claudeSessionId) return null
@@ -197,19 +217,30 @@ export default function App() {
     addSession(cwd, name)
   }
 
+  function handleSelectSession(sessionId: string) {
+    setSettingsOpen(false)
+    setActiveSession(sessionId)
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-claude-sidebar font-sans">
-      <Sidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        sidebarMode={sidebarMode}
-        onSelectSession={setActiveSession}
-        onRenameSession={(id, name) => updateSession(id, () => ({ name }))}
-        onNewSession={handleNewSession}
-        onRemoveSession={removeSession}
-        onSelectFolder={(sid) => handleSelectFolder(sid)}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
+      <div className="relative flex-shrink-0" style={{ width: `${sidebarWidth}px` }}>
+        <Sidebar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          sidebarMode={sidebarMode}
+          onSelectSession={handleSelectSession}
+          onRenameSession={(id, name) => updateSession(id, () => ({ name }))}
+          onNewSession={handleNewSession}
+          onRemoveSession={removeSession}
+          onSelectFolder={(sid) => handleSelectFolder(sid)}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+        <div
+          onMouseDown={handleSidebarResizeStart}
+          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors"
+        />
+      </div>
 
       <main className="flex-1 overflow-hidden">
         {settingsOpen ? (

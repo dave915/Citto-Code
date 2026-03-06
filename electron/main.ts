@@ -244,6 +244,34 @@ app.whenReady().then(() => {
     return results
   })
 
+  // ── 현재 디렉토리 항목 조회 ──────────────────────────────────
+  ipcMain.handle('claude:list-current-dir', (_event, { path }: { path: string }) => {
+    const resolvedPath = path === '~' ? (process.env.HOME ?? '') : path
+    if (!resolvedPath || !existsSync(resolvedPath)) return []
+
+    try {
+      return readdirSync(resolvedPath, { withFileTypes: true })
+        .filter((entry) => !entry.name.startsWith('.'))
+        .map((entry) => {
+          const fullPath = join(resolvedPath, entry.name)
+          const isDir = entry.isDirectory() || (entry.isSymbolicLink() && (() => {
+            try { return statSync(fullPath).isDirectory() } catch { return false }
+          })())
+          return {
+            name: entry.name,
+            path: fullPath,
+            type: isDir ? 'directory' : 'file',
+          }
+        })
+        .sort((a, b) => {
+          if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+          return a.name.localeCompare(b.name)
+        })
+    } catch {
+      return []
+    }
+  })
+
   // ── @ 파일 참조: 단일 파일 읽기 ──────────────────────────────
   ipcMain.handle('claude:read-file', (_event, { filePath }: { filePath: string }) => {
     return new Promise<{ name: string; path: string; content: string; size: number } | null>((resolve) => {
