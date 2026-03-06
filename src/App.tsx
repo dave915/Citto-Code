@@ -3,7 +3,7 @@ import { useSessionsStore, findTabByClaudeSessionId } from './store/sessions'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
-import type { ClaudeStreamEvent, SelectedFile } from '../electron/preload'
+import type { ClaudeInstallationStatus, ClaudeStreamEvent, SelectedFile } from '../electron/preload'
 import type { PermissionMode } from './store/sessions'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 
@@ -31,12 +31,15 @@ export default function App() {
     setPlanMode,
     setModel,
     envVars,
+    claudeBinaryPath,
     shortcutConfig,
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(240)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [installationStatus, setInstallationStatus] = useState<ClaudeInstallationStatus | null>(null)
+  const [installationDismissed, setInstallationDismissed] = useState(false)
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) ?? null : null
   const shortcutPlatform = getCurrentPlatform()
 
@@ -60,6 +63,10 @@ export default function App() {
     const cleanup = window.claude.onClaudeEvent(handleClaudeEvent)
     return cleanup
   }, [])
+
+  useEffect(() => {
+    void refreshInstallationStatus()
+  }, [claudeBinaryPath])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -212,6 +219,7 @@ export default function App() {
         sessionId: activeSession.sessionId ?? null,
         prompt: fullPrompt,
         cwd: activeSession.cwd && activeSession.cwd !== '~' ? activeSession.cwd : '~',
+        claudePath: claudeBinaryPath || undefined,
         permissionMode: activeSession.permissionMode,
         planMode: activeSession.planMode,
         model: activeSession.model ?? undefined,
@@ -251,6 +259,16 @@ export default function App() {
   function handleSelectSession(sessionId: string) {
     setSettingsOpen(false)
     setActiveSession(sessionId)
+  }
+
+  async function refreshInstallationStatus() {
+    const status = await window.claude.checkInstallation(claudeBinaryPath || undefined).catch(() => ({
+      installed: false,
+      path: null,
+      version: null,
+    }))
+    setInstallationStatus(status)
+    if (status.installed) setInstallationDismissed(false)
   }
 
   function handleToggleSidebar() {
@@ -313,6 +331,14 @@ export default function App() {
           )
         )}
       </main>
+
+      {installationStatus && !installationStatus.installed && !installationDismissed && (
+        <ClaudeInstallModal
+          installationStatus={installationStatus}
+          onRetry={refreshInstallationStatus}
+          onClose={() => setInstallationDismissed(true)}
+        />
+      )}
     </div>
   )
 }
@@ -339,6 +365,68 @@ function EmptyMainState({ onNewSession }: { onNewSession: () => void }) {
           </svg>
           새 세션 만들기
         </button>
+      </div>
+    </div>
+  )
+}
+
+function ClaudeInstallModal({
+  installationStatus,
+  onRetry,
+  onClose,
+}: {
+  installationStatus: ClaudeInstallationStatus
+  onRetry: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/35 px-6">
+      <div className="w-full max-w-md rounded-2xl border border-claude-border bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-base font-semibold text-claude-text">Claude Code를 찾을 수 없습니다</p>
+            <p className="mt-1 text-sm text-claude-muted leading-relaxed">
+              앱 실행 시 `claude --version` 확인에 실패했습니다. Claude Code CLI를 설치하고 `claude` 명령이 PATH에 잡혀 있어야 합니다.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-claude-muted hover:bg-claude-bg hover:text-claude-text transition-colors"
+            title="닫기"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-claude-border bg-claude-bg px-4 py-3">
+          <p className="text-xs text-claude-muted">확인된 경로</p>
+          <p className="mt-1 break-all font-mono text-xs text-claude-text">{installationStatus.path ?? '찾지 못함'}</p>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-claude-border bg-claude-bg px-4 py-3">
+          <p className="text-xs text-claude-muted">설치 후 확인할 항목</p>
+          <ul className="mt-2 space-y-1 text-sm text-claude-text">
+            <li>터미널에서 `claude --version` 이 정상 출력되는지</li>
+            <li>앱을 다시 열거나 아래 `다시 확인` 버튼을 눌러 재검사</li>
+          </ul>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-claude-border px-3 py-2 text-sm text-claude-muted hover:bg-claude-bg hover:text-claude-text transition-colors"
+          >
+            닫기
+          </button>
+          <button
+            onClick={onRetry}
+            className="rounded-lg bg-claude-orange px-3 py-2 text-sm font-medium text-white hover:bg-claude-orange/90 transition-colors"
+          >
+            다시 확인
+          </button>
+        </div>
       </div>
     </div>
   )

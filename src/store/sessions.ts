@@ -62,11 +62,13 @@ type SessionsStore = {
   activeSessionId: string | null
   envVars: Record<string, string>
   sidebarMode: SidebarMode
+  claudeBinaryPath: string
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   setSidebarMode: (mode: SidebarMode) => void
+  setClaudeBinaryPath: (path: string) => void
   setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
@@ -121,6 +123,7 @@ export const useSessionsStore = create<SessionsStore>()(
         activeSessionId: firstSession.id,
         envVars: {},
         sidebarMode: 'session',
+        claudeBinaryPath: '',
         shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
     setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
@@ -136,6 +139,7 @@ export const useSessionsStore = create<SessionsStore>()(
     },
 
     setSidebarMode: (mode) => set({ sidebarMode: mode }),
+    setClaudeBinaryPath: (path) => set({ claudeBinaryPath: path }),
     setShortcut: (action, platform, value) => set((s) => ({
       shortcutConfig: {
         ...s.shortcutConfig,
@@ -335,6 +339,7 @@ export const useSessionsStore = create<SessionsStore>()(
         activeSessionId: state.activeSessionId,
         envVars: state.envVars,
         sidebarMode: state.sidebarMode,
+        claudeBinaryPath: state.claudeBinaryPath,
         shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
@@ -354,6 +359,7 @@ export const useSessionsStore = create<SessionsStore>()(
         return {
           ...current,
           ...persistedState,
+          claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,
             ...(persistedState.shortcutConfig ?? {}),

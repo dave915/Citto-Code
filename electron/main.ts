@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { join, dirname } from 'path'
-import { spawn, ChildProcess, execSync } from 'child_process'
+import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import { existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
@@ -461,6 +461,10 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('claude:check-installation', (_event, { claudePath }: { claudePath?: string }) => {
+    return detectClaudeInstallation(claudePath)
+  })
+
   // ── Claude CLI 실행 ──────────────────────────────────────────
   ipcMain.handle(
     'claude:send-message',
@@ -472,6 +476,7 @@ app.whenReady().then(() => {
         sessionId: string | null
         prompt: string
         cwd: string
+        claudePath?: string
         permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
         planMode?: boolean
         model?: string
@@ -483,7 +488,7 @@ app.whenReady().then(() => {
         activeProcesses.delete(sessionId)
       }
 
-      const claudeBin = resolveClaude()
+      const claudeBin = resolveClaude(claudePath)
       const args: string[] = ['--output-format', 'stream-json', '--verbose', '-p', prompt]
 
       if (sessionId) args.unshift('--resume', sessionId)
@@ -561,7 +566,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-function resolveClaude(): string {
+function resolveClaude(overridePath?: string): string {
+  if (overridePath && existsSync(overridePath)) return overridePath
   const candidates = [
     '/usr/local/bin/claude',
     '/usr/bin/claude',
@@ -574,6 +580,31 @@ function resolveClaude(): string {
   for (const dir of pathDirs) candidates.push(join(dir, 'claude'))
   for (const c of candidates) if (existsSync(c)) return c
   return 'claude'
+}
+
+function detectClaudeInstallation(overridePath?: string): { installed: boolean; path: string | null; version: string | null } {
+  const candidate = resolveClaude(overridePath)
+  const result = spawnSync(candidate, ['--version'], {
+    encoding: 'utf-8',
+    timeout: 3000,
+    env: process.env,
+  })
+
+  if (result.error || result.status !== 0) {
+    return {
+      installed: false,
+      path: candidate !== 'claude' ? candidate : null,
+      version: null,
+    }
+  }
+
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.trim()
+  const version = output.split('\n').find((line) => line.trim().length > 0) ?? null
+  return {
+    installed: true,
+    path: candidate,
+    version,
+  }
 }
 
 type Sender = Electron.WebContents

@@ -103,7 +103,7 @@ export function SettingsPanel({
 }
 
 function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
-  const { sidebarMode, shortcutConfig, setShortcut } = useSessionsStore()
+  const { sidebarMode, claudeBinaryPath, setClaudeBinaryPath, shortcutConfig, setShortcut } = useSessionsStore()
   const currentPlatform = getCurrentPlatform()
   const platformLabel = currentPlatform === 'mac' ? 'macOS' : 'Windows'
   const [recordingAction, setRecordingAction] = useState<ShortcutAction | null>(null)
@@ -146,6 +146,21 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
             )
           })}
         </div>
+      </div>
+
+      <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
+        <p className="text-sm font-semibold text-claude-text">Claude Code 실행 파일</p>
+        <p className="text-xs text-claude-muted mt-1 leading-relaxed">
+          직접 지정하면 해당 경로를 우선 사용합니다. 비워두면 앱이 기본 경로에서 자동으로 찾습니다.
+        </p>
+
+        <input
+          value={claudeBinaryPath}
+          onChange={(e) => setClaudeBinaryPath(e.target.value)}
+          placeholder={currentPlatform === 'mac' ? '/opt/homebrew/bin/claude' : 'C:\\path\\to\\claude.exe'}
+          className="mt-4 w-full rounded-lg border border-claude-border bg-white px-3 py-2 text-sm font-mono focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20"
+          spellCheck={false}
+        />
       </div>
 
       <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
@@ -1351,32 +1366,35 @@ function AgentTab() {
 // ─── Env Tab ───────────────────────────────────────────────────────────────────
 
 function EnvTab() {
-  const { envVars, setEnvVar, removeEnvVar } = useSessionsStore()
-  const [newKey, setNewKey] = useState('')
-  const [newValue, setNewValue] = useState('')
-  const [editingKey, setEditingKey] = useState<string | null>(null)
-  const [editingValue, setEditingValue] = useState('')
-  const keyInputRef = useRef<HTMLInputElement>(null)
+  const { envVars, removeEnvVar, setEnvVar } = useSessionsStore()
+  const [jsonText, setJsonText] = useState(() => JSON.stringify(envVars, null, 2))
+  const [error, setError] = useState('')
+  const [editing, setEditing] = useState(false)
 
-  const handleAdd = () => {
-    const k = newKey.trim()
-    const v = newValue.trim()
-    if (!k) return
-    setEnvVar(k, v)
-    setNewKey('')
-    setNewValue('')
-    keyInputRef.current?.focus()
-  }
+  useEffect(() => {
+    setJsonText(JSON.stringify(envVars, null, 2))
+  }, [envVars])
 
-  const handleEditSave = (originalKey: string) => {
-    if (!editingKey) return
-    const newK = editingKey.trim()
-    if (!newK) return
-    if (newK !== originalKey) {
-      removeEnvVar(originalKey)
+  const handleSave = () => {
+    try {
+      const parsed = JSON.parse(jsonText) as unknown
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        setError('최상위는 JSON 객체여야 합니다.')
+        return
+      }
+
+      const next = parsed as Record<string, unknown>
+      for (const key of Object.keys(envVars)) {
+        if (!(key in next)) removeEnvVar(key)
+      }
+      for (const [key, value] of Object.entries(next)) {
+        setEnvVar(key, value == null ? '' : String(value))
+      }
+      setError('')
+      setEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'JSON 파싱 실패')
     }
-    setEnvVar(newK, editingValue)
-    setEditingKey(null)
   }
 
   const entries = Object.entries(envVars)
@@ -1386,106 +1404,75 @@ function EnvTab() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
         <p className="text-xs font-semibold text-amber-700 mb-1">환경변수</p>
         <p className="text-xs text-amber-600 leading-relaxed">
-          Claude Code 실행 시 함께 전달되는 환경변수입니다. API 키, 엔드포인트 등을 설정할 수 있습니다.
+          Claude Code 실행 시 함께 전달되는 환경변수입니다. 기본은 키/값 목록으로 보이고, 수정 시 JSON 객체로 편집합니다.
         </p>
       </div>
 
-      {/* 추가 입력 */}
-      <div className="flex gap-2 mb-4">
-        <input
-          ref={keyInputRef}
-          value={newKey}
-          onChange={(e) => setNewKey(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder="KEY"
-          className="flex-1 min-w-0 text-xs font-mono px-3 py-2 border border-claude-border rounded-lg bg-claude-bg focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20 placeholder-claude-muted"
-        />
-        <input
-          value={newValue}
-          onChange={(e) => setNewValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder="VALUE"
-          className="flex-1 min-w-0 text-xs font-mono px-3 py-2 border border-claude-border rounded-lg bg-claude-bg focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20 placeholder-claude-muted"
-        />
-        <button
-          onClick={handleAdd}
-          disabled={!newKey.trim()}
-          className="flex-shrink-0 px-3 py-2 bg-claude-orange hover:bg-claude-orange/90 disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-colors"
-        >
-          추가
-        </button>
-      </div>
+      <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-claude-text">{editing ? 'JSON 입력' : '환경변수 목록'}</p>
+          <div className="flex items-center gap-2">
+            {editing ? (
+              <>
+                <button
+                  onClick={handleSave}
+                  className="px-3 py-1.5 bg-claude-orange hover:bg-claude-orange/90 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => {
+                    setJsonText(JSON.stringify(envVars, null, 2))
+                    setError('')
+                    setEditing(false)
+                  }}
+                  className="px-3 py-1.5 border border-claude-border text-claude-muted text-xs rounded-lg hover:text-claude-text transition-colors"
+                >
+                  취소
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setJsonText(JSON.stringify(envVars, null, 2))
+                  setError('')
+                  setEditing(true)
+                }}
+                className="px-3 py-1.5 border border-claude-border bg-white text-claude-muted text-xs rounded-lg hover:text-claude-text transition-colors"
+              >
+                수정
+              </button>
+            )}
+          </div>
+        </div>
 
-      {/* 목록 */}
-      {entries.length === 0 ? (
-        <div className="text-center py-8 text-claude-muted">
-          <p className="text-2xl mb-2">📭</p>
-          <p className="text-xs">설정된 환경변수가 없습니다.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {entries.map(([key, value]) => (
-            <div key={key} className="border border-claude-border rounded-xl bg-claude-bg overflow-hidden">
-              {editingKey === key ? (
-                <div className="flex gap-2 p-2">
-                  <input
-                    value={editingKey}
-                    onChange={(e) => setEditingKey(e.target.value)}
-                    className="flex-1 min-w-0 text-xs font-mono px-2 py-1.5 border border-claude-border rounded-lg bg-white focus:outline-none focus:border-claude-orange/60"
-                    autoFocus
-                  />
-                  <input
-                    value={editingValue}
-                    onChange={(e) => setEditingValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleEditSave(key)}
-                    className="flex-1 min-w-0 text-xs font-mono px-2 py-1.5 border border-claude-border rounded-lg bg-white focus:outline-none focus:border-claude-orange/60"
-                  />
-                  <button
-                    onClick={() => handleEditSave(key)}
-                    className="flex-shrink-0 px-2.5 py-1.5 bg-claude-orange text-white text-xs rounded-lg hover:bg-claude-orange/90"
-                  >
-                    저장
-                  </button>
-                  <button
-                    onClick={() => setEditingKey(null)}
-                    className="flex-shrink-0 px-2.5 py-1.5 bg-claude-bg border border-claude-border text-claude-muted text-xs rounded-lg hover:text-claude-text"
-                  >
-                    취소
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-2.5 group">
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <span className="text-xs font-mono font-semibold text-claude-text truncate">{key}</span>
-                    <span className="text-claude-muted text-xs">=</span>
-                    <span className="text-xs font-mono text-claude-muted truncate">{value || <em className="opacity-50">빈 값</em>}</span>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <button
-                      onClick={() => { setEditingKey(key); setEditingValue(value) }}
-                      className="p-1 rounded text-claude-muted hover:text-claude-text hover:bg-white transition-colors"
-                      title="편집"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => removeEnvVar(key)}
-                      className="p-1 rounded text-claude-muted hover:text-red-500 hover:bg-white transition-colors"
-                      title="삭제"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+        {editing ? (
+          <>
+            <textarea
+              value={jsonText}
+              onChange={(e) => setJsonText(e.target.value)}
+              placeholder={'{\n  "ANTHROPIC_API_KEY": "your-key",\n  "ANTHROPIC_BASE_URL": "https://api.example.com"\n}'}
+              className="w-full h-72 text-xs font-mono px-3 py-2 border border-claude-border rounded-lg bg-white resize-y focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20 leading-relaxed"
+              spellCheck={false}
+            />
+            {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+          </>
+        ) : entries.length === 0 ? (
+          <div className="text-center py-10 text-claude-muted">
+            <p className="text-xs">설정된 환경변수가 없습니다.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {entries.map(([key, value]) => (
+              <div key={key} className="flex items-center gap-3 rounded-lg border border-claude-border bg-white px-3 py-2.5">
+                <span className="min-w-0 flex-1 truncate text-xs font-mono font-semibold text-claude-text">{key}</span>
+                <span className="text-xs text-claude-muted">=</span>
+                <span className="min-w-0 flex-1 truncate text-xs font-mono text-claude-muted">{value || <em className="opacity-50">빈 값</em>}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

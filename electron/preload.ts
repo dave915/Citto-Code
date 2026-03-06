@@ -34,11 +34,18 @@ export type ModelInfo = {
   family: string
 }
 
+export type ClaudeInstallationStatus = {
+  installed: boolean
+  path: string | null
+  version: string | null
+}
+
 export type ClaudeAPI = {
   sendMessage: (params: {
     sessionId: string | null
     prompt: string
     cwd: string
+    claudePath?: string
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     planMode?: boolean
     model?: string
@@ -62,6 +69,7 @@ export type ClaudeAPI = {
   writeClaudeFile: (params: { subdir: string; name: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   writeFileAbs: (params: { filePath: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
+  checkInstallation: (claudePath?: string) => Promise<ClaudeInstallationStatus>
   onClaudeEvent: (handler: (event: ClaudeStreamEvent) => void) => () => void
 }
 
@@ -85,6 +93,7 @@ const claudeAPI: ClaudeAPI = {
   writeClaudeFile: (params) => ipcRenderer.invoke('claude:write-claude-file', params),
   writeFileAbs: (params) => ipcRenderer.invoke('claude:write-file-abs', params),
   deletePath: (params) => ipcRenderer.invoke('claude:delete-path', params),
+  checkInstallation: (claudePath) => ipcRenderer.invoke('claude:check-installation', { claudePath }),
 
   onClaudeEvent: (handler) => {
     const channels = [
