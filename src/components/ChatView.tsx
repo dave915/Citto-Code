@@ -7,6 +7,14 @@ import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
 import type { DirEntry, OpenWithApp, SelectedFile } from '../../electron/preload'
 import { matchShortcut } from '../lib/shortcuts'
+import vscodeIcon from '../assets/open-with/vscode.png'
+import finderIcon from '../assets/open-with/finder.png'
+import terminalIcon from '../assets/open-with/terminal.png'
+import iterm2Icon from '../assets/open-with/iterm2.png'
+import warpIcon from '../assets/open-with/warp.png'
+import xcodeIcon from '../assets/open-with/xcode.png'
+import intellijIdeaIcon from '../assets/open-with/intellij-idea.png'
+import webstormIcon from '../assets/open-with/webstorm.png'
 
 type Props = {
   session: Session
@@ -25,6 +33,17 @@ type Props = {
 
 const INITIAL_RIGHT_PANEL_WIDTH = 320
 const INITIAL_EXPLORER_WIDTH = 240
+
+const OPEN_WITH_ICONS: Record<string, string> = {
+  vscode: vscodeIcon,
+  finder: finderIcon,
+  terminal: terminalIcon,
+  iterm2: iterm2Icon,
+  warp: warpIcon,
+  xcode: xcodeIcon,
+  'intellij-idea': intellijIdeaIcon,
+  webstorm: webstormIcon,
+}
 
 export function ChatView({
   session, onSend, onAbort, sidebarCollapsed, onToggleSidebar,
@@ -652,6 +671,10 @@ function OpenWithAppIcon({
 }) {
   if (app?.iconDataUrl) {
     return <img src={app.iconDataUrl} alt="" className={`${className} rounded-md object-contain`} />
+  }
+
+  if (app && OPEN_WITH_ICONS[app.id]) {
+    return <img src={OPEN_WITH_ICONS[app.id]} alt="" className={`${className} rounded-md object-contain`} />
   }
 
   if (app?.iconPath) {
