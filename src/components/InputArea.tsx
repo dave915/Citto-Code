@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { SelectedFile, ModelInfo, FileEntry } from '../../electron/preload'
 import type { PermissionMode } from '../store/sessions'
+import { matchShortcut } from '../lib/shortcuts'
 
 type SlashCommand = {
   name: string
@@ -49,6 +50,8 @@ type Props = {
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
+  permissionShortcutLabel: string
+  bypassShortcutLabel: string
 }
 
 const PERMISSION_OPTIONS: { value: PermissionMode; label: string; title: string }[] = [
@@ -61,6 +64,33 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
+function cycleClaudeCodeMode(
+  permissionMode: PermissionMode,
+  planMode: boolean,
+  onPermissionModeChange: (mode: PermissionMode) => void,
+  onPlanModeChange: (value: boolean) => void,
+) {
+  if (planMode) {
+    onPlanModeChange(false)
+    onPermissionModeChange('default')
+    return
+  }
+
+  if (permissionMode === 'default') {
+    onPermissionModeChange('acceptEdits')
+    return
+  }
+
+  if (permissionMode === 'acceptEdits') {
+    onPermissionModeChange('default')
+    onPlanModeChange(true)
+    return
+  }
+
+  onPermissionModeChange('default')
+  onPlanModeChange(false)
 }
 
 function ModelPicker({
@@ -192,6 +222,7 @@ export function InputArea({
   cwd, promptHistory, onSend, onAbort, isStreaming, disabled,
   permissionMode, planMode, model,
   onPermissionModeChange, onPlanModeChange, onModelChange,
+  permissionShortcutLabel, bypassShortcutLabel,
 }: Props) {
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<SelectedFile[]>([])
@@ -226,6 +257,28 @@ export function InputArea({
       })
       .catch(() => setSlashCommands(BUILTIN_SLASH_COMMANDS))
   }, [])
+
+  useEffect(() => {
+    const onKeyDownCapture = (event: KeyboardEvent) => {
+      if (matchShortcut(event, permissionShortcutLabel)) {
+        event.preventDefault()
+        event.stopPropagation()
+        cycleClaudeCodeMode(permissionMode, planMode, onPermissionModeChange, onPlanModeChange)
+        return
+      }
+
+      if (bypassShortcutLabel && matchShortcut(event, bypassShortcutLabel)) {
+        event.preventDefault()
+        event.stopPropagation()
+        if (!planMode) {
+          onPermissionModeChange(permissionMode === 'bypassPermissions' ? 'default' : 'bypassPermissions')
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDownCapture, true)
+    return () => window.removeEventListener('keydown', onKeyDownCapture, true)
+  }, [permissionMode, permissionShortcutLabel, planMode, bypassShortcutLabel, onPermissionModeChange, onPlanModeChange])
 
   const closeAtMention = useCallback(() => {
     setAtMention(null)
@@ -670,14 +723,14 @@ export function InputArea({
 
           {/* 편집 권한 */}
           <div className="flex items-center gap-0.5 flex-shrink-0">
-            {PERMISSION_OPTIONS.map((opt) => {
-              const isActive = permissionMode === opt.value
+            {PERMISSION_OPTIONS.filter((opt) => opt.value !== 'bypassPermissions').map((opt) => {
+              const isActive = !planMode && permissionMode === opt.value
               return (
                 <button
                   key={opt.value}
                   onClick={() => onPermissionModeChange(opt.value)}
                   disabled={isStreaming}
-                  title={opt.title}
+                  title={`${opt.title}${permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''}`}
                   className={`px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 ${
                     isActive
                       ? 'bg-white text-claude-text shadow-sm border border-claude-border'
@@ -688,27 +741,45 @@ export function InputArea({
                 </button>
               )
             })}
+            <button
+              onClick={() => {
+                const nextPlanMode = !planMode
+                onPlanModeChange(nextPlanMode)
+                if (nextPlanMode) onPermissionModeChange('default')
+              }}
+              disabled={isStreaming}
+              title={
+                `${planMode ? '플랜 모드 OFF' : '플랜 모드 ON: 읽기·분석만'}${
+                  permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''
+                }`
+              }
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 flex-shrink-0 ${
+                planMode
+                  ? 'bg-white text-claude-text shadow-sm border border-claude-border'
+                  : 'text-claude-muted hover:text-claude-text hover:bg-white/60'
+              }`}
+            >
+              <span>📋</span>
+              <span>플랜 모드</span>
+            </button>
+
+            <button
+              onClick={() => onPermissionModeChange('bypassPermissions')}
+              disabled={isStreaming || planMode}
+              title={
+                planMode
+                  ? '플랜 모드에서는 전체허용을 사용할 수 없음'
+                  : `${PERMISSION_OPTIONS.find((opt) => opt.value === 'bypassPermissions')?.title ?? '전체허용'}${bypassShortcutLabel ? ` (${bypassShortcutLabel})` : ''}`
+              }
+              className={`px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 ${
+                permissionMode === 'bypassPermissions'
+                  ? 'bg-white text-claude-text shadow-sm border border-claude-border'
+                  : 'text-claude-muted hover:text-claude-text hover:bg-white/60'
+              }`}
+            >
+              {PERMISSION_OPTIONS.find((opt) => opt.value === 'bypassPermissions')?.label ?? '⚡ 전체허용'}
+            </button>
           </div>
-
-          <div className="w-px h-4 bg-claude-border flex-shrink-0" />
-
-          {/* 플랜 모드 */}
-          <button
-            onClick={() => onPlanModeChange(!planMode)}
-            disabled={isStreaming}
-            title={planMode ? '플랜 모드 OFF' : '플랜 모드 ON: 읽기·분석만'}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 flex-shrink-0 ${
-              planMode
-                ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                : 'text-claude-muted hover:text-claude-text hover:bg-white/60'
-            }`}
-          >
-            <span>📋</span>
-            <span>플랜 모드</span>
-            <span className={`w-3 h-3 rounded-full border transition-colors ${
-              planMode ? 'bg-blue-500 border-blue-400' : 'bg-transparent border-claude-muted'
-            }`} />
-          </button>
 
           <div className="flex-1" />
 

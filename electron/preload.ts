@@ -40,6 +40,11 @@ export type ClaudeInstallationStatus = {
   version: string | null
 }
 
+export type OpenWithApp = {
+  id: string
+  label: string
+}
+
 export type ClaudeAPI = {
   sendMessage: (params: {
     sessionId: string | null
@@ -55,6 +60,8 @@ export type ClaudeAPI = {
   selectFolder: () => Promise<string | null>
   selectFiles: () => Promise<SelectedFile[]>
   openFile: (filePath: string) => Promise<void>
+  listOpenWithApps: () => Promise<OpenWithApp[]>
+  openPathWithApp: (params: { targetPath: string; appId: string }) => Promise<{ ok: boolean; error?: string }>
   getModels: () => Promise<ModelInfo[]>
   listFiles: (cwd: string, query: string) => Promise<FileEntry[]>
   listCurrentDir: (path: string) => Promise<DirEntry[]>
@@ -79,6 +86,8 @@ const claudeAPI: ClaudeAPI = {
   selectFolder: () => ipcRenderer.invoke('claude:select-folder'),
   selectFiles: () => ipcRenderer.invoke('claude:select-files'),
   openFile: (filePath) => ipcRenderer.invoke('claude:open-file', filePath),
+  listOpenWithApps: () => ipcRenderer.invoke('claude:list-open-with-apps'),
+  openPathWithApp: (params) => ipcRenderer.invoke('claude:open-path-with-app', params),
   getModels: () => ipcRenderer.invoke('claude:get-models'),
   listFiles: (cwd, query) => ipcRenderer.invoke('claude:list-files', { cwd, query }),
   listCurrentDir: (path) => ipcRenderer.invoke('claude:list-current-dir', { path }),

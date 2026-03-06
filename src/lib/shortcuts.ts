@@ -20,6 +20,8 @@ export const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
   toggleSessionInfo: '세션 정보 열기/닫기',
   newSession: '새 세션 / 프로젝트 추가',
   openSettings: '설정 열기',
+  cyclePermissionMode: '권한 모드 변경',
+  toggleBypassPermissions: '전체허용 켜기/끄기',
 }
 
 export function getCurrentPlatform(): ShortcutPlatform {
@@ -27,15 +29,17 @@ export function getCurrentPlatform(): ShortcutPlatform {
   return /mac/i.test(navigator.platform) ? 'mac' : 'windows'
 }
 
-export function getShortcutForPlatform(binding: ShortcutBinding, platform: ShortcutPlatform): string {
-  return binding[platform]
+export function getShortcutForPlatform(binding: ShortcutBinding | undefined, platform: ShortcutPlatform): string {
+  return binding?.[platform] ?? ''
 }
 
 export function getShortcutLabel(config: ShortcutConfig, action: ShortcutAction, platform = getCurrentPlatform()): string {
-  return getShortcutForPlatform(config[action] ?? DEFAULT_SHORTCUT_CONFIG[action], platform)
+  const binding = config[action]
+  const fallbackBinding = DEFAULT_SHORTCUT_CONFIG[action]
+  return binding?.[platform] ?? fallbackBinding?.[platform] ?? ''
 }
 
-export function matchShortcut(event: KeyboardEvent, shortcut: string): boolean {
+export function matchShortcut(event: KeyboardEvent, shortcut: string | undefined): boolean {
   const parsed = parseShortcut(shortcut)
   if (!parsed) return false
 
@@ -49,9 +53,9 @@ export function matchShortcut(event: KeyboardEvent, shortcut: string): boolean {
   )
 }
 
-export function normalizeShortcutInput(value: string): string {
+export function normalizeShortcutInput(value: string | undefined): string {
   const parsed = parseShortcut(value)
-  if (!parsed) return value.trim()
+  if (!parsed) return value?.trim() ?? ''
 
   const parts: string[] = []
   if (parsed.meta) parts.push('Cmd')
@@ -76,7 +80,8 @@ export function shortcutFromKeyboardEvent(event: KeyboardEvent, platform: Shortc
   return parts.join('+')
 }
 
-function parseShortcut(shortcut: string): ParsedShortcut | null {
+function parseShortcut(shortcut: string | undefined): ParsedShortcut | null {
+  if (!shortcut) return null
   const tokens = shortcut
     .split('+')
     .map((token) => token.trim())

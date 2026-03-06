@@ -19,12 +19,32 @@ export type ModelInfo = {
   family: string        // e.g. "sonnet"
 }
 
+type OpenWithApp = {
+  id: string
+  label: string
+}
+
+type MacOpenWithApp = OpenWithApp & {
+  bundleIds: string[]
+}
+
 const FALLBACK_MODELS: ModelInfo[] = [
   { id: 'claude-opus-4-6',    displayName: 'Opus 4.6',    family: 'opus' },
   { id: 'claude-sonnet-4-6',  displayName: 'Sonnet 4.6',  family: 'sonnet' },
   { id: 'claude-opus-4-5',    displayName: 'Opus 4.5',    family: 'opus' },
   { id: 'claude-sonnet-4-5',  displayName: 'Sonnet 4.5',  family: 'sonnet' },
   { id: 'claude-haiku-4-5',   displayName: 'Haiku 4.5',   family: 'haiku' },
+]
+
+const MAC_OPEN_WITH_APPS: MacOpenWithApp[] = [
+  { id: 'vscode', label: 'VS Code', bundleIds: ['com.microsoft.VSCode'] },
+  { id: 'finder', label: 'Finder', bundleIds: ['com.apple.finder'] },
+  { id: 'terminal', label: 'Terminal', bundleIds: ['com.apple.Terminal'] },
+  { id: 'iterm2', label: 'iTerm2', bundleIds: ['com.googlecode.iterm2'] },
+  { id: 'warp', label: 'Warp', bundleIds: ['dev.warp.Warp-Stable', 'dev.warp.Warp'] },
+  { id: 'xcode', label: 'Xcode', bundleIds: ['com.apple.dt.Xcode'] },
+  { id: 'intellij-idea', label: 'IntelliJ IDEA', bundleIds: ['com.jetbrains.intellij'] },
+  { id: 'webstorm', label: 'WebStorm', bundleIds: ['com.jetbrains.WebStorm'] },
 ]
 
 function modelDisplayName(id: string): string {
@@ -34,6 +54,59 @@ function modelDisplayName(id: string): string {
   const [, fam, major, minor] = m
   const name = fam.charAt(0).toUpperCase() + fam.slice(1)
   return minor ? `${name} ${major}.${minor}` : `${name} ${major}`
+}
+
+function resolveTargetPath(targetPath: string): string {
+  return targetPath === '~' ? (process.env.HOME ?? '') : targetPath
+}
+
+function isBundleInstalled(bundleId: string): boolean {
+  try {
+    const result = spawnSync('mdfind', [`kMDItemCFBundleIdentifier == "${bundleId}"`], {
+      encoding: 'utf-8',
+      timeout: 2000,
+    })
+    return result.status === 0 && result.stdout.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+function listOpenWithApps(): OpenWithApp[] {
+  if (process.platform !== 'darwin') return []
+
+  return MAC_OPEN_WITH_APPS
+    .filter((app) => app.bundleIds.some(isBundleInstalled))
+    .map(({ id, label }) => ({ id, label }))
+}
+
+function openPathWithApp(targetPath: string, appId: string): { ok: boolean; error?: string } {
+  const resolvedPath = resolveTargetPath(targetPath)
+  if (!resolvedPath) return { ok: false, error: '열 경로를 찾지 못했습니다.' }
+
+  if (appId === 'default' || process.platform !== 'darwin') {
+    const error = shell.openPath(resolvedPath)
+    return error ? { ok: false, error } : { ok: true }
+  }
+
+  const app = MAC_OPEN_WITH_APPS.find((candidate) => candidate.id === appId)
+  if (!app) return { ok: false, error: '지원하지 않는 앱입니다.' }
+
+  const bundleId = app.bundleIds.find(isBundleInstalled)
+  if (!bundleId) return { ok: false, error: `${app.label} 앱을 찾지 못했습니다.` }
+
+  try {
+    const result = spawnSync('open', ['-b', bundleId, resolvedPath], {
+      encoding: 'utf-8',
+      timeout: 5000,
+    })
+    if (result.status !== 0) {
+      return { ok: false, error: result.stderr.trim() || `${app.label}에서 열지 못했습니다.` }
+    }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: String(error) }
+  }
 }
 
 async function getApiConfig(): Promise<{ apiKey: string; baseUrl: string }> {
@@ -199,6 +272,14 @@ app.whenReady().then(() => {
   // ── 파일 외부 에디터로 열기 ──────────────────────────────────
   ipcMain.handle('claude:open-file', async (_event, filePath: string) => {
     await shell.openPath(filePath)
+  })
+
+  ipcMain.handle('claude:list-open-with-apps', () => {
+    return listOpenWithApps()
+  })
+
+  ipcMain.handle('claude:open-path-with-app', (_event, { targetPath, appId }: { targetPath: string; appId: string }) => {
+    return openPathWithApp(targetPath, appId)
   })
 
   // ── @ 파일 참조: 파일 목록 조회 ──────────────────────────────

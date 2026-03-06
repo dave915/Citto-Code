@@ -7,6 +7,33 @@ import type { ClaudeInstallationStatus, ClaudeStreamEvent, SelectedFile } from '
 import type { PermissionMode } from './store/sessions'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 
+function cycleClaudeCodeMode(
+  permissionMode: PermissionMode,
+  planMode: boolean,
+  onPermissionModeChange: (mode: PermissionMode) => void,
+  onPlanModeChange: (value: boolean) => void,
+) {
+  if (planMode) {
+    onPlanModeChange(false)
+    onPermissionModeChange('default')
+    return
+  }
+
+  if (permissionMode === 'default') {
+    onPermissionModeChange('acceptEdits')
+    return
+  }
+
+  if (permissionMode === 'acceptEdits') {
+    onPermissionModeChange('default')
+    onPlanModeChange(true)
+    return
+  }
+
+  onPermissionModeChange('default')
+  onPlanModeChange(false)
+}
+
 export default function App() {
   const expandedSidebarWidthRef = useRef(240)
   const {
@@ -85,12 +112,36 @@ export default function App() {
       if (matchShortcut(event, shortcutConfig.newSession[shortcutPlatform])) {
         event.preventDefault()
         void handleNewSession()
+        return
+      }
+
+      if (!activeSession) return
+
+      if (matchShortcut(event, shortcutConfig.cyclePermissionMode[shortcutPlatform])) {
+        event.preventDefault()
+        cycleClaudeCodeMode(
+          activeSession.permissionMode,
+          activeSession.planMode,
+          (mode) => setPermissionMode(activeSession.id, mode),
+          (value) => setPlanMode(activeSession.id, value),
+        )
+        return
+      }
+
+      if (matchShortcut(event, shortcutConfig.toggleBypassPermissions[shortcutPlatform])) {
+        event.preventDefault()
+        if (!activeSession.planMode) {
+          setPermissionMode(
+            activeSession.id,
+            activeSession.permissionMode === 'bypassPermissions' ? 'default' : 'bypassPermissions'
+          )
+        }
       }
     }
 
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [shortcutConfig, shortcutPlatform, sidebarCollapsed, sidebarWidth])
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [shortcutConfig, shortcutPlatform, activeSession, setPermissionMode, setPlanMode])
 
   const handleSidebarResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (sidebarCollapsed) return
@@ -325,6 +376,8 @@ export default function App() {
               onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSession.id, mode)}
               onPlanModeChange={(val: boolean) => setPlanMode(activeSession.id, val)}
               onModelChange={(model) => setModel(activeSession.id, model)}
+              permissionShortcutLabel={getShortcutLabel(shortcutConfig, 'cyclePermissionMode', shortcutPlatform)}
+              bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
             />
           ) : (
             <EmptyMainState onNewSession={handleNewSession} />

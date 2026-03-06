@@ -214,17 +214,22 @@ export function Sidebar({
     if (sidebarMode !== 'project') return
     setCollapsedProjects((prev) => {
       const next = { ...prev }
+      let changed = false
       for (const group of projectGroups) {
         if (!(group.cwd in next)) {
           next[group.cwd] = false
+          changed = true
         }
       }
       for (const key of Object.keys(next)) {
-        if (!projectGroups.some((group) => group.cwd === key)) delete next[key]
+        if (!projectGroups.some((group) => group.cwd === key)) {
+          delete next[key]
+          changed = true
+        }
       }
-      return next
+      return changed ? next : prev
     })
-  }, [sidebarMode, projectGroups, activeSessionId])
+  }, [sidebarMode, projectGroups])
 
   return (
     <aside className="w-full flex-shrink-0 bg-claude-sidebar flex flex-col h-full select-none">

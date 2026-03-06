@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import type { Session, PermissionMode } from '../store/sessions'
 import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
-import type { DirEntry, SelectedFile } from '../../electron/preload'
+import type { DirEntry, OpenWithApp, SelectedFile } from '../../electron/preload'
 import { matchShortcut } from '../lib/shortcuts'
 
 type Props = {
@@ -32,6 +32,7 @@ export function ChatView({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const openWithMenuRef = useRef<HTMLDivElement>(null)
   const lastMsg = session.messages[session.messages.length - 1]
   const [rightPanel, setRightPanel] = useState<'none' | 'files' | 'session'>('none')
   const [rootEntries, setRootEntries] = useState<DirEntry[]>([])
@@ -44,10 +45,14 @@ export function ChatView({
   const [filePanelWidth, setFilePanelWidth] = useState(INITIAL_RIGHT_PANEL_WIDTH)
   const [explorerWidth, setExplorerWidth] = useState(INITIAL_EXPLORER_WIDTH)
   const [markdownPreviewEnabled, setMarkdownPreviewEnabled] = useState(true)
+  const [openWithMenuOpen, setOpenWithMenuOpen] = useState(false)
+  const [openWithApps, setOpenWithApps] = useState<OpenWithApp[]>([])
+  const [openWithLoading, setOpenWithLoading] = useState(false)
   const isNewSession = session.messages.length === 0
   const showPreviewPane = selectedEntry !== null
   const filePanelOpen = rightPanel === 'files'
   const sessionPanelOpen = rightPanel === 'session'
+  const openTargetPath = session.cwd || '~'
   const promptHistory = session.messages
     .filter((message) => message.role === 'user' && message.text.trim().length > 0)
     .map((message) => message.text)
@@ -97,6 +102,36 @@ export function ChatView({
     if (!sessionPanelOpen) return
     setFilePanelWidth(INITIAL_EXPLORER_WIDTH)
   }, [sessionPanelOpen])
+
+  useEffect(() => {
+    if (!openWithMenuOpen) return
+
+    let cancelled = false
+    setOpenWithLoading(true)
+
+    window.claude.listOpenWithApps()
+      .then((apps) => {
+        if (!cancelled) setOpenWithApps(apps)
+      })
+      .catch(() => {
+        if (!cancelled) setOpenWithApps([])
+      })
+      .finally(() => {
+        if (!cancelled) setOpenWithLoading(false)
+      })
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (openWithMenuRef.current && event.target instanceof Node && !openWithMenuRef.current.contains(event.target)) {
+        setOpenWithMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handleMouseDown)
+    return () => {
+      cancelled = true
+      window.removeEventListener('mousedown', handleMouseDown)
+    }
+  }, [openWithMenuOpen])
 
   useEffect(() => {
     if (!filePanelOpen) return
@@ -227,6 +262,14 @@ export function ChatView({
     window.addEventListener('mouseup', onMouseUp)
   }
 
+  const handleOpenWith = async (appId: string) => {
+    const result = await window.claude.openPathWithApp({ targetPath: openTargetPath, appId })
+    setOpenWithMenuOpen(false)
+    if (!result.ok) {
+      window.alert(result.error ?? '앱에서 열지 못했습니다.')
+    }
+  }
+
   return (
     <div ref={containerRef} className="flex h-full bg-claude-bg">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -258,6 +301,56 @@ export function ChatView({
           </div>
 
           <div className="flex items-center gap-2">
+            <div ref={openWithMenuRef} className="relative">
+              <button
+                onClick={() => setOpenWithMenuOpen((open) => !open)}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  openWithMenuOpen
+                    ? 'border-claude-border bg-claude-bg text-claude-text'
+                    : 'border-claude-border/80 text-claude-text hover:bg-claude-bg'
+                }`}
+                title="다음에서 열기"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h9v9" />
+                </svg>
+                <span>열기</span>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              {openWithMenuOpen && (
+                <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-claude-border bg-white p-2 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
+                  <p className="px-3 pb-2 pt-1 text-xs font-semibold text-claude-muted">다음에서 열기</p>
+                  {openWithLoading ? (
+                    <div className="flex items-center justify-center px-3 py-8 text-claude-muted">
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                      </svg>
+                    </div>
+                  ) : openWithApps.length === 0 ? (
+                    <div className="px-3 py-6 text-sm text-claude-muted">표시할 앱이 없습니다.</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {openWithApps.map((app) => (
+                        <button
+                          key={app.id}
+                          onClick={() => void handleOpenWith(app.id)}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-bg"
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-claude-bg text-[11px] font-semibold uppercase text-claude-muted">
+                            {openWithMonogram(app.label)}
+                          </span>
+                          <span>{app.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <button
             onClick={() => setRightPanel((open) => open === 'session' ? 'none' : 'session')}
             className={`flex items-center justify-center px-2 py-1.5 rounded-lg text-xs transition-colors ${
@@ -501,6 +594,11 @@ function SessionInfoPanel({
       </div>
     </div>
   )
+}
+
+function openWithMonogram(label: string): string {
+  const compact = label.replace(/[^a-z0-9]/gi, '')
+  return compact.slice(0, 2) || label.slice(0, 2)
 }
 
 function InfoRow({

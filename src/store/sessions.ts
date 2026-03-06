@@ -34,7 +34,14 @@ export type Message = {
 // 편집 권한 모드
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 export type SidebarMode = 'session' | 'project'
-export type ShortcutAction = 'toggleSidebar' | 'toggleFiles' | 'toggleSessionInfo' | 'newSession' | 'openSettings'
+export type ShortcutAction =
+  | 'toggleSidebar'
+  | 'toggleFiles'
+  | 'toggleSessionInfo'
+  | 'newSession'
+  | 'openSettings'
+  | 'cyclePermissionMode'
+  | 'toggleBypassPermissions'
 export type ShortcutPlatform = 'mac' | 'windows'
 export type ShortcutBinding = {
   mac: string
@@ -95,6 +102,8 @@ export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
   toggleSessionInfo: { mac: 'Cmd+I', windows: 'Ctrl+I' },
   newSession: { mac: 'Cmd+N', windows: 'Ctrl+N' },
   openSettings: { mac: 'Cmd+,', windows: 'Ctrl+,' },
+  cyclePermissionMode: { mac: 'Shift+Tab', windows: 'Shift+Tab' },
+  toggleBypassPermissions: { mac: '', windows: '' },
 }
 
 function makeDefaultSession(cwd: string, name: string): Session {

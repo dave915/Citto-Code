@@ -169,7 +169,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
             <p className="text-sm font-semibold text-claude-text">단축키</p>
             <p className="text-xs text-claude-muted mt-1 leading-relaxed">
               현재 사용 중인 플랫폼인 <span className="font-medium text-claude-text">{platformLabel}</span> 단축키만 표시합니다.
-              입력칸을 선택한 뒤 원하는 키 조합을 직접 누르세요.
+              입력칸을 선택한 뒤 원하는 키 조합을 직접 누르세요. 권한 모드 변경은 기본값을 Claude Code와 동일한 <span className="font-medium text-claude-text">Shift+Tab</span>으로 맞췄습니다.
             </p>
           </div>
         </div>
