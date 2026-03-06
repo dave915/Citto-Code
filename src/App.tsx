@@ -343,6 +343,7 @@ export default function App() {
           sidebarMode={sidebarMode}
           onSelectSession={handleSelectSession}
           onRenameSession={(id, name) => updateSession(id, () => ({ name }))}
+          onToggleFavorite={(id) => updateSession(id, (session) => ({ favorite: !session.favorite }))}
           onNewSession={handleNewSession}
           onRemoveSession={removeSession}
           onSelectFolder={(sid) => handleSelectFolder(sid)}

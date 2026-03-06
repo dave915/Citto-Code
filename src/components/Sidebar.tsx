@@ -9,6 +9,7 @@ type Props = {
   settingsShortcutLabel: string
   onSelectSession: (id: string) => void
   onRenameSession: (id: string, name: string) => void
+  onToggleFavorite: (id: string) => void
   onNewSession: (cwd?: string) => void
   onRemoveSession: (id: string) => void
   onSelectFolder: (sessionId: string) => void
@@ -53,6 +54,13 @@ function groupSessionsByProject(sessions: Session[]): SessionGroup[] {
   return Array.from(groups.values())
 }
 
+function sortSessions(sessions: Session[]): Session[] {
+  return [...sessions].sort((a, b) => {
+    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1
+    return 0
+  })
+}
+
 type SessionRowProps = {
   session: Session
   activeSessionId: string | null
@@ -62,8 +70,8 @@ type SessionRowProps = {
   showProjectLabel: boolean
   onSelectSession: (id: string) => void
   onRenameSession: (id: string, name: string) => void
+  onToggleFavorite: (id: string) => void
   onRemoveSession: (id: string) => void
-  onSelectFolder: (sessionId: string) => void
   setEditingSessionId: (id: string | null) => void
   setEditingName: (name: string) => void
 }
@@ -77,8 +85,8 @@ function SessionRow({
   showProjectLabel,
   onSelectSession,
   onRenameSession,
+  onToggleFavorite,
   onRemoveSession,
-  onSelectFolder,
   setEditingSessionId,
   setEditingName,
 }: SessionRowProps) {
@@ -155,12 +163,12 @@ function SessionRow({
       {!isEditing && (
         <div className="flex flex-shrink-0 items-center gap-0.5 self-center">
           <button
-            onClick={(e) => { e.stopPropagation(); onSelectFolder(session.id) }}
-            className="p-1 rounded text-gray-500 hover:text-white hover:bg-white/10"
-            title="폴더 변경"
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(session.id) }}
+            className={`p-1 rounded hover:bg-white/10 ${session.favorite ? 'text-yellow-300 hover:text-yellow-200' : 'text-gray-500 hover:text-white'}`}
+            title={session.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={session.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m12 3.5 2.626 5.322 5.874.854-4.25 4.142 1.003 5.852L12 16.908 6.747 19.67l1.003-5.852L3.5 9.676l5.874-.854L12 3.5z" />
             </svg>
           </button>
 
@@ -190,6 +198,7 @@ export function Sidebar({
   settingsShortcutLabel,
   onSelectSession,
   onRenameSession,
+  onToggleFavorite,
   onNewSession,
   onRemoveSession,
   onSelectFolder,
@@ -199,7 +208,9 @@ export function Sidebar({
   const [editingName, setEditingName] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({})
   const inputRef = useRef<HTMLInputElement>(null)
-  const projectGroups = groupSessionsByProject(sessions)
+  const favoriteSessions = sortSessions(sessions.filter((session) => session.favorite))
+  const nonFavoriteSessions = sessions.filter((session) => !session.favorite)
+  const projectGroups = groupSessionsByProject(nonFavoriteSessions)
 
   useEffect(() => {
     if (!editingSessionId) return
@@ -248,6 +259,34 @@ export function Sidebar({
         </button>
       </div>
 
+      {favoriteSessions.length > 0 && (
+        <div className="px-3 mb-3">
+          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            즐겨찾기
+          </div>
+          <div className="space-y-0.5">
+            {favoriteSessions.map((session) => (
+              <SessionRow
+                key={`favorite-${session.id}`}
+                session={session}
+                activeSessionId={activeSessionId}
+                editingSessionId={editingSessionId}
+                editingName={editingName}
+                inputRef={inputRef}
+                showProjectLabel
+                onSelectSession={onSelectSession}
+                onRenameSession={onRenameSession}
+                onToggleFavorite={onToggleFavorite}
+                onRemoveSession={onRemoveSession}
+                onSelectFolder={onSelectFolder}
+                setEditingSessionId={setEditingSessionId}
+                setEditingName={setEditingName}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <nav className="flex-1 overflow-y-auto px-3 space-y-3">
         {sidebarMode === 'project' ? (
           projectGroups.map((group) => (
@@ -283,7 +322,7 @@ export function Sidebar({
               </div>
               {!collapsedProjects[group.cwd] && (
                 <div className="pl-3 space-y-0.5 border-l border-white/5 ml-3">
-                  {group.sessions.map((session) => (
+                  {sortSessions(group.sessions).map((session) => (
                     <SessionRow
                       key={session.id}
                       session={session}
@@ -294,8 +333,8 @@ export function Sidebar({
                       showProjectLabel={false}
                       onSelectSession={onSelectSession}
                       onRenameSession={onRenameSession}
+                      onToggleFavorite={onToggleFavorite}
                       onRemoveSession={onRemoveSession}
-                      onSelectFolder={onSelectFolder}
                       setEditingSessionId={setEditingSessionId}
                       setEditingName={setEditingName}
                     />
@@ -306,7 +345,7 @@ export function Sidebar({
           ))
         ) : (
           <div className="space-y-0.5">
-            {sessions.map((session) => (
+            {sortSessions(nonFavoriteSessions).map((session) => (
               <SessionRow
                 key={session.id}
                 session={session}
@@ -317,8 +356,8 @@ export function Sidebar({
                 showProjectLabel
                 onSelectSession={onSelectSession}
                 onRenameSession={onRenameSession}
+                onToggleFavorite={onToggleFavorite}
                 onRemoveSession={onRemoveSession}
-                onSelectFolder={onSelectFolder}
                 setEditingSessionId={setEditingSessionId}
                 setEditingName={setEditingName}
               />

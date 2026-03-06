@@ -53,6 +53,7 @@ export type Session = {
   id: string
   sessionId: string | null
   name: string
+  favorite: boolean
   cwd: string
   messages: Message[]
   isStreaming: boolean
@@ -113,6 +114,7 @@ function makeDefaultSession(cwd: string, name: string): Session {
     id: nanoid(),
     sessionId: null,
     name,
+    favorite: false,
     cwd,
     messages: [],
     isStreaming: false,
