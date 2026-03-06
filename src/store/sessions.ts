@@ -32,6 +32,7 @@ export type Message = {
 
 // 편집 권한 모드
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
+export type SidebarMode = 'session' | 'project'
 
 export type Session = {
   id: string
@@ -50,11 +51,13 @@ export type Session = {
 
 type SessionsStore = {
   sessions: Session[]
-  activeSessionId: string
+  activeSessionId: string | null
   envVars: Record<string, string>
+  sidebarMode: SidebarMode
   addSession: (cwd: string, name: string) => string
   removeSession: (id: string) => void
-  setActiveSession: (id: string) => void
+  setActiveSession: (id: string | null) => void
+  setSidebarMode: (mode: SidebarMode) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
   startAssistantMessage: (sessionId: string) => string
@@ -73,6 +76,12 @@ type SessionsStore = {
 }
 
 const DEFAULT_CWD = '~'
+
+function loadSidebarMode(): SidebarMode {
+  if (typeof window === 'undefined') return 'session'
+  const stored = window.localStorage.getItem('sidebarMode')
+  return stored === 'project' ? 'project' : 'session'
+}
 
 function makeDefaultSession(cwd: string, name: string): Session {
   return {
@@ -97,6 +106,7 @@ export const useSessionsStore = create<SessionsStore>((set) => {
     sessions: [firstSession],
     activeSessionId: firstSession.id,
     envVars: {},
+    sidebarMode: loadSidebarMode(),
 
     setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
     removeEnvVar: (key) => set((s) => {
@@ -110,12 +120,18 @@ export const useSessionsStore = create<SessionsStore>((set) => {
       return session.id
     },
 
+    setSidebarMode: (mode) => {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('sidebarMode', mode)
+      }
+      set({ sidebarMode: mode })
+    },
+
     removeSession: (id) => {
       set((s) => {
         const remaining = s.sessions.filter((sess) => sess.id !== id)
         if (remaining.length === 0) {
-          const fresh = makeDefaultSession(DEFAULT_CWD, '~')
-          return { sessions: [fresh], activeSessionId: fresh.id }
+          return { sessions: [], activeSessionId: null }
         }
         const newActive = s.activeSessionId === id
           ? remaining[remaining.length - 1].id

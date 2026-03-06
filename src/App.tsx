@@ -10,9 +10,11 @@ export default function App() {
   const {
     sessions,
     activeSessionId,
+    sidebarMode,
     addSession,
     removeSession,
     setActiveSession,
+    setSidebarMode,
     addUserMessage,
     startAssistantMessage,
     appendTextChunk,
@@ -30,7 +32,7 @@ export default function App() {
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const activeSession = sessions.find((s) => s.id === activeSessionId)!
+  const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) ?? null : null
 
   const pendingTabIdRef = useRef<string | null>(null)
   const currentAsstMsgRef = useRef<Map<string, string>>(new Map())
@@ -127,7 +129,7 @@ export default function App() {
   }
 
   async function handleSend(text: string, files: SelectedFile[]) {
-    if (!activeSession || activeSession.isStreaming) return
+    if (!activeSession || !activeSessionId || activeSession.isStreaming) return
 
     setError(activeSessionId, null)
     setStreaming(activeSessionId, true)
@@ -171,21 +173,25 @@ export default function App() {
   }
 
   async function handleAbort() {
-    if (!activeSession?.sessionId) return
+    if (!activeSession?.sessionId || !activeSessionId) return
     await window.claude.abort({ sessionId: activeSession.sessionId })
     setStreaming(activeSessionId, false)
   }
 
   async function handleSelectFolder(tabId?: string) {
     const id = tabId ?? activeSessionId
+    if (!id) return
     const folder = await window.claude.selectFolder()
     if (!folder) return
     const name = folder.split('/').pop() || folder
     updateSession(id, () => ({ cwd: folder, name }))
   }
 
-  async function handleNewSession() {
-    const folder = await window.claude.selectFolder()
+  async function handleNewSession(cwdOverride?: string) {
+    let folder = cwdOverride ?? null
+    if (!folder) {
+      folder = await window.claude.selectFolder()
+    }
     const cwd = folder ?? '~'
     const name = folder ? (folder.split('/').pop() || folder) : '~'
     addSession(cwd, name)
@@ -196,6 +202,7 @@ export default function App() {
       <Sidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
+        sidebarMode={sidebarMode}
         onSelectSession={setActiveSession}
         onRenameSession={(id, name) => updateSession(id, () => ({ name }))}
         onNewSession={handleNewSession}
@@ -206,20 +213,51 @@ export default function App() {
 
       <main className="flex-1 overflow-hidden">
         {settingsOpen ? (
-          <SettingsPanel onClose={() => setSettingsOpen(false)} />
-        ) : activeSession && (
-          <ChatView
-            key={activeSessionId}
-            session={activeSession}
-            onSend={handleSend}
-            onAbort={handleAbort}
-            onSelectFolder={() => handleSelectFolder()}
-            onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSessionId, mode)}
-            onPlanModeChange={(val: boolean) => setPlanMode(activeSessionId, val)}
-            onModelChange={(model) => setModel(activeSessionId, model)}
-          />
+          <SettingsPanel onClose={() => setSettingsOpen(false)} onSidebarModeChange={setSidebarMode} />
+        ) : (
+          activeSession ? (
+            <ChatView
+              key={activeSession.id}
+              session={activeSession}
+              onSend={handleSend}
+              onAbort={handleAbort}
+              onSelectFolder={() => handleSelectFolder()}
+              onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSession.id, mode)}
+              onPlanModeChange={(val: boolean) => setPlanMode(activeSession.id, val)}
+              onModelChange={(model) => setModel(activeSession.id, model)}
+            />
+          ) : (
+            <EmptyMainState onNewSession={handleNewSession} />
+          )
         )}
       </main>
+    </div>
+  )
+}
+
+function EmptyMainState({ onNewSession }: { onNewSession: () => void }) {
+  return (
+    <div className="h-full flex items-center justify-center bg-claude-bg px-8">
+      <div className="max-w-sm text-center">
+        <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-white border border-claude-border flex items-center justify-center shadow-sm">
+          <svg className="w-7 h-7 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold text-claude-text">열린 세션이 없습니다</h2>
+        <p className="mt-2 text-sm text-claude-muted leading-relaxed">
+          새 세션을 만들고 프로젝트 폴더를 선택하면 바로 작업을 시작할 수 있습니다.
+        </p>
+        <button
+          onClick={onNewSession}
+          className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-claude-orange text-white text-sm font-medium hover:bg-claude-orange/90 transition-colors"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          새 세션 만들기
+        </button>
+      </div>
     </div>
   )
 }

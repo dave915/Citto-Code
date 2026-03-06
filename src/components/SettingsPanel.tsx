@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSessionsStore } from '../store/sessions'
+import { useSessionsStore, type SidebarMode } from '../store/sessions'
 
-type Tab = 'mcp' | 'skill' | 'agent' | 'env'
+type Tab = 'general' | 'mcp' | 'skill' | 'agent' | 'env'
 
 type McpServer = {
   name: string
@@ -25,8 +25,14 @@ type McpForm = {
 
 const EMPTY_MCP_FORM: McpForm = { name: '', serverType: 'http', command: '', args: '', url: '', headers: '', env: '' }
 
-export function SettingsPanel({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('mcp')
+export function SettingsPanel({
+  onClose,
+  onSidebarModeChange,
+}: {
+  onClose: () => void
+  onSidebarModeChange: (mode: SidebarMode) => void
+}) {
+  const [tab, setTab] = useState<Tab>('general')
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -35,6 +41,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   const TABS: { id: Tab; label: string }[] = [
+    { id: 'general', label: '일반' },
     { id: 'mcp', label: 'MCP' },
     { id: 'skill', label: 'Skill' },
     { id: 'agent', label: 'Agent' },
@@ -75,11 +82,58 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
+          {tab === 'general' && <GeneralTab onSidebarModeChange={onSidebarModeChange} />}
           {tab === 'mcp'   && <McpTab />}
           {tab === 'skill' && <SkillTab />}
           {tab === 'agent' && <AgentTab />}
           {tab === 'env'   && <EnvTab />}
         </div>
+    </div>
+  )
+}
+
+function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
+  const { sidebarMode } = useSessionsStore()
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
+        <p className="text-sm font-semibold text-claude-text">사이드바 표시 방식</p>
+        <p className="text-xs text-claude-muted mt-1 leading-relaxed">
+          세션을 평면 목록으로 보거나, 프로젝트별로 묶어서 볼 수 있습니다.
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {([
+            {
+              value: 'session',
+              title: '세션 기준',
+              desc: '모든 세션을 생성 순서대로 바로 표시',
+            },
+            {
+              value: 'project',
+              title: '프로젝트 기준',
+              desc: '같은 폴더의 세션을 프로젝트 아래로 그룹화',
+            },
+          ] as const).map((option) => {
+            const active = sidebarMode === option.value
+            return (
+              <button
+                key={option.value}
+                onClick={() => onSidebarModeChange(option.value)}
+                className={`rounded-xl border p-3 text-left transition-colors ${
+                  active
+                    ? 'border-claude-orange bg-orange-50'
+                    : 'border-claude-border bg-white hover:border-claude-orange/30'
+                }`}
+              >
+                <div className="text-sm font-medium text-claude-text">{option.title}</div>
+                <div className="text-xs text-claude-muted mt-1 leading-relaxed">{option.desc}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

@@ -31,18 +31,17 @@ export function ChatView({
     <div className="flex flex-col h-full bg-claude-bg">
       {/* 헤더: 폴더 경로 + 비용만 */}
       <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-claude-border flex-shrink-0">
-        <button
-          onClick={onSelectFolder}
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors group"
-          title="작업 폴더 변경"
+        <div
+          className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-claude-muted"
+          title="현재 작업 폴더"
         >
-          <svg className="w-3.5 h-3.5 group-hover:text-claude-orange transition-colors flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
           <span className="font-mono max-w-xs truncate">
             {session.cwd || '~'}
           </span>
-        </button>
+        </div>
 
         {session.lastCost !== undefined && (
           <span className="text-xs text-claude-muted">${session.lastCost.toFixed(4)}</span>
