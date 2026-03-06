@@ -34,6 +34,13 @@ export type Message = {
 // 편집 권한 모드
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 export type SidebarMode = 'session' | 'project'
+export type ShortcutAction = 'toggleSidebar' | 'toggleFiles' | 'toggleSessionInfo' | 'newSession' | 'openSettings'
+export type ShortcutPlatform = 'mac' | 'windows'
+export type ShortcutBinding = {
+  mac: string
+  windows: string
+}
+export type ShortcutConfig = Record<ShortcutAction, ShortcutBinding>
 
 export type Session = {
   id: string
@@ -55,10 +62,12 @@ type SessionsStore = {
   activeSessionId: string | null
   envVars: Record<string, string>
   sidebarMode: SidebarMode
+  shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   setSidebarMode: (mode: SidebarMode) => void
+  setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
   startAssistantMessage: (sessionId: string) => string
@@ -77,6 +86,14 @@ type SessionsStore = {
 }
 
 const DEFAULT_CWD = '~'
+
+export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
+  toggleSidebar: { mac: 'Cmd+B', windows: 'Ctrl+B' },
+  toggleFiles: { mac: 'Cmd+E', windows: 'Ctrl+E' },
+  toggleSessionInfo: { mac: 'Cmd+I', windows: 'Ctrl+I' },
+  newSession: { mac: 'Cmd+N', windows: 'Ctrl+N' },
+  openSettings: { mac: 'Cmd+,', windows: 'Ctrl+,' },
+}
 
 function makeDefaultSession(cwd: string, name: string): Session {
   return {
@@ -104,6 +121,7 @@ export const useSessionsStore = create<SessionsStore>()(
         activeSessionId: firstSession.id,
         envVars: {},
         sidebarMode: 'session',
+        shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
     setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
     removeEnvVar: (key) => set((s) => {
@@ -118,6 +136,15 @@ export const useSessionsStore = create<SessionsStore>()(
     },
 
     setSidebarMode: (mode) => set({ sidebarMode: mode }),
+    setShortcut: (action, platform, value) => set((s) => ({
+      shortcutConfig: {
+        ...s.shortcutConfig,
+        [action]: {
+          ...s.shortcutConfig[action],
+          [platform]: value,
+        },
+      },
+    })),
 
     removeSession: (id) => {
       set((s) => {
@@ -308,6 +335,7 @@ export const useSessionsStore = create<SessionsStore>()(
         activeSessionId: state.activeSessionId,
         envVars: state.envVars,
         sidebarMode: state.sidebarMode,
+        shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
         const persistedState = persisted as Partial<SessionsStore>
@@ -326,6 +354,10 @@ export const useSessionsStore = create<SessionsStore>()(
         return {
           ...current,
           ...persistedState,
+          shortcutConfig: {
+            ...DEFAULT_SHORTCUT_CONFIG,
+            ...(persistedState.shortcutConfig ?? {}),
+          },
           sessions,
           activeSessionId,
         }

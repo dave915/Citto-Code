@@ -5,8 +5,10 @@ import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
 import type { ClaudeStreamEvent, SelectedFile } from '../electron/preload'
 import type { PermissionMode } from './store/sessions'
+import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 
 export default function App() {
+  const expandedSidebarWidthRef = useRef(240)
   const {
     sessions,
     activeSessionId,
@@ -29,11 +31,14 @@ export default function App() {
     setPlanMode,
     setModel,
     envVars,
+    shortcutConfig,
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(240)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) ?? null : null
+  const shortcutPlatform = getCurrentPlatform()
 
   const pendingTabIdRef = useRef<string | null>(null)
   const currentAsstMsgRef = useRef<Map<string, string>>(new Map())
@@ -56,7 +61,32 @@ export default function App() {
     return cleanup
   }, [])
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (matchShortcut(event, shortcutConfig.toggleSidebar[shortcutPlatform])) {
+        event.preventDefault()
+        handleToggleSidebar()
+        return
+      }
+
+      if (matchShortcut(event, shortcutConfig.openSettings[shortcutPlatform])) {
+        event.preventDefault()
+        setSettingsOpen(true)
+        return
+      }
+
+      if (matchShortcut(event, shortcutConfig.newSession[shortcutPlatform])) {
+        event.preventDefault()
+        void handleNewSession()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [shortcutConfig, shortcutPlatform, sidebarCollapsed, sidebarWidth])
+
   const handleSidebarResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (sidebarCollapsed) return
     event.preventDefault()
     const startX = event.clientX
     const startWidth = sidebarWidth
@@ -64,6 +94,7 @@ export default function App() {
     const onMouseMove = (moveEvent: MouseEvent) => {
       const nextWidth = Math.min(420, Math.max(180, startWidth + (moveEvent.clientX - startX)))
       setSidebarWidth(nextWidth)
+      expandedSidebarWidthRef.current = nextWidth
     }
 
     const onMouseUp = () => {
@@ -222,8 +253,20 @@ export default function App() {
     setActiveSession(sessionId)
   }
 
+  function handleToggleSidebar() {
+    if (sidebarCollapsed) {
+      setSidebarWidth(expandedSidebarWidthRef.current)
+      setSidebarCollapsed(false)
+      return
+    }
+
+    expandedSidebarWidthRef.current = sidebarWidth
+    setSidebarCollapsed(true)
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-claude-sidebar font-sans">
+      {!sidebarCollapsed && (
       <div className="relative flex-shrink-0" style={{ width: `${sidebarWidth}px` }}>
         <Sidebar
           sessions={sessions}
@@ -235,12 +278,15 @@ export default function App() {
           onRemoveSession={removeSession}
           onSelectFolder={(sid) => handleSelectFolder(sid)}
           onOpenSettings={() => setSettingsOpen(true)}
+          newSessionShortcutLabel={getShortcutLabel(shortcutConfig, 'newSession', shortcutPlatform)}
+          settingsShortcutLabel={getShortcutLabel(shortcutConfig, 'openSettings', shortcutPlatform)}
         />
         <div
           onMouseDown={handleSidebarResizeStart}
           className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors"
         />
       </div>
+      )}
 
       <main className="flex-1 overflow-hidden">
         {settingsOpen ? (
@@ -252,6 +298,11 @@ export default function App() {
               session={activeSession}
               onSend={handleSend}
               onAbort={handleAbort}
+              sidebarCollapsed={sidebarCollapsed}
+              onToggleSidebar={handleToggleSidebar}
+              sidebarShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleSidebar', shortcutPlatform)}
+              filesShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleFiles', shortcutPlatform)}
+              sessionInfoShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleSessionInfo', shortcutPlatform)}
               onSelectFolder={() => handleSelectFolder()}
               onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSession.id, mode)}
               onPlanModeChange={(val: boolean) => setPlanMode(activeSession.id, val)}

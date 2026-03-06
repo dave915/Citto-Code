@@ -5,6 +5,8 @@ type Props = {
   sessions: Session[]
   activeSessionId: string | null
   sidebarMode: SidebarMode
+  newSessionShortcutLabel: string
+  settingsShortcutLabel: string
   onSelectSession: (id: string) => void
   onRenameSession: (id: string, name: string) => void
   onNewSession: (cwd?: string) => void
@@ -184,6 +186,8 @@ export function Sidebar({
   sessions,
   activeSessionId,
   sidebarMode,
+  newSessionShortcutLabel,
+  settingsShortcutLabel,
   onSelectSession,
   onRenameSession,
   onNewSession,
@@ -230,6 +234,7 @@ export function Sidebar({
         <button
           onClick={() => onNewSession()}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-claude-sidebar-hover text-sm transition-colors"
+          title={`${sidebarMode === 'project' ? '프로젝트 추가' : '새 세션'} (${newSessionShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -317,10 +322,11 @@ export function Sidebar({
         )}
       </nav>
 
-      <div className="px-3 py-3 border-t border-white/5">
+      <div className="px-3 py-3">
         <button
           onClick={onOpenSettings}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-claude-sidebar-hover text-sm transition-colors"
+          title={`설정 (${settingsShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="3" />

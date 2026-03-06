@@ -5,25 +5,35 @@ import type { Session, PermissionMode } from '../store/sessions'
 import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
 import type { DirEntry, SelectedFile } from '../../electron/preload'
+import { matchShortcut } from '../lib/shortcuts'
 
 type Props = {
   session: Session
   onSend: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
+  sidebarCollapsed: boolean
+  onToggleSidebar: () => void
+  sidebarShortcutLabel: string
+  filesShortcutLabel: string
+  sessionInfoShortcutLabel: string
   onSelectFolder: () => void
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
 }
 
+const INITIAL_RIGHT_PANEL_WIDTH = 320
+const INITIAL_EXPLORER_WIDTH = 240
+
 export function ChatView({
-  session, onSend, onAbort, onSelectFolder,
+  session, onSend, onAbort, sidebarCollapsed, onToggleSidebar,
+  sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel, onSelectFolder,
   onPermissionModeChange, onPlanModeChange, onModelChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const lastMsg = session.messages[session.messages.length - 1]
-  const [filePanelOpen, setFilePanelOpen] = useState(false)
+  const [rightPanel, setRightPanel] = useState<'none' | 'files' | 'session'>('none')
   const [rootEntries, setRootEntries] = useState<DirEntry[]>([])
   const [childEntries, setChildEntries] = useState<Record<string, DirEntry[]>>({})
   const [expandedDirs, setExpandedDirs] = useState<Record<string, boolean>>({})
@@ -31,18 +41,44 @@ export function ChatView({
   const [selectedEntry, setSelectedEntry] = useState<DirEntry | null>(null)
   const [previewContent, setPreviewContent] = useState<string>('')
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'ready' | 'unsupported'>('idle')
-  const [filePanelWidth, setFilePanelWidth] = useState(320)
-  const [explorerWidth, setExplorerWidth] = useState(240)
+  const [filePanelWidth, setFilePanelWidth] = useState(INITIAL_RIGHT_PANEL_WIDTH)
+  const [explorerWidth, setExplorerWidth] = useState(INITIAL_EXPLORER_WIDTH)
   const [markdownPreviewEnabled, setMarkdownPreviewEnabled] = useState(true)
   const isNewSession = session.messages.length === 0
   const showPreviewPane = selectedEntry !== null
+  const filePanelOpen = rightPanel === 'files'
+  const sessionPanelOpen = rightPanel === 'session'
   const promptHistory = session.messages
     .filter((message) => message.role === 'user' && message.text.trim().length > 0)
     .map((message) => message.text)
+  const userMessageCount = session.messages.filter((message) => message.role === 'user').length
+  const assistantMessageCount = session.messages.filter((message) => message.role === 'assistant').length
+  const totalCharacters = session.messages.reduce((sum, message) => sum + message.text.length, 0)
+  const totalToolCalls = session.messages.reduce((sum, message) => sum + message.toolCalls.length, 0)
+  const totalAttachments = session.messages.reduce((sum, message) => sum + (message.attachedFiles?.length ?? 0), 0)
+  const contextUsagePercent = estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [session.messages.length, lastMsg?.text?.length])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (matchShortcut(event, filesShortcutLabel)) {
+        event.preventDefault()
+        setRightPanel((open) => open === 'files' ? 'none' : 'files')
+        return
+      }
+
+      if (matchShortcut(event, sessionInfoShortcutLabel)) {
+        event.preventDefault()
+        setRightPanel((open) => open === 'session' ? 'none' : 'session')
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [filesShortcutLabel, sessionInfoShortcutLabel])
 
   useEffect(() => {
     if (!filePanelOpen) return
@@ -56,6 +92,11 @@ export function ChatView({
     const targetWidth = Math.min(1100, Math.max(explorerWidth + 260, Math.floor(containerWidth / 2)))
     setFilePanelWidth(targetWidth)
   }, [explorerWidth, filePanelOpen, showPreviewPane])
+
+  useEffect(() => {
+    if (!sessionPanelOpen) return
+    setFilePanelWidth(INITIAL_EXPLORER_WIDTH)
+  }, [sessionPanelOpen])
 
   useEffect(() => {
     if (!filePanelOpen) return
@@ -190,11 +231,24 @@ export function ChatView({
     <div ref={containerRef} className="flex h-full bg-claude-bg">
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 헤더: 폴더 경로 + 비용만 */}
-        <div className="h-11 flex items-center justify-between px-4 bg-white border-b border-claude-border flex-shrink-0">
+        <div
+          className="h-11 flex items-center justify-between pr-4 bg-white border-b border-claude-border flex-shrink-0"
+          style={{ paddingLeft: sidebarCollapsed ? '76px' : '16px' }}
+        >
           <div
             className="flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs text-claude-muted"
             title="현재 작업 폴더"
           >
+            <button
+              onClick={onToggleSidebar}
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors"
+              title={`${sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'} (${sidebarShortcutLabel})`}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5v14" />
+              </svg>
+            </button>
             <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
@@ -204,14 +258,29 @@ export function ChatView({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+            onClick={() => setRightPanel((open) => open === 'session' ? 'none' : 'session')}
+            className={`flex items-center justify-center px-2 py-1.5 rounded-lg text-xs transition-colors ${
+              sessionPanelOpen
+                ? 'bg-claude-bg text-claude-text'
+                : 'text-claude-muted hover:text-claude-text hover:bg-claude-bg'
+            }`}
+            title={`현재 세션 정보 보기 (${sessionInfoShortcutLabel})`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
+            </svg>
+          </button>
           <button
-            onClick={() => setFilePanelOpen((open) => !open)}
+            onClick={() => setRightPanel((open) => open === 'files' ? 'none' : 'files')}
             className={`flex items-center justify-center px-2 py-1.5 rounded-lg text-xs transition-colors ${
               filePanelOpen
                 ? 'bg-claude-bg text-claude-text'
                 : 'text-claude-muted hover:text-claude-text hover:bg-claude-bg'
             }`}
-            title="현재 디렉토리 파일 보기"
+            title={`현재 디렉토리 파일 보기 (${filesShortcutLabel})`}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16" />
@@ -270,79 +339,226 @@ export function ChatView({
         />
       </div>
 
-      {filePanelOpen && (
+      {rightPanel !== 'none' && (
         <div
           onMouseDown={handleFilePanelResizeStart}
           className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
         />
       )}
 
-      {filePanelOpen && (
+      {rightPanel !== 'none' && (
         <aside
           className="border-l border-claude-border bg-white flex flex-col flex-shrink-0 min-w-0"
           style={{ width: `${filePanelWidth}px` }}
         >
           <div className="h-11 px-4 border-b border-claude-border flex items-center">
-            <p className="text-sm font-semibold text-claude-text">파일 탐색기</p>
+            <p className="text-sm font-semibold text-claude-text">
+              {filePanelOpen ? '파일 탐색기' : '세션 정보'}
+            </p>
           </div>
 
-          <div className="flex flex-1 min-h-0">
-            {showPreviewPane && (
-              <>
-                <div className="flex-1 min-w-0 overflow-y-auto bg-claude-bg/30">
-                  <PreviewPane
-                    entry={selectedEntry}
-                    previewContent={previewContent}
-                    previewState={previewState}
-                    markdownPreviewEnabled={markdownPreviewEnabled}
-                    onToggleMarkdownPreview={() => setMarkdownPreviewEnabled((value) => !value)}
-                  />
-                </div>
-
-                <div
-                  onMouseDown={handleExplorerResizeStart}
-                  className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
-                />
-              </>
-            )}
-
-            <div
-              className={`min-w-0 overflow-y-auto px-2 py-3 ${showPreviewPane ? 'border-l border-claude-border' : 'flex-1'}`}
-              style={showPreviewPane ? { width: `${explorerWidth}px` } : undefined}
-            >
-              {loadingPaths.__root__ ? (
-                <div className="flex items-center justify-center py-12 text-claude-muted">
-                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-                  </svg>
-                </div>
-              ) : rootEntries.length === 0 ? (
-                <div className="text-center py-12 text-claude-muted">
-                  <p className="text-sm">표시할 파일이 없습니다.</p>
-                </div>
-              ) : (
-                <div className="border-l border-claude-border/60 pl-2">
-                  {rootEntries.map((entry) => (
-                    <ExplorerNode
-                      key={entry.path}
-                      entry={entry}
-                      depth={0}
-                      expandedDirs={expandedDirs}
-                      childEntries={childEntries}
-                      loadingPaths={loadingPaths}
-                      selectedPath={selectedEntry?.path ?? null}
-                      onToggleDirectory={toggleDirectory}
-                      onSelectEntry={handleSelectEntry}
+          {filePanelOpen ? (
+            <div className="flex flex-1 min-h-0">
+              {showPreviewPane && (
+                <>
+                  <div className="flex-1 min-w-0 overflow-y-auto bg-claude-bg/30">
+                    <PreviewPane
+                      entry={selectedEntry}
+                      previewContent={previewContent}
+                      previewState={previewState}
+                      markdownPreviewEnabled={markdownPreviewEnabled}
+                      onToggleMarkdownPreview={() => setMarkdownPreviewEnabled((value) => !value)}
                     />
-                  ))}
-                </div>
+                  </div>
+
+                  <div
+                    onMouseDown={handleExplorerResizeStart}
+                    className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
+                  />
+                </>
               )}
+
+              <div
+                className={`min-w-0 overflow-y-auto px-2 py-3 ${showPreviewPane ? 'border-l border-claude-border' : 'flex-1'}`}
+                style={showPreviewPane ? { width: `${explorerWidth}px` } : undefined}
+              >
+                {loadingPaths.__root__ ? (
+                  <div className="flex items-center justify-center py-12 text-claude-muted">
+                    <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                    </svg>
+                  </div>
+                ) : rootEntries.length === 0 ? (
+                  <div className="text-center py-12 text-claude-muted">
+                    <p className="text-sm">표시할 파일이 없습니다.</p>
+                  </div>
+                ) : (
+                  <div className="border-l border-claude-border/60 pl-2">
+                    {rootEntries.map((entry) => (
+                      <ExplorerNode
+                        key={entry.path}
+                        entry={entry}
+                        depth={0}
+                        expandedDirs={expandedDirs}
+                        childEntries={childEntries}
+                        loadingPaths={loadingPaths}
+                        selectedPath={selectedEntry?.path ?? null}
+                        onToggleDirectory={toggleDirectory}
+                        onSelectEntry={handleSelectEntry}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <SessionInfoPanel
+              session={session}
+              userMessageCount={userMessageCount}
+              assistantMessageCount={assistantMessageCount}
+              promptHistoryCount={promptHistory.length}
+              contextUsagePercent={contextUsagePercent}
+              onCompact={() => onSend('/compact', [])}
+            />
+          )}
         </aside>
       )}
     </div>
   )
+}
+
+function SessionInfoPanel({
+  session,
+  userMessageCount,
+  assistantMessageCount,
+  promptHistoryCount,
+  contextUsagePercent,
+  onCompact,
+}: {
+  session: Session
+  userMessageCount: number
+  assistantMessageCount: number
+  promptHistoryCount: number
+  contextUsagePercent: number
+  onCompact: () => void
+}) {
+  const createdAt = session.messages[0]?.createdAt ?? null
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-claude-bg/40">
+      <div className="rounded-xl border border-claude-border bg-white p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">세션</p>
+        <div className="mt-3 space-y-3">
+          <InfoRow label="이름" value={session.name} />
+          <InfoRow label="경로" value={session.cwd || '~'} mono />
+          <InfoRow label="세션 ID" value={session.sessionId ?? '아직 없음'} mono />
+          <InfoRow label="모델" value={session.model ?? '기본 모델'} />
+          <InfoRow label="권한" value={formatPermissionMode(session.permissionMode)} />
+          <InfoRow label="플랜 모드" value={session.planMode ? '켜짐' : '꺼짐'} />
+          <InfoRow label="상태" value={session.isStreaming ? '응답 생성 중' : '대기 중'} />
+          <InfoRow label="오류" value={session.error ?? '없음'} mono={Boolean(session.error)} />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-claude-border bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">현재 컨텍스트</p>
+          <button
+            onClick={onCompact}
+            disabled={session.isStreaming}
+            className="rounded-md border border-claude-border px-2.5 py-1.5 text-xs text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors disabled:opacity-40"
+          >
+            압축하기
+          </button>
+        </div>
+        <div className="mt-4">
+          <div className="flex items-end justify-between gap-3">
+            <p className="text-2xl font-semibold text-claude-text">{contextUsagePercent}%</p>
+            <p className="text-xs text-claude-muted">추정치</p>
+          </div>
+          <div className="mt-2 h-2.5 rounded-full bg-claude-bg overflow-hidden">
+            <div
+              className="h-full rounded-full bg-claude-orange transition-[width]"
+              style={{ width: `${contextUsagePercent}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <InfoStat label="사용자 메시지" value={String(userMessageCount)} />
+        <InfoStat label="응답 메시지" value={String(assistantMessageCount)} />
+        <InfoStat label="프롬프트 기록" value={String(promptHistoryCount)} />
+        <InfoStat label="마지막 비용" value={session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'} />
+      </div>
+
+      <div className="rounded-xl border border-claude-border bg-white p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">타임라인</p>
+        <div className="mt-3 space-y-3">
+          <InfoRow label="시작 시각" value={createdAt ? formatDateTime(createdAt) : '메시지 없음'} />
+          <InfoRow label="마지막 메시지" value={lastMessageSummary(session)} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InfoRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-claude-muted">{label}</span>
+      <span className={`text-sm text-claude-text break-words ${mono ? 'font-mono text-xs' : ''}`}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function InfoStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-claude-border bg-white p-4">
+      <p className="text-xs text-claude-muted">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-claude-text">{value}</p>
+    </div>
+  )
+}
+
+function formatPermissionMode(mode: PermissionMode): string {
+  if (mode === 'acceptEdits') return '자동승인'
+  if (mode === 'bypassPermissions') return '전체허용'
+  return '기본'
+}
+
+function formatDateTime(timestamp: number): string {
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp))
+}
+
+function estimateContextUsagePercent(totalCharacters: number, totalToolCalls: number, totalAttachments: number): number {
+  const weightedSize = totalCharacters + (totalToolCalls * 1200) + (totalAttachments * 4000)
+  const maxContextEstimate = 160000
+  return Math.min(100, Math.max(0, Math.round((weightedSize / maxContextEstimate) * 100)))
+}
+
+function lastMessageSummary(session: Session): string {
+  const message = session.messages[session.messages.length - 1]
+  if (!message) return '메시지 없음'
+  const prefix = message.role === 'user' ? '사용자' : 'Claude'
+  const body = message.text.trim() || (message.attachedFiles?.length ? `파일 ${message.attachedFiles.length}개 첨부` : '내용 없음')
+  return `${prefix} · ${body.slice(0, 80)}${body.length > 80 ? '…' : ''}`
 }
 
 function ExplorerNode({
