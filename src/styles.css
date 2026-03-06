@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #1A1A1A;
+}
+
+/* Draggable titlebar region for macOS */
+.draggable-region {
+  -webkit-app-region: drag;
+}
+.draggable-region button,
+.draggable-region a {
+  -webkit-app-region: no-drag;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Code highlighting */
+pre code.hljs {
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 1em;
+  border-radius: 0.5rem;
+  font-size: 0.8em;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  display: block;
+  overflow-x: auto;
+}
+.hljs-keyword { color: #ff7b72; }
+.hljs-string { color: #a5d6ff; }
+.hljs-comment { color: #8b949e; font-style: italic; }
+.hljs-number { color: #79c0ff; }
+.hljs-function { color: #d2a8ff; }
+.hljs-variable { color: #ffa657; }
+.hljs-built_in { color: #ffa657; }
+.hljs-title { color: #d2a8ff; }
+.hljs-attr { color: #79c0ff; }
+.hljs-literal { color: #79c0ff; }
+.hljs-type { color: #ffa657; }
+.hljs-class { color: #ffa657; }
+.hljs-tag { color: #7ee787; }
+.hljs-name { color: #7ee787; }
+.hljs-operator { color: #ff7b72; }
+.hljs-punctuation { color: #e6edf3; }
+.hljs-property { color: #79c0ff; }
+.hljs-params { color: #e6edf3; }
+.hljs-meta { color: #a5d6ff; }
+
+/* Prose overrides for chat bubbles */
+.prose {
+  color: #1A1A1A;
+}
+.prose p {
+  margin: 0.4em 0;
+}
+.prose p:first-child {
+  margin-top: 0;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+.prose pre {
+  margin: 0.75em 0;
+  padding: 0;
+  background: transparent;
+}
+.prose ul, .prose ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+.prose li {
+  margin: 0.2em 0;
+}
+.prose h1, .prose h2, .prose h3 {
+  margin: 0.75em 0 0.4em;
+  font-weight: 600;
+}
+.prose h1:first-child,
+.prose h2:first-child,
+.prose h3:first-child {
+  margin-top: 0;
+}
+.prose blockquote {
+  border-left: 3px solid #D97757;
+  padding-left: 1em;
+  color: #8B7B6B;
+  margin: 0.5em 0;
+  font-style: italic;
+}
+.prose table {
+  font-size: 0.85em;
+  border-collapse: collapse;
+  width: 100%;
+}
+.prose th, .prose td {
+  border: 1px solid #E5DDD4;
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+.prose th {
+  background: #F5F0EB;
+  font-weight: 600;
+}
