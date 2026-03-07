@@ -1406,9 +1406,13 @@ export function ChatView({
                       type="button"
                       onClick={() => void handleCommitGit()}
                       disabled={gitActionLoading || stagedGitEntryCount === 0 || gitCommitMessage.trim().length === 0}
-                      className="inline-flex h-9 items-center justify-center rounded-xl border border-claude-border bg-claude-surface px-3 text-[12px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      title="커밋"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-claude-border bg-claude-surface text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      커밋
+                      <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M1.75 8h3.1m6.3 0h3.1" />
+                        <circle cx="8" cy="8" r="3.15" />
+                      </svg>
                     </button>
                   </div>
                 </div>
