@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ToolCallBlock as ToolCallBlockType } from '../store/sessions'
 
 const TOOL_LABELS: Record<string, string> = {
@@ -94,6 +94,46 @@ function formatToolInput(name: string, input: unknown): string {
   return JSON.stringify(input, null, 2)
 }
 
+function getEditableToolPath(name: string, input: unknown): string | null {
+  if (!input || typeof input !== 'object') return null
+  const obj = input as Record<string, unknown>
+
+  if (name === 'Write' || name === 'Edit' || name === 'MultiEdit') {
+    const filePath = obj.file_path
+    return typeof filePath === 'string' && filePath.trim() ? filePath : null
+  }
+
+  return null
+}
+
+type DiffHunk = {
+  before: string
+  after: string
+}
+
+function getEditDiffHunks(name: string, input: unknown): DiffHunk[] {
+  if (!input || typeof input !== 'object') return []
+  const obj = input as Record<string, unknown>
+
+  if (name === 'Edit') {
+    const before = typeof obj.old_string === 'string' ? obj.old_string : ''
+    const after = typeof obj.new_string === 'string' ? obj.new_string : ''
+    return before || after ? [{ before, after }] : []
+  }
+
+  if (name === 'MultiEdit' && Array.isArray(obj.edits)) {
+    return obj.edits
+      .filter((edit): edit is Record<string, unknown> => typeof edit === 'object' && edit !== null)
+      .map((edit) => ({
+        before: typeof edit.old_string === 'string' ? edit.old_string : '',
+        after: typeof edit.new_string === 'string' ? edit.new_string : '',
+      }))
+      .filter((edit) => edit.before || edit.after)
+  }
+
+  return []
+}
+
 function formatToolResult(result: unknown): string {
   if (typeof result === 'string') {
     return result.length > 500 ? result.slice(0, 500) + '...' : result
@@ -132,17 +172,84 @@ function renderCodeLines(content: string) {
   )
 }
 
+function renderDiffBlock(hunk: DiffHunk, index: number) {
+  const beforeLines = hunk.before.split('\n')
+  const afterLines = hunk.after.split('\n')
+  const maxLines = Math.max(beforeLines.length, afterLines.length, 1)
+
+  return (
+    <div key={`${index}-${hunk.before.length}-${hunk.after.length}`} className="overflow-x-auto rounded-xl border border-claude-border/70 bg-[#23252a]">
+      <div className="border-b border-claude-border/70 bg-[#1d1f23] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">
+        diff {index + 1}
+      </div>
+      <div className="py-2 font-mono text-[13px] leading-7">
+        {Array.from({ length: maxLines }).map((_, lineIndex) => {
+          const before = beforeLines[lineIndex] ?? ''
+          const after = afterLines[lineIndex] ?? ''
+          return (
+            <div key={lineIndex} className="grid grid-cols-[56px_1fr_1fr]">
+              <div className="select-none px-3 text-right text-[#7f817f]">
+                {lineIndex + 1}
+              </div>
+              <div className="whitespace-pre-wrap break-all border-r border-claude-border/40 bg-[#402b2b] px-4 text-[#f0c8c8]">
+                {before ? `- ${before}` : ' '}
+              </div>
+              <div className="whitespace-pre-wrap break-all px-4 text-[#cde7cf] bg-[#23382a]">
+                {after ? `+ ${after}` : ' '}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 type Props = {
   toolCall: ToolCallBlockType
 }
 
 export function ToolCallBlock({ toolCall }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const [editedFileContent, setEditedFileContent] = useState<string | null>(null)
+  const [loadingEditedFile, setLoadingEditedFile] = useState(false)
   const inputStr = formatToolInput(toolCall.toolName, toolCall.toolInput)
   const resultStr = toolCall.result ? formatToolResult(toolCall.result) : null
+  const editableFilePath = useMemo(
+    () => getEditableToolPath(toolCall.toolName, toolCall.toolInput),
+    [toolCall.toolInput, toolCall.toolName]
+  )
+  const diffHunks = useMemo(
+    () => getEditDiffHunks(toolCall.toolName, toolCall.toolInput),
+    [toolCall.toolInput, toolCall.toolName]
+  )
 
   const isRunning = toolCall.status === 'running'
   const isError = toolCall.status === 'error'
+  const shouldShowEditedFile = Boolean(editableFilePath) && !isRunning && !isError
+
+  useEffect(() => {
+    if (!expanded || !shouldShowEditedFile || !editableFilePath) return
+    let cancelled = false
+    setLoadingEditedFile(true)
+
+    window.claude.readFile(editableFilePath)
+      .then((file) => {
+        if (cancelled) return
+        setEditedFileContent(file?.content ?? null)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setEditedFileContent(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingEditedFile(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [editableFilePath, expanded, shouldShowEditedFile])
 
   return (
     <div className={`tool-call overflow-hidden rounded-[20px] border text-sm ${
@@ -198,15 +305,32 @@ export function ToolCallBlock({ toolCall }: Props) {
                 </pre>
               </div>
             )}
-            {resultStr && (
+            {diffHunks.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">변경 diff</div>
+                {diffHunks.map((hunk, index) => renderDiffBlock(hunk, index))}
+              </div>
+            )}
+            {(resultStr || shouldShowEditedFile) && diffHunks.length === 0 && (
               <div>
-                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">결과</div>
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">
+                  {shouldShowEditedFile ? '변경 후 내용' : '결과'}
+                </div>
                 {isError ? (
                   <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-xl border border-red-900/60 bg-red-950/25 px-3 py-2 font-mono text-xs text-red-100">
                     {resultStr}
                   </pre>
+                ) : loadingEditedFile ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-claude-border/70 bg-[#23252a] px-3 py-3 text-xs text-claude-muted">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                    </svg>
+                    변경된 파일 내용을 불러오는 중...
+                  </div>
+                ) : shouldShowEditedFile && editedFileContent !== null ? (
+                  renderCodeLines(editedFileContent)
                 ) : (
-                  renderCodeLines(resultStr)
+                  renderCodeLines(resultStr ?? '')
                 )}
               </div>
             )}
