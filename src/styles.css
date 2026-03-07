@@ -481,13 +481,13 @@ pre code.hljs {
   background: rgb(var(--claude-code-bg));
   color: rgb(var(--claude-prose));
   border: 0;
-  padding: 1.1rem 1.25rem;
+  padding: 0.6rem 1.1rem;
   border-radius: 0 0 1rem 1rem;
-  font-size: 0.82em;
+  font-size: 0.94em;
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
   display: block;
   overflow-x: auto;
-  line-height: 1.75;
+  line-height: 1.65;
 }
 .hljs-keyword { color: #ff7b72; }
 .hljs-string { color: #a5d6ff; }
@@ -524,7 +524,7 @@ pre code.hljs {
   margin-bottom: 0;
 }
 .prose pre {
-  margin: 1em 0;
+  margin: 0 0;
   padding: 0;
   background: transparent;
 }
@@ -597,8 +597,8 @@ pre code.hljs {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 2.75rem;
-  padding: 0.75rem 1rem;
+  min-height: 2.3rem;
+  padding: 0.5rem 0.9rem;
   border-bottom: 1px solid rgb(var(--claude-code-header-border));
   background: rgb(var(--claude-code-header));
 }
