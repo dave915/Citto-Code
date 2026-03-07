@@ -35,6 +35,12 @@
   --claude-prose-link: 216 209 202;
   --claude-prose-link-decoration: 84 84 90;
   --claude-prose-strong: 247 241 235;
+  --claude-diff-gutter-insert-bg: 22 101 52 / 0.36;
+  --claude-diff-gutter-delete-bg: 127 29 29 / 0.34;
+  --claude-diff-code-insert-bg: 20 83 45 / 0.62;
+  --claude-diff-code-delete-bg: 69 10 10 / 0.62;
+  --claude-diff-code-insert-edit-bg: 34 197 94 / 0.18;
+  --claude-diff-code-delete-edit-bg: 248 113 113 / 0.18;
 }
 
 :root[data-theme='graphite'] {
@@ -163,6 +169,12 @@
   --claude-prose-link: 86 79 72;
   --claude-prose-link-decoration: 177 166 154;
   --claude-prose-strong: 41 37 33;
+  --claude-diff-gutter-insert-bg: 182 211 189 / 1;
+  --claude-diff-gutter-delete-bg: 220 186 186 / 1;
+  --claude-diff-code-insert-bg: 169 197 176 / 1;
+  --claude-diff-code-delete-bg: 209 172 172 / 1;
+  --claude-diff-code-insert-edit-bg: 151 183 159 / 0.96;
+  --claude-diff-code-delete-edit-bg: 219 160 160 / 0.96;
 }
 
 :root[data-theme='mist'] {
@@ -195,6 +207,12 @@
   --claude-prose-link: 66 80 95;
   --claude-prose-link-decoration: 165 179 192;
   --claude-prose-strong: 34 42 50;
+  --claude-diff-gutter-insert-bg: 176 207 189 / 1;
+  --claude-diff-gutter-delete-bg: 220 184 184 / 1;
+  --claude-diff-code-insert-bg: 163 195 177 / 1;
+  --claude-diff-code-delete-bg: 210 171 171 / 1;
+  --claude-diff-code-insert-edit-bg: 146 180 162 / 0.96;
+  --claude-diff-code-delete-edit-bg: 219 158 158 / 0.96;
 }
 
 :root[data-theme='stone'] {
@@ -227,6 +245,12 @@
   --claude-prose-link: 96 86 75;
   --claude-prose-link-decoration: 173 161 147;
   --claude-prose-strong: 48 43 38;
+  --claude-diff-gutter-insert-bg: 179 204 184 / 1;
+  --claude-diff-gutter-delete-bg: 217 182 182 / 1;
+  --claude-diff-code-insert-bg: 166 191 171 / 1;
+  --claude-diff-code-delete-bg: 205 168 168 / 1;
+  --claude-diff-code-insert-edit-bg: 149 176 154 / 0.96;
+  --claude-diff-code-delete-edit-bg: 216 156 156 / 0.96;
 }
 
 * {
@@ -278,20 +302,20 @@ a:focus-visible,
   --diff-font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --diff-selection-background-color: rgb(255 255 255 / 0.08);
   --diff-selection-text-color: rgb(var(--claude-text));
-  --diff-gutter-insert-background-color: rgb(22 101 52 / 0.36);
-  --diff-gutter-insert-text-color: rgb(167 243 208);
-  --diff-gutter-delete-background-color: rgb(127 29 29 / 0.34);
-  --diff-gutter-delete-text-color: rgb(254 202 202);
+  --diff-gutter-insert-background-color: rgb(var(--claude-diff-gutter-insert-bg));
+  --diff-gutter-insert-text-color: rgb(var(--claude-text));
+  --diff-gutter-delete-background-color: rgb(var(--claude-diff-gutter-delete-bg));
+  --diff-gutter-delete-text-color: rgb(var(--claude-text));
   --diff-gutter-selected-background-color: rgb(59 130 246 / 0.18);
   --diff-gutter-selected-text-color: rgb(var(--claude-text));
-  --diff-code-insert-background-color: rgb(20 83 45 / 0.62);
-  --diff-code-insert-text-color: rgb(220 252 231);
-  --diff-code-delete-background-color: rgb(69 10 10 / 0.62);
-  --diff-code-delete-text-color: rgb(254 226 226);
-  --diff-code-insert-edit-background-color: rgb(34 197 94 / 0.18);
-  --diff-code-insert-edit-text-color: rgb(220 252 231);
-  --diff-code-delete-edit-background-color: rgb(248 113 113 / 0.18);
-  --diff-code-delete-edit-text-color: rgb(254 226 226);
+  --diff-code-insert-background-color: rgb(var(--claude-diff-code-insert-bg));
+  --diff-code-insert-text-color: rgb(var(--claude-text));
+  --diff-code-delete-background-color: rgb(var(--claude-diff-code-delete-bg));
+  --diff-code-delete-text-color: rgb(var(--claude-text));
+  --diff-code-insert-edit-background-color: rgb(var(--claude-diff-code-insert-edit-bg));
+  --diff-code-insert-edit-text-color: rgb(var(--claude-text));
+  --diff-code-delete-edit-background-color: rgb(var(--claude-diff-code-delete-edit-bg));
+  --diff-code-delete-edit-text-color: rgb(var(--claude-text));
   --diff-code-selected-background-color: rgb(59 130 246 / 0.18);
   --diff-code-selected-text-color: rgb(var(--claude-text));
   --diff-omit-gutter-line-color: rgb(var(--claude-border));
@@ -398,6 +422,12 @@ a:focus-visible,
 .tool-diff-view .diff-code > pre {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.tool-error-block {
+  border: 1px solid rgb(185 28 28 / 0.28);
+  background: color-mix(in srgb, rgb(var(--claude-surface)) 88%, rgb(185 28 28 / 0.08));
+  color: rgb(var(--claude-text));
 }
 
 .tool-code-review {

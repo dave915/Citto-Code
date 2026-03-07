@@ -1,4 +1,5 @@
 import {
+  memo,
   useEffect,
   useMemo,
   useRef,
@@ -58,6 +59,34 @@ type Props = {
 
 const INITIAL_RIGHT_PANEL_WIDTH = 290
 const INITIAL_EXPLORER_WIDTH = 290
+
+function areGitStatusEntriesEqual(a: GitStatusEntry | null, b: GitStatusEntry | null) {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.path === b.path &&
+    a.relativePath === b.relativePath &&
+    (a.originalPath ?? null) === (b.originalPath ?? null) &&
+    a.statusCode === b.statusCode &&
+    a.stagedAdditions === b.stagedAdditions &&
+    a.stagedDeletions === b.stagedDeletions &&
+    a.unstagedAdditions === b.unstagedAdditions &&
+    a.unstagedDeletions === b.unstagedDeletions &&
+    a.totalAdditions === b.totalAdditions &&
+    a.totalDeletions === b.totalDeletions &&
+    a.staged === b.staged &&
+    a.unstaged === b.unstaged &&
+    a.untracked === b.untracked &&
+    a.deleted === b.deleted &&
+    a.renamed === b.renamed
+  )
+}
+
+function areGitDiffResultsEqual(a: GitDiffResult | null, b: GitDiffResult | null) {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.ok === b.ok && a.diff === b.diff && (a.error ?? null) === (b.error ?? null)
+}
 
 const OPEN_WITH_ICONS: Record<string, string> = {
   vscode: vscodeIcon,
@@ -539,14 +568,15 @@ export function ChatView({
       const nextSelectedEntry = selectedPath && nextStatus.isRepo
         ? nextStatus.entries.find((entry) => entry.path === selectedPath) ?? null
         : null
-      setSelectedGitEntry(nextSelectedEntry)
+      setSelectedGitEntry((prev) => (areGitStatusEntriesEqual(prev, nextSelectedEntry) ? prev : nextSelectedEntry))
       selectedGitEntryPathRef.current = nextSelectedEntry?.path ?? null
       if (!nextSelectedEntry) {
         setGitDiff(null)
       }
+      return nextStatus
     } catch {
       if (isCancelled?.()) return
-      setGitStatus({
+      const fallbackStatus = {
         gitAvailable: false,
         isRepo: false,
         rootPath: null,
@@ -555,10 +585,12 @@ export function ChatView({
         behind: 0,
         clean: true,
         entries: [],
-      })
+      }
+      setGitStatus(fallbackStatus)
       setSelectedGitEntry(null)
       selectedGitEntryPathRef.current = null
       setGitDiff(null)
+      return fallbackStatus
     } finally {
       if (!isCancelled?.() && (!silent || !gitStatus)) setGitLoading(false)
     }
@@ -604,27 +636,37 @@ export function ChatView({
 
   const refreshGitPanel = async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
-    await Promise.all([
+    const [nextStatus] = await Promise.all([
       refreshGitStatus(undefined, { silent }),
       refreshGitBranches(undefined, { silent }),
     ])
+    if (!nextStatus) return
     const selectedPath = selectedGitEntryPathRef.current
     if (selectedPath) {
-      const nextStatus = await window.claude.getGitStatus(session.cwd || '~')
       const nextEntry = nextStatus.isRepo
         ? nextStatus.entries.find((entry) => entry.path === selectedPath) ?? null
         : null
-      setSelectedGitEntry(nextEntry)
+      setSelectedGitEntry((prev) => (areGitStatusEntriesEqual(prev, nextEntry) ? prev : nextEntry))
       selectedGitEntryPathRef.current = nextEntry?.path ?? null
       if (nextEntry) {
+        const shouldRefreshSelectedDiff =
+          !silent ||
+          !gitDiff ||
+          !areGitStatusEntriesEqual(selectedGitEntry, nextEntry)
+
+        if (!shouldRefreshSelectedDiff) {
+          return
+        }
+
         if (!silent || !gitDiff) {
           setGitDiffLoading(true)
         }
         try {
           const nextDiff = await window.claude.getGitDiff({ cwd: session.cwd || '~', filePath: nextEntry.path })
-          setGitDiff(nextDiff)
+          setGitDiff((prev) => (areGitDiffResultsEqual(prev, nextDiff) ? prev : nextDiff))
         } catch {
-          setGitDiff({ ok: false, diff: '', error: 'diff를 불러오지 못했습니다.' })
+          const nextDiff = { ok: false as const, diff: '', error: 'diff를 불러오지 못했습니다.' }
+          setGitDiff((prev) => (areGitDiffResultsEqual(prev, nextDiff) ? prev : nextDiff))
         } finally {
           if (!silent || !gitDiff) {
             setGitDiffLoading(false)
@@ -995,48 +1037,50 @@ export function ChatView({
 
                 {branchMenuOpen && (
                   <div className="absolute left-0 top-full z-30 mt-2 w-[268px] rounded-[18px] border border-claude-border bg-claude-panel p-2 shadow-[0_16px_32px_rgba(0,0,0,0.26)]">
-                    <div className="relative">
-                      <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                        <circle cx="11" cy="11" r="7" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m20 20-3.5-3.5" />
-                      </svg>
-                      <input
-                        ref={branchSearchInputRef}
-                        value={branchQuery}
-                        onChange={(event) => setBranchQuery(event.target.value)}
-                        placeholder="브랜치 검색"
-                        className="w-full rounded-xl border border-claude-border bg-claude-surface py-1.5 pl-9 pr-20 text-[11px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
-                      />
-                      <IconTooltipButton
-                        type="button"
-                        onClick={() => void handlePullGit()}
-                        disabled={gitActionLoading || gitLoading}
-                        tooltip="Pull"
-                        tooltipAlign="right"
-                        wrapperClassName="absolute right-9 top-1/2 -translate-y-1/2"
-                        className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
-                      >
-                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m7 11 5 5 5-5" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14" />
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative min-w-0 flex-1">
+                        <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <circle cx="11" cy="11" r="7" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m20 20-3.5-3.5" />
                         </svg>
-                      </IconTooltipButton>
-                      <IconTooltipButton
-                        type="button"
-                        onClick={() => void handlePushGit()}
-                        disabled={gitActionLoading || gitLoading}
-                        tooltip="Push"
-                        tooltipAlign="right"
-                        wrapperClassName="absolute right-2 top-1/2 -translate-y-1/2"
-                        className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
-                      >
-                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V8" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m7 13 5-5 5 5" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h14" />
-                        </svg>
-                      </IconTooltipButton>
+                        <input
+                          ref={branchSearchInputRef}
+                          value={branchQuery}
+                          onChange={(event) => setBranchQuery(event.target.value)}
+                          placeholder="브랜치 검색"
+                          className="w-full rounded-xl border border-claude-border bg-claude-surface py-1.5 pl-9 pr-3 text-[11px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+                        />
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <IconTooltipButton
+                          type="button"
+                          onClick={() => void handlePullGit()}
+                          disabled={gitActionLoading || gitLoading}
+                          tooltip="Pull"
+                          tooltipAlign="right"
+                          className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                        >
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m7 11 5 5 5-5" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14" />
+                          </svg>
+                        </IconTooltipButton>
+                        <IconTooltipButton
+                          type="button"
+                          onClick={() => void handlePushGit()}
+                          disabled={gitActionLoading || gitLoading}
+                          tooltip="Push"
+                          tooltipAlign="right"
+                          className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                        >
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V8" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m7 13 5-5 5 5" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h14" />
+                          </svg>
+                        </IconTooltipButton>
+                      </div>
                     </div>
 
                     <div className="mt-2.5">
@@ -2352,7 +2396,7 @@ function GitStatusPanel({
                     disabled={actionLoading}
                     tooltip="파일 되돌리기"
                     tooltipAlign="right"
-                    className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg bg-claude-surface text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-claude-text transition-colors hover:bg-claude-surface/70 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 10H5V6" />
@@ -2369,7 +2413,7 @@ function GitStatusPanel({
                     disabled={actionLoading}
                     tooltip={stageActionLabel}
                     tooltipAlign="right"
-                    className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg border border-claude-border bg-claude-surface text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface/70 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {shouldStageGitEntry(entry) ? '+' : '-'}
                   </IconTooltipButton>
@@ -2383,7 +2427,7 @@ function GitStatusPanel({
   )
 }
 
-function GitDiffPanel({
+const GitDiffPanel = memo(function GitDiffPanel({
   entry,
   gitDiff,
   loading,
@@ -2464,7 +2508,11 @@ function GitDiffPanel({
       </div>
     </div>
   )
-}
+}, (prevProps, nextProps) => (
+  prevProps.loading === nextProps.loading &&
+  areGitStatusEntriesEqual(prevProps.entry, nextProps.entry) &&
+  areGitDiffResultsEqual(prevProps.gitDiff, nextProps.gitDiff)
+))
 
 function isMarkdownFile(name: string): boolean {
   return /\.(md|mdx|markdown)$/i.test(name)
