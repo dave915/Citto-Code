@@ -407,6 +407,7 @@ export default function App() {
         toolUseId: event.toolUseId,
         toolName: event.toolName,
         toolInput: event.toolInput,
+        fileSnapshotBefore: event.fileSnapshotBefore,
         status: 'running'
       })
       return

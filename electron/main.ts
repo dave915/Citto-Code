@@ -828,6 +828,21 @@ function resolveClaude(): string {
 
 type Sender = Electron.WebContents
 
+function getToolFileSnapshotBefore(toolName: string, toolInput: unknown): string | null {
+  if (!toolInput || typeof toolInput !== 'object') return null
+
+  if (!['Edit', 'MultiEdit', 'Write'].includes(toolName)) return null
+
+  const filePath = (toolInput as { file_path?: unknown }).file_path
+  if (typeof filePath !== 'string' || !filePath.trim() || !existsSync(filePath)) return null
+
+  try {
+    return readFileSync(filePath, 'utf-8')
+  } catch {
+    return null
+  }
+}
+
 function handleClaudeEvent(
   sender: Sender,
   data: Record<string, unknown>,
@@ -857,7 +872,9 @@ function handleClaudeEvent(
       } else if ((block.type as string) === 'tool_use') {
         sender.send('claude:tool-start', {
           sessionId: sid, toolUseId: block.id as string,
-          toolName: block.name as string, toolInput: block.input,
+          toolName: block.name as string,
+          toolInput: block.input,
+          fileSnapshotBefore: getToolFileSnapshotBefore(block.name as string, block.input),
         })
       }
     }

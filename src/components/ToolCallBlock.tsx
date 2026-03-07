@@ -8,6 +8,13 @@ type DiffHunk = {
   after: string
 }
 
+type DiffSegment = {
+  before: string
+  after: string
+  oldContent: string | null
+  newContent: string | null
+}
+
 type DiffRow = {
   kind: 'removed' | 'added'
   text: string
@@ -113,6 +120,78 @@ function getEditDiffHunks(name: string, input: unknown): DiffHunk[] {
   return []
 }
 
+function replaceFirstOccurrence(content: string, before: string, after: string): string {
+  const normalizedContent = normalizeNewlines(content)
+  const normalizedBefore = normalizeNewlines(before)
+  const normalizedAfter = normalizeNewlines(after)
+
+  if (!normalizedBefore) {
+    return normalizedAfter ? `${normalizedAfter}${normalizedContent}` : normalizedContent
+  }
+
+  const index = normalizedContent.indexOf(normalizedBefore)
+  if (index < 0) return normalizedContent
+  return `${normalizedContent.slice(0, index)}${normalizedAfter}${normalizedContent.slice(index + normalizedBefore.length)}`
+}
+
+function buildDiffSegments(toolCalls: ToolCallBlockType[]): DiffSegment[] {
+  const segments: DiffSegment[] = []
+
+  for (const toolCall of toolCalls) {
+    const input = (toolCall.toolInput && typeof toolCall.toolInput === 'object')
+      ? toolCall.toolInput as Record<string, unknown>
+      : {}
+    const snapshotBefore = typeof toolCall.fileSnapshotBefore === 'string'
+      ? normalizeNewlines(toolCall.fileSnapshotBefore)
+      : toolCall.fileSnapshotBefore ?? null
+
+    if (toolCall.toolName === 'Edit') {
+      const before = typeof input.old_string === 'string' ? input.old_string : ''
+      const after = typeof input.new_string === 'string' ? input.new_string : ''
+      const oldContent = snapshotBefore
+      const newContent = oldContent !== null ? replaceFirstOccurrence(oldContent, before, after) : null
+      if (before || after) {
+        segments.push({ before, after, oldContent, newContent })
+      }
+      continue
+    }
+
+    if (toolCall.toolName === 'MultiEdit' && Array.isArray(input.edits)) {
+      let workingContent = snapshotBefore
+      for (const edit of input.edits) {
+        if (!edit || typeof edit !== 'object') continue
+        const before = typeof (edit as Record<string, unknown>).old_string === 'string'
+          ? (edit as Record<string, unknown>).old_string as string
+          : ''
+        const after = typeof (edit as Record<string, unknown>).new_string === 'string'
+          ? (edit as Record<string, unknown>).new_string as string
+          : ''
+        const oldContent = workingContent
+        const newContent = oldContent !== null ? replaceFirstOccurrence(oldContent, before, after) : null
+        if (before || after) {
+          segments.push({ before, after, oldContent, newContent })
+        }
+        workingContent = newContent
+      }
+      continue
+    }
+
+    if (toolCall.toolName === 'Write') {
+      const after = typeof input.content === 'string' ? input.content : ''
+      if (after || snapshotBefore) {
+        segments.push({
+          before: snapshotBefore ?? '',
+          after,
+          oldContent: snapshotBefore,
+          newContent: after ? normalizeNewlines(after) : '',
+        })
+      }
+    }
+  }
+
+  return segments
+}
+
 function formatToolResult(result: unknown): string {
   if (typeof result === 'string') return result
   if (Array.isArray(result)) {
@@ -141,25 +220,37 @@ function getDiffStats(hunks: DiffHunk[]) {
   return { added, removed }
 }
 
-function findLineStart(content: string, needle: string): number | null {
-  if (!content || !needle.trim()) return null
-  const index = content.indexOf(needle)
-  if (index >= 0) return content.slice(0, index).split('\n').length
+function normalizeNewlines(value: string): string {
+  return value.replace(/\r\n?/g, '\n')
+}
 
-  const firstMeaningfulLine = needle
+function splitDiffLines(content: string): string[] {
+  if (!content) return []
+  return normalizeNewlines(content).split('\n')
+}
+
+function findLineStart(content: string, needle: string): number | null {
+  const normalizedContent = normalizeNewlines(content)
+  const normalizedNeedle = normalizeNewlines(needle)
+
+  if (!normalizedContent || !normalizedNeedle.trim()) return null
+  const index = normalizedContent.indexOf(normalizedNeedle)
+  if (index >= 0) return normalizedContent.slice(0, index).split('\n').length
+
+  const firstMeaningfulLine = normalizedNeedle
     .split('\n')
     .map((line) => line.trim())
     .find(Boolean)
 
   if (!firstMeaningfulLine) return null
-  const fallbackIndex = content.indexOf(firstMeaningfulLine)
-  if (fallbackIndex >= 0) return content.slice(0, fallbackIndex).split('\n').length
+  const fallbackIndex = normalizedContent.indexOf(firstMeaningfulLine)
+  if (fallbackIndex >= 0) return normalizedContent.slice(0, fallbackIndex).split('\n').length
   return null
 }
 
 function buildDiffRows(hunk: DiffHunk, editedFileContent: string | null): DiffRow[] {
-  const beforeLines = hunk.before.split('\n')
-  const afterLines = hunk.after.split('\n')
+  const beforeLines = splitDiffLines(hunk.before)
+  const afterLines = splitDiffLines(hunk.after)
   const anchorLine =
     (editedFileContent ? findLineStart(editedFileContent, hunk.after) : null) ??
     (editedFileContent ? findLineStart(editedFileContent, hunk.before) : null) ??
@@ -210,8 +301,8 @@ function buildUnifiedDiffText(path: string, diffHunks: DiffHunk[], editedFileCon
   const lines = [`--- a/${path}`, `+++ b/${path}`]
 
   for (const hunk of diffHunks) {
-    const beforeLines = hunk.before.split('\n')
-    const afterLines = hunk.after.split('\n')
+    const beforeLines = splitDiffLines(hunk.before)
+    const afterLines = splitDiffLines(hunk.after)
     const anchorLine =
       (editedFileContent ? findLineStart(editedFileContent, hunk.after) : null) ??
       (editedFileContent ? findLineStart(editedFileContent, hunk.before) : null) ??
@@ -220,6 +311,33 @@ function buildUnifiedDiffText(path: string, diffHunks: DiffHunk[], editedFileCon
     const oldCount = beforeLines.length
     const newCount = afterLines.length
     lines.push(`@@ -${anchorLine},${oldCount} +${anchorLine},${newCount} @@`)
+    beforeLines.forEach((line) => lines.push(`-${line}`))
+    afterLines.forEach((line) => lines.push(`+${line}`))
+  }
+
+  return lines.join('\n')
+}
+
+function buildUnifiedDiffTextFromSegments(path: string, segments: DiffSegment[], fallbackEditedContent: string | null) {
+  const lines = [`--- a/${path}`, `+++ b/${path}`]
+
+  for (const segment of segments) {
+    const beforeLines = splitDiffLines(segment.before)
+    const afterLines = splitDiffLines(segment.after)
+
+    const oldStart =
+      beforeLines.length === 0
+        ? 0
+        : (segment.oldContent ? findLineStart(segment.oldContent, segment.before) : null) ?? 0
+
+    const newStart =
+      afterLines.length === 0
+        ? 0
+        : (segment.newContent && segment.after ? findLineStart(segment.newContent, segment.after) : null) ??
+          (segment.after ? (fallbackEditedContent ? findLineStart(fallbackEditedContent, segment.after) : null) : null) ??
+          0
+
+    lines.push(`@@ -${oldStart},${beforeLines.length} +${newStart},${afterLines.length} @@`)
     beforeLines.forEach((line) => lines.push(`-${line}`))
     afterLines.forEach((line) => lines.push(`+${line}`))
   }
@@ -371,6 +489,7 @@ function SelectionActionBar({
 
 function DiffPreview({
   path,
+  diffSegments,
   diffHunks,
   editedFileContent,
   showFullDiff,
@@ -378,6 +497,7 @@ function DiffPreview({
   onAskAboutSelection,
 }: {
   path: string
+  diffSegments: DiffSegment[]
   diffHunks: DiffHunk[]
   editedFileContent: string | null
   showFullDiff: boolean
@@ -391,11 +511,34 @@ function DiffPreview({
   const [commentOpen, setCommentOpen] = useState(false)
   const [commentValue, setCommentValue] = useState('')
   const parsed = useMemo(() => {
-    const diffText = buildUnifiedDiffText(path, diffHunks, editedFileContent)
+    const diffText = diffSegments.length > 0
+      ? buildUnifiedDiffTextFromSegments(path, diffSegments, editedFileContent)
+      : buildUnifiedDiffText(path, diffHunks, editedFileContent)
     return parseDiff(diffText)[0] ?? null
-  }, [path, diffHunks, editedFileContent])
+  }, [path, diffSegments, diffHunks, editedFileContent])
 
   const selectableLines = useMemo(() => buildDiffSelectionLines(parsed), [parsed])
+  const hiddenGutters = useMemo(() => {
+    const hiddenOld = new Set<string>()
+    const hiddenNew = new Set<string>()
+
+    parsed?.hunks.forEach((hunk) => {
+      const hideOld = hunk.oldStart <= 0
+      const hideNew = hunk.newStart <= 0
+
+      hunk.changes.forEach((change) => {
+        const key = getChangeKey(change)
+        if (hideOld && (change.type === 'delete' || change.type === 'normal')) {
+          hiddenOld.add(key)
+        }
+        if (hideNew && (change.type === 'insert' || change.type === 'normal')) {
+          hiddenNew.add(key)
+        }
+      })
+    })
+
+    return { hiddenOld, hiddenNew }
+  }, [parsed])
   const selectedLines = useMemo(() => {
     const selected = new Set(selectedChangeKeys)
     return selectableLines.filter((line) => selected.has(line.key))
@@ -501,11 +644,15 @@ function DiffPreview({
           }}
           renderGutter={({ change, renderDefault, side }) => {
             if (!change || (change.type !== 'insert' && change.type !== 'delete')) return renderDefault()
+            const changeKey = getChangeKey(change)
+            const hideLineNumber =
+              (side === 'old' && hiddenGutters.hiddenOld.has(changeKey)) ||
+              (side === 'new' && hiddenGutters.hiddenNew.has(changeKey))
             const shouldRenderAction =
               (change.type === 'insert' && side === 'new') || (change.type === 'delete' && side === 'old')
             return (
               <div className="tool-diff-gutter-wrap">
-                {renderDefault()}
+                {hideLineNumber ? <span className="tool-diff-gutter-number-hidden" /> : renderDefault()}
                 {shouldRenderAction && onAskAboutSelection ? (
                   <button
                     type="button"
@@ -515,7 +662,7 @@ function DiffPreview({
                       openCommentForChange(change)
                     }}
                     className={`tool-line-action-button ${change.type === 'delete' ? 'tool-line-action-button-old' : ''} ${
-                      hoveredChangeKey === getChangeKey(change) && !selectedChangeKeys.includes(getChangeKey(change))
+                      hoveredChangeKey === changeKey && !selectedChangeKeys.includes(changeKey)
                         ? 'tool-line-action-button-visible'
                         : ''
                     }`}
@@ -872,6 +1019,10 @@ function TimelineEntryRow({
     () => entry.toolCalls.flatMap((toolCall) => getEditDiffHunks(toolCall.toolName, toolCall.toolInput)),
     [entry.toolCalls]
   )
+  const diffSegments = useMemo(
+    () => buildDiffSegments(entry.toolCalls),
+    [entry.toolCalls]
+  )
   const resultStr = useMemo(() => formatToolResult(primaryTool.result), [primaryTool.result])
   const showCodePreview = entry.label === 'Read' && resultStr.trim().length > 0
   const diffRows = useMemo(
@@ -951,6 +1102,7 @@ function TimelineEntryRow({
             <div className="space-y-1">
               <DiffPreview
                 path={primaryPath ?? entry.badge ?? 'diff.txt'}
+                diffSegments={diffSegments}
                 diffHunks={diffHunks}
                 editedFileContent={editedFileContent}
                 showFullDiff={showFullDiff}

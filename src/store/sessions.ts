@@ -11,6 +11,7 @@ export type ToolCallBlock = {
   toolUseId: string
   toolName: string
   toolInput: unknown
+  fileSnapshotBefore?: string | null
   result?: unknown
   isError?: boolean
   status: ToolCallStatus

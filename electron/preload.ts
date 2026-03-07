@@ -3,7 +3,14 @@ import { contextBridge, ipcRenderer } from 'electron'
 export type ClaudeStreamEvent =
   | { type: 'stream-start'; sessionId: string; cwd: string }
   | { type: 'text-chunk'; sessionId: string; text: string }
-  | { type: 'tool-start'; sessionId: string; toolUseId: string; toolName: string; toolInput: unknown }
+  | {
+      type: 'tool-start'
+      sessionId: string
+      toolUseId: string
+      toolName: string
+      toolInput: unknown
+      fileSnapshotBefore?: string | null
+    }
   | { type: 'tool-result'; sessionId: string; toolUseId: string; content: unknown; isError: boolean }
   | {
       type: 'result'
