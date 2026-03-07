@@ -134,7 +134,7 @@ function replaceFirstOccurrence(content: string, before: string, after: string):
   return `${normalizedContent.slice(0, index)}${normalizedAfter}${normalizedContent.slice(index + normalizedBefore.length)}`
 }
 
-function buildDiffSegments(toolCalls: ToolCallBlockType[]): DiffSegment[] {
+function buildDiffSegments(toolCalls: ToolCallBlockType[], fallbackFileContent: string | null = null): DiffSegment[] {
   const segments: DiffSegment[] = []
 
   for (const toolCall of toolCalls) {
@@ -143,7 +143,9 @@ function buildDiffSegments(toolCalls: ToolCallBlockType[]): DiffSegment[] {
       : {}
     const snapshotBefore = typeof toolCall.fileSnapshotBefore === 'string'
       ? normalizeNewlines(toolCall.fileSnapshotBefore)
-      : toolCall.fileSnapshotBefore ?? null
+      : typeof fallbackFileContent === 'string'
+        ? normalizeNewlines(fallbackFileContent)
+        : toolCall.fileSnapshotBefore ?? null
 
     if (toolCall.toolName === 'Edit') {
       const before = typeof input.old_string === 'string' ? input.old_string : ''
@@ -248,13 +250,15 @@ function findLineStart(content: string, needle: string): number | null {
   return null
 }
 
+function resolveAnchorLine(editedFileContent: string | null, before: string, after: string): number | null {
+  if (!editedFileContent) return null
+  return findLineStart(editedFileContent, after) ?? findLineStart(editedFileContent, before)
+}
+
 function buildDiffRows(hunk: DiffHunk, editedFileContent: string | null): DiffRow[] {
   const beforeLines = splitDiffLines(hunk.before)
   const afterLines = splitDiffLines(hunk.after)
-  const anchorLine =
-    (editedFileContent ? findLineStart(editedFileContent, hunk.after) : null) ??
-    (editedFileContent ? findLineStart(editedFileContent, hunk.before) : null) ??
-    1
+  const anchorLine = resolveAnchorLine(editedFileContent, hunk.before, hunk.after) ?? 0
 
   const rows = [
     ...beforeLines.map((line, index) => ({
@@ -299,14 +303,14 @@ function getShikiTheme(): string {
 
 function buildUnifiedDiffText(path: string, diffHunks: DiffHunk[], editedFileContent: string | null) {
   const lines = [`--- a/${path}`, `+++ b/${path}`]
+  const hunkHasReliableLineNumbers: boolean[] = []
 
   for (const hunk of diffHunks) {
     const beforeLines = splitDiffLines(hunk.before)
     const afterLines = splitDiffLines(hunk.after)
-    const anchorLine =
-      (editedFileContent ? findLineStart(editedFileContent, hunk.after) : null) ??
-      (editedFileContent ? findLineStart(editedFileContent, hunk.before) : null) ??
-      1
+    const resolvedAnchorLine = resolveAnchorLine(editedFileContent, hunk.before, hunk.after)
+    const anchorLine = resolvedAnchorLine ?? 0
+    hunkHasReliableLineNumbers.push(resolvedAnchorLine !== null)
 
     const oldCount = beforeLines.length
     const newCount = afterLines.length
@@ -315,34 +319,54 @@ function buildUnifiedDiffText(path: string, diffHunks: DiffHunk[], editedFileCon
     afterLines.forEach((line) => lines.push(`+${line}`))
   }
 
-  return lines.join('\n')
+  return {
+    text: lines.join('\n'),
+    hunkHasReliableLineNumbers,
+  }
 }
 
 function buildUnifiedDiffTextFromSegments(path: string, segments: DiffSegment[], fallbackEditedContent: string | null) {
   const lines = [`--- a/${path}`, `+++ b/${path}`]
+  const hunkHasReliableLineNumbers: boolean[] = []
 
   for (const segment of segments) {
     const beforeLines = splitDiffLines(segment.before)
     const afterLines = splitDiffLines(segment.after)
 
+    const resolvedOldStart =
+      beforeLines.length === 0
+        ? null
+        : (segment.oldContent ? findLineStart(segment.oldContent, segment.before) : null)
+
     const oldStart =
       beforeLines.length === 0
         ? 0
-        : (segment.oldContent ? findLineStart(segment.oldContent, segment.before) : null) ?? 0
+        : resolvedOldStart ?? 0
 
+    const resolvedNewStart =
+      afterLines.length === 0
+        ? null
+        : (segment.newContent && segment.after ? findLineStart(segment.newContent, segment.after) : null) ??
+          (segment.after ? (fallbackEditedContent ? findLineStart(fallbackEditedContent, segment.after) : null) : null)
     const newStart =
       afterLines.length === 0
         ? 0
-        : (segment.newContent && segment.after ? findLineStart(segment.newContent, segment.after) : null) ??
-          (segment.after ? (fallbackEditedContent ? findLineStart(fallbackEditedContent, segment.after) : null) : null) ??
-          0
+        : resolvedNewStart ?? 0
+
+    hunkHasReliableLineNumbers.push(
+      (beforeLines.length === 0 || resolvedOldStart !== null) &&
+      (afterLines.length === 0 || resolvedNewStart !== null)
+    )
 
     lines.push(`@@ -${oldStart},${beforeLines.length} +${newStart},${afterLines.length} @@`)
     beforeLines.forEach((line) => lines.push(`-${line}`))
     afterLines.forEach((line) => lines.push(`+${line}`))
   }
 
-  return lines.join('\n')
+  return {
+    text: lines.join('\n'),
+    hunkHasReliableLineNumbers,
+  }
 }
 
 function trimParsedDiffFile(file: ParsedDiffFile, limit: number): ParsedDiffFile {
@@ -511,34 +535,18 @@ function DiffPreview({
   const [commentOpen, setCommentOpen] = useState(false)
   const [commentValue, setCommentValue] = useState('')
   const parsed = useMemo(() => {
-    const diffText = diffSegments.length > 0
+    const diffBuild = diffSegments.length > 0
       ? buildUnifiedDiffTextFromSegments(path, diffSegments, editedFileContent)
       : buildUnifiedDiffText(path, diffHunks, editedFileContent)
-    return parseDiff(diffText)[0] ?? null
+    const file = parseDiff(diffBuild.text)[0] ?? null
+    return {
+      file,
+      hunkHasReliableLineNumbers: diffBuild.hunkHasReliableLineNumbers,
+    }
   }, [path, diffSegments, diffHunks, editedFileContent])
 
-  const selectableLines = useMemo(() => buildDiffSelectionLines(parsed), [parsed])
-  const hiddenGutters = useMemo(() => {
-    const hiddenOld = new Set<string>()
-    const hiddenNew = new Set<string>()
-
-    parsed?.hunks.forEach((hunk) => {
-      const hideOld = hunk.oldStart <= 0
-      const hideNew = hunk.newStart <= 0
-
-      hunk.changes.forEach((change) => {
-        const key = getChangeKey(change)
-        if (hideOld && (change.type === 'delete' || change.type === 'normal')) {
-          hiddenOld.add(key)
-        }
-        if (hideNew && (change.type === 'insert' || change.type === 'normal')) {
-          hiddenNew.add(key)
-        }
-      })
-    })
-
-    return { hiddenOld, hiddenNew }
-  }, [parsed])
+  const parsedFile = parsed.file
+  const selectableLines = useMemo(() => buildDiffSelectionLines(parsedFile), [parsedFile])
   const selectedLines = useMemo(() => {
     const selected = new Set(selectedChangeKeys)
     return selectableLines.filter((line) => selected.has(line.key))
@@ -547,9 +555,26 @@ function DiffPreview({
   const previewLimit = 24
   const hiddenCount = Math.max(0, allRows.length - previewLimit)
   const visibleFile = useMemo(() => {
-    if (!parsed) return null
-    return showFullDiff ? parsed : trimParsedDiffFile(parsed, previewLimit)
-  }, [parsed, showFullDiff])
+    if (!parsedFile) return null
+    return showFullDiff ? parsedFile : trimParsedDiffFile(parsedFile, previewLimit)
+  }, [parsedFile, showFullDiff])
+  const visibleHunkReliability = useMemo(() => {
+    if (!visibleFile) return []
+    return parsed.hunkHasReliableLineNumbers.slice(0, visibleFile.hunks.length)
+  }, [parsed.hunkHasReliableLineNumbers, visibleFile])
+  const reliableChangeKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (!visibleFile) return keys
+    visibleFile.hunks.forEach((hunk, index) => {
+      if (!visibleHunkReliability[index]) return
+      hunk.changes.forEach((change) => {
+        if (change.type === 'insert' || change.type === 'delete') {
+          keys.add(getChangeKey(change))
+        }
+      })
+    })
+    return keys
+  }, [visibleFile, visibleHunkReliability])
   const visibleSelectableLines = useMemo(() => buildDiffSelectionLines(visibleFile), [visibleFile])
 
   useEffect(() => {
@@ -645,14 +670,24 @@ function DiffPreview({
           renderGutter={({ change, renderDefault, side }) => {
             if (!change || (change.type !== 'insert' && change.type !== 'delete')) return renderDefault()
             const changeKey = getChangeKey(change)
-            const hideLineNumber =
-              (side === 'old' && hiddenGutters.hiddenOld.has(changeKey)) ||
-              (side === 'new' && hiddenGutters.hiddenNew.has(changeKey))
             const shouldRenderAction =
               (change.type === 'insert' && side === 'new') || (change.type === 'delete' && side === 'old')
+            const shouldRenderLineNumber =
+              (change.type === 'insert' && side === 'new') || (change.type === 'delete' && side === 'old')
+            const lineNumber =
+              shouldRenderLineNumber &&
+              reliableChangeKeys.has(changeKey) &&
+              typeof change.lineNumber === 'number' &&
+              change.lineNumber > 0
+                ? change.lineNumber
+                : null
             return (
               <div className="tool-diff-gutter-wrap">
-                {hideLineNumber ? <span className="tool-diff-gutter-number-hidden" /> : renderDefault()}
+                {lineNumber ? (
+                  <span className="tool-diff-gutter-number">{lineNumber}</span>
+                ) : (
+                  <span className="tool-diff-gutter-number-hidden" />
+                )}
                 {shouldRenderAction && onAskAboutSelection ? (
                   <button
                     type="button"
@@ -1019,12 +1054,12 @@ function TimelineEntryRow({
     () => entry.toolCalls.flatMap((toolCall) => getEditDiffHunks(toolCall.toolName, toolCall.toolInput)),
     [entry.toolCalls]
   )
-  const diffSegments = useMemo(
-    () => buildDiffSegments(entry.toolCalls),
-    [entry.toolCalls]
-  )
   const resultStr = useMemo(() => formatToolResult(primaryTool.result), [primaryTool.result])
   const showCodePreview = entry.label === 'Read' && resultStr.trim().length > 0
+  const diffSegments = useMemo(
+    () => buildDiffSegments(entry.toolCalls, editedFileContent),
+    [entry.toolCalls, editedFileContent]
+  )
   const diffRows = useMemo(
     () => diffHunks.flatMap((hunk) => buildDiffRows(hunk, editedFileContent)),
     [diffHunks, editedFileContent]

@@ -353,6 +353,12 @@ a:focus-visible,
   visibility: hidden;
 }
 
+.tool-diff-gutter-number {
+  display: block;
+  min-height: 1.5em;
+  text-align: right;
+}
+
 .tool-line-action-button {
   position: absolute;
   right: -8px;
