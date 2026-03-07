@@ -70,6 +70,28 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
+async function readDroppedFiles(dataTransfer: DataTransfer): Promise<SelectedFile[]> {
+  const files = Array.from(dataTransfer.files)
+  const selectedFiles = await Promise.all(
+    files.map(async (file) => {
+      try {
+        const content = await file.text()
+        const filePath = (file as File & { path?: string }).path
+        return {
+          name: file.name,
+          path: typeof filePath === 'string' && filePath.trim().length > 0 ? filePath : file.name,
+          content,
+          size: file.size,
+        }
+      } catch {
+        return null
+      }
+    })
+  )
+
+  return selectedFiles.filter((file): file is SelectedFile => Boolean(file))
+}
+
 function cycleClaudeCodeMode(
   permissionMode: PermissionMode,
   planMode: boolean,
@@ -254,6 +276,8 @@ export function InputArea({
   const draftTextRef = useRef('')
   const [permissionSelectedIndex, setPermissionSelectedIndex] = useState(0)
   const [questionInputMode, setQuestionInputMode] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const dragDepthRef = useRef(0)
 
   // 앱 시작 시 모델 목록 로드 (5분 캐시는 main process에서 처리)
   useEffect(() => {
@@ -712,6 +736,54 @@ export function InputArea({
     }
   }
 
+  const attachDroppedFiles = useCallback(async (dataTransfer: DataTransfer) => {
+    setIsAttaching(true)
+    try {
+      const nextFiles = await readDroppedFiles(dataTransfer)
+      if (nextFiles.length === 0) return
+
+      setAttachedFiles((prev) => {
+        const existing = new Set(prev.map((file) => file.path))
+        return [...prev, ...nextFiles.filter((file) => !existing.has(file.path))]
+      })
+    } finally {
+      setIsAttaching(false)
+    }
+  }, [])
+
+  const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    if (isStreaming || disabled) return
+    if (!event.dataTransfer.types.includes('Files')) return
+    dragDepthRef.current += 1
+    setIsDragOver(true)
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (isStreaming || disabled) return
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    if (!isDragOver) setIsDragOver(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) {
+      setIsDragOver(false)
+    }
+  }
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    if (isStreaming || disabled) return
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setIsDragOver(false)
+    await attachDroppedFiles(event.dataTransfer)
+  }
+
   const canSend = (text.trim().length > 0 || attachedFiles.length > 0) && !isStreaming && !disabled
   const showPermissionPrompt = Boolean(pendingPermission) && !isStreaming
   const showQuestionPrompt = Boolean(pendingQuestion) && !showPermissionPrompt && !isStreaming
@@ -1061,7 +1133,20 @@ export function InputArea({
           </div>
         )}
 
-        <div className="overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel transition-all focus-within:border-claude-border focus-within:ring-1 focus-within:ring-white/10">
+        <div
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`relative overflow-hidden rounded-[24px] border bg-claude-panel transition-all ${
+            isDragOver
+              ? 'border-white/25 ring-1 ring-white/12'
+              : 'border-claude-border focus-within:border-claude-border focus-within:ring-1 focus-within:ring-white/10'
+          }`}
+        >
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-0 z-20 rounded-[24px] border border-white/10 bg-white/[0.03]" />
+        )}
 
         {/* Textarea */}
         <div className="px-5 pt-4 pb-3">
