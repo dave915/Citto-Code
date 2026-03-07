@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification } from 'electron'
-import { join, dirname, extname } from 'path'
+import { join, dirname, extname, relative } from 'path'
 import { tmpdir } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import { existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
@@ -27,6 +27,33 @@ type OpenWithApp = {
 
 type MacOpenWithApp = OpenWithApp & {
   bundleIds: string[]
+}
+
+type GitStatusEntry = {
+  path: string
+  relativePath: string
+  originalPath?: string | null
+  statusCode: string
+  staged: boolean
+  unstaged: boolean
+  untracked: boolean
+  deleted: boolean
+  renamed: boolean
+}
+
+type GitRepoStatus = {
+  isRepo: boolean
+  rootPath: string | null
+  branch: string | null
+  ahead: number
+  behind: number
+  clean: boolean
+  entries: GitStatusEntry[]
+}
+
+type GitBranchInfo = {
+  name: string
+  current: boolean
 }
 
 const FALLBACK_MODELS: ModelInfo[] = [
@@ -59,6 +86,250 @@ function modelDisplayName(id: string): string {
 
 function resolveTargetPath(targetPath: string): string {
   return targetPath === '~' ? (process.env.HOME ?? '') : targetPath
+}
+
+function runGit(args: string[], cwd: string) {
+  return spawnSync('git', args, {
+    cwd,
+    encoding: 'utf-8',
+    timeout: 5000,
+  })
+}
+
+function resolveGitRepoRoot(cwd: string): string | null {
+  const resolvedPath = resolveTargetPath(cwd)
+  if (!resolvedPath) return null
+
+  const result = runGit(['rev-parse', '--show-toplevel'], resolvedPath)
+  if (result.status !== 0) return null
+  return result.stdout.trim() || null
+}
+
+function parseBranchSummary(branchLine: string) {
+  const clean = branchLine.replace(/^##\s*/, '')
+  const [headPart] = clean.split('...')
+  let branch = headPart.trim()
+  if (!branch || branch === 'HEAD') branch = 'detached HEAD'
+
+  const aheadMatch = clean.match(/ahead (\d+)/)
+  const behindMatch = clean.match(/behind (\d+)/)
+  return {
+    branch,
+    ahead: aheadMatch ? Number(aheadMatch[1]) : 0,
+    behind: behindMatch ? Number(behindMatch[1]) : 0,
+  }
+}
+
+function getGitStatus(cwd: string): GitRepoStatus {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) {
+    return {
+      isRepo: false,
+      rootPath: null,
+      branch: null,
+      ahead: 0,
+      behind: 0,
+      clean: true,
+      entries: [],
+    }
+  }
+
+  const result = runGit(['status', '--porcelain=v1', '--branch'], repoRoot)
+  if (result.status !== 0) {
+    return {
+      isRepo: false,
+      rootPath: null,
+      branch: null,
+      ahead: 0,
+      behind: 0,
+      clean: true,
+      entries: [],
+    }
+  }
+
+  const lines = result.stdout.split('\n').filter(Boolean)
+  const branchLine = lines.find((line) => line.startsWith('##')) ?? '## detached HEAD'
+  const { branch, ahead, behind } = parseBranchSummary(branchLine)
+
+  const entries: GitStatusEntry[] = lines
+    .filter((line) => !line.startsWith('##'))
+    .map((line) => {
+      if (line.startsWith('?? ')) {
+        const relativePath = line.slice(3).trim()
+        return {
+          path: join(repoRoot, relativePath),
+          relativePath,
+          originalPath: null,
+          statusCode: '??',
+          staged: false,
+          unstaged: true,
+          untracked: true,
+          deleted: false,
+          renamed: false,
+        }
+      }
+
+      const x = line[0] ?? ' '
+      const y = line[1] ?? ' '
+      const rest = line.slice(3).trim()
+      const renameParts = rest.split(' -> ')
+      const renamed = renameParts.length === 2
+      const relativePath = (renamed ? renameParts[1] : rest).trim()
+      const originalRelativePath = renamed ? renameParts[0].trim() : null
+      const staged = x !== ' '
+      const unstaged = y !== ' '
+      const untracked = x === '?' || y === '?'
+      const deleted = x === 'D' || y === 'D'
+
+      return {
+        path: join(repoRoot, relativePath),
+        relativePath,
+        originalPath: originalRelativePath ? join(repoRoot, originalRelativePath) : null,
+        statusCode: `${x}${y}`.trim() || 'M',
+        staged,
+        unstaged,
+        untracked,
+        deleted,
+        renamed: x === 'R' || y === 'R' || renamed,
+      }
+    })
+
+  return {
+    isRepo: true,
+    rootPath: repoRoot,
+    branch,
+    ahead,
+    behind,
+    clean: entries.length === 0,
+    entries,
+  }
+}
+
+function getGitDiff(cwd: string, filePath: string): { ok: boolean; diff: string; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) {
+    return { ok: false, diff: '', error: 'Git 저장소가 아닙니다.' }
+  }
+
+  const status = getGitStatus(cwd)
+  const entry = status.entries.find((item) => item.path === filePath || item.originalPath === filePath)
+  const relativePath = relative(repoRoot, filePath)
+
+  try {
+    if (entry?.untracked) {
+      const result = spawnSync('git', ['diff', '--no-color', '--no-index', '--', '/dev/null', filePath], {
+        encoding: 'utf-8',
+        timeout: 5000,
+      })
+      const diff = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+      return { ok: result.status === 0 || result.status === 1, diff }
+    }
+
+    const result = runGit(['diff', '--no-color', '--find-renames', 'HEAD', '--', relativePath], repoRoot)
+    const diff = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+    if (result.status !== 0 && !diff) {
+      return { ok: false, diff: '', error: result.stderr.trim() || 'diff를 불러오지 못했습니다.' }
+    }
+
+    return { ok: true, diff }
+  } catch (error) {
+    return { ok: false, diff: '', error: String(error) }
+  }
+}
+
+function getGitBranches(cwd: string): { ok: boolean; branches: GitBranchInfo[]; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) {
+    return { ok: false, branches: [], error: 'Git 저장소가 아닙니다.' }
+  }
+
+  const result = runGit(['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)%09%(HEAD)', 'refs/heads'], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, branches: [], error: result.stderr.trim() || '브랜치 목록을 불러오지 못했습니다.' }
+  }
+
+  const branches = result.stdout
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [name, currentMark] = line.split('\t')
+      return {
+        name: name.trim(),
+        current: currentMark?.trim() === '*',
+      }
+    })
+
+  return { ok: true, branches }
+}
+
+function setGitStaged(cwd: string, filePath: string, staged: boolean): { ok: boolean; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const relativePath = relative(repoRoot, filePath)
+  const args = staged
+    ? ['add', '--', relativePath]
+    : ['restore', '--staged', '--', relativePath]
+  const result = runGit(args, repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || 'Git 상태를 바꾸지 못했습니다.' }
+  }
+  return { ok: true }
+}
+
+function commitGit(cwd: string, message: string): { ok: boolean; commitHash?: string; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const trimmedMessage = message.trim()
+  if (!trimmedMessage) return { ok: false, error: '커밋 메시지를 입력하세요.' }
+
+  const result = runGit(['commit', '-m', trimmedMessage], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || '커밋하지 못했습니다.' }
+  }
+
+  const hashResult = runGit(['rev-parse', '--short', 'HEAD'], repoRoot)
+  return {
+    ok: true,
+    commitHash: hashResult.status === 0 ? hashResult.stdout.trim() : undefined,
+  }
+}
+
+function normalizeCodexBranchName(name: string): string {
+  const trimmed = name.trim().replace(/\s+/g, '-').replace(/^\/+/, '')
+  if (!trimmed) return ''
+  return trimmed
+}
+
+function createGitBranch(cwd: string, name: string): { ok: boolean; branchName?: string; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const branchName = normalizeCodexBranchName(name)
+  if (!branchName) return { ok: false, error: '브랜치 이름을 입력하세요.' }
+
+  const result = runGit(['switch', '-c', branchName], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || '브랜치를 생성하지 못했습니다.' }
+  }
+
+  return { ok: true, branchName }
+}
+
+function switchGitBranch(cwd: string, name: string): { ok: boolean; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const trimmedName = name.trim()
+  if (!trimmedName) return { ok: false, error: '브랜치 이름이 비어 있습니다.' }
+
+  const result = runGit(['switch', trimmedName], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || '브랜치를 전환하지 못했습니다.' }
+  }
+
+  return { ok: true }
 }
 
 function findBundlePath(bundleId: string): string | null {
@@ -447,6 +718,34 @@ app.whenReady().then(() => {
         resolve({ name: filePath.split('/').pop() ?? filePath, path: filePath, content: data, size: data.length })
       })
     })
+  })
+
+  ipcMain.handle('claude:get-git-status', (_event, { cwd }: { cwd: string }) => {
+    return getGitStatus(cwd)
+  })
+
+  ipcMain.handle('claude:get-git-diff', (_event, { cwd, filePath }: { cwd: string; filePath: string }) => {
+    return getGitDiff(cwd, filePath)
+  })
+
+  ipcMain.handle('claude:get-git-branches', (_event, { cwd }: { cwd: string }) => {
+    return getGitBranches(cwd)
+  })
+
+  ipcMain.handle('claude:set-git-staged', (_event, { cwd, filePath, staged }: { cwd: string; filePath: string; staged: boolean }) => {
+    return setGitStaged(cwd, filePath, staged)
+  })
+
+  ipcMain.handle('claude:commit-git', (_event, { cwd, message }: { cwd: string; message: string }) => {
+    return commitGit(cwd, message)
+  })
+
+  ipcMain.handle('claude:create-git-branch', (_event, { cwd, name }: { cwd: string; name: string }) => {
+    return createGitBranch(cwd, name)
+  })
+
+  ipcMain.handle('claude:switch-git-branch', (_event, { cwd, name }: { cwd: string; name: string }) => {
+    return switchGitBranch(cwd, name)
   })
 
   // ── Claude 설정 파일 읽기 ─────────────────────────────────────

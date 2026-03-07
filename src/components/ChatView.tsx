@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Diff, Hunk, parseDiff } from 'react-diff-view'
 import type { Session, PermissionMode, SidebarMode } from '../store/sessions'
 import { useSessionsStore } from '../store/sessions'
 import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
-import type { DirEntry, OpenWithApp, SelectedFile } from '../../electron/preload'
+import type { DirEntry, GitBranchInfo, GitDiffResult, GitRepoStatus, GitStatusEntry, OpenWithApp, SelectedFile } from '../../electron/preload'
 import { matchShortcut } from '../lib/shortcuts'
 import vscodeIcon from '../assets/open-with/vscode.png'
 import finderIcon from '../assets/open-with/finder.png'
@@ -65,10 +66,13 @@ export function ChatView({
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const openWithMenuRef = useRef<HTMLDivElement>(null)
+  const branchMenuRef = useRef<HTMLDivElement>(null)
+  const branchSearchInputRef = useRef<HTMLInputElement>(null)
+  const branchCreateInputRef = useRef<HTMLInputElement>(null)
   const prevFilePanelOpenRef = useRef(false)
   const prevShowPreviewPaneRef = useRef(false)
   const lastMsg = session.messages[session.messages.length - 1]
-  const [rightPanel, setRightPanel] = useState<'none' | 'files' | 'session'>('none')
+  const [rightPanel, setRightPanel] = useState<'none' | 'files' | 'session' | 'git'>('none')
   const [rootEntries, setRootEntries] = useState<DirEntry[]>([])
   const [childEntries, setChildEntries] = useState<Record<string, DirEntry[]>>({})
   const [expandedDirs, setExpandedDirs] = useState<Record<string, boolean>>({})
@@ -83,12 +87,26 @@ export function ChatView({
   const [openWithApps, setOpenWithApps] = useState<OpenWithApp[]>([])
   const [openWithLoading, setOpenWithLoading] = useState(false)
   const [externalDraft, setExternalDraft] = useState<{ id: number; text: string } | null>(null)
+  const [gitStatus, setGitStatus] = useState<GitRepoStatus | null>(null)
+  const [gitLoading, setGitLoading] = useState(false)
+  const [gitBranches, setGitBranches] = useState<GitBranchInfo[]>([])
+  const [gitBranchesLoading, setGitBranchesLoading] = useState(false)
+  const [selectedGitEntry, setSelectedGitEntry] = useState<GitStatusEntry | null>(null)
+  const [gitDiff, setGitDiff] = useState<GitDiffResult | null>(null)
+  const [gitDiffLoading, setGitDiffLoading] = useState(false)
+  const [gitActionLoading, setGitActionLoading] = useState(false)
+  const [gitCommitMessage, setGitCommitMessage] = useState('')
+  const [gitNewBranchName, setGitNewBranchName] = useState('')
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false)
+  const [branchQuery, setBranchQuery] = useState('')
+  const [branchCreateModalOpen, setBranchCreateModalOpen] = useState(false)
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
   const isNewSession = session.messages.length === 0
   const showPreviewPane = selectedEntry !== null
   const filePanelOpen = rightPanel === 'files'
   const sessionPanelOpen = rightPanel === 'session'
+  const gitPanelOpen = rightPanel === 'git'
   const openTargetPath = session.cwd || '~'
   const promptHistory = session.messages
     .filter((message) => message.role === 'user' && message.text.trim().length > 0)
@@ -107,6 +125,16 @@ export function ChatView({
   const contextUsagePercent = estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
   const preferredOpenWithApp = openWithApps.find((app) => app.id === preferredOpenWithAppId) ?? null
   const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null
+  const showGitPreviewPane = selectedGitEntry !== null
+  const filteredGitBranches = useMemo(() => {
+    const query = branchQuery.trim().toLowerCase()
+    const branches = [...gitBranches].sort((a, b) => {
+      if (a.current === b.current) return a.name.localeCompare(b.name)
+      return a.current ? -1 : 1
+    })
+    if (!query) return branches
+    return branches.filter((branch) => branch.name.toLowerCase().includes(query))
+  }, [branchQuery, gitBranches])
 
   const handleAskAboutSelection = ({ kind, path, startLine, endLine, code, prompt }: AskAboutSelectionPayload) => {
     const lineLabel = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
@@ -204,6 +232,18 @@ export function ChatView({
   }, [explorerWidth, filePanelOpen, showPreviewPane])
 
   useEffect(() => {
+    if (!gitPanelOpen) return
+    if (!showGitPreviewPane) {
+      setFilePanelWidth(explorerWidth)
+      return
+    }
+
+    const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth
+    const targetWidth = Math.min(1100, Math.max(explorerWidth + 180, Math.floor(containerWidth / 2)))
+    setFilePanelWidth((current) => Math.max(current, targetWidth))
+  }, [explorerWidth, gitPanelOpen, showGitPreviewPane])
+
+  useEffect(() => {
     if (!sessionPanelOpen) return
     setFilePanelWidth(INITIAL_EXPLORER_WIDTH)
   }, [sessionPanelOpen])
@@ -247,6 +287,56 @@ export function ChatView({
   }, [openWithMenuOpen])
 
   useEffect(() => {
+    if (!branchMenuOpen) return
+
+    const focusTimer = window.setTimeout(() => {
+      branchSearchInputRef.current?.focus()
+      branchSearchInputRef.current?.select()
+    }, 0)
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (branchMenuRef.current && event.target instanceof Node && !branchMenuRef.current.contains(event.target)) {
+        setBranchMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setBranchMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.clearTimeout(focusTimer)
+      window.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [branchMenuOpen])
+
+  useEffect(() => {
+    if (!branchCreateModalOpen) return
+
+    const focusTimer = window.setTimeout(() => {
+      branchCreateInputRef.current?.focus()
+      branchCreateInputRef.current?.select()
+    }, 0)
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setBranchCreateModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.clearTimeout(focusTimer)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [branchCreateModalOpen])
+
+  useEffect(() => {
     if (!filePanelOpen) return
     let cancelled = false
     void refreshExplorer(true, () => cancelled)
@@ -255,10 +345,26 @@ export function ChatView({
   }, [filePanelOpen, session.cwd])
 
   useEffect(() => {
+    let cancelled = false
+    void refreshGitStatus(() => cancelled)
+    void refreshGitBranches(() => cancelled)
+    return () => {
+      cancelled = true
+    }
+  }, [session.cwd])
+
+  useEffect(() => {
     setSelectedEntry(null)
     setPreviewContent('')
     setPreviewState('idle')
     setMarkdownPreviewEnabled(true)
+    setSelectedGitEntry(null)
+    setGitDiff(null)
+    setGitCommitMessage('')
+    setGitNewBranchName('')
+    setBranchMenuOpen(false)
+    setBranchQuery('')
+    setBranchCreateModalOpen(false)
   }, [session.cwd])
 
   const toggleDirectory = async (entry: DirEntry) => {
@@ -363,11 +469,174 @@ export function ChatView({
     }
   }
 
+  const refreshGitStatus = async (isCancelled?: () => boolean) => {
+    setGitLoading(true)
+    try {
+      const nextStatus = await window.claude.getGitStatus(session.cwd || '~')
+      if (isCancelled?.()) return
+      setGitStatus(nextStatus)
+      const nextSelectedEntry = selectedGitEntry && nextStatus.isRepo
+        ? nextStatus.entries.find((entry) => entry.path === selectedGitEntry.path) ?? null
+        : null
+      setSelectedGitEntry(nextSelectedEntry)
+      if (!nextSelectedEntry) {
+        setGitDiff(null)
+      }
+    } catch {
+      if (isCancelled?.()) return
+      setGitStatus({
+        isRepo: false,
+        rootPath: null,
+        branch: null,
+        ahead: 0,
+        behind: 0,
+        clean: true,
+        entries: [],
+      })
+      setSelectedGitEntry(null)
+      setGitDiff(null)
+    } finally {
+      if (!isCancelled?.()) setGitLoading(false)
+    }
+  }
+
+  const refreshGitBranches = async (isCancelled?: () => boolean) => {
+    setGitBranchesLoading(true)
+    try {
+      const result = await window.claude.getGitBranches(session.cwd || '~')
+      if (isCancelled?.()) return
+      setGitBranches(result.ok ? result.branches : [])
+    } catch {
+      if (isCancelled?.()) return
+      setGitBranches([])
+    } finally {
+      if (!isCancelled?.()) setGitBranchesLoading(false)
+    }
+  }
+
+  const handleSelectGitEntry = async (entry: GitStatusEntry) => {
+    if (selectedGitEntry?.path === entry.path) {
+      setSelectedGitEntry(null)
+      setGitDiff(null)
+      return
+    }
+
+    setSelectedGitEntry(entry)
+    setGitDiffLoading(true)
+    try {
+      const nextDiff = await window.claude.getGitDiff({ cwd: session.cwd || '~', filePath: entry.path })
+      setGitDiff(nextDiff)
+    } catch {
+      setGitDiff({ ok: false, diff: '', error: 'diff를 불러오지 못했습니다.' })
+    } finally {
+      setGitDiffLoading(false)
+    }
+  }
+
+  const refreshGitPanel = async () => {
+    await Promise.all([refreshGitStatus(), refreshGitBranches()])
+    if (selectedGitEntry) {
+      const nextStatus = await window.claude.getGitStatus(session.cwd || '~')
+      const nextEntry = nextStatus.isRepo
+        ? nextStatus.entries.find((entry) => entry.path === selectedGitEntry.path) ?? null
+        : null
+      setSelectedGitEntry(nextEntry)
+      if (nextEntry) {
+        setGitDiffLoading(true)
+        try {
+          const nextDiff = await window.claude.getGitDiff({ cwd: session.cwd || '~', filePath: nextEntry.path })
+          setGitDiff(nextDiff)
+        } catch {
+          setGitDiff({ ok: false, diff: '', error: 'diff를 불러오지 못했습니다.' })
+        } finally {
+          setGitDiffLoading(false)
+        }
+      } else {
+        setGitDiff(null)
+      }
+    }
+  }
+
+  const handleToggleGitStage = async (entry: GitStatusEntry) => {
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.setGitStaged({
+        cwd: session.cwd || '~',
+        filePath: entry.path,
+        staged: !entry.staged,
+      })
+      if (!result.ok) {
+        window.alert(result.error ?? 'Git 상태를 바꾸지 못했습니다.')
+        return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleCommitGit = async () => {
+    const message = gitCommitMessage.trim()
+    if (!message) return
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.commitGit({ cwd: session.cwd || '~', message })
+      if (!result.ok) {
+        window.alert(result.error ?? '커밋하지 못했습니다.')
+        return
+      }
+      setGitCommitMessage('')
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleSwitchGitBranch = async (name: string) => {
+    if (!name || gitStatus?.branch === name) return
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.switchGitBranch({ cwd: session.cwd || '~', name })
+      if (!result.ok) {
+        window.alert(result.error ?? '브랜치를 전환하지 못했습니다.')
+        return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleCreateGitBranch = async () => {
+    const name = gitNewBranchName.trim()
+    if (!name) return
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.createGitBranch({ cwd: session.cwd || '~', name })
+      if (!result.ok) {
+        window.alert(result.error ?? '브랜치를 생성하지 못했습니다.')
+        return
+      }
+      setBranchCreateModalOpen(false)
+      setGitNewBranchName('')
+      setBranchMenuOpen(false)
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleOpenBranchCreateModal = () => {
+    setBranchMenuOpen(false)
+    setBranchQuery('')
+    setBranchCreateModalOpen(true)
+  }
+
   const handleFilePanelResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
     const startX = event.clientX
     const startWidth = filePanelWidth
-    const minimumWidth = showPreviewPane ? Math.max(320, explorerWidth + 140) : explorerWidth
+    const minimumWidth = showPreviewPane || showGitPreviewPane ? Math.max(320, explorerWidth + 140) : explorerWidth
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const nextWidth = Math.min(1100, Math.max(minimumWidth, startWidth - (moveEvent.clientX - startX)))
@@ -453,6 +722,113 @@ export function ChatView({
             <span className="min-w-0 max-w-sm truncate font-mono text-[12px] text-claude-muted">
               {session.cwd || '~'}
             </span>
+            {gitStatus?.isRepo && gitStatus.branch && (
+              <div ref={branchMenuRef} className="relative no-drag" data-no-drag="true">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBranchMenuOpen((open) => {
+                      const nextOpen = !open
+                      if (nextOpen) setBranchQuery('')
+                      return nextOpen
+                    })
+                  }}
+                  className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
+                  title="브랜치 선택"
+                >
+                  <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
+                  </svg>
+                  <span className="min-w-0 truncate">{gitStatus.branch}</span>
+                  <svg className={`h-3.5 w-3.5 flex-shrink-0 text-claude-muted transition-transform ${branchMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+
+                {branchMenuOpen && (
+                  <div className="absolute left-0 top-full z-30 mt-2 w-[268px] rounded-[18px] border border-claude-border bg-claude-panel p-2 shadow-[0_16px_32px_rgba(0,0,0,0.26)]">
+                    <div className="relative">
+                      <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <circle cx="11" cy="11" r="7" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m20 20-3.5-3.5" />
+                      </svg>
+                      <input
+                        ref={branchSearchInputRef}
+                        value={branchQuery}
+                        onChange={(event) => setBranchQuery(event.target.value)}
+                        placeholder="브랜치 검색"
+                        className="w-full rounded-xl border border-claude-border bg-claude-surface py-1.5 pl-9 pr-3 text-[11px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+                      />
+                    </div>
+
+                    <div className="mt-2.5">
+                      <p className="px-2 text-[11px] font-semibold tracking-wide text-claude-muted">브랜치</p>
+                      <div className="mt-1.5 h-[144px] overflow-y-auto">
+                        {gitBranchesLoading ? (
+                          <div className="flex items-center justify-center px-3 py-10 text-claude-muted">
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                            </svg>
+                          </div>
+                        ) : filteredGitBranches.length === 0 ? (
+                          <div className="px-3 py-8 text-sm text-claude-muted">
+                            {branchQuery.trim() ? '검색 결과가 없습니다.' : '표시할 브랜치가 없습니다.'}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {filteredGitBranches.map((branch) => (
+                              <button
+                                key={branch.name}
+                                type="button"
+                                onClick={() => {
+                                  setBranchMenuOpen(false)
+                                  void handleSwitchGitBranch(branch.name)
+                                }}
+                                disabled={gitActionLoading}
+                                className="flex w-full items-start gap-2 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-claude-surface disabled:opacity-50"
+                              >
+                                <svg className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
+                                </svg>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-[12px] font-medium leading-none text-claude-text">{branch.name}</p>
+                                  <p className="mt-1 text-[10px] text-claude-muted">
+                                    {branch.current
+                                      ? gitStatus.clean
+                                        ? '커밋하지 않음: 변경 없음'
+                                        : `커밋하지 않음: ${gitStatus.entries.length}개의 파일`
+                                      : '로컬 브랜치'}
+                                  </p>
+                                </div>
+                                {branch.current && (
+                                  <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-claude-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 border-t border-claude-border pt-2">
+                      <button
+                        type="button"
+                        onClick={handleOpenBranchCreateModal}
+                        className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-[12px] font-medium text-claude-text transition-colors hover:bg-claude-surface"
+                      >
+                        <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                        </svg>
+                        새 브랜치 생성 및 체크아웃...
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="no-drag flex items-center gap-2" data-no-drag="true">
@@ -527,6 +903,20 @@ export function ChatView({
               <circle cx="12" cy="12" r="9" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setRightPanel((open) => open === 'git' ? 'none' : 'git')}
+            className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
+              gitPanelOpen
+                ? 'bg-claude-surface text-claude-text'
+                : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
+            }`}
+            title="현재 Git 변경 보기"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h4l8 8-4 4-8-8V3z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h.01" />
             </svg>
           </button>
           <button
@@ -623,13 +1013,13 @@ export function ChatView({
         >
           <div className="flex h-12 items-center justify-between border-b border-claude-border px-4">
             <p className="text-sm font-semibold text-claude-text">
-              {filePanelOpen ? '파일 탐색기' : '세션 정보'}
+              {filePanelOpen ? '파일 탐색기' : gitPanelOpen ? 'Git 변경' : '세션 정보'}
             </p>
-            {filePanelOpen && (
+            {(filePanelOpen || gitPanelOpen) && (
               <button
-                onClick={() => void refreshExplorer(false)}
+                onClick={() => void (filePanelOpen ? refreshExplorer(false) : refreshGitPanel())}
                 className="flex h-8 w-8 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-                title="파일 탐색기 새로고침"
+                title={filePanelOpen ? '파일 탐색기 새로고침' : 'Git 상태 새로고침'}
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-2.64-6.36" />
@@ -693,6 +1083,42 @@ export function ChatView({
                 )}
               </div>
             </div>
+          ) : gitPanelOpen ? (
+            <div className="flex flex-1 min-h-0">
+              {showGitPreviewPane && (
+                <>
+                  <div className="min-w-0 flex-1 overflow-y-auto bg-claude-bg">
+                    <GitDiffPanel
+                      entry={selectedGitEntry}
+                      gitDiff={gitDiff}
+                      loading={gitDiffLoading}
+                    />
+                  </div>
+
+                  <div
+                    onMouseDown={handleExplorerResizeStart}
+                    className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
+                  />
+                </>
+              )}
+
+              <div
+                className={`min-w-0 overflow-y-auto px-2 py-3 ${showGitPreviewPane ? 'border-l border-claude-border bg-claude-panel' : 'flex-1 bg-claude-panel'}`}
+                style={showGitPreviewPane ? { width: `${explorerWidth}px` } : undefined}
+              >
+                <GitStatusPanel
+                  status={gitStatus}
+                  loading={gitLoading}
+                  actionLoading={gitActionLoading}
+                  commitMessage={gitCommitMessage}
+                  selectedPath={selectedGitEntry?.path ?? null}
+                  onCommitMessageChange={setGitCommitMessage}
+                  onCommit={handleCommitGit}
+                  onSelectEntry={handleSelectGitEntry}
+                  onToggleStage={handleToggleGitStage}
+                />
+              </div>
+            </div>
           ) : (
             <SessionInfoPanel
               session={session}
@@ -704,6 +1130,71 @@ export function ChatView({
             />
           )}
         </aside>
+      )}
+
+      {branchCreateModalOpen && (
+        <div
+          className="no-drag absolute inset-0 z-40 flex items-center justify-center bg-black/45 px-6 backdrop-blur-sm"
+          data-no-drag="true"
+          onMouseDown={() => setBranchCreateModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-[312px] rounded-[18px] border border-claude-border bg-claude-panel p-3 shadow-[0_16px_36px_rgba(0,0,0,0.32)]"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-[12px] font-semibold text-claude-text">새 브랜치 생성 및 체크아웃</h3>
+                <p className="mt-1 text-[10px] leading-4.5 text-claude-muted">브랜치 이름을 입력하면 자동으로 체크아웃합니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBranchCreateModalOpen(false)}
+                className="rounded-xl p-2 text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                title="닫기"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-claude-muted">브랜치 이름</label>
+              <input
+                ref={branchCreateInputRef}
+                value={gitNewBranchName}
+                onChange={(event) => setGitNewBranchName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void handleCreateGitBranch()
+                  }
+                }}
+                placeholder="예: feature/header-branch-menu"
+                className="w-full rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+              />
+            </div>
+
+            <div className="mt-3.5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBranchCreateModalOpen(false)}
+                className="rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCreateGitBranch()}
+                disabled={gitActionLoading || !gitNewBranchName.trim()}
+                className="rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-[11px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+              >
+                생성 후 전환
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -1120,6 +1611,281 @@ function PreviewPane({
       <pre className="m-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-xs font-mono text-claude-text">
         {previewContent}
       </pre>
+    </div>
+  )
+}
+
+function getGitEntryLabel(entry: GitStatusEntry): string {
+  if (entry.untracked) return '새 파일'
+  if (entry.deleted) return '삭제'
+  if (entry.renamed) return '이름 변경'
+  if (entry.staged && entry.unstaged) return '수정됨'
+  if (entry.staged) return '스테이징'
+  if (entry.unstaged) return '수정됨'
+  return '변경'
+}
+
+function getGitEntryBadgeClass(entry: GitStatusEntry): string {
+  if (entry.untracked) return 'border-emerald-500/25 bg-emerald-500/12 text-emerald-200'
+  if (entry.deleted) return 'border-red-500/25 bg-red-500/12 text-red-200'
+  if (entry.renamed) return 'border-sky-500/25 bg-sky-500/12 text-sky-200'
+  if (entry.staged && entry.unstaged) return 'border-amber-500/25 bg-amber-500/12 text-amber-200'
+  return 'border-claude-border bg-claude-surface text-claude-text'
+}
+
+function safeParseGitDiff(diffText: string) {
+  try {
+    return parseDiff(diffText)
+  } catch {
+    return []
+  }
+}
+
+function GitStatusPanel({
+  status,
+  loading,
+  actionLoading,
+  commitMessage,
+  selectedPath,
+  onCommitMessageChange,
+  onCommit,
+  onSelectEntry,
+  onToggleStage,
+}: {
+  status: GitRepoStatus | null
+  loading: boolean
+  actionLoading: boolean
+  commitMessage: string
+  selectedPath: string | null
+  onCommitMessageChange: (value: string) => void
+  onCommit: () => void
+  onSelectEntry: (entry: GitStatusEntry) => void
+  onToggleStage: (entry: GitStatusEntry) => void
+}) {
+  if (loading && !status) {
+    return (
+      <div className="flex h-full items-center justify-center text-claude-muted">
+        <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+        </svg>
+      </div>
+    )
+  }
+
+  if (!status?.isRepo) {
+    return (
+      <div className="flex h-full items-center justify-center px-5 text-center">
+        <div>
+          <p className="text-sm font-medium text-claude-text">Git 저장소가 아닙니다.</p>
+          <p className="mt-2 text-xs leading-6 text-claude-muted">현재 세션 폴더에서 `git status`를 사용할 수 없습니다.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const stagedCount = status.entries.filter((entry) => entry.staged).length
+  const untrackedCount = status.entries.filter((entry) => entry.untracked).length
+  const deletedCount = status.entries.filter((entry) => entry.deleted).length
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-claude-text">{status.branch ?? 'detached HEAD'}</p>
+            <p className="mt-1 truncate font-mono text-[11px] text-claude-muted">{status.rootPath}</p>
+          </div>
+          <span className="rounded-lg border border-claude-border bg-claude-panel px-2 py-1 text-[11px] text-claude-muted">
+            {status.clean ? '변경 없음' : `${status.entries.length}개 변경`}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="rounded-xl border border-claude-border/80 bg-claude-panel px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-claude-muted">staged</p>
+            <p className="mt-0.5 text-sm font-semibold text-claude-text">{stagedCount}</p>
+          </div>
+          <div className="rounded-xl border border-claude-border/80 bg-claude-panel px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-claude-muted">new</p>
+            <p className="mt-0.5 text-sm font-semibold text-claude-text">{untrackedCount}</p>
+          </div>
+          <div className="rounded-xl border border-claude-border/80 bg-claude-panel px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-claude-muted">deleted</p>
+            <p className="mt-0.5 text-sm font-semibold text-claude-text">{deletedCount}</p>
+          </div>
+        </div>
+        {(status.ahead > 0 || status.behind > 0) && (
+          <p className="mt-3 text-[11px] text-claude-muted">
+            {status.ahead > 0 ? `ahead ${status.ahead}` : ''}
+            {status.ahead > 0 && status.behind > 0 ? ' · ' : ''}
+            {status.behind > 0 ? `behind ${status.behind}` : ''}
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">커밋</p>
+          <span className="text-[11px] text-claude-muted">{stagedCount}개 staged</span>
+        </div>
+        <textarea
+          value={commitMessage}
+          onChange={(event) => onCommitMessageChange(event.target.value)}
+          rows={3}
+          placeholder="커밋 메시지를 입력하세요"
+          className="mt-3 w-full resize-none rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-sm text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+        />
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onCommit}
+            disabled={actionLoading || stagedCount === 0 || !commitMessage.trim()}
+            className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface disabled:opacity-50"
+          >
+            커밋
+          </button>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-4 text-claude-muted">
+          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+          </svg>
+        </div>
+      )}
+
+      {!loading && status.clean && (
+        <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
+          작업 트리가 깨끗합니다.
+        </div>
+      )}
+
+      {!loading && !status.clean && (
+        <div className="space-y-1.5">
+          {status.entries.map((entry) => {
+            const isSelected = selectedPath === entry.path
+            return (
+              <button
+                key={`${entry.path}:${entry.statusCode}`}
+                onClick={() => void onSelectEntry(entry)}
+                className={`w-full rounded-2xl border px-3 py-2.5 text-left transition-colors ${
+                  isSelected
+                    ? 'border-claude-border bg-claude-surface-2 text-claude-text shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
+                    : 'border-transparent bg-claude-panel text-claude-text hover:border-claude-border hover:bg-claude-surface'
+                }`}
+                title={entry.path}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getGitEntryBadgeClass(entry)}`}>
+                    {getGitEntryLabel(entry)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void onToggleStage(entry)
+                    }}
+                    disabled={actionLoading}
+                    className="rounded-md border border-claude-border bg-claude-surface px-1.5 py-0.5 text-[10px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+                  >
+                    {entry.staged ? 'Unstage' : 'Stage'}
+                  </button>
+                  <span className="ml-auto font-mono text-[11px] text-claude-muted">{entry.statusCode || 'M'}</span>
+                </div>
+                <p className="mt-1 truncate text-sm text-claude-text">{entry.relativePath}</p>
+                {entry.originalPath && (
+                  <p className="mt-1 truncate text-[11px] text-claude-muted">이전: {entry.originalPath}</p>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GitDiffPanel({
+  entry,
+  gitDiff,
+  loading,
+}: {
+  entry: GitStatusEntry | null
+  gitDiff: GitDiffResult | null
+  loading: boolean
+}) {
+  const parsedFiles = useMemo(() => {
+    if (!gitDiff?.diff.trim()) return []
+    return safeParseGitDiff(gitDiff.diff)
+  }, [gitDiff?.diff])
+
+  if (!entry) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-center">
+        <div>
+          <p className="text-sm font-medium text-claude-text">변경 파일을 선택하세요.</p>
+          <p className="mt-2 text-xs leading-6 text-claude-muted">오른쪽 목록에서 파일을 선택하면 Git diff를 여기에서 보여줍니다.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-claude-border bg-claude-surface px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getGitEntryBadgeClass(entry)}`}>
+            {getGitEntryLabel(entry)}
+          </span>
+          <p className="min-w-0 truncate text-sm font-medium text-claude-text">{entry.relativePath}</p>
+        </div>
+        {entry.originalPath && (
+          <p className="mt-1 truncate text-[11px] text-claude-muted">이전: {entry.originalPath}</p>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto bg-claude-bg p-4">
+        {loading ? (
+          <div className="flex h-full items-center justify-center text-claude-muted">
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+            </svg>
+          </div>
+        ) : !gitDiff ? (
+          <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
+            diff를 불러오는 중입니다.
+          </div>
+        ) : gitDiff.error && !gitDiff.diff.trim() ? (
+          <div className="rounded-2xl border border-red-900/40 bg-red-950/20 px-4 py-8 text-center text-sm text-red-100">
+            {gitDiff.error}
+          </div>
+        ) : !gitDiff.diff.trim() ? (
+          <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
+            표시할 diff가 없습니다.
+          </div>
+        ) : parsedFiles.length > 0 ? (
+          <div className="space-y-4">
+            {parsedFiles.map((file, index) => (
+              <div key={`${file.oldPath}-${file.newPath}-${index}`} className="overflow-hidden rounded-2xl border border-claude-border/70 bg-claude-surface shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+                <div className="border-b border-claude-border/70 bg-claude-panel px-3 py-2 text-[11px] font-mono text-claude-muted">
+                  {file.oldPath === file.newPath ? file.newPath : `${file.oldPath} → ${file.newPath}`}
+                </div>
+                <div className="tool-diff-shell">
+                  <Diff viewType="unified" diffType={file.type} hunks={file.hunks} className="tool-diff-view">
+                    {(hunks) => hunks.map((hunk, hunkIndex) => (
+                      <Hunk key={`${file.newPath}-${hunkIndex}-${hunk.content}`} hunk={hunk} />
+                    ))}
+                  </Diff>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <pre className="m-0 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-claude-border bg-claude-surface p-4 text-xs font-mono text-claude-text">
+            {gitDiff.diff}
+          </pre>
+        )}
+      </div>
     </div>
   )
 }
