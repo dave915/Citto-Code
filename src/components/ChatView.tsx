@@ -55,6 +55,8 @@ export function ChatView({
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const openWithMenuRef = useRef<HTMLDivElement>(null)
+  const prevFilePanelOpenRef = useRef(false)
+  const prevShowPreviewPaneRef = useRef(false)
   const lastMsg = session.messages[session.messages.length - 1]
   const [rightPanel, setRightPanel] = useState<'none' | 'files' | 'session'>('none')
   const [rootEntries, setRootEntries] = useState<DirEntry[]>([])
@@ -147,10 +149,19 @@ export function ChatView({
   }, [filesShortcutLabel, sessionInfoShortcutLabel])
 
   useEffect(() => {
+    const wasFilePanelOpen = prevFilePanelOpenRef.current
+    const wasShowingPreview = prevShowPreviewPaneRef.current
+    prevFilePanelOpenRef.current = filePanelOpen
+    prevShowPreviewPaneRef.current = showPreviewPane
+
     if (!filePanelOpen) return
 
     if (!showPreviewPane) {
       setFilePanelWidth(explorerWidth)
+      return
+    }
+
+    if (wasFilePanelOpen && wasShowingPreview) {
       return
     }
 
@@ -212,10 +223,6 @@ export function ChatView({
           setRootEntries(entries)
           setChildEntries({})
           setExpandedDirs({})
-          setSelectedEntry(null)
-          setPreviewContent('')
-          setPreviewState('idle')
-          setMarkdownPreviewEnabled(true)
         }
       })
       .catch(() => {
@@ -223,10 +230,6 @@ export function ChatView({
           setRootEntries([])
           setChildEntries({})
           setExpandedDirs({})
-          setSelectedEntry(null)
-          setPreviewContent('')
-          setPreviewState('idle')
-          setMarkdownPreviewEnabled(true)
         }
       })
       .finally(() => {
@@ -237,6 +240,13 @@ export function ChatView({
 
     return () => { cancelled = true }
   }, [filePanelOpen, session.cwd])
+
+  useEffect(() => {
+    setSelectedEntry(null)
+    setPreviewContent('')
+    setPreviewState('idle')
+    setMarkdownPreviewEnabled(true)
+  }, [session.cwd])
 
   const toggleDirectory = async (entry: DirEntry) => {
     if (entry.type !== 'directory') return
