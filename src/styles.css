@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+:root,
+:root[data-theme='current'] {
+  --claude-orange: 185 124 86;
+  --claude-bg: 36 36 38;
+  --claude-panel: 43 43 46;
+  --claude-surface: 48 48 52;
+  --claude-surface-2: 56 56 61;
+  --claude-sidebar: 35 35 37;
+  --claude-sidebar-hover: 45 45 48;
+  --claude-sidebar-active: 52 52 57;
+  --claude-border: 62 62 68;
+  --claude-text: 242 238 232;
+  --claude-muted: 167 161 154;
+
+  --claude-body-top: 42 42 45;
+  --claude-body-bottom: 34 34 36;
+  --claude-body-radial: 255 255 255;
+  --claude-scrollbar: 184 176 166;
+  --claude-code-bg: 38 40 45;
+  --claude-code-header: 29 31 35;
+  --claude-code-border: 64 64 70;
+  --claude-code-header-border: 58 60 66;
+  --claude-code-title: 217 210 203;
+  --claude-prose: 236 229 222;
+  --claude-prose-quote-border: 74 74 80;
+  --claude-prose-quote-text: 187 179 171;
+  --claude-prose-table-border: 66 66 72;
+  --claude-prose-table-header: 51 51 56;
+  --claude-prose-link: 216 209 202;
+  --claude-prose-link-decoration: 84 84 90;
+  --claude-prose-strong: 247 241 235;
+}
+
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -12,9 +45,9 @@ body {
   padding: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.045), transparent 24%),
-    linear-gradient(180deg, #2a2a2d 0%, #222224 100%);
-  color: #f3eee7;
+    radial-gradient(circle at top, rgb(var(--claude-body-radial) / 0.045), transparent 24%),
+    linear-gradient(180deg, rgb(var(--claude-body-top)) 0%, rgb(var(--claude-body-bottom)) 100%);
+  color: rgb(var(--claude-text));
 }
 
 /* Draggable titlebar region for macOS */
@@ -36,17 +69,17 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(184, 176, 166, 0.18);
+  background: rgb(var(--claude-scrollbar) / 0.18);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(184, 176, 166, 0.28);
+  background: rgb(var(--claude-scrollbar) / 0.28);
 }
 
 /* Code highlighting */
 pre code.hljs {
-  background: #26282d;
-  color: #e7e1da;
+  background: rgb(var(--claude-code-bg));
+  color: rgb(var(--claude-prose));
   border: 0;
   padding: 1.1rem 1.25rem;
   border-radius: 0 0 1rem 1rem;
@@ -78,7 +111,7 @@ pre code.hljs {
 
 /* Prose overrides for chat bubbles */
 .prose {
-  color: #ece5de;
+  color: rgb(var(--claude-prose));
 }
 .prose p {
   margin: 0.4em 0;
@@ -112,9 +145,9 @@ pre code.hljs {
   margin-top: 0;
 }
 .prose blockquote {
-  border-left: 3px solid #4a4a50;
+  border-left: 3px solid rgb(var(--claude-prose-quote-border));
   padding-left: 1em;
-  color: #bbb3ab;
+  color: rgb(var(--claude-prose-quote-text));
   margin: 0.5em 0;
   font-style: italic;
 }
@@ -124,25 +157,25 @@ pre code.hljs {
   width: 100%;
 }
 .prose th, .prose td {
-  border: 1px solid #424248;
+  border: 1px solid rgb(var(--claude-prose-table-border));
   padding: 0.4em 0.6em;
   text-align: left;
 }
 .prose th {
-  background: #333338;
+  background: rgb(var(--claude-prose-table-header));
   font-weight: 600;
 }
 .prose a {
-  color: #d8d1ca;
+  color: rgb(var(--claude-prose-link));
   text-decoration: underline;
-  text-decoration-color: #54545a;
+  text-decoration-color: rgb(var(--claude-prose-link-decoration));
 }
 .prose strong,
 .prose h1,
 .prose h2,
 .prose h3,
 .prose th {
-  color: #f7f1eb;
+  color: rgb(var(--claude-prose-strong));
 }
 .prose code {
   color: inherit;
@@ -156,9 +189,9 @@ pre code.hljs {
 }
 .code-block-shell {
   overflow: hidden;
-  border: 1px solid #404046;
+  border: 1px solid rgb(var(--claude-code-border));
   border-radius: 1rem;
-  background: #26282d;
+  background: rgb(var(--claude-code-bg));
 }
 .code-block-header {
   display: flex;
@@ -166,15 +199,15 @@ pre code.hljs {
   justify-content: space-between;
   min-height: 2.75rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #3a3c42;
-  background: #202226;
+  border-bottom: 1px solid rgb(var(--claude-code-header-border));
+  background: rgb(var(--claude-code-header));
 }
 .code-block-title {
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: lowercase;
-  color: #d9d2cb;
+  color: rgb(var(--claude-code-title));
 }
 .code-block-pre {
   margin: 0;

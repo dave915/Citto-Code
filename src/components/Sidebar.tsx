@@ -311,7 +311,10 @@ export function Sidebar({
                   <span className="truncate text-sm font-semibold">{group.label}</span>
                 </button>
                 <button
-                  onClick={() => onNewSession(group.cwd)}
+                  onClick={() => {
+                    setCollapsedProjects((prev) => ({ ...prev, [group.cwd]: false }))
+                    onNewSession(group.cwd)
+                  }}
                   className="flex-shrink-0 rounded-lg p-1.5 text-[#6f665f] hover:bg-white/10 hover:text-white"
                   title="이 프로젝트에 새 세션 추가"
                 >

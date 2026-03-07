@@ -5,6 +5,7 @@ import {
   type ShortcutAction,
   type ShortcutPlatform,
 } from '../store/sessions'
+import { THEME_PRESETS, type ThemeId } from '../lib/theme'
 import {
   SHORTCUT_ACTION_LABELS,
   getCurrentPlatform,
@@ -103,13 +104,49 @@ export function SettingsPanel({
 }
 
 function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
-  const { sidebarMode, shortcutConfig, setShortcut } = useSessionsStore()
+  const { sidebarMode, themeId, shortcutConfig, setThemeId, setShortcut } = useSessionsStore()
   const currentPlatform = getCurrentPlatform()
   const platformLabel = currentPlatform === 'mac' ? 'macOS' : 'Windows'
   const [recordingAction, setRecordingAction] = useState<ShortcutAction | null>(null)
 
   return (
     <div className="space-y-4 p-4">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+        <p className="text-sm font-semibold text-claude-text">테마</p>
+        <p className="mt-1 text-xs leading-relaxed text-claude-muted">
+          현재 색상을 하나의 프리셋 테마로 저장했습니다. 이후 테마가 추가되면 여기서 바로 바꿀 수 있습니다.
+        </p>
+
+        <div className="mt-4 grid gap-2">
+          {(Object.values(THEME_PRESETS) as Array<{ id: ThemeId; label: string; description: string }>).map((theme) => {
+            const active = theme.id === themeId
+            return (
+              <button
+                key={theme.id}
+                onClick={() => setThemeId(theme.id)}
+                className={`rounded-xl border p-3 text-left transition-colors ${
+                  active
+                    ? 'border-[#6a6d75] bg-claude-panel shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
+                    : 'border-claude-border bg-claude-panel hover:bg-claude-bg'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className={`text-sm font-medium ${active ? 'text-white' : 'text-claude-text'}`}>{theme.label}</div>
+                    <div className={`mt-1 text-xs leading-relaxed ${active ? 'text-[#c7cad1]' : 'text-claude-muted'}`}>{theme.description}</div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-full border border-white/10 bg-[#242426]" />
+                    <span className="h-3 w-3 rounded-full border border-white/10 bg-[#2b2b2e]" />
+                    <span className="h-3 w-3 rounded-full border border-white/10 bg-[#38383d]" />
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <p className="text-sm font-semibold text-claude-text">사이드바 표시 방식</p>
         <p className="text-xs text-claude-muted mt-1 leading-relaxed">

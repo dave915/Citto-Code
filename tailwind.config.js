@@ -5,17 +5,17 @@ module.exports = {
     extend: {
       colors: {
         claude: {
-          orange: '#B97C56',
-          bg: '#242426',
-          panel: '#2B2B2E',
-          surface: '#303034',
-          'surface-2': '#38383D',
-          sidebar: '#232325',
-          'sidebar-hover': '#2D2D30',
-          'sidebar-active': '#343439',
-          border: '#3E3E44',
-          text: '#F2EEE8',
-          muted: '#A7A19A',
+          orange: 'rgb(var(--claude-orange) / <alpha-value>)',
+          bg: 'rgb(var(--claude-bg) / <alpha-value>)',
+          panel: 'rgb(var(--claude-panel) / <alpha-value>)',
+          surface: 'rgb(var(--claude-surface) / <alpha-value>)',
+          'surface-2': 'rgb(var(--claude-surface-2) / <alpha-value>)',
+          sidebar: 'rgb(var(--claude-sidebar) / <alpha-value>)',
+          'sidebar-hover': 'rgb(var(--claude-sidebar-hover) / <alpha-value>)',
+          'sidebar-active': 'rgb(var(--claude-sidebar-active) / <alpha-value>)',
+          border: 'rgb(var(--claude-border) / <alpha-value>)',
+          text: 'rgb(var(--claude-text) / <alpha-value>)',
+          muted: 'rgb(var(--claude-muted) / <alpha-value>)',
         }
       },
       fontFamily: {

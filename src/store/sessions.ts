@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { nanoid } from './nanoid'
+import type { ThemeId } from '../lib/theme'
+import { CURRENT_THEME_ID } from '../lib/theme'
 
 export type ToolCallStatus = 'running' | 'done' | 'error'
 
@@ -93,6 +95,7 @@ type SessionsStore = {
   sidebarMode: SidebarMode
   claudeBinaryPath: string
   preferredOpenWithAppId: string
+  themeId: ThemeId
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
   removeSession: (id: string) => void
@@ -100,6 +103,7 @@ type SessionsStore = {
   setSidebarMode: (mode: SidebarMode) => void
   setClaudeBinaryPath: (path: string) => void
   setPreferredOpenWithAppId: (appId: string) => void
+  setThemeId: (themeId: ThemeId) => void
   setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
@@ -164,6 +168,7 @@ export const useSessionsStore = create<SessionsStore>()(
         sidebarMode: 'session',
         claudeBinaryPath: '',
         preferredOpenWithAppId: '',
+        themeId: CURRENT_THEME_ID,
         shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
     setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
@@ -181,6 +186,7 @@ export const useSessionsStore = create<SessionsStore>()(
     setSidebarMode: (mode) => set({ sidebarMode: mode }),
     setClaudeBinaryPath: (path) => set({ claudeBinaryPath: path }),
     setPreferredOpenWithAppId: (appId) => set({ preferredOpenWithAppId: appId }),
+    setThemeId: (themeId) => set({ themeId }),
     setShortcut: (action, platform, value) => set((s) => ({
       shortcutConfig: {
         ...s.shortcutConfig,
@@ -425,6 +431,7 @@ export const useSessionsStore = create<SessionsStore>()(
         sidebarMode: state.sidebarMode,
         claudeBinaryPath: state.claudeBinaryPath,
         preferredOpenWithAppId: state.preferredOpenWithAppId,
+        themeId: state.themeId,
         shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
@@ -448,6 +455,7 @@ export const useSessionsStore = create<SessionsStore>()(
           ...persistedState,
           claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
           preferredOpenWithAppId: persistedState.preferredOpenWithAppId ?? '',
+          themeId: persistedState.themeId ?? CURRENT_THEME_ID,
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,
             ...(persistedState.shortcutConfig ?? {}),

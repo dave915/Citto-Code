@@ -595,8 +595,8 @@ export function ChatView({
                 title="파일 탐색기 새로고침"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 11a8 8 0 1 0 2 5.3" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 4v7h-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 3v6h-6" />
                 </svg>
               </button>
             )}

@@ -6,6 +6,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import type { ClaudeInstallationStatus, ClaudeStreamEvent, SelectedFile } from '../electron/preload'
 import type { PermissionMode, PendingPermissionRequest, PendingQuestionRequest } from './store/sessions'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
+import { applyTheme } from './lib/theme'
 
 function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
@@ -137,6 +138,7 @@ export default function App() {
     setPlanMode,
     setModel,
     envVars,
+    themeId,
     shortcutConfig,
   } = useSessionsStore()
 
@@ -168,6 +170,10 @@ export default function App() {
     addToolCall, resolveToolCall, setStreaming, setLastCost, setError, setPendingPermission, setPendingQuestion,
     activeSessionId
   }
+
+  useEffect(() => {
+    applyTheme(themeId)
+  }, [themeId])
 
   useEffect(() => {
     const cleanup = window.claude.onClaudeEvent(handleClaudeEvent)
