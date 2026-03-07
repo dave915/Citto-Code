@@ -735,7 +735,15 @@ app.whenReady().then(() => {
   // ── 스트리밍 중단 ────────────────────────────────────────────
   ipcMain.handle('claude:abort', (_event, { sessionId }: { sessionId: string }) => {
     const proc = activeProcesses.get(sessionId)
-    if (proc) { proc.kill('SIGINT'); activeProcesses.delete(sessionId) }
+    if (proc) {
+      proc.kill('SIGINT')
+      setTimeout(() => {
+        try {
+          if (!proc.killed) proc.kill('SIGKILL')
+        } catch { /* ignore */ }
+      }, 250)
+      activeProcesses.delete(sessionId)
+    }
   })
 
   ipcMain.handle('claude:has-active-process', (_event, { sessionId }: { sessionId: string }) => {

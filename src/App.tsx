@@ -154,6 +154,7 @@ export default function App() {
   const sendStartedAtByTabRef = useRef<Map<string, number>>(new Map())
   const currentAsstMsgRef = useRef<Map<string, string>>(new Map())
   const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
+  const abortedTabIdsRef = useRef<Set<string>>(new Set())
   const sessionsRef = useRef(sessions)
   sessionsRef.current = sessions
 
@@ -358,6 +359,7 @@ export default function App() {
     if (event.type === 'text-chunk') {
       const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
+      if (abortedTabIdsRef.current.has(tabId)) return
       const msgId = ensureAssistantMessage(tabId)
       store.appendTextChunk(tabId, msgId, event.text)
       return
@@ -366,6 +368,7 @@ export default function App() {
     if (event.type === 'tool-start') {
       const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
+      if (abortedTabIdsRef.current.has(tabId)) return
       const msgId = ensureAssistantMessage(tabId)
       store.addToolCall(tabId, msgId, {
         toolUseId: event.toolUseId,
@@ -379,6 +382,7 @@ export default function App() {
     if (event.type === 'tool-result') {
       const tabId = resolveEventTabId(event.sessionId as string)
       if (!tabId) return
+      if (abortedTabIdsRef.current.has(tabId)) return
       store.resolveToolCall(tabId, event.toolUseId as string, event.content, event.isError as boolean)
       return
     }
@@ -386,6 +390,7 @@ export default function App() {
     if (event.type === 'result') {
       const tabId = resolveEventTabId(event.sessionId) ?? takePendingTabId()
       if (!tabId) return
+      if (abortedTabIdsRef.current.has(tabId)) return
       if (event.totalCostUsd) store.setLastCost(tabId, event.totalCostUsd)
       const askUserQuestionRequest = event.permissionDenials
         ?.map(mapPendingQuestionRequest)
@@ -422,6 +427,7 @@ export default function App() {
         claudeSessionToTabRef.current.delete(event.sessionId)
       }
       if (tabId) {
+        abortedTabIdsRef.current.delete(tabId)
         pendingProcessKeyByTabRef.current.delete(tabId)
         if (pendingTabIdRef.current === tabId) {
           pendingTabIdRef.current = null
@@ -440,6 +446,16 @@ export default function App() {
         claudeSessionToTabRef.current.delete(event.sessionId)
       }
       if (tabId) {
+        if (abortedTabIdsRef.current.has(tabId)) {
+          abortedTabIdsRef.current.delete(tabId)
+          pendingProcessKeyByTabRef.current.delete(tabId)
+          if (pendingTabIdRef.current === tabId) {
+            pendingTabIdRef.current = null
+          }
+          sendStartedAtByTabRef.current.delete(tabId)
+          store.setStreaming(tabId, false)
+          return
+        }
         pendingProcessKeyByTabRef.current.delete(tabId)
         if (pendingTabIdRef.current === tabId) {
           pendingTabIdRef.current = null
@@ -457,6 +473,7 @@ export default function App() {
     options?: { permissionModeOverride?: PermissionMode; visibleTextOverride?: string }
   ) {
     if (!activeSession || !activeSessionId || activeSession.isStreaming) return
+    abortedTabIdsRef.current.delete(activeSessionId)
 
     setError(activeSessionId, null)
     setPendingPermission(activeSessionId, null)
@@ -517,6 +534,7 @@ export default function App() {
     if (!activeSessionId) return
     const processKey = activeSession?.sessionId ?? pendingProcessKeyByTabRef.current.get(activeSessionId)
     if (!processKey) return
+    abortedTabIdsRef.current.add(activeSessionId)
     await window.claude.abort({ sessionId: processKey })
     pendingProcessKeyByTabRef.current.delete(activeSessionId)
     if (pendingTabIdRef.current === activeSessionId) {

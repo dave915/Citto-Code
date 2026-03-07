@@ -228,6 +228,7 @@ export function InputArea({
   onPermissionModeChange, onPlanModeChange, onModelChange,
   permissionShortcutLabel, bypassShortcutLabel,
 }: Props) {
+  const [showStreamingUi, setShowStreamingUi] = useState(Boolean(isStreaming))
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<SelectedFile[]>([])
   const [isAttaching, setIsAttaching] = useState(false)
@@ -264,28 +265,6 @@ export function InputArea({
       })
       .catch(() => setSlashCommands(BUILTIN_SLASH_COMMANDS))
   }, [])
-
-  useEffect(() => {
-    const onKeyDownCapture = (event: KeyboardEvent) => {
-      if (matchShortcut(event, permissionShortcutLabel)) {
-        event.preventDefault()
-        event.stopPropagation()
-        cycleClaudeCodeMode(permissionMode, planMode, onPermissionModeChange, onPlanModeChange)
-        return
-      }
-
-      if (bypassShortcutLabel && matchShortcut(event, bypassShortcutLabel)) {
-        event.preventDefault()
-        event.stopPropagation()
-        if (!planMode) {
-          onPermissionModeChange(permissionMode === 'bypassPermissions' ? 'default' : 'bypassPermissions')
-        }
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDownCapture, true)
-    return () => window.removeEventListener('keydown', onKeyDownCapture, true)
-  }, [permissionMode, permissionShortcutLabel, planMode, bypassShortcutLabel, onPermissionModeChange, onPlanModeChange])
 
   const closeAtMention = useCallback(() => {
     setAtMention(null)
@@ -335,6 +314,19 @@ export function InputArea({
       setQuestionInputMode(false)
     }
   }, [pendingPermission, pendingQuestion, isStreaming])
+
+  useEffect(() => {
+    if (isStreaming) {
+      setShowStreamingUi(true)
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setShowStreamingUi(false)
+    }, 1200)
+
+    return () => window.clearTimeout(timeout)
+  }, [isStreaming])
 
   const handleSlashSelect = useCallback((command: SlashCommand) => {
     if (!slashMention) return
@@ -736,6 +728,161 @@ export function InputArea({
     { action: 'deny', title: '권한 요청 닫기', description: '승인하지 않고 현재 요청 종료', badge: '취소' },
   ]
 
+  useEffect(() => {
+    const onKeyDownCapture = (event: KeyboardEvent) => {
+      if (showQuestionPrompt) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          handleQuestionSubmit(null)
+          return
+        }
+
+        if (questionInputMode) {
+          if (
+            event.key === 'ArrowUp' &&
+            textareaRef.current &&
+            textareaRef.current.selectionStart === textareaRef.current.selectionEnd &&
+            textareaRef.current.selectionStart === 0
+          ) {
+            event.preventDefault()
+            event.stopPropagation()
+            setQuestionInputMode(false)
+            setPermissionSelectedIndex(Math.max(questionOptions.length - 1, 0))
+          }
+          return
+        }
+
+        if (questionOptions.length > 0) {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            event.stopPropagation()
+            if (permissionSelectedIndex === questionOptions.length - 1) {
+              setQuestionInputMode(true)
+            } else {
+              setPermissionSelectedIndex((index) => (index + 1) % questionOptions.length)
+            }
+            return
+          }
+
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            event.stopPropagation()
+            setPermissionSelectedIndex((index) => Math.max(index - 1, 0))
+            return
+          }
+
+          if (event.key === 'Tab') {
+            event.preventDefault()
+            event.stopPropagation()
+            if (event.shiftKey) {
+              setPermissionSelectedIndex((index) => Math.max(index - 1, 0))
+            } else if (permissionSelectedIndex === questionOptions.length - 1) {
+              setQuestionInputMode(true)
+            } else {
+              setPermissionSelectedIndex((index) => (index + 1) % questionOptions.length)
+            }
+            return
+          }
+
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.stopPropagation()
+            handleQuestionSubmit(questionOptions[permissionSelectedIndex]?.label ?? null)
+            return
+          }
+        }
+      }
+
+      if (showPermissionPrompt) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          onPermissionRequestAction('deny')
+          return
+        }
+
+        if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          event.stopPropagation()
+          setPermissionSelectedIndex((index) => (index + 1) % permissionActions.length)
+          return
+        }
+
+        if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          event.stopPropagation()
+          setPermissionSelectedIndex((index) => (index - 1 + permissionActions.length) % permissionActions.length)
+          return
+        }
+
+        if (event.key === 'Tab') {
+          event.preventDefault()
+          event.stopPropagation()
+          if (event.shiftKey) {
+            setPermissionSelectedIndex((index) => (index - 1 + permissionActions.length) % permissionActions.length)
+          } else {
+            setPermissionSelectedIndex((index) => (index + 1) % permissionActions.length)
+          }
+          return
+        }
+
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          event.stopPropagation()
+          onPermissionRequestAction(permissionActions[permissionSelectedIndex].action)
+          return
+        }
+      }
+
+      if (event.key === 'Escape' && showStreamingUi) {
+        const now = Date.now()
+        event.preventDefault()
+        event.stopPropagation()
+        if (now - escapePressedAtRef.current < 600) {
+          escapePressedAtRef.current = 0
+          onAbort()
+        } else {
+          escapePressedAtRef.current = now
+        }
+        return
+      }
+
+      if (matchShortcut(event, permissionShortcutLabel)) {
+        event.preventDefault()
+        event.stopPropagation()
+        cycleClaudeCodeMode(permissionMode, planMode, onPermissionModeChange, onPlanModeChange)
+        return
+      }
+
+      if (bypassShortcutLabel && matchShortcut(event, bypassShortcutLabel)) {
+        event.preventDefault()
+        event.stopPropagation()
+        if (!planMode) {
+          onPermissionModeChange(permissionMode === 'bypassPermissions' ? 'default' : 'bypassPermissions')
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDownCapture, true)
+    return () => window.removeEventListener('keydown', onKeyDownCapture, true)
+  }, [showQuestionPrompt, questionInputMode, questionOptions, permissionSelectedIndex, showPermissionPrompt, handleQuestionSubmit, onPermissionRequestAction, permissionActions, showStreamingUi, onAbort, permissionMode, permissionShortcutLabel, planMode, bypassShortcutLabel, onPermissionModeChange, onPlanModeChange])
+
+  useEffect(() => {
+    if (showQuestionPrompt) {
+      if (questionInputMode) {
+        requestAnimationFrame(() => textareaRef.current?.focus())
+      } else {
+        requestAnimationFrame(() => permissionItemRefs.current[permissionSelectedIndex]?.focus())
+      }
+      return
+    }
+
+    if (showPermissionPrompt) {
+      requestAnimationFrame(() => permissionItemRefs.current[permissionSelectedIndex]?.focus())
+    }
+  }, [showPermissionPrompt, showQuestionPrompt, questionInputMode, permissionSelectedIndex])
+
   return (
     <div className="bg-claude-bg/95 px-6 pt-4 pb-5">
       <div className="mx-auto w-full max-w-[860px]">
@@ -790,8 +937,8 @@ export function InputArea({
                     setQuestionInputMode(false)
                     handleQuestionSubmit(option.label)
                   }}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors ${
-                    !questionInputMode && index === permissionSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'hover:bg-claude-surface'
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
+                    !questionInputMode && index === permissionSelectedIndex ? 'bg-[#34363c] text-white' : 'hover:bg-claude-surface'
                   }`}
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-xs font-semibold text-claude-text">
@@ -831,8 +978,8 @@ export function InputArea({
                   ref={(element) => { permissionItemRefs.current[index] = element }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => onPermissionRequestAction(item.action)}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors ${
-                    index === permissionSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'hover:bg-claude-surface'
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
+                    index === permissionSelectedIndex ? 'bg-[#34363c] text-white' : 'hover:bg-claude-surface'
                   }`}
                 >
                   <span className={`flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-xs font-semibold ${
@@ -876,8 +1023,8 @@ export function InputArea({
                     ref={(el) => { slashItemRefs.current[i] = el }}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSlashSelect(command)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${
-                      i === slashSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'text-claude-text hover:bg-claude-surface'
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
+                      i === slashSelectedIndex ? 'bg-[#34363c] text-white' : 'text-claude-text hover:bg-claude-surface'
                     }`}
                   >
                     <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -899,8 +1046,8 @@ export function InputArea({
                   ref={(el) => { atItemRefs.current[i] = el }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleAtSelect(file)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${
-                    i === atSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'text-claude-text hover:bg-claude-surface'
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
+                    i === atSelectedIndex ? 'bg-[#34363c] text-white' : 'text-claude-text hover:bg-claude-surface'
                   }`}
                 >
                   <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1032,14 +1179,14 @@ export function InputArea({
           <div className="h-4 w-px flex-shrink-0 bg-claude-border" />
 
           {/* 전송 / 중단 */}
-          {isStreaming ? (
+          {showStreamingUi ? (
             <button
               onClick={onAbort}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-[#1f1f22] transition-colors hover:bg-white/90"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#1f1f22] transition-colors hover:bg-white/90"
               title="중단"
             >
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="6" width="12" height="12" rx="1" />
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="6" width="12" height="12" rx="2.5" />
               </svg>
             </button>
           ) : (
