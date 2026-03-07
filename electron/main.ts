@@ -750,6 +750,16 @@ app.whenReady().then(() => {
     return activeProcesses.has(sessionId)
   })
 
+  ipcMain.handle('window:toggle-maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    if (win.isMaximized()) {
+      win.unmaximize()
+      return
+    }
+    win.maximize()
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

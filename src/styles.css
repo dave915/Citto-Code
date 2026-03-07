@@ -22,7 +22,8 @@ body {
   -webkit-app-region: drag;
 }
 .draggable-region button,
-.draggable-region a {
+.draggable-region a,
+.draggable-region .no-drag {
   -webkit-app-region: no-drag;
 }
 

@@ -33,8 +33,8 @@ type Props = {
   onModelChange: (model: string | null) => void
 }
 
-const INITIAL_RIGHT_PANEL_WIDTH = 320
-const INITIAL_EXPLORER_WIDTH = 240
+const INITIAL_RIGHT_PANEL_WIDTH = 290
+const INITIAL_EXPLORER_WIDTH = 290
 
 const OPEN_WITH_ICONS: Record<string, string> = {
   vscode: vscodeIcon,
@@ -94,6 +94,11 @@ export function ChatView({
   const contextUsagePercent = estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
   const preferredOpenWithApp = openWithApps.find((app) => app.id === preferredOpenWithAppId) ?? null
   const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null
+
+  const handleHeaderDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button, a, input, textarea, select, [data-no-drag="true"]')) return
+    void window.claude.toggleWindowMaximize()
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -353,8 +358,9 @@ export function ChatView({
     <div ref={containerRef} className="flex h-full bg-claude-bg">
       <div className="flex min-w-0 flex-1 flex-col">
         <div
-          className="flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
+          className="draggable-region flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
           style={{ paddingLeft: sidebarCollapsed ? '76px' : '16px' }}
+          onDoubleClick={handleHeaderDoubleClick}
         >
           <div
             className="flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs text-claude-muted"
@@ -378,8 +384,8 @@ export function ChatView({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div ref={openWithMenuRef} className="relative">
+          <div className="no-drag flex items-center gap-2" data-no-drag="true">
+            <div ref={openWithMenuRef} className="relative" data-no-drag="true">
               <div className="flex overflow-hidden rounded-2xl border border-claude-border/80 bg-claude-surface shadow-[0_8px_24px_rgba(0,0,0,0.16)]">
                 <button
                   onClick={() => void handleDefaultOpen()}
