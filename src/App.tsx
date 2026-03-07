@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useSessionsStore, findTabByClaudeSessionId } from './store/sessions'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
@@ -9,6 +9,7 @@ import type {
   PermissionMode,
   PendingPermissionRequest,
   PendingQuestionRequest,
+  Session,
 } from './store/sessions'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 import { applyTheme } from './lib/theme'
@@ -134,6 +135,105 @@ function cycleClaudeCodeMode(
   onPlanModeChange(false)
 }
 
+type SessionFileLockState = {
+  paths: string[]
+  conflictingPaths: string[]
+  conflictingSessionIds: string[]
+  isLocked: boolean
+  hasConflict: boolean
+}
+
+function isWriteLikeTool(toolName: string) {
+  return ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(toolName)
+}
+
+function normalizeLockedFilePath(value: string): string {
+  return value.replace(/\\/g, '/').trim().toLowerCase()
+}
+
+function extractEditableFilePaths(toolName: string, toolInput: unknown): string[] {
+  if (!isWriteLikeTool(toolName) || !toolInput || typeof toolInput !== 'object') return []
+
+  const record = toolInput as {
+    file_path?: unknown
+    notebook_path?: unknown
+    path?: unknown
+  }
+
+  const candidate = record.file_path ?? record.notebook_path ?? record.path
+  if (typeof candidate !== 'string' || !candidate.trim()) return []
+  return [candidate.trim()]
+}
+
+function getSessionActiveEditPaths(session: Session): string[] {
+  const paths = new Map<string, string>()
+
+  if (session.pendingPermission && isWriteLikeTool(session.pendingPermission.toolName)) {
+    for (const path of extractEditableFilePaths(session.pendingPermission.toolName, session.pendingPermission.toolInput)) {
+      paths.set(normalizeLockedFilePath(path), path)
+    }
+  }
+
+  if (!session.isStreaming || !session.currentAssistantMsgId) {
+    return Array.from(paths.values())
+  }
+
+  const currentAssistantMessage = session.messages.find((message) => message.id === session.currentAssistantMsgId)
+  if (!currentAssistantMessage) return Array.from(paths.values())
+
+  for (const toolCall of currentAssistantMessage.toolCalls) {
+    if (toolCall.status !== 'running' || !isWriteLikeTool(toolCall.toolName)) continue
+    for (const path of extractEditableFilePaths(toolCall.toolName, toolCall.toolInput)) {
+      paths.set(normalizeLockedFilePath(path), path)
+    }
+  }
+
+  return Array.from(paths.values())
+}
+
+function buildSessionFileLockState(sessions: Session[]): Record<string, SessionFileLockState> {
+  const stateBySessionId: Record<string, SessionFileLockState> = {}
+  const ownersByPath = new Map<string, Array<{ sessionId: string; displayPath: string }>>()
+
+  for (const session of sessions) {
+    const paths = getSessionActiveEditPaths(session)
+    stateBySessionId[session.id] = {
+      paths,
+      conflictingPaths: [],
+      conflictingSessionIds: [],
+      isLocked: paths.length > 0,
+      hasConflict: false,
+    }
+
+    for (const path of paths) {
+      const key = normalizeLockedFilePath(path)
+      const owners = ownersByPath.get(key) ?? []
+      owners.push({ sessionId: session.id, displayPath: path })
+      ownersByPath.set(key, owners)
+    }
+  }
+
+  for (const owners of ownersByPath.values()) {
+    if (owners.length <= 1) continue
+    for (const owner of owners) {
+      const state = stateBySessionId[owner.sessionId]
+      if (!state) continue
+      state.hasConflict = true
+      if (!state.conflictingPaths.includes(owner.displayPath)) {
+        state.conflictingPaths.push(owner.displayPath)
+      }
+      for (const other of owners) {
+        if (other.sessionId === owner.sessionId) continue
+        if (!state.conflictingSessionIds.includes(other.sessionId)) {
+          state.conflictingSessionIds.push(other.sessionId)
+        }
+      }
+    }
+  }
+
+  return stateBySessionId
+}
+
 export default function App() {
   const expandedSidebarWidthRef = useRef(290)
   const {
@@ -171,8 +271,22 @@ export default function App() {
   const [installationStatus, setInstallationStatus] = useState<ClaudeInstallationStatus | null>(null)
   const [installationDismissed, setInstallationDismissed] = useState(false)
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) ?? null : null
+  const sessionFileLockState = useMemo(() => buildSessionFileLockState(sessions), [sessions])
   const shortcutPlatform = getCurrentPlatform()
   const sanitizedEnvVars = sanitizeEnvVars(envVars)
+  const hasUnsafeReloadState = useMemo(
+    () => sessions.some((session) => session.isStreaming || Boolean(session.pendingPermission) || Boolean(session.pendingQuestion)),
+    [sessions]
+  )
+  const activeSessionConflict = activeSessionId ? sessionFileLockState[activeSessionId] : null
+  const activeSessionConflictDetails = activeSessionConflict?.hasConflict
+    ? {
+        paths: activeSessionConflict.conflictingPaths,
+        sessionNames: activeSessionConflict.conflictingSessionIds
+          .map((sessionId) => sessions.find((session) => session.id === sessionId)?.name ?? '다른 세션')
+          .filter((value, index, array) => array.indexOf(value) === index),
+      }
+    : null
 
   const pendingTabIdRef = useRef<string | null>(null)
   const pendingProcessKeyByTabRef = useRef<Map<string, string>>(new Map())
@@ -209,6 +323,17 @@ export default function App() {
   useEffect(() => {
     void refreshInstallationStatus()
   }, [])
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsafeReloadState) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsafeReloadState])
 
   useEffect(() => {
     if (!activeSessionId || !activeSession?.isStreaming) return
@@ -691,6 +816,7 @@ export default function App() {
         <Sidebar
           sessions={sessions}
           activeSessionId={activeSessionId}
+          sessionLockState={sessionFileLockState}
           sidebarMode={sidebarMode}
           onSelectSession={handleSelectSession}
           onRenameSession={(id, name) => updateSession(id, () => ({ name }))}
@@ -717,6 +843,7 @@ export default function App() {
             <ChatView
               key={activeSession.id}
               session={activeSession}
+              fileConflict={activeSessionConflictDetails}
               onSend={handleSend}
               onAbort={handleAbort}
               sidebarMode={sidebarMode}

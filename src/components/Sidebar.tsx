@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { Session, SidebarMode } from '../store/sessions'
 
+type SessionLockState = {
+  isLocked: boolean
+  hasConflict: boolean
+  conflictingPaths: string[]
+}
+
 type Props = {
   sessions: Session[]
   activeSessionId: string | null
+  sessionLockState: Record<string, SessionLockState>
   sidebarMode: SidebarMode
   newSessionShortcutLabel: string
   settingsShortcutLabel: string
@@ -63,6 +70,7 @@ function sortSessions(sessions: Session[]): Session[] {
 
 type SessionRowProps = {
   session: Session
+  lockState?: SessionLockState
   activeSessionId: string | null
   editingSessionId: string | null
   editingName: string
@@ -78,6 +86,7 @@ type SessionRowProps = {
 
 function SessionRow({
   session,
+  lockState,
   activeSessionId,
   editingSessionId,
   editingName,
@@ -162,6 +171,30 @@ function SessionRow({
 
       {!isEditing && (
         <div className="flex flex-shrink-0 items-center gap-0.5 self-center">
+          {lockState?.hasConflict ? (
+            <span
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-red-200/80"
+              title={lockState.conflictingPaths.length > 0
+                ? `같은 파일을 다른 세션에서도 수정 중: ${lockState.conflictingPaths.join(', ')}`
+                : '같은 파일을 다른 세션에서도 수정 중'}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 17h.01" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+              </svg>
+            </span>
+          ) : lockState?.isLocked ? (
+            <span
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-claude-muted/70"
+              title="파일 수정 작업 진행 중"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="5" y="11" width="14" height="9" rx="2" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V8a4 4 0 1 1 8 0v3" />
+              </svg>
+            </span>
+          ) : null}
           <button
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(session.id) }}
             className={`rounded-lg p-1.5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 ${session.favorite ? 'text-claude-text hover:text-claude-text' : 'text-claude-muted/60 hover:text-claude-text'}`}
@@ -193,6 +226,7 @@ function SessionRow({
 export function Sidebar({
   sessions,
   activeSessionId,
+  sessionLockState,
   sidebarMode,
   newSessionShortcutLabel,
   settingsShortcutLabel,
@@ -274,11 +308,11 @@ export function Sidebar({
                 editingName={editingName}
                 inputRef={inputRef}
                 showProjectLabel
+                lockState={sessionLockState[session.id]}
                 onSelectSession={onSelectSession}
                 onRenameSession={onRenameSession}
                 onToggleFavorite={onToggleFavorite}
                 onRemoveSession={onRemoveSession}
-                onSelectFolder={onSelectFolder}
                 setEditingSessionId={setEditingSessionId}
                 setEditingName={setEditingName}
               />
@@ -334,6 +368,7 @@ export function Sidebar({
                       editingName={editingName}
                       inputRef={inputRef}
                       showProjectLabel={false}
+                      lockState={sessionLockState[session.id]}
                       onSelectSession={onSelectSession}
                       onRenameSession={onRenameSession}
                       onToggleFavorite={onToggleFavorite}
@@ -357,6 +392,7 @@ export function Sidebar({
                 editingName={editingName}
                 inputRef={inputRef}
                 showProjectLabel
+                lockState={sessionLockState[session.id]}
                 onSelectSession={onSelectSession}
                 onRenameSession={onRenameSession}
                 onToggleFavorite={onToggleFavorite}

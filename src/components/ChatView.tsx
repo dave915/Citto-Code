@@ -36,6 +36,10 @@ type AskAboutSelectionPayload = {
 
 type Props = {
   session: Session
+  fileConflict?: {
+    paths: string[]
+    sessionNames: string[]
+  } | null
   onSend: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
@@ -67,7 +71,7 @@ const OPEN_WITH_ICONS: Record<string, string> = {
 }
 
 export function ChatView({
-  session, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
+  session, fileConflict, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel, onSelectFolder,
   onPermissionModeChange, onPlanModeChange, onModelChange,
 }: Props) {
@@ -140,6 +144,18 @@ export function ChatView({
   const showGitPreviewPane = selectedGitEntry !== null
   const gitAvailable = gitStatus?.gitAvailable ?? true
   const stagedGitEntryCount = gitStatus?.entries.filter((entry) => entry.staged).length ?? 0
+  const fileConflictLabel = useMemo(() => {
+    if (!fileConflict || fileConflict.paths.length === 0) return null
+    const labels = fileConflict.paths.map((path) => path.split('/').filter(Boolean).pop() || path)
+    if (labels.length === 1) return labels[0]
+    if (labels.length === 2) return `${labels[0]}, ${labels[1]}`
+    return `${labels[0]}, ${labels[1]} 외 ${labels.length - 2}개`
+  }, [fileConflict])
+  const conflictSessionLabel = useMemo(() => {
+    if (!fileConflict || fileConflict.sessionNames.length === 0) return '다른 세션'
+    if (fileConflict.sessionNames.length === 1) return fileConflict.sessionNames[0]
+    return `${fileConflict.sessionNames[0]} 외 ${fileConflict.sessionNames.length - 1}개 세션`
+  }, [fileConflict])
   const filteredGitBranches = useMemo(() => {
     const query = branchQuery.trim().toLowerCase()
     const branches = [...gitBranches].sort((a, b) => {
@@ -1253,6 +1269,25 @@ export function ChatView({
           style={{ background: 'linear-gradient(180deg, rgb(var(--claude-panel)) 0%, rgb(var(--claude-bg)) 100%)' }}
         >
           <div className="mx-auto w-full max-w-[860px]">
+            {fileConflict && fileConflictLabel && (
+              <div className="mb-4 rounded-2xl border border-red-900/35 bg-red-950/15 px-4 py-3 text-sm text-red-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl bg-red-950/30 text-red-200/80">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 17h.01" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                    </svg>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-red-100">같은 파일을 다른 세션에서도 수정 중입니다.</p>
+                    <p className="mt-1 text-[13px] leading-5 text-red-100/75">
+                      {fileConflictLabel} · {conflictSessionLabel}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             {isNewSession
               ? <WelcomeScreen sidebarMode={sidebarMode} onSelectFolder={onSelectFolder} />
               : session.messages.map((msg) => (
