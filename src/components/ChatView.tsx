@@ -217,27 +217,7 @@ export function ChatView({
   useEffect(() => {
     if (!filePanelOpen) return
     let cancelled = false
-    setLoadingPaths((prev) => ({ ...prev, __root__: true }))
-    window.claude.listCurrentDir(session.cwd || '~')
-      .then((entries) => {
-        if (!cancelled) {
-          setRootEntries(entries)
-          setChildEntries({})
-          setExpandedDirs({})
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setRootEntries([])
-          setChildEntries({})
-          setExpandedDirs({})
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadingPaths((prev) => ({ ...prev, __root__: false }))
-        }
-      })
+    void refreshExplorer(true, () => cancelled)
 
     return () => { cancelled = true }
   }, [filePanelOpen, session.cwd])
@@ -301,6 +281,54 @@ export function ChatView({
     }
     setPreviewContent(result.content)
     setPreviewState('ready')
+  }
+
+  const refreshExplorer = async (resetExpanded: boolean, isCancelled?: () => boolean) => {
+    setLoadingPaths((prev) => ({ ...prev, __root__: true }))
+
+    try {
+      const entries = await window.claude.listCurrentDir(session.cwd || '~')
+      if (isCancelled?.()) return
+
+      setRootEntries(entries)
+
+      if (resetExpanded) {
+        setChildEntries({})
+        setExpandedDirs({})
+        return
+      }
+
+      const expandedPaths = Object.entries(expandedDirs)
+        .filter(([, expanded]) => expanded)
+        .map(([path]) => path)
+
+      if (expandedPaths.length === 0) return
+
+      const refreshedChildren = await Promise.all(
+        expandedPaths.map(async (path) => {
+          try {
+            const children = await window.claude.listCurrentDir(path)
+            return [path, children] as const
+          } catch {
+            return [path, []] as const
+          }
+        })
+      )
+
+      if (isCancelled?.()) return
+      setChildEntries(Object.fromEntries(refreshedChildren))
+    } catch {
+      if (isCancelled?.()) return
+      setRootEntries([])
+      if (resetExpanded) {
+        setChildEntries({})
+        setExpandedDirs({})
+      }
+    } finally {
+      if (!isCancelled?.()) {
+        setLoadingPaths((prev) => ({ ...prev, __root__: false }))
+      }
+    }
   }
 
   const handleFilePanelResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -556,10 +584,22 @@ export function ChatView({
           className="flex min-w-0 flex-shrink-0 flex-col border-l border-claude-border bg-claude-panel"
           style={{ width: `${filePanelWidth}px` }}
         >
-          <div className="flex h-12 items-center border-b border-claude-border px-4">
+          <div className="flex h-12 items-center justify-between border-b border-claude-border px-4">
             <p className="text-sm font-semibold text-claude-text">
               {filePanelOpen ? '파일 탐색기' : '세션 정보'}
             </p>
+            {filePanelOpen && (
+              <button
+                onClick={() => void refreshExplorer(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                title="파일 탐색기 새로고침"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 11a8 8 0 1 0 2 5.3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 4v7h-7" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {filePanelOpen ? (

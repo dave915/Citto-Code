@@ -249,7 +249,7 @@ export function Sidebar({
       <div className="mb-3 flex flex-col gap-1 px-3">
         <button
           onClick={() => onNewSession()}
-          className="flex w-full items-center gap-2 rounded-2xl border border-white/6 bg-white/[0.035] px-3.5 py-2.5 text-sm text-[#d0c7be] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
+          className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.035] bg-white/[0.03] px-3.5 py-2.5 text-sm text-[#d0c7be] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
           title={`${sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'} (${newSessionShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
