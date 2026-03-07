@@ -5,18 +5,21 @@ module.exports = {
     extend: {
       colors: {
         claude: {
-          orange: '#D97757',
-          bg: '#F5F0EB',
-          sidebar: '#1A1A1A',
-          'sidebar-hover': '#2A2A2A',
-          'sidebar-active': '#333333',
-          border: '#E5DDD4',
-          text: '#1A1A1A',
-          muted: '#8B7B6B',
+          orange: '#C98B5B',
+          bg: '#11100F',
+          panel: '#181614',
+          surface: '#1E1A18',
+          'surface-2': '#25211E',
+          sidebar: '#151412',
+          'sidebar-hover': '#201D1B',
+          'sidebar-active': '#2B2622',
+          border: '#312B27',
+          text: '#F3EEE7',
+          muted: '#A2978A',
         }
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['"SF Pro Display"', 'Pretendard Variable', 'Pretendard', '"Apple SD Gothic Neo"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace']
       }
     }

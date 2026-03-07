@@ -93,8 +93,8 @@ function SessionRow({
   const isActive = session.id === activeSessionId
   const isEditing = editingSessionId === session.id
   const itemCls = isActive
-    ? 'bg-claude-sidebar-active text-white'
-    : 'text-gray-400 hover:text-white hover:bg-claude-sidebar-hover'
+    ? 'bg-claude-sidebar-active text-white shadow-[0_12px_28px_rgba(0,0,0,0.2)]'
+    : 'text-[#9f9489] hover:bg-claude-sidebar-hover hover:text-white'
 
   const startRename = () => {
     setEditingSessionId(session.id)
@@ -115,7 +115,7 @@ function SessionRow({
   }
 
   return (
-    <div className={`group flex items-start gap-1.5 rounded-lg px-2 py-2 transition-colors ${itemCls}`}>
+    <div className={`group flex items-start gap-2 rounded-2xl px-2.5 py-2.5 transition-colors ${itemCls}`}>
       <button
         onClick={() => onSelectSession(session.id)}
         onDoubleClick={startRename}
@@ -147,13 +147,13 @@ function SessionRow({
                   cancelRename()
                 }
               }}
-              className="w-full bg-white/10 border border-white/15 rounded px-2 py-1 text-sm font-medium text-white outline-none focus:border-claude-orange/70"
+              className="w-full rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-sm font-medium text-white outline-none focus:border-claude-orange/70"
             />
           ) : (
-            <p className="truncate font-medium">{getSessionDisplayName(session)}</p>
+            <p className="truncate text-[14px] font-medium">{getSessionDisplayName(session)}</p>
           )}
           {showProjectLabel && session.cwd && session.cwd !== '~' && (
-            <p className="truncate text-xs opacity-50 mt-0.5 font-mono pr-1">
+            <p className="mt-0.5 truncate pr-1 font-mono text-[11px] opacity-50">
               {getDirName(session.cwd)}
             </p>
           )}
@@ -164,7 +164,7 @@ function SessionRow({
         <div className="flex flex-shrink-0 items-center gap-0.5 self-center">
           <button
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(session.id) }}
-            className={`p-1 rounded hover:bg-white/10 ${session.favorite ? 'text-yellow-300 hover:text-yellow-200' : 'text-gray-500 hover:text-white'}`}
+            className={`rounded-lg p-1.5 hover:bg-white/10 ${session.favorite ? 'text-yellow-300 hover:text-yellow-200' : 'text-[#6f665f] hover:text-white'}`}
             title={session.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={session.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
@@ -174,7 +174,7 @@ function SessionRow({
 
           <button
             onClick={(e) => { e.stopPropagation(); onRemoveSession(session.id) }}
-            className="p-1 rounded text-gray-500 hover:text-white hover:bg-white/10"
+            className="rounded-lg p-1.5 text-[#6f665f] hover:bg-white/10 hover:text-white"
             title="세션 삭제"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -243,13 +243,13 @@ export function Sidebar({
   }, [sidebarMode, projectGroups])
 
   return (
-    <aside className="w-full flex-shrink-0 bg-claude-sidebar flex flex-col h-full select-none">
+    <aside className="flex h-full w-full flex-shrink-0 select-none flex-col bg-claude-sidebar">
       <div className="pt-10 pb-2 draggable-region" />
 
-      <div className="px-3 mb-2 flex flex-col gap-1">
+      <div className="mb-3 flex flex-col gap-1 px-3">
         <button
           onClick={() => onNewSession()}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-claude-sidebar-hover text-sm transition-colors"
+          className="flex w-full items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.03] px-3.5 py-2.5 text-sm text-[#c7bbb0] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
           title={`${sidebarMode === 'project' ? '프로젝트 추가' : '새 세션'} (${newSessionShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -260,8 +260,8 @@ export function Sidebar({
       </div>
 
       {favoriteSessions.length > 0 && (
-        <div className="px-3 mb-3">
-          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+        <div className="mb-3 px-3">
+          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f665f]">
             즐겨찾기
           </div>
           <div className="space-y-0.5">
@@ -287,14 +287,14 @@ export function Sidebar({
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto px-3 space-y-3">
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3">
         {sidebarMode === 'project' ? (
           projectGroups.map((group) => (
             <section key={group.cwd} className="space-y-1">
               <div className="flex items-center gap-1 px-1">
                 <button
                   onClick={() => setCollapsedProjects((prev) => ({ ...prev, [group.cwd]: !prev[group.cwd] }))}
-                  className="min-w-0 flex-1 flex items-center gap-2 px-1 py-1 text-gray-300 hover:text-white text-left"
+                  className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left text-[#c7bbb0] hover:text-white"
                 >
                   <svg
                     className={`w-3.5 h-3.5 flex-shrink-0 opacity-80 transition-transform ${collapsedProjects[group.cwd] ? '' : 'rotate-90'}`}
@@ -312,7 +312,7 @@ export function Sidebar({
                 </button>
                 <button
                   onClick={() => onNewSession(group.cwd)}
-                  className="flex-shrink-0 p-1 rounded text-gray-500 hover:text-white hover:bg-white/10"
+                  className="flex-shrink-0 rounded-lg p-1.5 text-[#6f665f] hover:bg-white/10 hover:text-white"
                   title="이 프로젝트에 새 세션 추가"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -321,7 +321,7 @@ export function Sidebar({
                 </button>
               </div>
               {!collapsedProjects[group.cwd] && (
-                <div className="pl-3 space-y-0.5 border-l border-white/5 ml-3">
+                <div className="ml-3 space-y-1 border-l border-white/5 pl-3">
                   {sortSessions(group.sessions).map((session) => (
                     <SessionRow
                       key={session.id}
@@ -369,7 +369,7 @@ export function Sidebar({
       <div className="px-3 py-3">
         <button
           onClick={onOpenSettings}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-claude-sidebar-hover text-sm transition-colors"
+          className="flex w-full items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm text-[#c7bbb0] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
           title={`설정 (${settingsShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

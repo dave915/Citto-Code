@@ -399,20 +399,20 @@ export default function App() {
 
 function EmptyMainState({ onNewSession }: { onNewSession: () => void }) {
   return (
-    <div className="h-full flex items-center justify-center bg-claude-bg px-8">
+    <div className="flex h-full items-center justify-center bg-claude-bg px-8">
       <div className="max-w-sm text-center">
-        <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-white border border-claude-border flex items-center justify-center shadow-sm">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[28px] border border-[#4d3c2f] bg-claude-surface shadow-[0_20px_40px_rgba(0,0,0,0.24)]">
           <svg className="w-7 h-7 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-claude-text">열린 세션이 없습니다</h2>
-        <p className="mt-2 text-sm text-claude-muted leading-relaxed">
+        <h2 className="text-2xl font-semibold tracking-tight text-claude-text">열린 세션이 없습니다</h2>
+        <p className="mt-2 text-[15px] leading-7 text-claude-muted">
           새 세션을 만들고 프로젝트 폴더를 선택하면 바로 작업을 시작할 수 있습니다.
         </p>
         <button
           onClick={onNewSession}
-          className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-claude-orange text-white text-sm font-medium hover:bg-claude-orange/90 transition-colors"
+          className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-claude-orange px-4 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(201,139,91,0.28)] transition-colors hover:brightness-110"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -434,8 +434,8 @@ function ClaudeInstallModal({
   onClose: () => void
 }) {
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/35 px-6">
-      <div className="w-full max-w-md rounded-2xl border border-claude-border bg-white p-5 shadow-xl">
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 px-6 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[28px] border border-claude-border bg-claude-panel p-5 shadow-[0_30px_80px_rgba(0,0,0,0.4)]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-base font-semibold text-claude-text">Claude Code를 찾을 수 없습니다</p>
@@ -445,7 +445,7 @@ function ClaudeInstallModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-claude-muted hover:bg-claude-bg hover:text-claude-text transition-colors"
+            className="rounded-xl p-1.5 text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
             title="닫기"
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -454,12 +454,12 @@ function ClaudeInstallModal({
           </button>
         </div>
 
-        <div className="mt-4 rounded-xl border border-claude-border bg-claude-bg px-4 py-3">
+        <div className="mt-4 rounded-2xl border border-claude-border bg-claude-surface px-4 py-3">
           <p className="text-xs text-claude-muted">확인된 경로</p>
           <p className="mt-1 break-all font-mono text-xs text-claude-text">{installationStatus.path ?? '찾지 못함'}</p>
         </div>
 
-        <div className="mt-3 rounded-xl border border-claude-border bg-claude-bg px-4 py-3">
+        <div className="mt-3 rounded-2xl border border-claude-border bg-claude-surface px-4 py-3">
           <p className="text-xs text-claude-muted">설치 후 확인할 항목</p>
           <ul className="mt-2 space-y-1 text-sm text-claude-text">
             <li>터미널에서 `claude --version` 이 정상 출력되는지</li>
@@ -470,13 +470,13 @@ function ClaudeInstallModal({
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-lg border border-claude-border px-3 py-2 text-sm text-claude-muted hover:bg-claude-bg hover:text-claude-text transition-colors"
+            className="rounded-xl border border-claude-border px-3 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
           >
             닫기
           </button>
           <button
             onClick={onRetry}
-            className="rounded-lg bg-claude-orange px-3 py-2 text-sm font-medium text-white hover:bg-claude-orange/90 transition-colors"
+            className="rounded-xl bg-claude-orange px-3 py-2 text-sm font-medium text-white transition-colors hover:brightness-110"
           >
             다시 확인
           </button>

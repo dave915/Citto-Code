@@ -328,9 +328,8 @@ export function ChatView({
   return (
     <div ref={containerRef} className="flex h-full bg-claude-bg">
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* 헤더: 폴더 경로 + 비용만 */}
         <div
-          className="h-11 flex items-center justify-between pr-4 bg-white border-b border-claude-border flex-shrink-0"
+          className="flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
           style={{ paddingLeft: sidebarCollapsed ? '76px' : '16px' }}
         >
           <div
@@ -339,7 +338,7 @@ export function ChatView({
           >
             <button
               onClick={onToggleSidebar}
-              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
               title={`${sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'} (${sidebarShortcutLabel})`}
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -350,17 +349,17 @@ export function ChatView({
             <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <span className="font-mono min-w-0 max-w-xs truncate">
+            <span className="min-w-0 max-w-sm truncate font-mono text-[12px] text-[#cec0b4]">
               {session.cwd || '~'}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <div ref={openWithMenuRef} className="relative">
-              <div className="flex overflow-hidden rounded-xl border border-claude-border/80">
+              <div className="flex overflow-hidden rounded-2xl border border-claude-border/80 bg-claude-surface shadow-[0_8px_24px_rgba(0,0,0,0.16)]">
                 <button
                   onClick={() => void handleDefaultOpen()}
-                  className="flex items-center gap-2 bg-white px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-claude-bg"
+                  className="flex items-center gap-2 bg-claude-surface px-3.5 py-2 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
                   title={defaultOpenWithApp ? `${defaultOpenWithApp.label}에서 열기` : '기본 앱으로 열기'}
                 >
                   <OpenWithAppIcon app={defaultOpenWithApp} />
@@ -369,7 +368,7 @@ export function ChatView({
                 <button
                   onClick={() => setOpenWithMenuOpen((open) => !open)}
                   className={`border-l border-claude-border/80 px-2 py-1.5 text-claude-text transition-colors ${
-                    openWithMenuOpen ? 'bg-claude-bg' : 'bg-white hover:bg-claude-bg'
+                    openWithMenuOpen ? 'bg-claude-surface-2' : 'bg-claude-surface hover:bg-claude-surface-2'
                   }`}
                   title="다음에서 열기"
                 >
@@ -380,7 +379,7 @@ export function ChatView({
               </div>
 
               {openWithMenuOpen && (
-                <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-claude-border bg-white p-2 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
+                <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-3xl border border-claude-border bg-claude-panel p-2 shadow-[0_24px_60px_rgba(0,0,0,0.34)]">
                   <p className="px-3 pb-2 pt-1 text-xs font-semibold text-claude-muted">다음에서 열기</p>
                   {openWithLoading ? (
                     <div className="flex items-center justify-center px-3 py-8 text-claude-muted">
@@ -396,7 +395,7 @@ export function ChatView({
                         <button
                           key={app.id}
                           onClick={() => void handleOpenWith(app.id)}
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-bg"
+                          className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-surface"
                         >
                           <OpenWithAppIcon app={app} className="h-8 w-8" />
                           <span className="flex-1">{app.label}</span>
@@ -414,10 +413,10 @@ export function ChatView({
             </div>
             <button
             onClick={() => setRightPanel((open) => open === 'session' ? 'none' : 'session')}
-            className={`flex items-center justify-center px-2 py-1.5 rounded-lg text-xs transition-colors ${
+            className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
               sessionPanelOpen
-                ? 'bg-claude-bg text-claude-text'
-                : 'text-claude-muted hover:text-claude-text hover:bg-claude-bg'
+                ? 'bg-claude-surface text-claude-text'
+                : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
             }`}
             title={`현재 세션 정보 보기 (${sessionInfoShortcutLabel})`}
           >
@@ -429,10 +428,10 @@ export function ChatView({
           </button>
           <button
             onClick={() => setRightPanel((open) => open === 'files' ? 'none' : 'files')}
-            className={`flex items-center justify-center px-2 py-1.5 rounded-lg text-xs transition-colors ${
+            className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
               filePanelOpen
-                ? 'bg-claude-bg text-claude-text'
-                : 'text-claude-muted hover:text-claude-text hover:bg-claude-bg'
+                ? 'bg-claude-surface text-claude-text'
+                : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
             }`}
             title={`현재 디렉토리 파일 보기 (${filesShortcutLabel})`}
           >
@@ -449,33 +448,35 @@ export function ChatView({
         </div>
 
         {/* 메시지 영역 */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 min-w-0">
-          {isNewSession
-            ? <WelcomeScreen onSelectFolder={onSelectFolder} />
-            : session.messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  isStreaming={session.isStreaming && msg.id === session.currentAssistantMsgId}
-                />
-              ))
-          }
+        <div className="min-w-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(201,139,91,0.06),transparent_22%)] px-6 py-7">
+          <div className="mx-auto w-full max-w-[980px]">
+            {isNewSession
+              ? <WelcomeScreen onSelectFolder={onSelectFolder} />
+              : session.messages.map((msg) => (
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    isStreaming={session.isStreaming && msg.id === session.currentAssistantMsgId}
+                  />
+                ))
+            }
 
-          {session.error && (
-            <div className="flex justify-center mb-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 max-w-lg text-sm text-red-700">
-                <div className="flex items-center gap-2 font-medium mb-1">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  오류 발생
+            {session.error && (
+              <div className="mb-4 flex justify-center">
+                <div className="max-w-lg rounded-2xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+                  <div className="mb-1 flex items-center gap-2 font-medium">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    오류 발생
+                  </div>
+                  <p className="font-mono text-xs whitespace-pre-wrap">{session.error}</p>
                 </div>
-                <p className="font-mono text-xs whitespace-pre-wrap">{session.error}</p>
               </div>
-            </div>
-          )}
+            )}
 
-          <div ref={bottomRef} />
+            <div ref={bottomRef} />
+          </div>
         </div>
         {/* 입력창 (설정 툴바 포함) */}
         <InputArea
@@ -502,10 +503,10 @@ export function ChatView({
 
       {rightPanel !== 'none' && (
         <aside
-          className="border-l border-claude-border bg-white flex flex-col flex-shrink-0 min-w-0"
+          className="flex min-w-0 flex-shrink-0 flex-col border-l border-claude-border bg-claude-panel"
           style={{ width: `${filePanelWidth}px` }}
         >
-          <div className="h-11 px-4 border-b border-claude-border flex items-center">
+          <div className="flex h-12 items-center border-b border-claude-border px-4">
             <p className="text-sm font-semibold text-claude-text">
               {filePanelOpen ? '파일 탐색기' : '세션 정보'}
             </p>
@@ -515,7 +516,7 @@ export function ChatView({
             <div className="flex flex-1 min-h-0">
               {showPreviewPane && (
                 <>
-                  <div className="flex-1 min-w-0 overflow-y-auto bg-claude-bg/30">
+                  <div className="min-w-0 flex-1 overflow-y-auto bg-[#141210]">
                     <PreviewPane
                       entry={selectedEntry}
                       previewContent={previewContent}
@@ -533,7 +534,7 @@ export function ChatView({
               )}
 
               <div
-                className={`min-w-0 overflow-y-auto px-2 py-3 ${showPreviewPane ? 'border-l border-claude-border' : 'flex-1'}`}
+                className={`min-w-0 overflow-y-auto px-2 py-3 ${showPreviewPane ? 'border-l border-claude-border bg-claude-panel' : 'flex-1 bg-claude-panel'}`}
                 style={showPreviewPane ? { width: `${explorerWidth}px` } : undefined}
               >
                 {loadingPaths.__root__ ? (
@@ -599,8 +600,8 @@ function SessionInfoPanel({
   const createdAt = session.messages[0]?.createdAt ?? null
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-claude-bg/40">
-      <div className="rounded-xl border border-claude-border bg-white p-4">
+    <div className="flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">세션</p>
         <div className="mt-3 space-y-3">
           <InfoRow label="이름" value={session.name} />
@@ -614,13 +615,13 @@ function SessionInfoPanel({
         </div>
       </div>
 
-      <div className="rounded-xl border border-claude-border bg-white p-4">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">현재 컨텍스트</p>
           <button
             onClick={onCompact}
             disabled={session.isStreaming}
-            className="rounded-md border border-claude-border px-2.5 py-1.5 text-xs text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors disabled:opacity-40"
+            className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
           >
             압축하기
           </button>
@@ -630,7 +631,7 @@ function SessionInfoPanel({
             <p className="text-2xl font-semibold text-claude-text">{contextUsagePercent}%</p>
             <p className="text-xs text-claude-muted">추정치</p>
           </div>
-          <div className="mt-2 h-2.5 rounded-full bg-claude-bg overflow-hidden">
+          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#28231f]">
             <div
               className="h-full rounded-full bg-claude-orange transition-[width]"
               style={{ width: `${contextUsagePercent}%` }}
@@ -646,7 +647,7 @@ function SessionInfoPanel({
         <InfoStat label="마지막 비용" value={session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'} />
       </div>
 
-      <div className="rounded-xl border border-claude-border bg-white p-4">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">타임라인</p>
         <div className="mt-3 space-y-3">
           <InfoRow label="시작 시각" value={createdAt ? formatDateTime(createdAt) : '메시지 없음'} />
@@ -682,7 +683,7 @@ function OpenWithAppIcon({
   }
 
   return (
-    <span className={`flex items-center justify-center rounded-lg bg-claude-bg text-claude-muted ${className}`}>
+      <span className={`flex items-center justify-center rounded-xl bg-claude-surface text-claude-muted ${className}`}>
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h9v9" />
@@ -712,7 +713,7 @@ function InfoRow({
 
 function InfoStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-claude-border bg-white p-4">
+    <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
       <p className="text-xs text-claude-muted">{label}</p>
       <p className="mt-1 text-lg font-semibold text-claude-text">{value}</p>
     </div>
@@ -786,8 +787,8 @@ function ExplorerNode({
         }}
         className={`w-full flex items-center gap-2 rounded-md px-2 py-2 text-left transition-colors ${
           isSelected
-            ? 'bg-white text-claude-text ring-1 ring-claude-border shadow-sm'
-            : 'hover:bg-claude-bg'
+            ? 'bg-claude-surface-2 text-claude-text ring-1 ring-[#4b4037] shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
+            : 'hover:bg-claude-surface'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         title={entry.path}
@@ -803,7 +804,7 @@ function ExplorerNode({
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
             </svg>
-            <svg className="w-4 h-4 flex-shrink-0 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4 flex-shrink-0 text-[#d0a06f]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
           </>
@@ -897,7 +898,7 @@ function PreviewPane({
 }) {
   if (!entry) {
     return (
-      <div className="h-full flex items-center justify-center text-center px-6 text-claude-muted">
+      <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
         <p className="text-sm">파일을 선택하면 여기에서 미리보기를 표시합니다.</p>
       </div>
     )
@@ -915,7 +916,7 @@ function PreviewPane({
 
   if (previewState === 'unsupported') {
     return (
-      <div className="h-full flex items-center justify-center text-center px-6 text-claude-muted">
+      <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
         <div>
           <p className="text-sm font-medium text-claude-text">{entry.name}</p>
           <p className="text-xs mt-2">이 파일 형식은 앱 내 미리보기를 지원하지 않습니다.</p>
@@ -927,11 +928,11 @@ function PreviewPane({
   if (previewState === 'ready' && isMarkdownFile(entry.name) && markdownPreviewEnabled) {
     return (
       <div className="h-full flex flex-col">
-        <div className="px-4 py-3 border-b border-claude-border bg-white flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-4 py-3">
           <p className="text-sm font-medium text-claude-text truncate">{entry.name}</p>
           <button
             onClick={onToggleMarkdownPreview}
-            className="flex-shrink-0 rounded-md border border-claude-border px-2 py-1 text-xs text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors"
+            className="flex-shrink-0 rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
           >
             원문
           </button>
@@ -946,7 +947,7 @@ function PreviewPane({
                   if (isInline) {
                     return (
                       <code
-                        className="bg-claude-bg text-claude-orange px-1 py-0.5 rounded text-xs font-mono"
+                        className="rounded-md border border-claude-border bg-claude-surface-2 px-1.5 py-0.5 text-xs font-mono text-[#f0c49d]"
                         {...props}
                       >
                         {children}
@@ -978,18 +979,18 @@ function PreviewPane({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-claude-border bg-white flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-4 py-3">
         <p className="text-sm font-medium text-claude-text truncate">{entry.name}</p>
         {isMarkdownFile(entry.name) && previewState === 'ready' && (
           <button
             onClick={onToggleMarkdownPreview}
-            className="flex-shrink-0 rounded-md border border-claude-border px-2 py-1 text-xs text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors"
+            className="flex-shrink-0 rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
           >
             미리보기
           </button>
         )}
       </div>
-      <pre className="flex-1 overflow-auto m-0 p-4 text-xs font-mono text-claude-text whitespace-pre-wrap break-words">
+      <pre className="m-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-xs font-mono text-claude-text">
         {previewContent}
       </pre>
     </div>
@@ -1006,19 +1007,18 @@ function isTextPreviewable(name: string): boolean {
 
 function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-8 -mt-12">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-claude-orange to-amber-400 flex items-center justify-center shadow-lg mb-6">
+    <div className="flex h-full flex-col items-center justify-center px-8 pt-10 text-center">
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-[28px] border border-[#4d3c2f] bg-gradient-to-br from-[#2a221d] to-[#1d1916] shadow-[0_20px_40px_rgba(0,0,0,0.24)]">
         <span className="text-white text-2xl font-bold">C</span>
       </div>
-      <h2 className="text-2xl font-semibold text-claude-text mb-2">Claude UI</h2>
-      <p className="text-claude-muted mb-8 max-w-sm leading-relaxed">
-        Claude Code CLI 기반 코드 어시스턴트입니다.<br />
-        아래 설정을 조정하거나 바로 메시지를 보내세요.
+      <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Claude UI</h2>
+      <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
+        Claude Code CLI 기반 코드 어시스턴트입니다.
       </p>
 
       <button
         onClick={onSelectFolder}
-        className="flex items-center gap-2 px-5 py-2.5 bg-claude-orange hover:bg-claude-orange/90 text-white rounded-xl text-sm font-medium transition-colors shadow-sm mb-8"
+        className="mb-8 flex items-center gap-2 rounded-2xl bg-claude-orange px-5 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(201,139,91,0.28)] transition-colors hover:brightness-110"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -1026,14 +1026,14 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
         프로젝트 폴더 열기
       </button>
 
-      <div className="grid grid-cols-2 gap-3 text-left max-w-md w-full">
+      <div className="grid w-full max-w-md grid-cols-2 gap-3 text-left">
         {[
           { icon: '💡', label: '코드 설명해줘', desc: '특정 코드의 동작 방식 이해' },
           { icon: '🐛', label: '버그 찾아줘', desc: '오류 원인 파악 및 수정' },
           { icon: '✨', label: '기능 추가해줘', desc: '새로운 기능 구현 요청' },
           { icon: '📋', label: '먼저 계획 세워줘', desc: '플랜 모드로 안전하게 검토' },
         ].map((item) => (
-          <div key={item.label} className="bg-white border border-claude-border rounded-xl p-3 text-sm">
+          <div key={item.label} className="rounded-2xl border border-claude-border bg-claude-surface p-4 text-sm shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
             <div className="text-xl mb-1">{item.icon}</div>
             <div className="font-medium text-claude-text">{item.label}</div>
             <div className="text-xs text-claude-muted mt-0.5">{item.desc}</div>

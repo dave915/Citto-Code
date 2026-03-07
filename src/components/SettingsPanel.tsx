@@ -59,13 +59,13 @@ export function SettingsPanel({
   ]
 
   return (
-    <div className="h-full bg-white flex flex-col">
+    <div className="flex h-full flex-col bg-claude-bg">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-claude-border flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel px-5 py-3.5">
           <h2 className="text-sm font-semibold text-claude-text">환경설정</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-claude-muted hover:text-claude-text hover:bg-claude-bg transition-colors"
+            className="rounded-xl p-1.5 text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -74,14 +74,14 @@ export function SettingsPanel({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-claude-border flex-shrink-0 px-1">
+        <div className="flex flex-shrink-0 border-b border-claude-border bg-claude-panel px-2">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 tab === t.id
-                  ? 'border-claude-orange text-claude-orange'
+                  ? 'border-claude-orange text-[#f0c49d]'
                   : 'border-transparent text-claude-muted hover:text-claude-text'
               }`}
             >
@@ -109,8 +109,8 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
   const [recordingAction, setRecordingAction] = useState<ShortcutAction | null>(null)
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
+    <div className="space-y-4 p-4">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <p className="text-sm font-semibold text-claude-text">사이드바 표시 방식</p>
         <p className="text-xs text-claude-muted mt-1 leading-relaxed">
           세션을 평면 목록으로 보거나, 프로젝트별로 묶어서 볼 수 있습니다.
@@ -136,8 +136,8 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
                 onClick={() => onSidebarModeChange(option.value)}
                 className={`rounded-xl border p-3 text-left transition-colors ${
                   active
-                    ? 'border-claude-orange bg-orange-50'
-                    : 'border-claude-border bg-white hover:border-claude-orange/30'
+                    ? 'border-[#5a4637] bg-[#2a221d]'
+                    : 'border-claude-border bg-claude-panel hover:border-[#5a4637]'
                 }`}
               >
                 <div className="text-sm font-medium text-claude-text">{option.title}</div>
@@ -148,7 +148,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
         </div>
       </div>
 
-      <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <p className="text-sm font-semibold text-claude-text">Claude Code 실행 파일</p>
         <p className="text-xs text-claude-muted mt-1 leading-relaxed">
           직접 지정하면 해당 경로를 우선 사용합니다. 비워두면 앱이 기본 경로에서 자동으로 찾습니다.
@@ -158,12 +158,12 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
           value={claudeBinaryPath}
           onChange={(e) => setClaudeBinaryPath(e.target.value)}
           placeholder={currentPlatform === 'mac' ? '/opt/homebrew/bin/claude' : 'C:\\path\\to\\claude.exe'}
-          className="mt-4 w-full rounded-lg border border-claude-border bg-white px-3 py-2 text-sm font-mono focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20"
+          className="mt-4 w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2.5 text-sm font-mono text-claude-text focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20"
           spellCheck={false}
         />
       </div>
 
-      <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-claude-text">단축키</p>
@@ -186,7 +186,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
               {(Object.keys(SHORTCUT_ACTION_LABELS) as ShortcutAction[]).map((action) => (
                 <tr
                   key={action}
-                  className={recordingAction === action ? 'bg-orange-50/70' : ''}
+                  className={recordingAction === action ? 'bg-[#2a221d]/80' : ''}
                 >
                   <td className="px-3 py-2 text-sm text-claude-text">{SHORTCUT_ACTION_LABELS[action]}</td>
                   <td className="px-3 py-2">
@@ -207,8 +207,8 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
                         }}
                         className={`w-full rounded-lg border px-3 py-2 pr-20 text-sm font-mono focus:outline-none focus:ring-1 ${
                           recordingAction === action
-                            ? 'border-claude-orange bg-orange-50 ring-claude-orange/30'
-                            : 'border-claude-border bg-white focus:border-claude-orange focus:ring-claude-orange/20'
+                            ? 'border-claude-orange bg-[#2a221d] ring-claude-orange/30'
+                            : 'border-claude-border bg-claude-panel text-claude-text focus:border-claude-orange focus:ring-claude-orange/20'
                         }`}
                         placeholder={currentPlatform === 'mac' ? 'Cmd+K' : 'Ctrl+K'}
                         spellCheck={false}
@@ -217,7 +217,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
                         className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-[11px] font-medium ${
                           recordingAction === action
                             ? 'bg-claude-orange text-white'
-                            : 'bg-claude-bg text-claude-muted'
+                            : 'bg-claude-panel text-claude-muted'
                         }`}
                       >
                         {recordingAction === action ? '입력 중' : '클릭 후 입력'}
@@ -381,7 +381,7 @@ function McpTab() {
     loadServers()
   }
 
-  const inputCls = "w-full text-xs font-mono px-3 py-2 border border-claude-border rounded-lg bg-white focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20"
+  const inputCls = "w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20"
 
   if (loading) return <LoadingPlaceholder />
 

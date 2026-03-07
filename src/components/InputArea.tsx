@@ -129,9 +129,9 @@ function ModelPicker({
   const label = current ? current.displayName : '기본 모델'
 
   const familyColor = (family: string) => {
-    if (family === 'opus')   return 'text-purple-600'
-    if (family === 'haiku')  return 'text-green-600'
-    return 'text-blue-600'
+    if (family === 'opus') return 'text-violet-300'
+    if (family === 'haiku') return 'text-emerald-300'
+    return 'text-sky-300'
   }
 
   const dropdown = open && dropdownPos && createPortal(
@@ -144,15 +144,15 @@ function ModelPicker({
         transform: 'translateY(-100%) translateY(-6px)',
         zIndex: 9999,
       }}
-      className="w-52 bg-white border border-claude-border rounded-xl shadow-lg overflow-hidden"
+      className="w-56 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.32)]"
     >
-      <div className="px-3 py-2 border-b border-claude-border">
+      <div className="border-b border-claude-border px-3 py-2.5">
         <p className="text-xs font-semibold text-claude-muted uppercase tracking-wide">모델 선택</p>
       </div>
       <div className="py-1 max-h-64 overflow-y-auto">
         <button
           onClick={() => { onChange(null); setOpen(false) }}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left hover:bg-claude-bg transition-colors ${!model ? 'bg-claude-bg' : ''}`}
+          className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${!model ? 'bg-claude-surface' : 'hover:bg-claude-surface'}`}
         >
           <span className="w-4 text-center text-base">🤖</span>
           <div className="flex-1 min-w-0">
@@ -162,13 +162,13 @@ function ModelPicker({
           {!model && <svg className="w-3.5 h-3.5 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
         </button>
 
-        {models.length > 0 && <div className="mx-3 my-1 border-t border-claude-border/50" />}
+        {models.length > 0 && <div className="mx-3 my-1 border-t border-claude-border/60" />}
 
         {models.map((m) => (
           <button
             key={m.id}
             onClick={() => { onChange(m.id); setOpen(false) }}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left hover:bg-claude-bg transition-colors ${model === m.id ? 'bg-claude-bg' : ''}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${model === m.id ? 'bg-claude-surface' : 'hover:bg-claude-surface'}`}
           >
             <span className={`w-4 text-center font-bold text-sm ${familyColor(m.family)}`}>
               {m.family === 'opus' ? 'O' : m.family === 'haiku' ? 'H' : 'S'}
@@ -198,10 +198,10 @@ function ModelPicker({
         onClick={handleToggle}
         disabled={disabled}
         title="모델 선택"
-        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 ${
+        className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
           model
-            ? `${familyColor(current?.family ?? 'sonnet')} bg-white border border-claude-border shadow-sm`
-            : 'text-claude-muted hover:text-claude-text hover:bg-white/60'
+            ? `${familyColor(current?.family ?? 'sonnet')} border border-claude-border bg-claude-surface shadow-[0_8px_24px_rgba(0,0,0,0.18)]`
+            : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
         }`}
       >
         <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -587,12 +587,13 @@ export function InputArea({
   const canSend = (text.trim().length > 0 || attachedFiles.length > 0) && !isStreaming && !disabled
 
   return (
-    <div className="border-t border-claude-border bg-white px-4 pt-3 pb-4">
+    <div className="bg-claude-bg/95 px-6 pt-4 pb-5">
+      <div className="mx-auto w-full max-w-[980px]">
       {/* 첨부파일 칩 */}
       {attachedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
+        <div className="mb-3 flex flex-wrap gap-1.5">
           {attachedFiles.map((file) => (
-            <div key={file.path} className="flex items-center gap-1.5 bg-claude-bg border border-claude-border rounded-lg px-2.5 py-1 text-xs">
+            <div key={file.path} className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs">
               <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
@@ -615,8 +616,8 @@ export function InputArea({
       <div className="relative">
         {/* @ 파일 참조 드롭다운 */}
         {(slashResults.length > 0 || atResults.length > 0) && (
-          <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 bg-white border border-claude-border rounded-xl shadow-lg overflow-hidden">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-claude-border/50 bg-claude-bg/50">
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
+            <div className="flex items-center gap-1.5 border-b border-claude-border/60 bg-claude-surface px-3 py-2">
               {slashResults.length > 0 ? (
                 <svg className="w-3 h-3 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 3L8 21M8 3h8" />
@@ -640,7 +641,7 @@ export function InputArea({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSlashSelect(command)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${
-                      i === slashSelectedIndex ? 'bg-claude-orange/10 text-claude-text' : 'hover:bg-claude-bg text-claude-text'
+                      i === slashSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'text-claude-text hover:bg-claude-surface'
                     }`}
                   >
                     <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -663,7 +664,7 @@ export function InputArea({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleAtSelect(file)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${
-                    i === atSelectedIndex ? 'bg-claude-orange/10 text-claude-text' : 'hover:bg-claude-bg text-claude-text'
+                    i === atSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'text-claude-text hover:bg-claude-surface'
                   }`}
                 >
                   <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -677,10 +678,10 @@ export function InputArea({
           </div>
         )}
 
-        <div className="bg-claude-bg border border-claude-border rounded-2xl focus-within:border-claude-orange/50 focus-within:ring-1 focus-within:ring-claude-orange/20 transition-all overflow-hidden">
+        <div className="overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition-all focus-within:border-[#5f4a39] focus-within:ring-1 focus-within:ring-[#5f4a39]/60">
 
         {/* Textarea */}
-        <div className="px-4 pt-3 pb-2">
+        <div className="px-5 pt-4 pb-3">
           <textarea
             ref={textareaRef}
             value={text}
@@ -700,18 +701,18 @@ export function InputArea({
             }
             rows={1}
             disabled={isStreaming || disabled}
-            className="w-full bg-transparent resize-none outline-none text-sm text-claude-text placeholder-claude-muted leading-relaxed disabled:opacity-50 min-h-[24px] max-h-[200px]"
+            className="min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-[#756b62] disabled:opacity-50"
           />
         </div>
 
         {/* 하단 툴바 */}
-        <div className="flex items-center gap-1.5 px-3 pb-2.5 border-t border-claude-border/50 pt-2">
+        <div className="flex items-center gap-2 border-t border-claude-border/70 px-4 pb-3 pt-2.5">
           {/* 파일 첨부 */}
           <button
             onClick={handleAttachFiles}
             disabled={isStreaming || disabled || isAttaching}
             title="파일 첨부"
-            className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-claude-muted hover:text-claude-orange hover:bg-white transition-colors disabled:opacity-30"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-orange disabled:opacity-30"
           >
             {isAttaching
               ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" /></svg>
@@ -719,7 +720,7 @@ export function InputArea({
             }
           </button>
 
-          <div className="w-px h-4 bg-claude-border flex-shrink-0" />
+          <div className="h-4 w-px flex-shrink-0 bg-claude-border" />
 
           {/* 편집 권한 */}
           <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -731,10 +732,10 @@ export function InputArea({
                   onClick={() => onPermissionModeChange(opt.value)}
                   disabled={isStreaming}
                   title={`${opt.title}${permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''}`}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 ${
+                  className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                     isActive
-                      ? 'bg-white text-claude-text shadow-sm border border-claude-border'
-                      : 'text-claude-muted hover:text-claude-text hover:bg-white/60'
+                      ? 'border border-[#4f4032] bg-[#2a221d] text-[#f8efe5] shadow-[0_8px_24px_rgba(0,0,0,0.18)]'
+                      : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
                   }`}
                 >
                   {opt.label}
@@ -753,10 +754,10 @@ export function InputArea({
                   permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''
                 }`
               }
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 flex-shrink-0 ${
+              className={`flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                 planMode
-                  ? 'bg-white text-claude-text shadow-sm border border-claude-border'
-                  : 'text-claude-muted hover:text-claude-text hover:bg-white/60'
+                  ? 'border border-[#4f4032] bg-[#2a221d] text-[#f8efe5] shadow-[0_8px_24px_rgba(0,0,0,0.18)]'
+                  : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
               }`}
             >
               <span>📋</span>
@@ -771,10 +772,10 @@ export function InputArea({
                   ? '플랜 모드에서는 전체허용을 사용할 수 없음'
                   : `${PERMISSION_OPTIONS.find((opt) => opt.value === 'bypassPermissions')?.title ?? '전체허용'}${bypassShortcutLabel ? ` (${bypassShortcutLabel})` : ''}`
               }
-              className={`px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 ${
+              className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                 permissionMode === 'bypassPermissions'
-                  ? 'bg-white text-claude-text shadow-sm border border-claude-border'
-                  : 'text-claude-muted hover:text-claude-text hover:bg-white/60'
+                  ? 'border border-[#4f4032] bg-[#2a221d] text-[#f8efe5] shadow-[0_8px_24px_rgba(0,0,0,0.18)]'
+                  : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
               }`}
             >
               {PERMISSION_OPTIONS.find((opt) => opt.value === 'bypassPermissions')?.label ?? '⚡ 전체허용'}
@@ -791,13 +792,13 @@ export function InputArea({
             disabled={isStreaming}
           />
 
-          <div className="w-px h-4 bg-claude-border flex-shrink-0" />
+          <div className="h-4 w-px flex-shrink-0 bg-claude-border" />
 
           {/* 전송 / 중단 */}
           {isStreaming ? (
             <button
               onClick={onAbort}
-              className="flex-shrink-0 w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-red-500 transition-colors hover:bg-red-600"
               title="중단"
             >
               <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -808,7 +809,7 @@ export function InputArea({
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="flex-shrink-0 w-7 h-7 rounded-full bg-claude-orange hover:bg-claude-orange/90 disabled:opacity-30 flex items-center justify-center transition-colors"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-orange shadow-[0_10px_24px_rgba(201,139,91,0.28)] transition-colors hover:brightness-110 disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
               title="전송 (Enter)"
             >
               <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -816,6 +817,7 @@ export function InputArea({
               </svg>
             </button>
           )}
+        </div>
         </div>
         </div>
       </div>
