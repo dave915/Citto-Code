@@ -640,7 +640,7 @@ app.whenReady().then(() => {
     async (
       event,
       {
-        sessionId, prompt, cwd, permissionMode, planMode, model, envVars,
+        sessionId, prompt, cwd, claudePath, permissionMode, planMode, model, envVars,
       }: {
         sessionId: string | null
         prompt: string
@@ -657,7 +657,7 @@ app.whenReady().then(() => {
         activeProcesses.delete(sessionId)
       }
 
-      const claudeBin = resolveClaude(claudePath)
+      const claudeBin = resolveClaude()
       const args: string[] = ['--output-format', 'stream-json', '--verbose', '-p', prompt]
 
       if (sessionId) args.unshift('--resume', sessionId)
@@ -676,25 +676,34 @@ app.whenReady().then(() => {
         env: { ...cleanEnv, ...(envVars ?? {}) },
         stdio: ['ignore', 'pipe', 'pipe'],
       })
+      const tempKey = `pending-${Date.now()}`
 
       let resolvedSessionId: string | null = sessionId
       let buffer = ''
 
-      proc.stdout!.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString()
+      const processOutputLines = (flush = false) => {
         const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-        for (const line of lines) {
+        buffer = flush ? '' : (lines.pop() ?? '')
+        const readyLines = flush ? lines.filter(Boolean) : lines
+        for (const line of readyLines) {
           const trimmed = line.trim()
           if (!trimmed) continue
           try {
             const eventData = JSON.parse(trimmed)
             handleClaudeEvent(event.sender, eventData, resolvedSessionId, (sid) => {
               resolvedSessionId = sid
-              if (sid && !sessionId) activeProcesses.set(sid, proc)
+              if (sid && !sessionId) {
+                activeProcesses.set(sid, proc)
+                activeProcesses.delete(tempKey)
+              }
             })
           } catch { /* not JSON */ }
         }
+      }
+
+      proc.stdout!.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString()
+        processOutputLines(false)
       })
 
       proc.stderr!.on('data', (chunk: Buffer) => {
@@ -705,15 +714,19 @@ app.whenReady().then(() => {
       })
 
       proc.on('close', (code) => {
+        if (buffer.trim()) {
+          processOutputLines(true)
+        }
+        activeProcesses.delete(tempKey)
         if (resolvedSessionId) activeProcesses.delete(resolvedSessionId)
         event.sender.send('claude:stream-end', { sessionId: resolvedSessionId, exitCode: code })
       })
 
       proc.on('error', (err) => {
+        activeProcesses.delete(tempKey)
         event.sender.send('claude:error', { sessionId: resolvedSessionId, error: err.message })
       })
 
-      const tempKey = `pending-${Date.now()}`
       activeProcesses.set(tempKey, proc)
       return { tempKey }
     }
@@ -723,6 +736,10 @@ app.whenReady().then(() => {
   ipcMain.handle('claude:abort', (_event, { sessionId }: { sessionId: string }) => {
     const proc = activeProcesses.get(sessionId)
     if (proc) { proc.kill('SIGINT'); activeProcesses.delete(sessionId) }
+  })
+
+  ipcMain.handle('claude:has-active-process', (_event, { sessionId }: { sessionId: string }) => {
+    return activeProcesses.has(sessionId)
   })
 
   app.on('activate', () => {
@@ -735,8 +752,37 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-function resolveClaude(overridePath?: string): string {
-  if (overridePath && existsSync(overridePath)) return overridePath
+function detectClaudeInstallation(overridePath?: string): { installed: boolean; path: string | null; version: string | null } {
+  const userShell = process.env.SHELL || '/bin/bash'
+  const commandPath = overridePath && existsSync(overridePath)
+    ? overridePath
+    : resolveClaude()
+  const result = spawnSync(userShell, ['-l', '-c', '"$0" --version', commandPath], {
+    encoding: 'utf-8',
+    timeout: 3000,
+    env: process.env,
+  })
+
+  if (result.error || result.status !== 0) {
+    return {
+      installed: false,
+      path: null,
+      version: null,
+    }
+  }
+
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.trim()
+  const lines = output.split('\n').map((line) => line.trim()).filter(Boolean)
+  const path = commandPath
+  const version = lines.find((line) => /\bClaude Code\b/i.test(line) || /^\d+\.\d+\.\d+/.test(line)) ?? null
+  return {
+    installed: true,
+    path,
+    version,
+  }
+}
+
+function resolveClaude(): string {
   const candidates = [
     '/usr/local/bin/claude',
     '/usr/bin/claude',
@@ -747,33 +793,10 @@ function resolveClaude(overridePath?: string): string {
   ]
   const pathDirs = (process.env.PATH ?? '').split(':')
   for (const dir of pathDirs) candidates.push(join(dir, 'claude'))
-  for (const c of candidates) if (existsSync(c)) return c
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
   return 'claude'
-}
-
-function detectClaudeInstallation(overridePath?: string): { installed: boolean; path: string | null; version: string | null } {
-  const candidate = resolveClaude(overridePath)
-  const result = spawnSync(candidate, ['--version'], {
-    encoding: 'utf-8',
-    timeout: 3000,
-    env: process.env,
-  })
-
-  if (result.error || result.status !== 0) {
-    return {
-      installed: false,
-      path: candidate !== 'claude' ? candidate : null,
-      version: null,
-    }
-  }
-
-  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.trim()
-  const version = output.split('\n').find((line) => line.trim().length > 0) ?? null
-  return {
-    installed: true,
-    path: candidate,
-    version,
-  }
 }
 
 type Sender = Electron.WebContents
@@ -798,15 +821,22 @@ function handleClaudeEvent(
     if (sid) onSessionId(sid)
     const content = message.content as Array<Record<string, unknown>>
     if (!Array.isArray(content)) return
+    const textBlocks: string[] = []
     for (const block of content) {
       if ((block.type as string) === 'text') {
-        sender.send('claude:text-chunk', { sessionId: sid, text: block.text as string })
+        const text = String(block.text ?? '')
+        textBlocks.push(text)
+        sender.send('claude:text-chunk', { sessionId: sid, text })
       } else if ((block.type as string) === 'tool_use') {
         sender.send('claude:tool-start', {
           sessionId: sid, toolUseId: block.id as string,
           toolName: block.name as string, toolInput: block.input,
         })
       }
+    }
+
+    if (typeof data.error === 'string' && textBlocks.join('').trim()) {
+      sender.send('claude:error', { sessionId: sid, error: textBlocks.join('').trim() })
     }
     return
   }
@@ -832,7 +862,25 @@ function handleClaudeEvent(
     const sid = (data.session_id as string) || sessionId
     sender.send('claude:result', {
       sessionId: sid, costUsd: data.cost_usd,
-      totalCostUsd: data.total_cost_usd, isError: data.is_error, durationMs: data.duration_ms,
+      totalCostUsd: data.total_cost_usd,
+      isError: data.is_error,
+      durationMs: data.duration_ms,
+      resultText: typeof data.result === 'string' ? data.result : undefined,
     })
+
+    if (data.is_error) {
+      const resultText = typeof data.result === 'string' && data.result.trim()
+        ? data.result.trim()
+        : typeof data.result !== 'undefined'
+          ? JSON.stringify(data.result)
+          : ''
+
+      if (!resultText) {
+        const message = typeof data.error === 'string' && data.error.trim()
+          ? data.error.trim()
+          : 'Claude Code 요청이 실패했습니다.'
+        sender.send('claude:error', { sessionId: sid, error: message })
+      }
+    }
   }
 }

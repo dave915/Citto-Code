@@ -103,7 +103,7 @@ export function SettingsPanel({
 }
 
 function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
-  const { sidebarMode, claudeBinaryPath, setClaudeBinaryPath, shortcutConfig, setShortcut } = useSessionsStore()
+  const { sidebarMode, shortcutConfig, setShortcut } = useSessionsStore()
   const currentPlatform = getCurrentPlatform()
   const platformLabel = currentPlatform === 'mac' ? 'macOS' : 'Windows'
   const [recordingAction, setRecordingAction] = useState<ShortcutAction | null>(null)
@@ -146,21 +146,6 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
             )
           })}
         </div>
-      </div>
-
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
-        <p className="text-sm font-semibold text-claude-text">Claude Code 실행 파일</p>
-        <p className="text-xs text-claude-muted mt-1 leading-relaxed">
-          직접 지정하면 해당 경로를 우선 사용합니다. 비워두면 앱이 기본 경로에서 자동으로 찾습니다.
-        </p>
-
-        <input
-          value={claudeBinaryPath}
-          onChange={(e) => setClaudeBinaryPath(e.target.value)}
-          placeholder={currentPlatform === 'mac' ? '/opt/homebrew/bin/claude' : 'C:\\path\\to\\claude.exe'}
-          className="mt-4 w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2.5 text-sm font-mono text-claude-text focus:outline-none focus:border-claude-orange/60 focus:ring-1 focus:ring-claude-orange/20"
-          spellCheck={false}
-        />
       </div>
 
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">

@@ -5,7 +5,7 @@ export type ClaudeStreamEvent =
   | { type: 'text-chunk'; sessionId: string; text: string }
   | { type: 'tool-start'; sessionId: string; toolUseId: string; toolName: string; toolInput: unknown }
   | { type: 'tool-result'; sessionId: string; toolUseId: string; content: unknown; isError: boolean }
-  | { type: 'result'; sessionId: string; costUsd: number; totalCostUsd: number; isError: boolean; durationMs: number }
+  | { type: 'result'; sessionId: string; costUsd: number; totalCostUsd: number; isError: boolean; durationMs: number; resultText?: string }
   | { type: 'stream-end'; sessionId: string | null; exitCode: number | null }
   | { type: 'error'; sessionId: string | null; error: string }
 
@@ -59,6 +59,7 @@ export type ClaudeAPI = {
     envVars?: Record<string, string>
   }) => Promise<{ tempKey: string } | undefined>
   abort: (params: { sessionId: string }) => Promise<void>
+  hasActiveProcess: (params: { sessionId: string }) => Promise<boolean>
   selectFolder: () => Promise<string | null>
   selectFiles: () => Promise<SelectedFile[]>
   openFile: (filePath: string) => Promise<void>
@@ -85,6 +86,7 @@ export type ClaudeAPI = {
 const claudeAPI: ClaudeAPI = {
   sendMessage: (params) => ipcRenderer.invoke('claude:send-message', params),
   abort: (params) => ipcRenderer.invoke('claude:abort', params),
+  hasActiveProcess: (params) => ipcRenderer.invoke('claude:has-active-process', params),
   selectFolder: () => ipcRenderer.invoke('claude:select-folder'),
   selectFiles: () => ipcRenderer.invoke('claude:select-files'),
   openFile: (filePath) => ipcRenderer.invoke('claude:open-file', filePath),

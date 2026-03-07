@@ -78,6 +78,12 @@ export function ChatView({
   const promptHistory = session.messages
     .filter((message) => message.role === 'user' && message.text.trim().length > 0)
     .map((message) => message.text)
+  const lastAssistantMessage = [...session.messages].reverse().find((message) => message.role === 'assistant')
+  const showErrorCard = Boolean(
+    session.error &&
+    session.error.trim() &&
+    session.error.trim() !== (lastAssistantMessage?.text.trim() ?? '')
+  )
   const userMessageCount = session.messages.filter((message) => message.role === 'user').length
   const assistantMessageCount = session.messages.filter((message) => message.role === 'assistant').length
   const totalCharacters = session.messages.reduce((sum, message) => sum + message.text.length, 0)
@@ -461,16 +467,21 @@ export function ChatView({
                 ))
             }
 
-            {session.error && (
-              <div className="mb-4 flex justify-center">
-                <div className="max-w-lg rounded-2xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">
-                  <div className="mb-1 flex items-center gap-2 font-medium">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    오류 발생
+            {showErrorCard && (
+              <div className="mb-4 flex justify-start">
+                <div className="flex max-w-[88%] gap-3.5">
+                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text shadow-[0_8px_20px_rgba(0,0,0,0.16)]">
+                    C
                   </div>
-                  <p className="font-mono text-xs whitespace-pre-wrap">{session.error}</p>
+                  <div className="rounded-[22px] rounded-tl-md border border-red-900/60 bg-red-950/30 px-4 py-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.18)]">
+                    <div className="mb-1 flex items-center gap-2 font-medium text-red-200">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      오류 발생
+                    </div>
+                    <p className="whitespace-pre-wrap font-mono text-xs text-red-100">{session.error}</p>
+                  </div>
                 </div>
               </div>
             )}

@@ -98,6 +98,7 @@ type SessionsStore = {
 }
 
 const DEFAULT_CWD = '~'
+const GENERIC_CLAUDE_ERROR = 'Claude Code 요청이 실패했습니다.'
 
 export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
   toggleSidebar: { mac: 'Cmd+B', windows: 'Ctrl+B' },
@@ -222,7 +223,6 @@ export const useSessionsStore = create<SessionsStore>()(
                 ...sess,
                 currentAssistantMsgId: msgId,
                 isStreaming: true,
-                error: null,
                 messages: [
                   ...sess.messages,
                   { id: msgId, role: 'assistant', text: '', toolCalls: [], createdAt: Date.now() }
@@ -308,7 +308,29 @@ export const useSessionsStore = create<SessionsStore>()(
     setError: (tabId, error) => {
       set((s) => ({
         sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, error, isStreaming: false } : sess
+          sess.id === tabId
+            ? (() => {
+                const shouldKeepExistingError =
+                  error === GENERIC_CLAUDE_ERROR &&
+                  Boolean(sess.error) &&
+                  sess.error !== GENERIC_CLAUDE_ERROR
+
+                const nextMessages = sess.currentAssistantMsgId
+                  ? sess.messages.filter((message) => {
+                      if (message.id !== sess.currentAssistantMsgId) return true
+                      return message.text.trim().length > 0 || message.toolCalls.length > 0
+                    })
+                  : sess.messages
+
+                return {
+                  ...sess,
+                  messages: nextMessages,
+                  error: shouldKeepExistingError ? sess.error : error,
+                  isStreaming: false,
+                  currentAssistantMsgId: null,
+                }
+              })()
+            : sess
         )
       }))
     },

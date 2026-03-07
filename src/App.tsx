@@ -7,6 +7,18 @@ import type { ClaudeInstallationStatus, ClaudeStreamEvent, SelectedFile } from '
 import type { PermissionMode } from './store/sessions'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 
+function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(envVars).filter(([key, value]) => {
+      const trimmed = value.trim()
+      if (!trimmed) return false
+      if (key === 'ANTHROPIC_API_KEY' && trimmed === 'your-key') return false
+      if (key === 'ANTHROPIC_BASE_URL' && trimmed === 'https://api.example.com') return false
+      return true
+    })
+  )
+}
+
 function cycleClaudeCodeMode(
   permissionMode: PermissionMode,
   planMode: boolean,
@@ -58,7 +70,6 @@ export default function App() {
     setPlanMode,
     setModel,
     envVars,
-    claudeBinaryPath,
     shortcutConfig,
   } = useSessionsStore()
 
@@ -69,9 +80,13 @@ export default function App() {
   const [installationDismissed, setInstallationDismissed] = useState(false)
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) ?? null : null
   const shortcutPlatform = getCurrentPlatform()
+  const sanitizedEnvVars = sanitizeEnvVars(envVars)
 
   const pendingTabIdRef = useRef<string | null>(null)
+  const pendingProcessKeyByTabRef = useRef<Map<string, string>>(new Map())
+  const sendStartedAtByTabRef = useRef<Map<string, number>>(new Map())
   const currentAsstMsgRef = useRef<Map<string, string>>(new Map())
+  const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
   const sessionsRef = useRef(sessions)
   sessionsRef.current = sessions
 
@@ -93,7 +108,51 @@ export default function App() {
 
   useEffect(() => {
     void refreshInstallationStatus()
-  }, [claudeBinaryPath])
+  }, [])
+
+  useEffect(() => {
+    if (!activeSessionId || !activeSession?.isStreaming) return
+
+    let cancelled = false
+
+    const verifyStreamingState = async () => {
+      const processKey = activeSession.sessionId ?? pendingProcessKeyByTabRef.current.get(activeSessionId)
+      if (!processKey) {
+        const startedAt = sendStartedAtByTabRef.current.get(activeSessionId) ?? 0
+        if (Date.now() - startedAt < 4000) {
+          return
+        }
+        setStreaming(activeSessionId, false)
+        currentAsstMsgRef.current.delete(activeSessionId)
+        if (pendingTabIdRef.current === activeSessionId) {
+          pendingTabIdRef.current = null
+        }
+        sendStartedAtByTabRef.current.delete(activeSessionId)
+        return
+      }
+
+      const hasActiveProcess = await window.claude.hasActiveProcess({ sessionId: processKey }).catch(() => false)
+      if (cancelled || hasActiveProcess) return
+
+      pendingProcessKeyByTabRef.current.delete(activeSessionId)
+      currentAsstMsgRef.current.delete(activeSessionId)
+      if (pendingTabIdRef.current === activeSessionId) {
+        pendingTabIdRef.current = null
+      }
+      sendStartedAtByTabRef.current.delete(activeSessionId)
+      setStreaming(activeSessionId, false)
+    }
+
+    void verifyStreamingState()
+    const interval = window.setInterval(() => {
+      void verifyStreamingState()
+    }, 1500)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [activeSessionId, activeSession?.isStreaming, activeSession?.sessionId, setStreaming])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -166,39 +225,81 @@ export default function App() {
 
   function resolveTabId(claudeSessionId: string | null | undefined): string | null {
     if (!claudeSessionId) return null
+    const mappedTabId = claudeSessionToTabRef.current.get(claudeSessionId)
+    if (mappedTabId) return mappedTabId
     return findTabByClaudeSessionId(sessionsRef.current, claudeSessionId)?.id ?? null
+  }
+
+  function resolveOrClaimTabId(claudeSessionId: string | null | undefined): string | null {
+    const resolved = resolveTabId(claudeSessionId)
+    if (resolved || !claudeSessionId || !pendingTabIdRef.current) return resolved
+
+    const tabId = pendingTabIdRef.current
+    claudeSessionToTabRef.current.set(claudeSessionId, tabId)
+    storeRef.current.setClaudeSessionId(tabId, claudeSessionId)
+    return tabId
+  }
+
+  function findStreamingFallbackTabId(claudeSessionId?: string | null): string | null {
+    if (claudeSessionId) {
+      const matched = sessionsRef.current.find((session) =>
+        session.isStreaming && (session.sessionId === claudeSessionId || session.sessionId === null)
+      )
+      if (matched) return matched.id
+    }
+
+    if (pendingTabIdRef.current) return pendingTabIdRef.current
+    if (storeRef.current.activeSessionId) {
+      const activeSession = sessionsRef.current.find((session) => session.id === storeRef.current.activeSessionId)
+      if (activeSession?.isStreaming) return activeSession.id
+    }
+
+    return sessionsRef.current.find((session) => session.isStreaming)?.id ?? null
+  }
+
+  function resolveEventTabId(claudeSessionId?: string | null): string | null {
+    return resolveOrClaimTabId(claudeSessionId) ?? findStreamingFallbackTabId(claudeSessionId)
+  }
+
+  function takePendingTabId(): string | null {
+    const tabId = pendingTabIdRef.current
+    if (!tabId) return null
+    pendingTabIdRef.current = null
+    return tabId
+  }
+
+  function ensureAssistantMessage(tabId: string): string {
+    let msgId = currentAsstMsgRef.current.get(tabId)
+    if (!msgId) {
+      msgId = storeRef.current.startAssistantMessage(tabId)
+      currentAsstMsgRef.current.set(tabId, msgId)
+    }
+    return msgId
   }
 
   function handleClaudeEvent(event: ClaudeStreamEvent) {
     const store = storeRef.current
 
     if (event.type === 'stream-start') {
-      let tabId = resolveTabId(event.sessionId)
-      if (!tabId && pendingTabIdRef.current) {
-        tabId = pendingTabIdRef.current
-        pendingTabIdRef.current = null
-        store.setClaudeSessionId(tabId, event.sessionId)
-      }
+      const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
-      const msgId = store.startAssistantMessage(tabId)
-      currentAsstMsgRef.current.set(tabId, msgId)
+      pendingProcessKeyByTabRef.current.delete(tabId)
+      ensureAssistantMessage(tabId)
       return
     }
 
     if (event.type === 'text-chunk') {
-      const tabId = resolveTabId(event.sessionId)
+      const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
-      const msgId = currentAsstMsgRef.current.get(tabId)
-      if (!msgId) return
+      const msgId = ensureAssistantMessage(tabId)
       store.appendTextChunk(tabId, msgId, event.text)
       return
     }
 
     if (event.type === 'tool-start') {
-      const tabId = resolveTabId(event.sessionId)
+      const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
-      const msgId = currentAsstMsgRef.current.get(tabId)
-      if (!msgId) return
+      const msgId = ensureAssistantMessage(tabId)
       store.addToolCall(tabId, msgId, {
         toolUseId: event.toolUseId,
         toolName: event.toolName,
@@ -209,21 +310,39 @@ export default function App() {
     }
 
     if (event.type === 'tool-result') {
-      const tabId = resolveTabId(event.sessionId as string)
+      const tabId = resolveEventTabId(event.sessionId as string)
       if (!tabId) return
       store.resolveToolCall(tabId, event.toolUseId as string, event.content, event.isError as boolean)
       return
     }
 
     if (event.type === 'result') {
-      const tabId = resolveTabId(event.sessionId)
+      const tabId = resolveEventTabId(event.sessionId) ?? takePendingTabId()
       if (!tabId) return
       if (event.totalCostUsd) store.setLastCost(tabId, event.totalCostUsd)
+      if (event.isError && event.resultText?.trim()) {
+        const msgId = ensureAssistantMessage(tabId)
+        const session = sessionsRef.current.find((item) => item.id === tabId)
+        const currentMessage = session?.messages.find((message) => message.id === msgId)
+        if (!currentMessage?.text.trim()) {
+          store.appendTextChunk(tabId, msgId, event.resultText.trim())
+        }
+      }
       return
     }
 
     if (event.type === 'stream-end') {
-      const tabId = resolveTabId(event.sessionId ?? null)
+      const tabId = resolveEventTabId(event.sessionId ?? null) ?? takePendingTabId()
+      if (event.sessionId) {
+        claudeSessionToTabRef.current.delete(event.sessionId)
+      }
+      if (tabId) {
+        pendingProcessKeyByTabRef.current.delete(tabId)
+        if (pendingTabIdRef.current === tabId) {
+          pendingTabIdRef.current = null
+        }
+        sendStartedAtByTabRef.current.delete(tabId)
+      }
       if (!tabId) return
       store.setStreaming(tabId, false)
       currentAsstMsgRef.current.delete(tabId)
@@ -231,7 +350,17 @@ export default function App() {
     }
 
     if (event.type === 'error') {
-      const tabId = resolveTabId(event.sessionId ?? null) ?? store.activeSessionId
+      const tabId = resolveEventTabId(event.sessionId ?? null) ?? takePendingTabId() ?? store.activeSessionId
+      if (event.sessionId) {
+        claudeSessionToTabRef.current.delete(event.sessionId)
+      }
+      if (tabId) {
+        pendingProcessKeyByTabRef.current.delete(tabId)
+        if (pendingTabIdRef.current === tabId) {
+          pendingTabIdRef.current = null
+        }
+        sendStartedAtByTabRef.current.delete(tabId)
+      }
       store.setError(tabId, event.error)
       return
     }
@@ -261,30 +390,49 @@ export default function App() {
       files.length > 0 ? files : undefined
     )
 
+    const assistantMsgId = startAssistantMessage(activeSessionId)
+    currentAsstMsgRef.current.set(activeSessionId, assistantMsgId)
+    sendStartedAtByTabRef.current.set(activeSessionId, Date.now())
+
     if (!activeSession.sessionId) {
       pendingTabIdRef.current = activeSessionId
+    } else {
+      claudeSessionToTabRef.current.set(activeSession.sessionId, activeSessionId)
     }
 
     try {
-      await window.claude.sendMessage({
+      const result = await window.claude.sendMessage({
         sessionId: activeSession.sessionId ?? null,
         prompt: fullPrompt,
         cwd: activeSession.cwd && activeSession.cwd !== '~' ? activeSession.cwd : '~',
-        claudePath: claudeBinaryPath || undefined,
         permissionMode: activeSession.permissionMode,
         planMode: activeSession.planMode,
         model: activeSession.model ?? undefined,
-        envVars: Object.keys(envVars).length > 0 ? envVars : undefined,
+        envVars: Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined,
       })
+      if (result?.tempKey) {
+        pendingProcessKeyByTabRef.current.set(activeSessionId, result.tempKey)
+      }
     } catch (err) {
       setError(activeSessionId, String(err))
+      pendingProcessKeyByTabRef.current.delete(activeSessionId)
       pendingTabIdRef.current = null
+      currentAsstMsgRef.current.delete(activeSessionId)
+      sendStartedAtByTabRef.current.delete(activeSessionId)
     }
   }
 
   async function handleAbort() {
-    if (!activeSession?.sessionId || !activeSessionId) return
-    await window.claude.abort({ sessionId: activeSession.sessionId })
+    if (!activeSessionId) return
+    const processKey = activeSession?.sessionId ?? pendingProcessKeyByTabRef.current.get(activeSessionId)
+    if (!processKey) return
+    await window.claude.abort({ sessionId: processKey })
+    pendingProcessKeyByTabRef.current.delete(activeSessionId)
+    if (pendingTabIdRef.current === activeSessionId) {
+      pendingTabIdRef.current = null
+    }
+    currentAsstMsgRef.current.delete(activeSessionId)
+    sendStartedAtByTabRef.current.delete(activeSessionId)
     setStreaming(activeSessionId, false)
   }
 
@@ -313,7 +461,7 @@ export default function App() {
   }
 
   async function refreshInstallationStatus() {
-    const status = await window.claude.checkInstallation(claudeBinaryPath || undefined).catch(() => ({
+    const status = await window.claude.checkInstallation().catch(() => ({
       installed: false,
       path: null,
       version: null,
