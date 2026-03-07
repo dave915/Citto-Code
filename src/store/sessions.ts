@@ -137,7 +137,7 @@ export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
   newSession: { mac: 'Cmd+N', windows: 'Ctrl+N' },
   openSettings: { mac: 'Cmd+,', windows: 'Ctrl+,' },
   cyclePermissionMode: { mac: 'Shift+Tab', windows: 'Shift+Tab' },
-  toggleBypassPermissions: { mac: '', windows: '' },
+  toggleBypassPermissions: { mac: 'Cmd+Shift+Enter', windows: 'Ctrl+Shift+Enter' },
 }
 
 function makeDefaultSession(cwd: string, name: string): Session {
@@ -429,6 +429,30 @@ export const useSessionsStore = create<SessionsStore>()(
     {
       name: 'claude-ui-sessions',
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<SessionsStore> & {
+          shortcutConfig?: Partial<ShortcutConfig>
+        }
+
+        const bypassBinding = state.shortcutConfig?.toggleBypassPermissions
+        const shouldApplyBypassDefault =
+          !bypassBinding ||
+          ((!bypassBinding.mac || !bypassBinding.mac.trim()) &&
+            (!bypassBinding.windows || !bypassBinding.windows.trim()))
+
+        if (!shouldApplyBypassDefault) {
+          return state
+        }
+
+        return {
+          ...state,
+          shortcutConfig: {
+            ...state.shortcutConfig,
+            toggleBypassPermissions: DEFAULT_SHORTCUT_CONFIG.toggleBypassPermissions,
+          },
+        }
+      },
       partialize: (state) => ({
         sessions: state.sessions,
         activeSessionId: state.activeSessionId,
