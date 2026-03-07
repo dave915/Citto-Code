@@ -297,6 +297,7 @@ a:focus-visible,
   --diff-omit-gutter-line-color: rgb(var(--claude-border));
   --tool-review-hover-overlay-color: rgb(var(--claude-surface-2) / 0.28);
   --tool-review-selected-overlay-color: rgb(var(--claude-surface-2) / 0.42);
+  overflow-x: hidden;
 }
 
 .tool-diff-view {
@@ -395,13 +396,15 @@ a:focus-visible,
 
 .tool-code-review {
   background: rgb(var(--claude-bg));
+  overflow-x: hidden;
 }
 
 .tool-code-review-table {
   display: table;
   width: 100%;
-  min-width: max-content;
+  min-width: 0;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .tool-code-review-row {

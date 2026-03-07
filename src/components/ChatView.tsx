@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Diff, Hunk, parseDiff } from 'react-diff-view'
@@ -69,6 +77,7 @@ export function ChatView({
   const branchMenuRef = useRef<HTMLDivElement>(null)
   const branchSearchInputRef = useRef<HTMLInputElement>(null)
   const branchCreateInputRef = useRef<HTMLInputElement>(null)
+  const gitCommitTextareaRef = useRef<HTMLTextAreaElement>(null)
   const prevFilePanelOpenRef = useRef(false)
   const prevShowPreviewPaneRef = useRef(false)
   const lastMsg = session.messages[session.messages.length - 1]
@@ -126,6 +135,8 @@ export function ChatView({
   const preferredOpenWithApp = openWithApps.find((app) => app.id === preferredOpenWithAppId) ?? null
   const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null
   const showGitPreviewPane = selectedGitEntry !== null
+  const gitAvailable = gitStatus?.gitAvailable ?? true
+  const stagedGitEntryCount = gitStatus?.entries.filter((entry) => entry.staged).length ?? 0
   const filteredGitBranches = useMemo(() => {
     const query = branchQuery.trim().toLowerCase()
     const branches = [...gitBranches].sort((a, b) => {
@@ -186,6 +197,13 @@ export function ChatView({
       cancelled = true
     }
   }, [preferredOpenWithAppId, setPreferredOpenWithAppId])
+
+  useEffect(() => {
+    const textarea = gitCommitTextareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
+  }, [gitCommitMessage, stagedGitEntryCount])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -289,6 +307,10 @@ export function ChatView({
   useEffect(() => {
     if (!branchMenuOpen) return
 
+    let cancelled = false
+    void refreshGitStatus(() => cancelled)
+    void refreshGitBranches(() => cancelled)
+
     const focusTimer = window.setTimeout(() => {
       branchSearchInputRef.current?.focus()
       branchSearchInputRef.current?.select()
@@ -309,6 +331,7 @@ export function ChatView({
     window.addEventListener('mousedown', handleMouseDown)
     window.addEventListener('keydown', handleKeyDown)
     return () => {
+      cancelled = true
       window.clearTimeout(focusTimer)
       window.removeEventListener('mousedown', handleMouseDown)
       window.removeEventListener('keydown', handleKeyDown)
@@ -485,6 +508,7 @@ export function ChatView({
     } catch {
       if (isCancelled?.()) return
       setGitStatus({
+        gitAvailable: false,
         isRepo: false,
         rootPath: null,
         branch: null,
@@ -558,16 +582,107 @@ export function ChatView({
   }
 
   const handleToggleGitStage = async (entry: GitStatusEntry) => {
+    const shouldStage = shouldStageGitEntry(entry)
     setGitActionLoading(true)
     try {
       const result = await window.claude.setGitStaged({
         cwd: session.cwd || '~',
         filePath: entry.path,
-        staged: !entry.staged,
+        staged: shouldStage,
       })
       if (!result.ok) {
         window.alert(result.error ?? 'Git 상태를 바꾸지 못했습니다.')
         return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleRestoreGitEntry = async (entry: GitStatusEntry) => {
+    const actionLabel = entry.untracked
+      ? `'${entry.relativePath}' 파일을 삭제`
+      : `'${entry.relativePath}'의 변경을 되돌리기`
+    if (!window.confirm(`${actionLabel}할까요?`)) return
+
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.restoreGitFile({
+        cwd: session.cwd || '~',
+        filePath: entry.path,
+      })
+      if (!result.ok) {
+        window.alert(result.error ?? '파일을 되돌리지 못했습니다.')
+        return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleRestoreGitEntries = async (entries: GitStatusEntry[]) => {
+    if (entries.length === 0) return
+    if (!window.confirm(`표시된 ${entries.length}개 파일의 변경을 모두 되돌릴까요?`)) return
+
+    setGitActionLoading(true)
+    try {
+      for (const entry of entries) {
+        const result = await window.claude.restoreGitFile({
+          cwd: session.cwd || '~',
+          filePath: entry.path,
+        })
+        if (!result.ok) {
+          window.alert(result.error ?? `'${entry.relativePath}' 파일을 되돌리지 못했습니다.`)
+          return
+        }
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleStageGitEntries = async (entries: GitStatusEntry[]) => {
+    if (entries.length === 0) return
+
+    setGitActionLoading(true)
+    try {
+      for (const entry of entries) {
+        if (!shouldStageGitEntry(entry)) continue
+        const result = await window.claude.setGitStaged({
+          cwd: session.cwd || '~',
+          filePath: entry.path,
+          staged: true,
+        })
+        if (!result.ok) {
+          window.alert(result.error ?? `'${entry.relativePath}' 파일을 스테이징하지 못했습니다.`)
+          return
+        }
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleUnstageGitEntries = async (entries: GitStatusEntry[]) => {
+    if (entries.length === 0) return
+
+    setGitActionLoading(true)
+    try {
+      for (const entry of entries) {
+        if (!entry.staged) continue
+        const result = await window.claude.setGitStaged({
+          cwd: session.cwd || '~',
+          filePath: entry.path,
+          staged: false,
+        })
+        if (!result.ok) {
+          window.alert(result.error ?? `'${entry.relativePath}' 파일을 언스테이징하지 못했습니다.`)
+          return
+        }
       }
       await refreshGitPanel()
     } finally {
@@ -630,6 +745,63 @@ export function ChatView({
     setBranchMenuOpen(false)
     setBranchQuery('')
     setBranchCreateModalOpen(true)
+  }
+
+  const handlePullGit = async () => {
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.pullGit({ cwd: session.cwd || '~' })
+      if (!result.ok) {
+        window.alert(result.error ?? 'git pull을 실행하지 못했습니다.')
+        return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handlePushGit = async () => {
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.pushGit({ cwd: session.cwd || '~' })
+      if (!result.ok) {
+        window.alert(result.error ?? 'git push를 실행하지 못했습니다.')
+        return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleDeleteGitBranch = async (name: string) => {
+    if (!window.confirm(`브랜치 '${name}'를 삭제할까요?`)) return
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.deleteGitBranch({ cwd: session.cwd || '~', name })
+      if (!result.ok) {
+        window.alert(result.error ?? '브랜치를 삭제하지 못했습니다.')
+        return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
+  }
+
+  const handleInitGitRepo = async () => {
+    setGitActionLoading(true)
+    try {
+      const result = await window.claude.initGitRepo({ cwd: session.cwd || '~' })
+      if (!result.ok) {
+        window.alert(result.error ?? 'git init을 실행하지 못했습니다.')
+        return
+      }
+      await refreshGitPanel()
+    } finally {
+      setGitActionLoading(false)
+    }
   }
 
   const handleFilePanelResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -722,7 +894,7 @@ export function ChatView({
             <span className="min-w-0 max-w-sm truncate font-mono text-[12px] text-claude-muted">
               {session.cwd || '~'}
             </span>
-            {gitStatus?.isRepo && gitStatus.branch && (
+            {gitStatus?.isRepo && gitStatus.branch ? (
               <div ref={branchMenuRef} className="relative no-drag" data-no-drag="true">
                 <button
                   type="button"
@@ -757,8 +929,38 @@ export function ChatView({
                         value={branchQuery}
                         onChange={(event) => setBranchQuery(event.target.value)}
                         placeholder="브랜치 검색"
-                        className="w-full rounded-xl border border-claude-border bg-claude-surface py-1.5 pl-9 pr-3 text-[11px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+                        className="w-full rounded-xl border border-claude-border bg-claude-surface py-1.5 pl-9 pr-20 text-[11px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
                       />
+                      <IconTooltipButton
+                        type="button"
+                        onClick={() => void handlePullGit()}
+                        disabled={gitActionLoading || gitLoading}
+                        tooltip="Pull"
+                        tooltipAlign="right"
+                        wrapperClassName="absolute right-9 top-1/2 -translate-y-1/2"
+                        className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                      >
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m7 11 5 5 5-5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14" />
+                        </svg>
+                      </IconTooltipButton>
+                      <IconTooltipButton
+                        type="button"
+                        onClick={() => void handlePushGit()}
+                        disabled={gitActionLoading || gitLoading}
+                        tooltip="Push"
+                        tooltipAlign="right"
+                        wrapperClassName="absolute right-2 top-1/2 -translate-y-1/2"
+                        className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                      >
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V8" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m7 13 5-5 5 5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h14" />
+                        </svg>
+                      </IconTooltipButton>
                     </div>
 
                     <div className="mt-2.5">
@@ -777,35 +979,59 @@ export function ChatView({
                         ) : (
                           <div className="space-y-1">
                             {filteredGitBranches.map((branch) => (
-                              <button
+                              <div
                                 key={branch.name}
-                                type="button"
-                                onClick={() => {
-                                  setBranchMenuOpen(false)
-                                  void handleSwitchGitBranch(branch.name)
-                                }}
-                                disabled={gitActionLoading}
-                                className="flex w-full items-start gap-2 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-claude-surface disabled:opacity-50"
+                                className="flex items-start gap-1 rounded-xl px-1 py-0.5 transition-colors hover:bg-claude-surface"
                               >
-                                <svg className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
-                                </svg>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-[12px] font-medium leading-none text-claude-text">{branch.name}</p>
-                                  <p className="mt-1 text-[10px] text-claude-muted">
-                                    {branch.current
-                                      ? gitStatus.clean
-                                        ? '커밋하지 않음: 변경 없음'
-                                        : `커밋하지 않음: ${gitStatus.entries.length}개의 파일`
-                                      : '로컬 브랜치'}
-                                  </p>
-                                </div>
-                                {branch.current && (
-                                  <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-claude-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBranchMenuOpen(false)
+                                    void handleSwitchGitBranch(branch.name)
+                                  }}
+                                  disabled={gitActionLoading}
+                                  className="flex min-w-0 flex-1 items-start gap-2 rounded-xl px-1.5 py-1 text-left disabled:opacity-50"
+                                >
+                                  <svg className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
                                   </svg>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-[12px] font-medium leading-none text-claude-text">{branch.name}</p>
+                                    <p className="mt-1 text-[10px] text-claude-muted">
+                                      {branch.current
+                                        ? gitStatus.clean
+                                          ? '커밋하지 않음: 변경 없음'
+                                          : `커밋하지 않음: ${gitStatus.entries.length}개의 파일`
+                                        : '로컬 브랜치'}
+                                    </p>
+                                  </div>
+                                  {branch.current && (
+                                    <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-claude-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+
+                                {!branch.current && (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void handleDeleteGitBranch(branch.name)
+                                    }}
+                                    disabled={gitActionLoading}
+                                    className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                                    title="브랜치 삭제"
+                                  >
+                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4.75A1.75 1.75 0 0 1 9.75 3h4.5A1.75 1.75 0 0 1 16 4.75V6" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 6l.9 12.15A2 2 0 0 0 9.39 20h5.22a2 2 0 0 0 1.99-1.85L17.5 6" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 10.5v5M14 10.5v5" />
+                                    </svg>
+                                  </button>
                                 )}
-                              </button>
+                              </div>
                             ))}
                           </div>
                         )}
@@ -828,16 +1054,36 @@ export function ChatView({
                   </div>
                 )}
               </div>
-            )}
+            ) : gitStatus?.gitAvailable === false ? (
+              <div
+                className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-muted opacity-65"
+                title="Git을 설치하세요"
+              >
+                <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
+                </svg>
+                <span className="min-w-0 truncate">Git</span>
+              </div>
+            ) : gitStatus && !gitStatus.isRepo ? (
+              <button
+                type="button"
+                onClick={() => void handleInitGitRepo()}
+                disabled={gitActionLoading}
+                className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+                title="현재 폴더에서 Git 초기화"
+              >
+                <span className="min-w-0 truncate">Git init</span>
+              </button>
+            ) : null}
           </div>
 
           <div className="no-drag flex items-center gap-2" data-no-drag="true">
             <div ref={openWithMenuRef} className="relative" data-no-drag="true">
-              <div className="flex overflow-hidden rounded-2xl border border-claude-border/80 bg-claude-surface shadow-[0_8px_24px_rgba(0,0,0,0.16)]">
+              <div className="flex overflow-hidden rounded-lg border border-claude-border bg-claude-surface">
                 <button
                   onClick={() => void handleDefaultOpen()}
                   disabled={openWithApps.length === 0}
-                  className="flex items-center gap-2 bg-claude-surface px-3.5 py-2 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface"
+                  className="inline-flex items-center gap-1.5 bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface"
                   title={defaultOpenWithApp ? `${defaultOpenWithApp.label}에서 열기` : '기본 앱으로 열기'}
                 >
                   <OpenWithAppIcon app={defaultOpenWithApp} />
@@ -846,7 +1092,7 @@ export function ChatView({
                 <button
                   onClick={() => setOpenWithMenuOpen((open) => !open)}
                   disabled={openWithApps.length === 0}
-                  className={`border-l border-claude-border/80 px-2 py-1.5 text-claude-text transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface ${
+                  className={`border-l border-claude-border px-2 py-1 text-claude-text transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface ${
                     openWithMenuOpen ? 'bg-claude-surface-2' : 'bg-claude-surface hover:bg-claude-surface-2'
                   }`}
                   title="다음에서 열기"
@@ -905,20 +1151,24 @@ export function ChatView({
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
             </svg>
           </button>
-          <button
-            onClick={() => setRightPanel((open) => open === 'git' ? 'none' : 'git')}
-            className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
-              gitPanelOpen
-                ? 'bg-claude-surface text-claude-text'
-                : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
-            }`}
-            title="현재 Git 변경 보기"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h4l8 8-4 4-8-8V3z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h.01" />
-            </svg>
-          </button>
+          {gitAvailable && (
+            <button
+              onClick={() => setRightPanel((open) => open === 'git' ? 'none' : 'git')}
+              className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
+                gitPanelOpen
+                  ? 'bg-claude-surface text-claude-text'
+                  : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
+              }`}
+              title="git diff 보기"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="4.5" y="4.5" width="15" height="15" rx="3.5" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 15h8" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => setRightPanel((open) => open === 'files' ? 'none' : 'files')}
             className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
@@ -1013,7 +1263,7 @@ export function ChatView({
         >
           <div className="flex h-12 items-center justify-between border-b border-claude-border px-4">
             <p className="text-sm font-semibold text-claude-text">
-              {filePanelOpen ? '파일 탐색기' : gitPanelOpen ? 'Git 변경' : '세션 정보'}
+              {filePanelOpen ? '파일 탐색기' : gitPanelOpen ? 'git diff' : '세션 정보'}
             </p>
             {(filePanelOpen || gitPanelOpen) && (
               <button
@@ -1084,40 +1334,85 @@ export function ChatView({
               </div>
             </div>
           ) : gitPanelOpen ? (
-            <div className="flex flex-1 min-h-0">
-              {showGitPreviewPane && (
-                <>
-                  <div className="min-w-0 flex-1 overflow-y-auto bg-claude-bg">
-                    <GitDiffPanel
-                      entry={selectedGitEntry}
-                      gitDiff={gitDiff}
-                      loading={gitDiffLoading}
+            <div className="flex flex-1 min-h-0 flex-col">
+              <div className="flex min-h-0 flex-1">
+                {showGitPreviewPane && (
+                  <>
+                    <div className="min-w-0 flex-1 overflow-y-auto bg-claude-bg">
+                      <GitDiffPanel
+                        entry={selectedGitEntry}
+                        gitDiff={gitDiff}
+                        loading={gitDiffLoading}
+                      />
+                    </div>
+
+                    <div
+                      onMouseDown={handleExplorerResizeStart}
+                      className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
                     />
+                  </>
+                )}
+
+                <div
+                  className={`min-w-0 overflow-y-auto px-2 py-3 ${showGitPreviewPane ? 'border-l border-claude-border bg-claude-panel' : 'flex-1 bg-claude-panel'}`}
+                  style={showGitPreviewPane ? { width: `${explorerWidth}px` } : undefined}
+                >
+                  <GitStatusPanel
+                    status={gitStatus}
+                    loading={gitLoading}
+                    selectedPath={selectedGitEntry?.path ?? null}
+                    actionLoading={gitActionLoading}
+                    onSelectEntry={handleSelectGitEntry}
+                    onToggleStage={handleToggleGitStage}
+                    onRestoreEntry={handleRestoreGitEntry}
+                    onRestoreEntries={handleRestoreGitEntries}
+                    onStageEntries={handleStageGitEntries}
+                    onUnstageEntries={handleUnstageGitEntries}
+                  />
+                </div>
+              </div>
+
+              {gitStatus?.isRepo && (
+                <div className="border-t border-claude-border bg-claude-panel px-3 py-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[11px] text-claude-muted">
+                      <span>스테이징됨</span>
+                      <span className="inline-flex h-[17px] min-w-[20px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-surface px-1.5 text-[10px] font-semibold leading-none text-claude-text">
+                        {stagedGitEntryCount}
+                      </span>
+                    </div>
+                    {stagedGitEntryCount === 0 && (
+                      <span className="text-[11px] text-claude-muted">커밋할 파일을 먼저 스테이징하세요</span>
+                    )}
                   </div>
 
-                  <div
-                    onMouseDown={handleExplorerResizeStart}
-                    className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
-                  />
-                </>
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      ref={gitCommitTextareaRef}
+                      value={gitCommitMessage}
+                      onChange={(event) => setGitCommitMessage(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault()
+                          void handleCommitGit()
+                        }
+                      }}
+                      rows={1}
+                      disabled={gitActionLoading || stagedGitEntryCount === 0}
+                      placeholder={stagedGitEntryCount > 0 ? '커밋 메시지 입력' : '스테이징된 파일이 없습니다'}
+                      className="max-h-40 min-h-[36px] flex-1 resize-none overflow-hidden rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleCommitGit()}
+                      disabled={gitActionLoading || stagedGitEntryCount === 0 || gitCommitMessage.trim().length === 0}
+                      className="inline-flex h-9 items-center justify-center rounded-xl border border-claude-border bg-claude-surface px-3 text-[12px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      커밋
+                    </button>
+                  </div>
+                </div>
               )}
-
-              <div
-                className={`min-w-0 overflow-y-auto px-2 py-3 ${showGitPreviewPane ? 'border-l border-claude-border bg-claude-panel' : 'flex-1 bg-claude-panel'}`}
-                style={showGitPreviewPane ? { width: `${explorerWidth}px` } : undefined}
-              >
-                <GitStatusPanel
-                  status={gitStatus}
-                  loading={gitLoading}
-                  actionLoading={gitActionLoading}
-                  commitMessage={gitCommitMessage}
-                  selectedPath={selectedGitEntry?.path ?? null}
-                  onCommitMessageChange={setGitCommitMessage}
-                  onCommit={handleCommitGit}
-                  onSelectEntry={handleSelectGitEntry}
-                  onToggleStage={handleToggleGitStage}
-                />
-              </div>
             </div>
           ) : (
             <SessionInfoPanel
@@ -1633,6 +1928,49 @@ function getGitEntryBadgeClass(entry: GitStatusEntry): string {
   return 'border-claude-border bg-claude-surface text-claude-text'
 }
 
+function getGitEntryStatusDotClass(entry: GitStatusEntry): string | null {
+  if (entry.deleted) return 'bg-red-400'
+  if (entry.untracked || entry.renamed) return 'bg-sky-400'
+  return null
+}
+
+function formatGitChangeCount(value: number | null): string {
+  return value && value > 0 ? `+${value}` : '+0'
+}
+
+function formatGitDeletionCount(value: number | null): string {
+  return value && value > 0 ? `-${value}` : '-0'
+}
+
+function shouldStageGitEntry(entry: GitStatusEntry) {
+  return !entry.staged || entry.unstaged || entry.untracked
+}
+
+function getGitStageActionLabel(entry: GitStatusEntry) {
+  return shouldStageGitEntry(entry) ? '스테이징' : '언스테이징'
+}
+
+function getGitEntryCounts(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
+  if (filter === 'staged') {
+    return {
+      additions: entry.stagedAdditions,
+      deletions: entry.stagedDeletions,
+    }
+  }
+
+  if (filter === 'unstaged') {
+    return {
+      additions: entry.unstagedAdditions,
+      deletions: entry.unstagedDeletions,
+    }
+  }
+
+  return {
+    additions: entry.totalAdditions,
+    deletions: entry.totalDeletions,
+  }
+}
+
 function safeParseGitDiff(diffText: string) {
   try {
     return parseDiff(diffText)
@@ -1641,27 +1979,71 @@ function safeParseGitDiff(diffText: string) {
   }
 }
 
+function IconTooltipButton({
+  tooltip,
+  tooltipAlign = 'center',
+  tooltipSide = 'top',
+  wrapperClassName,
+  className,
+  children,
+  ...props
+}: {
+  tooltip: string
+  tooltipAlign?: 'center' | 'left' | 'right'
+  tooltipSide?: 'top' | 'bottom'
+  wrapperClassName?: string
+  className: string
+  children: ReactNode
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const tooltipPositionClass =
+    tooltipAlign === 'right'
+      ? 'right-0'
+      : tooltipAlign === 'left'
+        ? 'left-0'
+        : 'left-1/2 -translate-x-1/2'
+  const tooltipSideClass =
+    tooltipSide === 'bottom'
+      ? 'top-full mt-1.5'
+      : 'bottom-full mb-1.5'
+
+  return (
+    <div className={`relative inline-flex group/tooltip ${wrapperClassName ?? ''}`}>
+      <button {...props} className={className} title={tooltip} aria-label={tooltip}>
+        {children}
+      </button>
+      <div className={`pointer-events-none absolute z-20 whitespace-nowrap rounded-md border border-claude-border bg-claude-panel px-2 py-1 text-[10px] font-medium text-claude-text opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 ${tooltipPositionClass} ${tooltipSideClass}`}>
+        {tooltip}
+      </div>
+    </div>
+  )
+}
+
 function GitStatusPanel({
   status,
   loading,
-  actionLoading,
-  commitMessage,
   selectedPath,
-  onCommitMessageChange,
-  onCommit,
+  actionLoading,
   onSelectEntry,
   onToggleStage,
+  onRestoreEntry,
+  onRestoreEntries,
+  onStageEntries,
+  onUnstageEntries,
 }: {
   status: GitRepoStatus | null
   loading: boolean
-  actionLoading: boolean
-  commitMessage: string
   selectedPath: string | null
-  onCommitMessageChange: (value: string) => void
-  onCommit: () => void
+  actionLoading: boolean
   onSelectEntry: (entry: GitStatusEntry) => void
   onToggleStage: (entry: GitStatusEntry) => void
+  onRestoreEntry: (entry: GitStatusEntry) => void
+  onRestoreEntries: (entries: GitStatusEntry[]) => void
+  onStageEntries: (entries: GitStatusEntry[]) => void
+  onUnstageEntries: (entries: GitStatusEntry[]) => void
 }) {
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [filter, setFilter] = useState<'unstaged' | 'staged' | 'all'>('unstaged')
+
   if (loading && !status) {
     return (
       <div className="flex h-full items-center justify-center text-claude-muted">
@@ -1683,67 +2065,128 @@ function GitStatusPanel({
     )
   }
 
-  const stagedCount = status.entries.filter((entry) => entry.staged).length
-  const untrackedCount = status.entries.filter((entry) => entry.untracked).length
-  const deletedCount = status.entries.filter((entry) => entry.deleted).length
+  const unstagedEntries = status.entries.filter((entry) => entry.unstaged || entry.untracked || !entry.staged)
+  const stagedEntries = status.entries.filter((entry) => entry.staged)
+  const allEntries = status.entries
+
+  const filteredEntries = filter === 'staged'
+    ? stagedEntries
+    : filter === 'all'
+      ? allEntries
+      : unstagedEntries
+
+  const currentFilterLabel = filter === 'staged'
+    ? '스테이징됨'
+    : filter === 'all'
+      ? '모든 변경 사항'
+      : '스테이징되지 않음'
+  const currentFilterCount = filteredEntries.length
+  const showRestoreAll = filter === 'unstaged' || filter === 'staged' || filter === 'all'
+  const showStageAll = filter === 'unstaged'
+  const showUnstageAll = filter === 'staged'
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-claude-text">{status.branch ?? 'detached HEAD'}</p>
-            <p className="mt-1 truncate font-mono text-[11px] text-claude-muted">{status.rootPath}</p>
-          </div>
-          <span className="rounded-lg border border-claude-border bg-claude-panel px-2 py-1 text-[11px] text-claude-muted">
-            {status.clean ? '변경 없음' : `${status.entries.length}개 변경`}
-          </span>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <div className="rounded-xl border border-claude-border/80 bg-claude-panel px-2.5 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-claude-muted">staged</p>
-            <p className="mt-0.5 text-sm font-semibold text-claude-text">{stagedCount}</p>
-          </div>
-          <div className="rounded-xl border border-claude-border/80 bg-claude-panel px-2.5 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-claude-muted">new</p>
-            <p className="mt-0.5 text-sm font-semibold text-claude-text">{untrackedCount}</p>
-          </div>
-          <div className="rounded-xl border border-claude-border/80 bg-claude-panel px-2.5 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-claude-muted">deleted</p>
-            <p className="mt-0.5 text-sm font-semibold text-claude-text">{deletedCount}</p>
-          </div>
-        </div>
-        {(status.ahead > 0 || status.behind > 0) && (
-          <p className="mt-3 text-[11px] text-claude-muted">
-            {status.ahead > 0 ? `ahead ${status.ahead}` : ''}
-            {status.ahead > 0 && status.behind > 0 ? ' · ' : ''}
-            {status.behind > 0 ? `behind ${status.behind}` : ''}
-          </p>
-        )}
-      </div>
-
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">커밋</p>
-          <span className="text-[11px] text-claude-muted">{stagedCount}개 staged</span>
-        </div>
-        <textarea
-          value={commitMessage}
-          onChange={(event) => onCommitMessageChange(event.target.value)}
-          rows={3}
-          placeholder="커밋 메시지를 입력하세요"
-          className="mt-3 w-full resize-none rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-sm text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
-        />
-        <div className="mt-2 flex justify-end">
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="relative">
           <button
             type="button"
-            onClick={onCommit}
-            disabled={actionLoading || stagedCount === 0 || !commitMessage.trim()}
-            className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface disabled:opacity-50"
+            onClick={() => setFilterOpen((open) => !open)}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-2xl px-2.5 text-[12px] font-medium text-claude-text transition-colors ${
+              filterOpen ? 'bg-claude-surface hover:bg-claude-surface-2' : 'bg-transparent hover:bg-claude-surface/60'
+            }`}
           >
-            커밋
+            <span>{currentFilterLabel}</span>
+            <span className="inline-flex h-[17px] min-w-[20px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-panel px-1.5 text-[11px] font-semibold leading-none text-claude-text shadow-[0_2px_8px_rgba(0,0,0,0.14)]">
+              {currentFilterCount}
+            </span>
+            <svg className={`h-3.5 w-3.5 text-claude-muted transition-transform ${filterOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+            </svg>
           </button>
+
+          {filterOpen && (
+            <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-[20px] border border-claude-border bg-claude-panel p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
+              {[
+                { key: 'unstaged' as const, label: '스테이징되지 않음', count: unstagedEntries.length },
+                { key: 'staged' as const, label: '스테이징됨', count: stagedEntries.length },
+                { key: 'all' as const, label: '모든 변경 사항', count: allEntries.length },
+              ].map((option) => {
+                const active = filter === option.key
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => {
+                      setFilter(option.key)
+                      setFilterOpen(false)
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left transition-colors ${
+                      active ? 'bg-claude-surface text-claude-text' : 'text-claude-text hover:bg-claude-surface'
+                    }`}
+                  >
+                    <span className="text-[12px] font-medium">{option.label}</span>
+                    <span className="inline-flex h-4 min-w-[18px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-panel px-1.5 text-[10px] leading-none text-claude-muted">
+                      {option.count}
+                    </span>
+                    {active && (
+                      <svg className="ml-auto h-3.5 w-3.5 text-claude-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 4 4 10-10" />
+                      </svg>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
+
+        {(showRestoreAll || showStageAll || showUnstageAll) && (
+          <div className="flex shrink-0 items-center gap-1">
+            {showRestoreAll && (
+              <IconTooltipButton
+                type="button"
+                onClick={() => void onRestoreEntries(filteredEntries)}
+                disabled={actionLoading || filteredEntries.length === 0}
+                tooltip="모두 되돌리기"
+                tooltipAlign="right"
+                tooltipSide="bottom"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 10H5V6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 10a7 7 0 1 1 2.05 4.95" />
+                </svg>
+              </IconTooltipButton>
+            )}
+            {showStageAll && (
+              <IconTooltipButton
+                type="button"
+                onClick={() => void onStageEntries(filteredEntries)}
+                disabled={actionLoading || filteredEntries.length === 0}
+                tooltip="모두 스테이징"
+                tooltipAlign="right"
+                tooltipSide="bottom"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                +
+              </IconTooltipButton>
+            )}
+            {showUnstageAll && (
+              <IconTooltipButton
+                type="button"
+                onClick={() => void onUnstageEntries(filteredEntries)}
+                disabled={actionLoading || filteredEntries.length === 0}
+                tooltip="모두 언스테이징"
+                tooltipAlign="right"
+                tooltipSide="bottom"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                -
+              </IconTooltipButton>
+            )}
+          </div>
+        )}
       </div>
 
       {loading && (
@@ -1761,42 +2204,79 @@ function GitStatusPanel({
       )}
 
       {!loading && !status.clean && (
-        <div className="space-y-1.5">
-          {status.entries.map((entry) => {
+        <div className="space-y-1">
+          {filteredEntries.length === 0 && (
+            <div className="rounded-xl border border-claude-border bg-claude-surface px-3 py-6 text-center text-[12px] text-claude-muted">
+              표시할 파일이 없습니다.
+            </div>
+          )}
+          {filteredEntries.map((entry) => {
             const isSelected = selectedPath === entry.path
+            const counts = getGitEntryCounts(entry, filter)
+            const statusDotClass = getGitEntryStatusDotClass(entry)
+            const stageActionLabel = getGitStageActionLabel(entry)
             return (
-              <button
+              <div
                 key={`${entry.path}:${entry.statusCode}`}
-                onClick={() => void onSelectEntry(entry)}
-                className={`w-full rounded-2xl border px-3 py-2.5 text-left transition-colors ${
-                  isSelected
-                    ? 'border-claude-border bg-claude-surface-2 text-claude-text shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
-                    : 'border-transparent bg-claude-panel text-claude-text hover:border-claude-border hover:bg-claude-surface'
-                }`}
-                title={entry.path}
+                className="group relative"
               >
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getGitEntryBadgeClass(entry)}`}>
-                    {getGitEntryLabel(entry)}
-                  </span>
-                  <button
+                <button
+                  type="button"
+                  onClick={() => void onSelectEntry(entry)}
+                  className={`w-full rounded-xl border px-2.5 py-2 pr-[142px] text-left transition-colors ${
+                    isSelected
+                      ? 'border-claude-border bg-claude-surface-2 text-claude-text shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
+                      : 'border-transparent bg-claude-panel text-claude-text hover:border-claude-border hover:bg-claude-surface'
+                  }`}
+                  title={entry.path}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex flex-1 items-center gap-2">
+                      <p className="truncate text-[13px] font-semibold text-claude-text">{entry.relativePath}</p>
+                      <span className="flex-shrink-0 font-mono text-[11px] font-semibold text-emerald-400">{formatGitChangeCount(counts.additions)}</span>
+                      <span className="flex-shrink-0 font-mono text-[11px] font-semibold text-red-400">{formatGitDeletionCount(counts.deletions)}</span>
+                      {statusDotClass && <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${statusDotClass}`} />}
+                    </div>
+                  </div>
+                  {entry.originalPath && (
+                    <p className="mt-1 truncate text-[11px] text-claude-muted">이전: {entry.originalPath}</p>
+                  )}
+                </button>
+
+                <div className="pointer-events-none absolute inset-y-0 right-2 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  <IconTooltipButton
                     type="button"
                     onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      void onRestoreEntry(entry)
+                    }}
+                    disabled={actionLoading}
+                    tooltip="파일 되돌리기"
+                    tooltipAlign="right"
+                    className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg bg-claude-surface text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 10H5V6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 10a7 7 0 1 1 2.05 4.95" />
+                    </svg>
+                  </IconTooltipButton>
+                  <IconTooltipButton
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault()
                       event.stopPropagation()
                       void onToggleStage(entry)
                     }}
                     disabled={actionLoading}
-                    className="rounded-md border border-claude-border bg-claude-surface px-1.5 py-0.5 text-[10px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+                    tooltip={stageActionLabel}
+                    tooltipAlign="right"
+                    className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg border border-claude-border bg-claude-surface text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {entry.staged ? 'Unstage' : 'Stage'}
-                  </button>
-                  <span className="ml-auto font-mono text-[11px] text-claude-muted">{entry.statusCode || 'M'}</span>
+                    {shouldStageGitEntry(entry) ? '+' : '-'}
+                  </IconTooltipButton>
                 </div>
-                <p className="mt-1 truncate text-sm text-claude-text">{entry.relativePath}</p>
-                {entry.originalPath && (
-                  <p className="mt-1 truncate text-[11px] text-claude-muted">이전: {entry.originalPath}</p>
-                )}
-              </button>
+              </div>
             )
           })}
         </div>

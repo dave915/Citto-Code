@@ -34,6 +34,12 @@ type GitStatusEntry = {
   relativePath: string
   originalPath?: string | null
   statusCode: string
+  stagedAdditions: number | null
+  stagedDeletions: number | null
+  unstagedAdditions: number | null
+  unstagedDeletions: number | null
+  totalAdditions: number | null
+  totalDeletions: number | null
   staged: boolean
   unstaged: boolean
   untracked: boolean
@@ -42,6 +48,7 @@ type GitStatusEntry = {
 }
 
 type GitRepoStatus = {
+  gitAvailable: boolean
   isRepo: boolean
   rootPath: string | null
   branch: string | null
@@ -89,11 +96,19 @@ function resolveTargetPath(targetPath: string): string {
 }
 
 function runGit(args: string[], cwd: string) {
-  return spawnSync('git', args, {
+  return spawnSync('git', ['-c', 'core.quotepath=false', ...args], {
     cwd,
     encoding: 'utf-8',
     timeout: 5000,
   })
+}
+
+function isGitAvailable() {
+  const result = spawnSync('git', ['--version'], {
+    encoding: 'utf-8',
+    timeout: 3000,
+  })
+  return result.status === 0
 }
 
 function resolveGitRepoRoot(cwd: string): string | null {
@@ -120,10 +135,116 @@ function parseBranchSummary(branchLine: string) {
   }
 }
 
+function parseNumstat(output: string): { additions: number | null; deletions: number | null } {
+  const line = output.split('\n').find(Boolean)?.trim()
+  if (!line) return { additions: null, deletions: null }
+  const [additionsText, deletionsText] = line.split('\t')
+  const additions = /^\d+$/.test(additionsText ?? '') ? Number(additionsText) : null
+  const deletions = /^\d+$/.test(deletionsText ?? '') ? Number(deletionsText) : null
+  return { additions, deletions }
+}
+
+function decodePorcelainPath(pathText: string): string {
+  const trimmed = pathText.trim()
+  if (!(trimmed.startsWith('"') && trimmed.endsWith('"'))) return trimmed
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+  }
+}
+
+function parsePorcelainPaths(pathText: string) {
+  const trimmed = pathText.trim()
+  const quotedRenameMatch = trimmed.match(/^"((?:\\.|[^"])*)" -> "((?:\\.|[^"])*)"$/)
+  if (quotedRenameMatch) {
+    return {
+      renamed: true,
+      originalPath: decodePorcelainPath(`"${quotedRenameMatch[1]}"`),
+      relativePath: decodePorcelainPath(`"${quotedRenameMatch[2]}"`),
+    }
+  }
+
+  const renameParts = trimmed.split(' -> ')
+  if (renameParts.length === 2) {
+    return {
+      renamed: true,
+      originalPath: decodePorcelainPath(renameParts[0]),
+      relativePath: decodePorcelainPath(renameParts[1]),
+    }
+  }
+
+  return {
+    renamed: false,
+    originalPath: null,
+    relativePath: decodePorcelainPath(trimmed),
+  }
+}
+
+function getGitEntryNumstat(repoRoot: string, entry: Omit<GitStatusEntry, 'stagedAdditions' | 'stagedDeletions' | 'unstagedAdditions' | 'unstagedDeletions' | 'totalAdditions' | 'totalDeletions'>) {
+  try {
+    if (entry.untracked) {
+      const result = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--no-color', '--numstat', '--no-index', '--', '/dev/null', entry.path], {
+        encoding: 'utf-8',
+        timeout: 5000,
+      })
+      const counts = parseNumstat(`${result.stdout ?? ''}${result.stderr ?? ''}`)
+      return {
+        stagedAdditions: 0,
+        stagedDeletions: 0,
+        unstagedAdditions: counts.additions,
+        unstagedDeletions: counts.deletions,
+        totalAdditions: counts.additions,
+        totalDeletions: counts.deletions,
+      }
+    }
+
+    const relativePath = relative(repoRoot, entry.path)
+    const stagedResult = runGit(['diff', '--cached', '--numstat', '--', relativePath], repoRoot)
+    const unstagedResult = runGit(['diff', '--numstat', '--', relativePath], repoRoot)
+    const totalResult = runGit(['diff', '--numstat', 'HEAD', '--', relativePath], repoRoot)
+    const stagedCounts = parseNumstat(`${stagedResult.stdout ?? ''}${stagedResult.stderr ?? ''}`)
+    const unstagedCounts = parseNumstat(`${unstagedResult.stdout ?? ''}${unstagedResult.stderr ?? ''}`)
+    const totalCounts = parseNumstat(`${totalResult.stdout ?? ''}${totalResult.stderr ?? ''}`)
+    return {
+      stagedAdditions: stagedCounts.additions,
+      stagedDeletions: stagedCounts.deletions,
+      unstagedAdditions: unstagedCounts.additions,
+      unstagedDeletions: unstagedCounts.deletions,
+      totalAdditions: totalCounts.additions,
+      totalDeletions: totalCounts.deletions,
+    }
+  } catch {
+    return {
+      stagedAdditions: null,
+      stagedDeletions: null,
+      unstagedAdditions: null,
+      unstagedDeletions: null,
+      totalAdditions: null,
+      totalDeletions: null,
+    }
+  }
+}
+
 function getGitStatus(cwd: string): GitRepoStatus {
+  const gitAvailable = isGitAvailable()
+  if (!gitAvailable) {
+    return {
+      gitAvailable: false,
+      isRepo: false,
+      rootPath: null,
+      branch: null,
+      ahead: 0,
+      behind: 0,
+      clean: true,
+      entries: [],
+    }
+  }
+
   const repoRoot = resolveGitRepoRoot(cwd)
   if (!repoRoot) {
     return {
+      gitAvailable: true,
       isRepo: false,
       rootPath: null,
       branch: null,
@@ -137,6 +258,7 @@ function getGitStatus(cwd: string): GitRepoStatus {
   const result = runGit(['status', '--porcelain=v1', '--branch'], repoRoot)
   if (result.status !== 0) {
     return {
+      gitAvailable: true,
       isRepo: false,
       rootPath: null,
       branch: null,
@@ -155,8 +277,8 @@ function getGitStatus(cwd: string): GitRepoStatus {
     .filter((line) => !line.startsWith('##'))
     .map((line) => {
       if (line.startsWith('?? ')) {
-        const relativePath = line.slice(3).trim()
-        return {
+        const relativePath = decodePorcelainPath(line.slice(3))
+        const entryBase = {
           path: join(repoRoot, relativePath),
           relativePath,
           originalPath: null,
@@ -167,24 +289,25 @@ function getGitStatus(cwd: string): GitRepoStatus {
           deleted: false,
           renamed: false,
         }
+        return {
+          ...entryBase,
+          ...getGitEntryNumstat(repoRoot, entryBase),
+        }
       }
 
       const x = line[0] ?? ' '
       const y = line[1] ?? ' '
       const rest = line.slice(3).trim()
-      const renameParts = rest.split(' -> ')
-      const renamed = renameParts.length === 2
-      const relativePath = (renamed ? renameParts[1] : rest).trim()
-      const originalRelativePath = renamed ? renameParts[0].trim() : null
+      const { renamed, relativePath, originalPath } = parsePorcelainPaths(rest)
       const staged = x !== ' '
       const unstaged = y !== ' '
       const untracked = x === '?' || y === '?'
       const deleted = x === 'D' || y === 'D'
 
-      return {
+      const entryBase = {
         path: join(repoRoot, relativePath),
         relativePath,
-        originalPath: originalRelativePath ? join(repoRoot, originalRelativePath) : null,
+        originalPath: originalPath ? join(repoRoot, originalPath) : null,
         statusCode: `${x}${y}`.trim() || 'M',
         staged,
         unstaged,
@@ -192,9 +315,14 @@ function getGitStatus(cwd: string): GitRepoStatus {
         deleted,
         renamed: x === 'R' || y === 'R' || renamed,
       }
+      return {
+        ...entryBase,
+        ...getGitEntryNumstat(repoRoot, entryBase),
+      }
     })
 
   return {
+    gitAvailable: true,
     isRepo: true,
     rootPath: repoRoot,
     branch,
@@ -217,7 +345,7 @@ function getGitDiff(cwd: string, filePath: string): { ok: boolean; diff: string;
 
   try {
     if (entry?.untracked) {
-      const result = spawnSync('git', ['diff', '--no-color', '--no-index', '--', '/dev/null', filePath], {
+      const result = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--no-color', '--no-index', '--', '/dev/null', filePath], {
         encoding: 'utf-8',
         timeout: 5000,
       })
@@ -277,6 +405,39 @@ function setGitStaged(cwd: string, filePath: string, staged: boolean): { ok: boo
   return { ok: true }
 }
 
+function restoreGitFile(cwd: string, filePath: string): { ok: boolean; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const status = getGitStatus(cwd)
+  const entry = status.entries.find((item) => item.path === filePath || item.originalPath === filePath)
+  if (!entry) return { ok: false, error: '되돌릴 파일 상태를 찾지 못했습니다.' }
+
+  if (entry.untracked) {
+    try {
+      rmSync(entry.path, { force: true, recursive: true })
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: String(error) }
+    }
+  }
+
+  const restoreTargets = Array.from(
+    new Set(
+      [entry.path, entry.originalPath]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => relative(repoRoot, value)),
+    ),
+  )
+
+  const result = runGit(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...restoreTargets], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || '파일을 되돌리지 못했습니다.' }
+  }
+
+  return { ok: true }
+}
+
 function commitGit(cwd: string, message: string): { ok: boolean; commitHash?: string; error?: string } {
   const repoRoot = resolveGitRepoRoot(cwd)
   if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
@@ -327,6 +488,64 @@ function switchGitBranch(cwd: string, name: string): { ok: boolean; error?: stri
   const result = runGit(['switch', trimmedName], repoRoot)
   if (result.status !== 0) {
     return { ok: false, error: result.stderr.trim() || result.stdout.trim() || '브랜치를 전환하지 못했습니다.' }
+  }
+
+  return { ok: true }
+}
+
+function pullGit(cwd: string): { ok: boolean; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const result = runGit(['pull', '--ff-only'], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || 'git pull을 실행하지 못했습니다.' }
+  }
+
+  return { ok: true }
+}
+
+function pushGit(cwd: string): { ok: boolean; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const result = runGit(['push'], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || 'git push를 실행하지 못했습니다.' }
+  }
+
+  return { ok: true }
+}
+
+function deleteGitBranch(cwd: string, name: string): { ok: boolean; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
+
+  const trimmedName = name.trim()
+  if (!trimmedName) return { ok: false, error: '브랜치 이름이 비어 있습니다.' }
+
+  const status = getGitStatus(cwd)
+  if (status.branch === trimmedName) {
+    return { ok: false, error: '현재 브랜치는 삭제할 수 없습니다.' }
+  }
+
+  const result = runGit(['branch', '-d', trimmedName], repoRoot)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || '브랜치를 삭제하지 못했습니다.' }
+  }
+
+  return { ok: true }
+}
+
+function initGitRepo(cwd: string): { ok: boolean; error?: string } {
+  if (!isGitAvailable()) return { ok: false, error: 'Git이 설치되지 않았습니다.' }
+
+  const targetPath = resolveTargetPath(cwd)
+  if (!targetPath) return { ok: false, error: '경로를 확인할 수 없습니다.' }
+
+  const result = runGit(['init'], targetPath)
+  if (result.status !== 0) {
+    return { ok: false, error: result.stderr.trim() || result.stdout.trim() || 'git init을 실행하지 못했습니다.' }
   }
 
   return { ok: true }
@@ -736,6 +955,10 @@ app.whenReady().then(() => {
     return setGitStaged(cwd, filePath, staged)
   })
 
+  ipcMain.handle('claude:restore-git-file', (_event, { cwd, filePath }: { cwd: string; filePath: string }) => {
+    return restoreGitFile(cwd, filePath)
+  })
+
   ipcMain.handle('claude:commit-git', (_event, { cwd, message }: { cwd: string; message: string }) => {
     return commitGit(cwd, message)
   })
@@ -746,6 +969,22 @@ app.whenReady().then(() => {
 
   ipcMain.handle('claude:switch-git-branch', (_event, { cwd, name }: { cwd: string; name: string }) => {
     return switchGitBranch(cwd, name)
+  })
+
+  ipcMain.handle('claude:pull-git', (_event, { cwd }: { cwd: string }) => {
+    return pullGit(cwd)
+  })
+
+  ipcMain.handle('claude:push-git', (_event, { cwd }: { cwd: string }) => {
+    return pushGit(cwd)
+  })
+
+  ipcMain.handle('claude:delete-git-branch', (_event, { cwd, name }: { cwd: string; name: string }) => {
+    return deleteGitBranch(cwd, name)
+  })
+
+  ipcMain.handle('claude:init-git-repo', (_event, { cwd }: { cwd: string }) => {
+    return initGitRepo(cwd)
   })
 
   // ── Claude 설정 파일 읽기 ─────────────────────────────────────

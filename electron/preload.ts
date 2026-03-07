@@ -68,6 +68,12 @@ export type GitStatusEntry = {
   relativePath: string
   originalPath?: string | null
   statusCode: string
+  stagedAdditions: number | null
+  stagedDeletions: number | null
+  unstagedAdditions: number | null
+  unstagedDeletions: number | null
+  totalAdditions: number | null
+  totalDeletions: number | null
   staged: boolean
   unstaged: boolean
   untracked: boolean
@@ -76,6 +82,7 @@ export type GitStatusEntry = {
 }
 
 export type GitRepoStatus = {
+  gitAvailable: boolean
   isRepo: boolean
   rootPath: string | null
   branch: string | null
@@ -122,9 +129,14 @@ export type ClaudeAPI = {
   getGitDiff: (params: { cwd: string; filePath: string }) => Promise<GitDiffResult>
   getGitBranches: (cwd: string) => Promise<{ ok: boolean; branches: GitBranchInfo[]; error?: string }>
   setGitStaged: (params: { cwd: string; filePath: string; staged: boolean }) => Promise<{ ok: boolean; error?: string }>
+  restoreGitFile: (params: { cwd: string; filePath: string }) => Promise<{ ok: boolean; error?: string }>
   commitGit: (params: { cwd: string; message: string }) => Promise<{ ok: boolean; commitHash?: string; error?: string }>
   createGitBranch: (params: { cwd: string; name: string }) => Promise<{ ok: boolean; branchName?: string; error?: string }>
   switchGitBranch: (params: { cwd: string; name: string }) => Promise<{ ok: boolean; error?: string }>
+  pullGit: (params: { cwd: string }) => Promise<{ ok: boolean; error?: string }>
+  pushGit: (params: { cwd: string }) => Promise<{ ok: boolean; error?: string }>
+  deleteGitBranch: (params: { cwd: string; name: string }) => Promise<{ ok: boolean; error?: string }>
+  initGitRepo: (params: { cwd: string }) => Promise<{ ok: boolean; error?: string }>
   readClaudeSettings: () => Promise<Record<string, unknown>>
   writeSettings: (settings: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>
   readMcpServers: () => Promise<Record<string, unknown>>
@@ -158,9 +170,14 @@ const claudeAPI: ClaudeAPI = {
   getGitDiff: (params) => ipcRenderer.invoke('claude:get-git-diff', params),
   getGitBranches: (cwd) => ipcRenderer.invoke('claude:get-git-branches', { cwd }),
   setGitStaged: (params) => ipcRenderer.invoke('claude:set-git-staged', params),
+  restoreGitFile: (params) => ipcRenderer.invoke('claude:restore-git-file', params),
   commitGit: (params) => ipcRenderer.invoke('claude:commit-git', params),
   createGitBranch: (params) => ipcRenderer.invoke('claude:create-git-branch', params),
   switchGitBranch: (params) => ipcRenderer.invoke('claude:switch-git-branch', params),
+  pullGit: (params) => ipcRenderer.invoke('claude:pull-git', params),
+  pushGit: (params) => ipcRenderer.invoke('claude:push-git', params),
+  deleteGitBranch: (params) => ipcRenderer.invoke('claude:delete-git-branch', params),
+  initGitRepo: (params) => ipcRenderer.invoke('claude:init-git-repo', params),
   readClaudeSettings: () => ipcRenderer.invoke('claude:read-settings'),
   writeSettings: (settings) => ipcRenderer.invoke('claude:write-settings', { settings }),
   readMcpServers: () => ipcRenderer.invoke('claude:read-mcp-servers'),
