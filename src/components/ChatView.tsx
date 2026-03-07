@@ -510,8 +510,11 @@ export function ChatView({
     }
   }
 
-  const refreshGitStatus = async (isCancelled?: () => boolean) => {
-    setGitLoading(true)
+  const refreshGitStatus = async (isCancelled?: () => boolean, options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false
+    if (!silent || !gitStatus) {
+      setGitLoading(true)
+    }
     try {
       const nextStatus = await window.claude.getGitStatus(session.cwd || '~')
       if (isCancelled?.()) return
@@ -541,12 +544,15 @@ export function ChatView({
       selectedGitEntryPathRef.current = null
       setGitDiff(null)
     } finally {
-      if (!isCancelled?.()) setGitLoading(false)
+      if (!isCancelled?.() && (!silent || !gitStatus)) setGitLoading(false)
     }
   }
 
-  const refreshGitBranches = async (isCancelled?: () => boolean) => {
-    setGitBranchesLoading(true)
+  const refreshGitBranches = async (isCancelled?: () => boolean, options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false
+    if (!silent || gitBranches.length === 0) {
+      setGitBranchesLoading(true)
+    }
     try {
       const result = await window.claude.getGitBranches(session.cwd || '~')
       if (isCancelled?.()) return
@@ -555,7 +561,7 @@ export function ChatView({
       if (isCancelled?.()) return
       setGitBranches([])
     } finally {
-      if (!isCancelled?.()) setGitBranchesLoading(false)
+      if (!isCancelled?.() && (!silent || gitBranches.length === 0)) setGitBranchesLoading(false)
     }
   }
 
@@ -580,8 +586,12 @@ export function ChatView({
     }
   }
 
-  const refreshGitPanel = async () => {
-    await Promise.all([refreshGitStatus(), refreshGitBranches()])
+  const refreshGitPanel = async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false
+    await Promise.all([
+      refreshGitStatus(undefined, { silent }),
+      refreshGitBranches(undefined, { silent }),
+    ])
     const selectedPath = selectedGitEntryPathRef.current
     if (selectedPath) {
       const nextStatus = await window.claude.getGitStatus(session.cwd || '~')
@@ -591,14 +601,18 @@ export function ChatView({
       setSelectedGitEntry(nextEntry)
       selectedGitEntryPathRef.current = nextEntry?.path ?? null
       if (nextEntry) {
-        setGitDiffLoading(true)
+        if (!silent || !gitDiff) {
+          setGitDiffLoading(true)
+        }
         try {
           const nextDiff = await window.claude.getGitDiff({ cwd: session.cwd || '~', filePath: nextEntry.path })
           setGitDiff(nextDiff)
         } catch {
           setGitDiff({ ok: false, diff: '', error: 'diff를 불러오지 못했습니다.' })
         } finally {
-          setGitDiffLoading(false)
+          if (!silent || !gitDiff) {
+            setGitDiffLoading(false)
+          }
         }
       } else {
         setGitDiff(null)
@@ -614,7 +628,7 @@ export function ChatView({
     gitPanelRefreshInFlightRef.current = true
     gitPanelLastRefreshAtRef.current = now
     try {
-      await refreshGitPanel()
+      await refreshGitPanel({ silent: true })
     } finally {
       gitPanelRefreshInFlightRef.current = false
     }
@@ -1314,7 +1328,7 @@ export function ChatView({
             </p>
             {(filePanelOpen || gitPanelOpen) && (
               <button
-                onClick={() => void (filePanelOpen ? refreshExplorer(false) : refreshGitPanel())}
+                onClick={() => void (filePanelOpen ? refreshExplorer(false) : refreshGitPanel({ silent: true }))}
                 className="flex h-8 w-8 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
                 title={filePanelOpen ? '파일 탐색기 새로고침' : 'Git 상태 새로고침'}
               >
@@ -2098,9 +2112,7 @@ function GitStatusPanel({
   if (loading && !status) {
     return (
       <div className="flex h-full items-center justify-center text-claude-muted">
-        <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-        </svg>
+        <p className="text-sm">Git 상태를 불러오는 중입니다.</p>
       </div>
     )
   }
@@ -2378,9 +2390,7 @@ function GitDiffPanel({
       <div className="min-h-0 flex-1 overflow-auto bg-claude-bg p-4">
         {loading ? (
           <div className="flex h-full items-center justify-center text-claude-muted">
-            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-            </svg>
+            <p className="text-sm">diff를 불러오는 중입니다.</p>
           </div>
         ) : !gitDiff ? (
           <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
