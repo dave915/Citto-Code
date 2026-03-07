@@ -649,16 +649,11 @@ export function ChatView({
       setSelectedGitEntry((prev) => (areGitStatusEntriesEqual(prev, nextEntry) ? prev : nextEntry))
       selectedGitEntryPathRef.current = nextEntry?.path ?? null
       if (nextEntry) {
-        const shouldRefreshSelectedDiff =
-          !silent ||
-          !gitDiff ||
-          !areGitStatusEntriesEqual(selectedGitEntry, nextEntry)
-
-        if (!shouldRefreshSelectedDiff) {
+        if (silent) {
           return
         }
 
-        if (!silent || !gitDiff) {
+        if (!gitDiff) {
           setGitDiffLoading(true)
         }
         try {
@@ -668,7 +663,7 @@ export function ChatView({
           const nextDiff = { ok: false as const, diff: '', error: 'diff를 불러오지 못했습니다.' }
           setGitDiff((prev) => (areGitDiffResultsEqual(prev, nextDiff) ? prev : nextDiff))
         } finally {
-          if (!silent || !gitDiff) {
+          if (!gitDiff) {
             setGitDiffLoading(false)
           }
         }
@@ -699,8 +694,8 @@ export function ChatView({
     void refreshGitPanelPassive(350)
   }
 
-  const handleToggleGitStage = async (entry: GitStatusEntry) => {
-    const shouldStage = shouldStageGitEntry(entry)
+  const handleToggleGitStage = async (entry: GitStatusEntry, staged?: boolean) => {
+    const shouldStage = staged ?? shouldStageGitEntry(entry)
     setGitActionLoading(true)
     try {
       const result = await window.claude.setGitStaged({
@@ -1407,7 +1402,7 @@ export function ChatView({
             </p>
             {(filePanelOpen || gitPanelOpen) && (
               <button
-                onClick={() => void (filePanelOpen ? refreshExplorer(false) : refreshGitPanel({ silent: true }))}
+                onClick={() => void (filePanelOpen ? refreshExplorer(false) : refreshGitPanel())}
                 className="flex h-8 w-8 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
                 title={filePanelOpen ? '파일 탐색기 새로고침' : 'Git 상태 새로고침'}
               >
@@ -2065,10 +2060,10 @@ function getGitEntryLabel(entry: GitStatusEntry): string {
 }
 
 function getGitEntryBadgeClass(entry: GitStatusEntry): string {
-  if (entry.untracked) return 'border-emerald-500/25 bg-emerald-500/12 text-emerald-200'
-  if (entry.deleted) return 'border-red-500/25 bg-red-500/12 text-red-200'
-  if (entry.renamed) return 'border-sky-500/25 bg-sky-500/12 text-sky-200'
-  if (entry.staged && entry.unstaged) return 'border-amber-500/25 bg-amber-500/12 text-amber-200'
+  if (entry.untracked) return 'border-emerald-500/30 bg-emerald-500/10 text-claude-text'
+  if (entry.deleted) return 'border-red-500/30 bg-red-500/10 text-claude-text'
+  if (entry.renamed) return 'border-sky-500/30 bg-sky-500/10 text-claude-text'
+  if (entry.staged && entry.unstaged) return 'border-amber-500/30 bg-amber-500/10 text-claude-text'
   return 'border-claude-border bg-claude-surface text-claude-text'
 }
 
@@ -2092,6 +2087,16 @@ function shouldStageGitEntry(entry: GitStatusEntry) {
 
 function getGitStageActionLabel(entry: GitStatusEntry) {
   return shouldStageGitEntry(entry) ? '스테이징' : '언스테이징'
+}
+
+function shouldStageGitEntryForFilter(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
+  if (filter === 'staged') return false
+  if (filter === 'unstaged') return true
+  return shouldStageGitEntry(entry)
+}
+
+function getGitStageActionLabelForFilter(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
+  return shouldStageGitEntryForFilter(entry, filter) ? '스테이징' : '언스테이징'
 }
 
 function getGitEntryCounts(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
@@ -2179,7 +2184,7 @@ function GitStatusPanel({
   selectedPath: string | null
   actionLoading: boolean
   onSelectEntry: (entry: GitStatusEntry) => void
-  onToggleStage: (entry: GitStatusEntry) => void
+  onToggleStage: (entry: GitStatusEntry, staged?: boolean) => void
   onRestoreEntry: (entry: GitStatusEntry) => void
   onRestoreEntries: (entries: GitStatusEntry[]) => void
   onStageEntries: (entries: GitStatusEntry[]) => void
@@ -2356,7 +2361,8 @@ function GitStatusPanel({
             const isSelected = selectedPath === entry.path
             const counts = getGitEntryCounts(entry, filter)
             const statusDotClass = getGitEntryStatusDotClass(entry)
-            const stageActionLabel = getGitStageActionLabel(entry)
+            const stageActionLabel = getGitStageActionLabelForFilter(entry, filter)
+            const shouldStageAction = shouldStageGitEntryForFilter(entry, filter)
             return (
               <div
                 key={`${entry.path}:${entry.statusCode}`}
@@ -2381,7 +2387,7 @@ function GitStatusPanel({
                     </div>
                   </div>
                   {entry.originalPath && (
-                    <p className="mt-1 truncate text-[11px] text-claude-muted">이전: {entry.originalPath}</p>
+                    <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">이전: {entry.originalPath}</p>
                   )}
                 </button>
 
@@ -2408,14 +2414,14 @@ function GitStatusPanel({
                     onClick={(event) => {
                       event.preventDefault()
                       event.stopPropagation()
-                      void onToggleStage(entry)
+                      void onToggleStage(entry, shouldStageAction)
                     }}
                     disabled={actionLoading}
                     tooltip={stageActionLabel}
                     tooltipAlign="right"
                     className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface/70 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {shouldStageGitEntry(entry) ? '+' : '-'}
+                    {shouldStageAction ? '+' : '-'}
                   </IconTooltipButton>
                 </div>
               </div>
@@ -2462,7 +2468,7 @@ const GitDiffPanel = memo(function GitDiffPanel({
           <p className="min-w-0 truncate text-sm font-medium text-claude-text">{entry.relativePath}</p>
         </div>
         {entry.originalPath && (
-          <p className="mt-1 truncate text-[11px] text-claude-muted">이전: {entry.originalPath}</p>
+          <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">이전: {entry.originalPath}</p>
         )}
       </div>
 
