@@ -295,6 +295,8 @@ a:focus-visible,
   --diff-code-selected-background-color: rgb(59 130 246 / 0.18);
   --diff-code-selected-text-color: rgb(var(--claude-text));
   --diff-omit-gutter-line-color: rgb(var(--claude-border));
+  --tool-review-hover-overlay-color: rgb(var(--claude-surface-2) / 0.28);
+  --tool-review-selected-overlay-color: rgb(var(--claude-surface-2) / 0.42);
 }
 
 .tool-diff-view {
@@ -329,13 +331,12 @@ a:focus-visible,
 
 .tool-diff-view .diff-line:hover .diff-gutter,
 .tool-diff-view .diff-line:hover .diff-code {
-  background-color: rgb(255 255 255 / 0.04);
+  box-shadow: inset 0 0 0 9999px var(--tool-review-hover-overlay-color);
 }
 
 .tool-diff-view .tool-diff-line-selected .diff-gutter,
 .tool-diff-view .tool-diff-line-selected .diff-code {
-  box-shadow: none;
-  background-color: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 9999px var(--tool-review-selected-overlay-color);
 }
 
 .tool-diff-gutter-wrap {
@@ -357,13 +358,19 @@ a:focus-visible,
   transform: translateY(-50%);
   border: 1px solid rgb(var(--claude-border));
   border-radius: 9999px;
-  background: rgb(var(--claude-surface));
+  background: rgb(var(--claude-panel) / 0.96);
   color: rgb(var(--claude-text));
   font-size: 12px;
   line-height: 1;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.22);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s ease;
+  transition: opacity 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.tool-line-action-button:hover {
+  background: rgb(var(--claude-surface-2));
+  border-color: rgb(var(--claude-border) / 0.95);
 }
 
 .tool-line-action-button-old {
@@ -402,13 +409,12 @@ a:focus-visible,
 
 .tool-code-review-row:hover .tool-code-review-gutter,
 .tool-code-review-row:hover .tool-code-review-content {
-  background-color: rgb(255 255 255 / 0.04);
+  box-shadow: inset 0 0 0 9999px var(--tool-review-hover-overlay-color);
 }
 
 .tool-code-review-row-selected .tool-code-review-gutter,
 .tool-code-review-row-selected .tool-code-review-content {
-  box-shadow: none;
-  background-color: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 9999px var(--tool-review-selected-overlay-color);
 }
 
 .tool-code-review-gutter,
