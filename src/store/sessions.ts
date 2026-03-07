@@ -55,6 +55,7 @@ export type Message = {
 // 편집 권한 모드
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 export type SidebarMode = 'session' | 'project'
+export type NotificationMode = 'all' | 'background' | 'off'
 export type ShortcutAction =
   | 'toggleSidebar'
   | 'toggleFiles'
@@ -96,7 +97,7 @@ type SessionsStore = {
   claudeBinaryPath: string
   preferredOpenWithAppId: string
   themeId: ThemeId
-  notificationsEnabled: boolean
+  notificationMode: NotificationMode
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
   removeSession: (id: string) => void
@@ -105,7 +106,7 @@ type SessionsStore = {
   setClaudeBinaryPath: (path: string) => void
   setPreferredOpenWithAppId: (appId: string) => void
   setThemeId: (themeId: ThemeId) => void
-  setNotificationsEnabled: (enabled: boolean) => void
+  setNotificationMode: (mode: NotificationMode) => void
   setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
@@ -171,7 +172,7 @@ export const useSessionsStore = create<SessionsStore>()(
         claudeBinaryPath: '',
         preferredOpenWithAppId: '',
         themeId: CURRENT_THEME_ID,
-        notificationsEnabled: true,
+        notificationMode: 'all',
         shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
     setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
@@ -190,7 +191,7 @@ export const useSessionsStore = create<SessionsStore>()(
     setClaudeBinaryPath: (path) => set({ claudeBinaryPath: path }),
     setPreferredOpenWithAppId: (appId) => set({ preferredOpenWithAppId: appId }),
     setThemeId: (themeId) => set({ themeId }),
-    setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
+    setNotificationMode: (notificationMode) => set({ notificationMode }),
     setShortcut: (action, platform, value) => set((s) => ({
       shortcutConfig: {
         ...s.shortcutConfig,
@@ -436,11 +437,11 @@ export const useSessionsStore = create<SessionsStore>()(
         claudeBinaryPath: state.claudeBinaryPath,
         preferredOpenWithAppId: state.preferredOpenWithAppId,
         themeId: state.themeId,
-        notificationsEnabled: state.notificationsEnabled,
+        notificationMode: state.notificationMode,
         shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
-        const persistedState = persisted as Partial<SessionsStore>
+        const persistedState = persisted as Partial<SessionsStore> & { notificationsEnabled?: boolean }
         const restoredSessions = (persistedState.sessions ?? []).map((session) => ({
           ...session,
           isStreaming: false,
@@ -461,7 +462,9 @@ export const useSessionsStore = create<SessionsStore>()(
           claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
           preferredOpenWithAppId: persistedState.preferredOpenWithAppId ?? '',
           themeId: persistedState.themeId ?? CURRENT_THEME_ID,
-          notificationsEnabled: persistedState.notificationsEnabled ?? true,
+          notificationMode:
+            persistedState.notificationMode
+            ?? (persistedState.notificationsEnabled === false ? 'off' : 'all'),
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,
             ...(persistedState.shortcutConfig ?? {}),

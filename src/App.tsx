@@ -4,7 +4,12 @@ import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
 import type { ClaudeInstallationStatus, ClaudeStreamEvent, SelectedFile } from '../electron/preload'
-import type { PermissionMode, PendingPermissionRequest, PendingQuestionRequest } from './store/sessions'
+import type {
+  NotificationMode,
+  PermissionMode,
+  PendingPermissionRequest,
+  PendingQuestionRequest,
+} from './store/sessions'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 import { applyTheme } from './lib/theme'
 
@@ -53,6 +58,16 @@ function summarizeNotificationBody(text: string | null | undefined): string {
   if (!normalized) return '작업이 완료되었습니다.'
   if (normalized.length <= 120) return normalized
   return `${normalized.slice(0, 117)}...`
+}
+
+function isAppInBackground(): boolean {
+  return document.visibilityState !== 'visible' || !document.hasFocus()
+}
+
+function shouldDeliverNotification(mode: NotificationMode): boolean {
+  if (mode === 'off') return false
+  if (mode === 'all') return true
+  return isAppInBackground()
 }
 
 function mapPendingQuestionRequest(denial: { toolName: string; toolUseId: string; toolInput: unknown }): PendingQuestionRequest | null {
@@ -146,7 +161,7 @@ export default function App() {
     setModel,
     envVars,
     themeId,
-    notificationsEnabled,
+    notificationMode,
     shortcutConfig,
   } = useSessionsStore()
 
@@ -166,8 +181,10 @@ export default function App() {
   const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
   const abortedTabIdsRef = useRef<Set<string>>(new Set())
   const notifiedSessionEndsRef = useRef<Set<string>>(new Set())
+  const notificationModeRef = useRef(notificationMode)
   const sessionsRef = useRef(sessions)
   sessionsRef.current = sessions
+  notificationModeRef.current = notificationMode
 
   const storeRef = useRef({
     setClaudeSessionId, startAssistantMessage, appendTextChunk,
@@ -464,7 +481,7 @@ export default function App() {
         const lastAssistantMessage = [...(session?.messages ?? [])].reverse().find((message) => message.role === 'assistant')
         const title = session?.error ? 'Claude 작업 실패' : 'Claude 작업 완료'
         const body = summarizeNotificationBody(session?.error ?? lastAssistantMessage?.text)
-        if (notificationsEnabled) {
+        if (shouldDeliverNotification(notificationModeRef.current)) {
           void window.claude.notify({
             title: session?.name ? `${title} · ${session.name}` : title,
             body,
