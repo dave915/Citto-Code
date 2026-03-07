@@ -667,6 +667,7 @@ export default function App() {
               session={activeSession}
               onSend={handleSend}
               onAbort={handleAbort}
+              sidebarMode={sidebarMode}
               sidebarCollapsed={sidebarCollapsed}
               onToggleSidebar={handleToggleSidebar}
               sidebarShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleSidebar', shortcutPlatform)}
@@ -682,7 +683,7 @@ export default function App() {
               bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
             />
           ) : (
-            <EmptyMainState onNewSession={handleNewSession} />
+            <EmptyMainState sidebarMode={sidebarMode} onNewSession={handleNewSession} />
           )
         )}
       </main>
@@ -698,27 +699,22 @@ export default function App() {
   )
 }
 
-function EmptyMainState({ onNewSession }: { onNewSession: () => void }) {
+function EmptyMainState({ sidebarMode, onNewSession }: { sidebarMode: 'session' | 'project'; onNewSession: () => void }) {
   return (
     <div className="flex h-full items-center justify-center bg-claude-bg px-8">
       <div className="max-w-sm text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[28px] border border-[#4d3c2f] bg-claude-surface shadow-[0_20px_40px_rgba(0,0,0,0.24)]">
-          <svg className="w-7 h-7 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-        </div>
         <h2 className="text-2xl font-semibold tracking-tight text-claude-text">열린 세션이 없습니다</h2>
         <p className="mt-2 text-[15px] leading-7 text-claude-muted">
           새 세션을 만들고 프로젝트 폴더를 선택하면 바로 작업을 시작할 수 있습니다.
         </p>
         <button
           onClick={onNewSession}
-          className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-claude-orange px-4 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(201,139,91,0.28)] transition-colors hover:brightness-110"
+          className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-4 py-3 text-sm font-medium text-claude-text shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition-colors hover:bg-claude-surface-2"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          새 세션 만들기
+          {sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'}
         </button>
       </div>
     </div>

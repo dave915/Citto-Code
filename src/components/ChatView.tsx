@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { Session, PermissionMode } from '../store/sessions'
+import type { Session, PermissionMode, SidebarMode } from '../store/sessions'
 import { useSessionsStore } from '../store/sessions'
 import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
@@ -22,6 +22,7 @@ type Props = {
   onAbort: () => void
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
   onQuestionResponse: (answer: string | null) => void
+  sidebarMode: SidebarMode
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
   sidebarShortcutLabel: string
@@ -48,7 +49,7 @@ const OPEN_WITH_ICONS: Record<string, string> = {
 }
 
 export function ChatView({
-  session, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarCollapsed, onToggleSidebar,
+  session, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel, onSelectFolder,
   onPermissionModeChange, onPlanModeChange, onModelChange,
 }: Props) {
@@ -490,7 +491,7 @@ export function ChatView({
         <div className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,#2b2b2e_0%,#242427_100%)] px-6 py-7">
           <div className="mx-auto w-full max-w-[860px]">
             {isNewSession
-              ? <WelcomeScreen onSelectFolder={onSelectFolder} />
+              ? <WelcomeScreen sidebarMode={sidebarMode} onSelectFolder={onSelectFolder} />
               : session.messages.map((msg) => (
                   <MessageBubble
                     key={msg.id}
@@ -1054,12 +1055,9 @@ function isTextPreviewable(name: string): boolean {
   return /\.(txt|md|json|ya?ml|toml|xml|html|css|scss|ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|swift|rb|php|sh|zsh|env|sql|graphql|proto)$/i.test(name)
 }
 
-function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
+function WelcomeScreen({ sidebarMode, onSelectFolder }: { sidebarMode: SidebarMode; onSelectFolder: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 pt-10 text-center">
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-[28px] border border-[#4d3c2f] bg-gradient-to-br from-[#2a221d] to-[#1d1916] shadow-[0_20px_40px_rgba(0,0,0,0.24)]">
-        <span className="text-white text-2xl font-bold">C</span>
-      </div>
       <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Claude UI</h2>
       <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
         Claude Code CLI 기반 코드 어시스턴트입니다.
@@ -1067,12 +1065,12 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
 
       <button
         onClick={onSelectFolder}
-        className="mb-8 flex items-center gap-2 rounded-2xl bg-claude-orange px-5 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(201,139,91,0.28)] transition-colors hover:brightness-110"
+        className="mb-8 flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-5 py-3 text-sm font-medium text-claude-text shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition-colors hover:bg-claude-surface-2"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
-        프로젝트 폴더 열기
+        {sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'}
       </button>
 
       <div className="grid w-full max-w-md grid-cols-2 gap-3 text-left">
