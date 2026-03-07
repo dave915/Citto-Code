@@ -78,6 +78,9 @@ export function ChatView({
   const branchSearchInputRef = useRef<HTMLInputElement>(null)
   const branchCreateInputRef = useRef<HTMLInputElement>(null)
   const gitCommitTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const selectedGitEntryPathRef = useRef<string | null>(null)
+  const gitPanelRefreshInFlightRef = useRef(false)
+  const gitPanelLastRefreshAtRef = useRef(0)
   const prevFilePanelOpenRef = useRef(false)
   const prevShowPreviewPaneRef = useRef(false)
   const lastMsg = session.messages[session.messages.length - 1]
@@ -368,6 +371,20 @@ export function ChatView({
   }, [filePanelOpen, session.cwd])
 
   useEffect(() => {
+    if (!gitPanelOpen) return
+
+    void refreshGitPanelPassive()
+
+    const intervalId = window.setInterval(() => {
+      void refreshGitPanelPassive()
+    }, 5000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [gitPanelOpen, session.cwd])
+
+  useEffect(() => {
     let cancelled = false
     void refreshGitStatus(() => cancelled)
     void refreshGitBranches(() => cancelled)
@@ -388,6 +405,7 @@ export function ChatView({
     setBranchMenuOpen(false)
     setBranchQuery('')
     setBranchCreateModalOpen(false)
+    selectedGitEntryPathRef.current = null
   }, [session.cwd])
 
   const toggleDirectory = async (entry: DirEntry) => {
@@ -498,10 +516,12 @@ export function ChatView({
       const nextStatus = await window.claude.getGitStatus(session.cwd || '~')
       if (isCancelled?.()) return
       setGitStatus(nextStatus)
-      const nextSelectedEntry = selectedGitEntry && nextStatus.isRepo
-        ? nextStatus.entries.find((entry) => entry.path === selectedGitEntry.path) ?? null
+      const selectedPath = selectedGitEntryPathRef.current
+      const nextSelectedEntry = selectedPath && nextStatus.isRepo
+        ? nextStatus.entries.find((entry) => entry.path === selectedPath) ?? null
         : null
       setSelectedGitEntry(nextSelectedEntry)
+      selectedGitEntryPathRef.current = nextSelectedEntry?.path ?? null
       if (!nextSelectedEntry) {
         setGitDiff(null)
       }
@@ -518,6 +538,7 @@ export function ChatView({
         entries: [],
       })
       setSelectedGitEntry(null)
+      selectedGitEntryPathRef.current = null
       setGitDiff(null)
     } finally {
       if (!isCancelled?.()) setGitLoading(false)
@@ -541,10 +562,12 @@ export function ChatView({
   const handleSelectGitEntry = async (entry: GitStatusEntry) => {
     if (selectedGitEntry?.path === entry.path) {
       setSelectedGitEntry(null)
+      selectedGitEntryPathRef.current = null
       setGitDiff(null)
       return
     }
 
+    selectedGitEntryPathRef.current = entry.path
     setSelectedGitEntry(entry)
     setGitDiffLoading(true)
     try {
@@ -559,12 +582,14 @@ export function ChatView({
 
   const refreshGitPanel = async () => {
     await Promise.all([refreshGitStatus(), refreshGitBranches()])
-    if (selectedGitEntry) {
+    const selectedPath = selectedGitEntryPathRef.current
+    if (selectedPath) {
       const nextStatus = await window.claude.getGitStatus(session.cwd || '~')
       const nextEntry = nextStatus.isRepo
-        ? nextStatus.entries.find((entry) => entry.path === selectedGitEntry.path) ?? null
+        ? nextStatus.entries.find((entry) => entry.path === selectedPath) ?? null
         : null
       setSelectedGitEntry(nextEntry)
+      selectedGitEntryPathRef.current = nextEntry?.path ?? null
       if (nextEntry) {
         setGitDiffLoading(true)
         try {
@@ -579,6 +604,27 @@ export function ChatView({
         setGitDiff(null)
       }
     }
+  }
+
+  const refreshGitPanelPassive = async (throttleMs = 0) => {
+    const now = Date.now()
+    if (gitPanelRefreshInFlightRef.current) return
+    if (throttleMs > 0 && now - gitPanelLastRefreshAtRef.current < throttleMs) return
+
+    gitPanelRefreshInFlightRef.current = true
+    gitPanelLastRefreshAtRef.current = now
+    try {
+      await refreshGitPanel()
+    } finally {
+      gitPanelRefreshInFlightRef.current = false
+    }
+  }
+
+  const handleGitPanelPointerDown = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!gitPanelOpen) return
+    if (!(event.target instanceof HTMLElement)) return
+    if (event.target.closest('button, input, textarea, select, option, label, a')) return
+    void refreshGitPanelPassive(350)
   }
 
   const handleToggleGitStage = async (entry: GitStatusEntry) => {
@@ -1258,6 +1304,7 @@ export function ChatView({
 
       {rightPanel !== 'none' && (
         <aside
+          onMouseDown={handleGitPanelPointerDown}
           className="flex min-w-0 flex-shrink-0 flex-col border-l border-claude-border bg-claude-panel"
           style={{ width: `${filePanelWidth}px` }}
         >
