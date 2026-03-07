@@ -56,6 +56,7 @@ type Props = {
   onModelChange: (model: string | null) => void
   permissionShortcutLabel: string
   bypassShortcutLabel: string
+  externalDraft?: { id: number; text: string } | null
 }
 
 const PERMISSION_OPTIONS: { value: PermissionMode; label: string; title: string }[] = [
@@ -185,7 +186,7 @@ function ModelPicker({
             <p className="font-medium text-claude-text">기본 모델</p>
             <p className="text-xs text-claude-muted">Claude Code 기본값</p>
           </div>
-          {!model && <svg className="w-3.5 h-3.5 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+          {!model && <svg className="w-3.5 h-3.5 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
         </button>
 
         {models.length > 0 && <div className="mx-3 my-1 border-t border-claude-border/60" />}
@@ -203,7 +204,7 @@ function ModelPicker({
               <p className={`font-medium ${familyColor(m.family)}`}>{m.displayName}</p>
               <p className="text-xs text-claude-muted truncate">{m.id}</p>
             </div>
-            {model === m.id && <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+            {model === m.id && <svg className="w-3.5 h-3.5 text-claude-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
           </button>
         ))}
 
@@ -249,6 +250,7 @@ export function InputArea({
   permissionMode, planMode, model,
   onPermissionModeChange, onPlanModeChange, onModelChange,
   permissionShortcutLabel, bypassShortcutLabel,
+  externalDraft,
 }: Props) {
   const [showStreamingUi, setShowStreamingUi] = useState(Boolean(isStreaming))
   const [text, setText] = useState('')
@@ -260,6 +262,7 @@ export function InputArea({
   const isComposingRef = useRef(false)
   const compositionEndedAtRef = useRef(0)
   const escapePressedAtRef = useRef(0)
+  const lastAppliedDraftIdRef = useRef<number | null>(null)
 
   // @ 파일 참조 상태
   const [atMention, setAtMention] = useState<{ query: string; startPos: number } | null>(null)
@@ -338,6 +341,32 @@ export function InputArea({
       setQuestionInputMode(false)
     }
   }, [pendingPermission, pendingQuestion, isStreaming])
+
+  useEffect(() => {
+    if (!externalDraft || lastAppliedDraftIdRef.current === externalDraft.id) return
+
+    lastAppliedDraftIdRef.current = externalDraft.id
+    const nextText = text.trim().length > 0
+      ? `${text.trimEnd()}\n\n${externalDraft.text}`
+      : externalDraft.text
+
+    setText(nextText)
+    setHistoryIndex(null)
+    draftTextRef.current = nextText
+    closeAtMention()
+    closeSlashMention()
+
+    requestAnimationFrame(() => {
+      syncTextareaHeight(nextText)
+      const end = nextText.length
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(end, end)
+    })
+  }, [externalDraft, text, closeAtMention, closeSlashMention])
+
+  useEffect(() => {
+    syncTextareaHeight(text)
+  }, [text])
 
   useEffect(() => {
     if (isStreaming) {
@@ -963,7 +992,7 @@ export function InputArea({
         <div className="mb-3 flex flex-wrap gap-1.5">
           {attachedFiles.map((file) => (
             <div key={file.path} className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs">
-              <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="w-3.5 h-3.5 text-claude-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span className="text-claude-text font-medium max-w-[120px] truncate">{file.name}</span>
@@ -1009,8 +1038,8 @@ export function InputArea({
                     setQuestionInputMode(false)
                     handleQuestionSubmit(option.label)
                   }}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
-                    !questionInputMode && index === permissionSelectedIndex ? 'bg-[#34363c] text-white' : 'hover:bg-claude-surface'
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-claude-surface-2 ${
+                    !questionInputMode && index === permissionSelectedIndex ? 'bg-claude-surface-2 text-white' : 'hover:bg-claude-surface'
                   }`}
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-xs font-semibold text-claude-text">
@@ -1050,8 +1079,8 @@ export function InputArea({
                   ref={(element) => { permissionItemRefs.current[index] = element }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => onPermissionRequestAction(item.action)}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
-                    index === permissionSelectedIndex ? 'bg-[#34363c] text-white' : 'hover:bg-claude-surface'
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-claude-surface-2 ${
+                    index === permissionSelectedIndex ? 'bg-claude-surface-2 text-white' : 'hover:bg-claude-surface'
                   }`}
                 >
                   <span className={`flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-xs font-semibold ${
@@ -1074,11 +1103,11 @@ export function InputArea({
           <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
             <div className="flex items-center gap-1.5 border-b border-claude-border/60 bg-claude-surface px-3 py-2">
               {slashResults.length > 0 ? (
-                <svg className="w-3 h-3 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg className="w-3 h-3 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 3L8 21M8 3h8" />
                 </svg>
               ) : (
-                <svg className="w-3 h-3 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg className="w-3 h-3 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                 </svg>
               )}
@@ -1095,11 +1124,11 @@ export function InputArea({
                     ref={(el) => { slashItemRefs.current[i] = el }}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSlashSelect(command)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
-                      i === slashSelectedIndex ? 'bg-[#34363c] text-white' : 'text-claude-text hover:bg-claude-surface'
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-claude-surface-2 ${
+                      i === slashSelectedIndex ? 'bg-claude-surface-2 text-white' : 'text-claude-text hover:bg-claude-surface'
                     }`}
                   >
-                    <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg className="w-3.5 h-3.5 text-claude-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 3L8 21M8 3h8" />
                     </svg>
                     <span className="font-medium truncate">/{command.name}</span>
@@ -1118,11 +1147,11 @@ export function InputArea({
                   ref={(el) => { atItemRefs.current[i] = el }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleAtSelect(file)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-[#34363c] ${
-                    i === atSelectedIndex ? 'bg-[#34363c] text-white' : 'text-claude-text hover:bg-claude-surface'
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-claude-surface-2 ${
+                    i === atSelectedIndex ? 'bg-claude-surface-2 text-white' : 'text-claude-text hover:bg-claude-surface'
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-3.5 h-3.5 text-claude-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span className="font-medium truncate">{file.name}</span>
@@ -1141,7 +1170,7 @@ export function InputArea({
           className={`relative overflow-hidden rounded-[24px] border bg-claude-panel transition-all ${
             isDragOver
               ? 'border-white/25 ring-1 ring-white/12'
-              : 'border-claude-border focus-within:border-claude-border focus-within:ring-1 focus-within:ring-white/10'
+              : 'border-claude-border'
           }`}
         >
         {isDragOver && (
@@ -1170,7 +1199,7 @@ export function InputArea({
             rows={1}
             disabled={isStreaming || disabled}
             readOnly={showQuestionPrompt && !questionInputMode}
-            className="min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
+            className="chat-input-textarea min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
           />
         </div>
 
@@ -1198,7 +1227,10 @@ export function InputArea({
               return (
                 <button
                   key={opt.value}
-                  onClick={() => onPermissionModeChange(opt.value)}
+                  onClick={() => {
+                    if (planMode) onPlanModeChange(false)
+                    onPermissionModeChange(opt.value)
+                  }}
                   disabled={isStreaming}
                   title={`${opt.title}${permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''}`}
                   className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
@@ -1267,7 +1299,7 @@ export function InputArea({
           {showStreamingUi ? (
             <button
               onClick={onAbort}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#1f1f22] transition-colors hover:bg-white/90"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90"
               title="중단"
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1278,7 +1310,7 @@ export function InputArea({
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-[#44444a] disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-claude-panel disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
               title="전송 (Enter)"
             >
               <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

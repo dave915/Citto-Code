@@ -2,12 +2,20 @@ import { Children, isValidElement, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Message } from '../store/sessions'
-import { ToolCallBlock } from './ToolCallBlock'
+import { ToolTimeline } from './ToolCallBlock'
 
 type Props = {
   message: Message
   isStreaming?: boolean
   onAbort?: () => void
+  onAskAboutSelection?: (payload: {
+    kind: 'diff' | 'code'
+    path: string
+    startLine: number
+    endLine: number
+    code: string
+    prompt?: string
+  }) => void
 }
 
 function formatBytes(bytes: number): string {
@@ -34,7 +42,67 @@ function normalizeInlineCodeChildren(children: React.ReactNode): React.ReactNode
   return children
 }
 
-export function MessageBubble({ message, isStreaming, onAbort }: Props) {
+function createMarkdownComponents(options?: { showCodeHeader?: boolean }) {
+  const showCodeHeader = options?.showCodeHeader ?? true
+
+  return {
+    code({
+      inline,
+      className,
+      children,
+      ...props
+    }: React.HTMLAttributes<HTMLElement> & {
+      children?: React.ReactNode
+      inline?: boolean
+    }) {
+      if (inline) {
+        return (
+          <code
+            className="rounded-md border border-claude-border/70 bg-claude-surface-2 px-1.5 py-0.5 text-[0.85em] font-mono text-claude-text"
+            {...props}
+          >
+            {normalizeInlineCodeChildren(children)}
+          </code>
+        )
+      }
+
+      return (
+        <code className={`hljs ${className ?? ''}`.trim()} {...props}>
+          {children}
+        </code>
+      )
+    },
+    pre({ children }: { children?: React.ReactNode }) {
+      const onlyChild = Children.toArray(children)[0]
+      const className = isValidElement<{ className?: string }>(onlyChild)
+        ? onlyChild.props.className ?? ''
+        : ''
+      const language = className
+        .replace('hljs', '')
+        .trim()
+        .replace(/^language-/, '')
+        .trim()
+
+      return (
+        <div className="code-block-shell">
+          {showCodeHeader ? (
+            <div className="code-block-header">
+              <span className="code-block-title">{language || 'code'}</span>
+            </div>
+          ) : null}
+          <pre className="code-block-pre">
+            {children}
+          </pre>
+        </div>
+      )
+    },
+  }
+}
+
+const assistantMarkdownComponents = createMarkdownComponents({ showCodeHeader: true })
+const userMarkdownComponents = createMarkdownComponents({ showCodeHeader: false })
+
+export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelection }: Props) {
   const [showStreamingUi, setShowStreamingUi] = useState(Boolean(isStreaming))
 
   useEffect(() => {
@@ -52,7 +120,7 @@ export function MessageBubble({ message, isStreaming, onAbort }: Props) {
 
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-3">
         <div className="max-w-[78%] flex flex-col gap-2.5 items-end">
           {message.attachedFiles && message.attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 justify-end">
@@ -63,7 +131,7 @@ export function MessageBubble({ message, isStreaming, onAbort }: Props) {
                   className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted hover:bg-claude-surface-2 transition-colors group"
                   title={file.path}
                 >
-                  <svg className="w-3.5 h-3.5 text-claude-orange flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <svg className="w-3.5 h-3.5 text-claude-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span className="text-claude-text font-medium max-w-[120px] truncate">{file.name}</span>
@@ -74,8 +142,12 @@ export function MessageBubble({ message, isStreaming, onAbort }: Props) {
           )}
 
           {message.text && (
-            <div className="rounded-[22px] rounded-tr-md border border-claude-border bg-[#303034] px-4 py-3.5">
-              <p className="text-[14px] leading-7 whitespace-pre-wrap text-claude-text">{message.text}</p>
+            <div className="rounded-[18px] rounded-tr-md border border-claude-border bg-claude-surface px-3 py-1.5">
+              <div className="prose prose-sm max-w-none text-left">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={userMarkdownComponents}>
+                  {message.text}
+                </ReactMarkdown>
+              </div>
             </div>
           )}
         </div>
@@ -85,65 +157,17 @@ export function MessageBubble({ message, isStreaming, onAbort }: Props) {
 
   // Assistant message
   return (
-    <div className="flex justify-start mb-4">
+    <div className="flex justify-start mb-2.5">
       <div className="max-w-[88%]">
         {message.toolCalls.length > 0 && (
-          <div className="mb-3 space-y-2">
-            {message.toolCalls.map((tc) => (
-              <ToolCallBlock key={tc.id} toolCall={tc} />
-            ))}
-          </div>
+          <ToolTimeline toolCalls={message.toolCalls} onAskAboutSelection={onAskAboutSelection} />
         )}
 
         {(message.text || showStreamingUi) && (
           <div className="px-0.5 py-1">
             {message.text ? (
               <div className="prose prose-sm max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    code({ className, children, ...props }) {
-                      const isInline = !className
-                      if (isInline) {
-                        return (
-                          <code
-                            className="rounded-md border border-claude-border/70 bg-[#36383d] px-1.5 py-0.5 text-[0.85em] font-mono text-[#ddd6cf]"
-                            {...props}
-                          >
-                            {normalizeInlineCodeChildren(children)}
-                          </code>
-                        )
-                      }
-                      return (
-                        <code className={`hljs ${className ?? ''}`} {...props}>
-                          {children}
-                        </code>
-                      )
-                    },
-                    pre({ children }) {
-                      const onlyChild = Children.toArray(children)[0]
-                      const className = isValidElement<{ className?: string }>(onlyChild)
-                        ? onlyChild.props.className ?? ''
-                        : ''
-                      const language = className
-                        .replace('hljs', '')
-                        .trim()
-                        .replace(/^language-/, '')
-                        .trim()
-
-                      return (
-                        <div className="code-block-shell">
-                          <div className="code-block-header">
-                            <span className="code-block-title">{language || 'code'}</span>
-                          </div>
-                          <pre className="code-block-pre">
-                            {children}
-                          </pre>
-                        </div>
-                      )
-                    }
-                  }}
-                >
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={assistantMarkdownComponents}>
                   {message.text}
                 </ReactMarkdown>
               </div>

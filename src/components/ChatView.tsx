@@ -16,6 +16,15 @@ import xcodeIcon from '../assets/open-with/xcode.png'
 import intellijIdeaIcon from '../assets/open-with/intellij-idea.png'
 import webstormIcon from '../assets/open-with/webstorm.png'
 
+type AskAboutSelectionPayload = {
+  kind: 'diff' | 'code'
+  path: string
+  startLine: number
+  endLine: number
+  code: string
+  prompt?: string
+}
+
 type Props = {
   session: Session
   onSend: (text: string, files: SelectedFile[]) => void
@@ -73,6 +82,7 @@ export function ChatView({
   const [openWithMenuOpen, setOpenWithMenuOpen] = useState(false)
   const [openWithApps, setOpenWithApps] = useState<OpenWithApp[]>([])
   const [openWithLoading, setOpenWithLoading] = useState(false)
+  const [externalDraft, setExternalDraft] = useState<{ id: number; text: string } | null>(null)
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
   const isNewSession = session.messages.length === 0
@@ -97,6 +107,28 @@ export function ChatView({
   const contextUsagePercent = estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
   const preferredOpenWithApp = openWithApps.find((app) => app.id === preferredOpenWithAppId) ?? null
   const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null
+
+  const handleAskAboutSelection = ({ kind, path, startLine, endLine, code, prompt }: AskAboutSelectionPayload) => {
+    const lineLabel = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
+    const nextText = [
+      prompt?.trim()
+        ? kind === 'diff'
+          ? '다음 변경 코드 줄을 기준으로 아래 요청을 처리해줘.'
+          : '다음 코드 줄을 기준으로 아래 요청을 처리해줘.'
+        : kind === 'diff'
+          ? '다음 변경 코드 줄을 기준으로 다시 설명해줘.'
+          : '다음 코드 줄을 기준으로 다시 설명해줘.',
+      '',
+      `파일: ${path}`,
+      `줄: ${lineLabel}`,
+      '```',
+      code,
+      '```',
+      ...(prompt?.trim() ? ['', `요청: ${prompt.trim()}`] : []),
+    ].join('\n')
+
+    setExternalDraft({ id: Date.now(), text: nextText })
+  }
 
   const handleHeaderDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest('button, a, input, textarea, select, [data-no-drag="true"]')) return
@@ -418,7 +450,7 @@ export function ChatView({
             <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <span className="min-w-0 max-w-sm truncate font-mono text-[12px] text-[#cec0b4]">
+            <span className="min-w-0 max-w-sm truncate font-mono text-[12px] text-claude-muted">
               {session.cwd || '~'}
             </span>
           </div>
@@ -471,7 +503,7 @@ export function ChatView({
                           <OpenWithAppIcon app={app} className="h-8 w-8" />
                           <span className="flex-1">{app.label}</span>
                           {preferredOpenWithAppId === app.id && (
-                            <svg className="h-4 w-4 text-claude-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <svg className="h-4 w-4 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
@@ -516,7 +548,10 @@ export function ChatView({
         </div>
 
         {/* 메시지 영역 */}
-        <div className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,#2b2b2e_0%,#242427_100%)] px-6 py-7">
+        <div
+          className="min-w-0 flex-1 overflow-y-auto px-6 py-7"
+          style={{ background: 'linear-gradient(180deg, rgb(var(--claude-panel)) 0%, rgb(var(--claude-bg)) 100%)' }}
+        >
           <div className="mx-auto w-full max-w-[860px]">
             {isNewSession
               ? <WelcomeScreen sidebarMode={sidebarMode} onSelectFolder={onSelectFolder} />
@@ -526,6 +561,7 @@ export function ChatView({
                     message={msg}
                     isStreaming={session.isStreaming && msg.id === session.currentAssistantMsgId}
                     onAbort={session.isStreaming && msg.id === session.currentAssistantMsgId ? onAbort : undefined}
+                    onAskAboutSelection={handleAskAboutSelection}
                   />
                 ))
             }
@@ -569,6 +605,7 @@ export function ChatView({
           onPermissionModeChange={onPermissionModeChange}
           onPlanModeChange={onPlanModeChange}
           onModelChange={onModelChange}
+          externalDraft={externalDraft}
         />
       </div>
 
@@ -606,7 +643,7 @@ export function ChatView({
             <div className="flex flex-1 min-h-0">
               {showPreviewPane && (
                 <>
-                  <div className="min-w-0 flex-1 overflow-y-auto bg-[#141210]">
+                  <div className="min-w-0 flex-1 overflow-y-auto bg-claude-bg">
                     <PreviewPane
                       entry={selectedEntry}
                       previewContent={previewContent}
@@ -721,7 +758,7 @@ function SessionInfoPanel({
             <p className="text-2xl font-semibold text-claude-text">{contextUsagePercent}%</p>
             <p className="text-xs text-claude-muted">추정치</p>
           </div>
-          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#28231f]">
+          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-claude-bg">
             <div
               className="h-full rounded-full bg-claude-orange transition-[width]"
               style={{ width: `${contextUsagePercent}%` }}
@@ -877,7 +914,7 @@ function ExplorerNode({
         }}
         className={`w-full flex items-center gap-2 rounded-md px-2 py-2 text-left transition-colors ${
           isSelected
-            ? 'bg-claude-surface-2 text-claude-text ring-1 ring-[#4b4037] shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
+            ? 'bg-claude-surface-2 text-claude-text ring-1 ring-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
             : 'hover:bg-claude-surface'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -894,7 +931,7 @@ function ExplorerNode({
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
             </svg>
-            <svg className="w-4 h-4 flex-shrink-0 text-[#d0a06f]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
           </>
@@ -1037,7 +1074,7 @@ function PreviewPane({
                   if (isInline) {
                     return (
                       <code
-                        className="rounded-md border border-claude-border bg-claude-surface-2 px-1.5 py-0.5 text-xs font-mono text-[#f0c49d]"
+                        className="rounded-md border border-claude-border bg-claude-surface-2 px-1.5 py-0.5 text-xs font-mono text-claude-text"
                         {...props}
                       >
                         {children}

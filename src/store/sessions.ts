@@ -96,6 +96,7 @@ type SessionsStore = {
   claudeBinaryPath: string
   preferredOpenWithAppId: string
   themeId: ThemeId
+  notificationsEnabled: boolean
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
   removeSession: (id: string) => void
@@ -104,6 +105,7 @@ type SessionsStore = {
   setClaudeBinaryPath: (path: string) => void
   setPreferredOpenWithAppId: (appId: string) => void
   setThemeId: (themeId: ThemeId) => void
+  setNotificationsEnabled: (enabled: boolean) => void
   setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
@@ -169,6 +171,7 @@ export const useSessionsStore = create<SessionsStore>()(
         claudeBinaryPath: '',
         preferredOpenWithAppId: '',
         themeId: CURRENT_THEME_ID,
+        notificationsEnabled: true,
         shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
     setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
@@ -187,6 +190,7 @@ export const useSessionsStore = create<SessionsStore>()(
     setClaudeBinaryPath: (path) => set({ claudeBinaryPath: path }),
     setPreferredOpenWithAppId: (appId) => set({ preferredOpenWithAppId: appId }),
     setThemeId: (themeId) => set({ themeId }),
+    setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
     setShortcut: (action, platform, value) => set((s) => ({
       shortcutConfig: {
         ...s.shortcutConfig,
@@ -432,6 +436,7 @@ export const useSessionsStore = create<SessionsStore>()(
         claudeBinaryPath: state.claudeBinaryPath,
         preferredOpenWithAppId: state.preferredOpenWithAppId,
         themeId: state.themeId,
+        notificationsEnabled: state.notificationsEnabled,
         shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
@@ -456,6 +461,7 @@ export const useSessionsStore = create<SessionsStore>()(
           claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
           preferredOpenWithAppId: persistedState.preferredOpenWithAppId ?? '',
           themeId: persistedState.themeId ?? CURRENT_THEME_ID,
+          notificationsEnabled: persistedState.notificationsEnabled ?? true,
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,
             ...(persistedState.shortcutConfig ?? {}),

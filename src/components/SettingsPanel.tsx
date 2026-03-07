@@ -5,7 +5,7 @@ import {
   type ShortcutAction,
   type ShortcutPlatform,
 } from '../store/sessions'
-import { THEME_PRESETS, type ThemeId } from '../lib/theme'
+import { THEME_PRESETS, applyTheme, type ThemeId } from '../lib/theme'
 import {
   SHORTCUT_ACTION_LABELS,
   getCurrentPlatform,
@@ -82,7 +82,7 @@ export function SettingsPanel({
               onClick={() => setTab(t.id)}
               className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
                 tab === t.id
-                  ? 'bg-claude-surface-2 text-white shadow-[0_8px_20px_rgba(0,0,0,0.24)]'
+                  ? 'bg-claude-surface-2 text-claude-text shadow-[0_8px_20px_rgba(0,0,0,0.24)]'
                   : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
               }`}
             >
@@ -104,46 +104,234 @@ export function SettingsPanel({
 }
 
 function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
-  const { sidebarMode, themeId, shortcutConfig, setThemeId, setShortcut } = useSessionsStore()
+  const {
+    sidebarMode,
+    themeId,
+    notificationsEnabled,
+    shortcutConfig,
+    setThemeId,
+    setNotificationsEnabled,
+    setShortcut,
+  } = useSessionsStore()
   const currentPlatform = getCurrentPlatform()
   const platformLabel = currentPlatform === 'mac' ? 'macOS' : 'Windows'
   const [recordingAction, setRecordingAction] = useState<ShortcutAction | null>(null)
+  const themeOptions = Object.values(THEME_PRESETS) as Array<{
+    id: ThemeId
+    label: string
+    description: string
+    swatches: [string, string, string]
+  }>
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const [themePreviewId, setThemePreviewId] = useState<ThemeId | null>(null)
+  const [themeHighlightId, setThemeHighlightId] = useState<ThemeId>(themeId)
+  const themeMenuRef = useRef<HTMLDivElement | null>(null)
+
+  const activeThemeId = themePreviewId ?? themeId
+
+  useEffect(() => {
+    if (!themeMenuOpen) {
+      setThemeHighlightId(themeId)
+      setThemePreviewId(null)
+      applyTheme(themeId)
+    }
+  }, [themeId, themeMenuOpen])
+
+  useEffect(() => {
+    if (!themeMenuOpen) return
+
+    themeMenuRef.current?.focus()
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!themeMenuRef.current?.parentElement?.contains(event.target as Node)) {
+        setThemeMenuOpen(false)
+        setThemePreviewId(null)
+        setThemeHighlightId(themeId)
+        applyTheme(themeId)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [themeMenuOpen, themeId])
+
+  const previewTheme = (nextThemeId: ThemeId) => {
+    setThemeHighlightId(nextThemeId)
+    setThemePreviewId(nextThemeId)
+    applyTheme(nextThemeId)
+  }
+
+  const commitTheme = (nextThemeId: ThemeId) => {
+    setThemeId(nextThemeId)
+    setThemeHighlightId(nextThemeId)
+    setThemePreviewId(null)
+    applyTheme(nextThemeId)
+    setThemeMenuOpen(false)
+  }
+
+  const closeThemeMenu = () => {
+    setThemeMenuOpen(false)
+    setThemePreviewId(null)
+    setThemeHighlightId(themeId)
+    applyTheme(themeId)
+  }
+
+  const moveThemeHighlight = (direction: 1 | -1) => {
+    const currentIndex = themeOptions.findIndex((option) => option.id === themeHighlightId)
+    const safeIndex = currentIndex < 0 ? 0 : currentIndex
+    const nextIndex = Math.min(themeOptions.length - 1, Math.max(0, safeIndex + direction))
+    previewTheme(themeOptions[nextIndex].id)
+  }
 
   return (
     <div className="space-y-4 p-4">
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
         <p className="text-sm font-semibold text-claude-text">테마</p>
         <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-          현재 색상을 하나의 프리셋 테마로 저장했습니다. 이후 테마가 추가되면 여기서 바로 바꿀 수 있습니다.
+          기본 테마는 Default입니다. 아래 프리셋 중에서 바로 바꿔서 사용할 수 있습니다.
         </p>
 
-        <div className="mt-4 grid gap-2">
-          {(Object.values(THEME_PRESETS) as Array<{ id: ThemeId; label: string; description: string }>).map((theme) => {
-            const active = theme.id === themeId
-            return (
+        <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel p-3">
+          <label className="mb-2 block text-xs font-medium text-claude-muted">프리셋</label>
+          <div className="relative flex items-center gap-3">
+            <div className="relative flex-1">
               <button
-                key={theme.id}
-                onClick={() => setThemeId(theme.id)}
-                className={`rounded-xl border p-3 text-left transition-colors ${
-                  active
-                    ? 'border-[#6a6d75] bg-claude-panel shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
-                    : 'border-claude-border bg-claude-panel hover:bg-claude-bg'
-                }`}
+                type="button"
+                onClick={() => {
+                  if (themeMenuOpen) {
+                    closeThemeMenu()
+                    return
+                  }
+                  setThemeHighlightId(themeId)
+                  setThemePreviewId(themeId)
+                  applyTheme(themeId)
+                  setThemeMenuOpen(true)
+                }}
+                onKeyDown={(event) => {
+                  if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !themeMenuOpen) {
+                    event.preventDefault()
+                    setThemeHighlightId(themeId)
+                    setThemePreviewId(themeId)
+                    applyTheme(themeId)
+                    setThemeMenuOpen(true)
+                    return
+                  }
+                }}
+                className="flex w-full items-center justify-between rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+                aria-haspopup="listbox"
+                aria-expanded={themeMenuOpen}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className={`text-sm font-medium ${active ? 'text-white' : 'text-claude-text'}`}>{theme.label}</div>
-                    <div className={`mt-1 text-xs leading-relaxed ${active ? 'text-[#c7cad1]' : 'text-claude-muted'}`}>{theme.description}</div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-3 rounded-full border border-white/10 bg-[#242426]" />
-                    <span className="h-3 w-3 rounded-full border border-white/10 bg-[#2b2b2e]" />
-                    <span className="h-3 w-3 rounded-full border border-white/10 bg-[#38383d]" />
-                  </div>
-                </div>
+                <span>{THEME_PRESETS[activeThemeId].label}</span>
+                <svg className={`h-4 w-4 text-claude-muted transition-transform ${themeMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                </svg>
               </button>
-            )
-          })}
+
+              {themeMenuOpen && (
+                <div
+                  ref={themeMenuRef}
+                  tabIndex={0}
+                  role="listbox"
+                  aria-activedescendant={`theme-option-${themeHighlightId}`}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault()
+                      moveThemeHighlight(1)
+                      return
+                    }
+                    if (event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      moveThemeHighlight(-1)
+                      return
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commitTheme(themeHighlightId)
+                      return
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      closeThemeMenu()
+                    }
+                  }}
+                  className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_18px_48px_rgba(0,0,0,0.28)] outline-none"
+                >
+                  {themeOptions.map((theme) => {
+                    const highlighted = theme.id === themeHighlightId
+                    return (
+                      <button
+                        key={theme.id}
+                        id={`theme-option-${theme.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={highlighted}
+                        onMouseEnter={() => previewTheme(theme.id)}
+                        onFocus={() => previewTheme(theme.id)}
+                        onClick={() => commitTheme(theme.id)}
+                        className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors ${
+                          highlighted ? 'bg-claude-surface-2 text-claude-text' : 'text-claude-text hover:bg-claude-surface'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{theme.label}</div>
+                          <div className={`mt-0.5 text-xs leading-relaxed ${highlighted ? 'text-claude-muted' : 'text-claude-muted'}`}>
+                            {theme.description}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {theme.swatches.map((swatch) => (
+                            <span
+                              key={swatch}
+                              className="h-3 w-3 rounded-full border border-white/10"
+                              style={{ backgroundColor: swatch }}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {THEME_PRESETS[activeThemeId].swatches.map((swatch) => (
+                <span
+                  key={swatch}
+                  className="h-3 w-3 rounded-full border border-white/10"
+                  style={{ backgroundColor: swatch }}
+                />
+              ))}
+            </div>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-claude-muted">
+            {THEME_PRESETS[activeThemeId].description}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-claude-text">작업 완료 알림</p>
+            <p className="mt-1 text-xs leading-relaxed text-claude-muted">
+              Claude 작업이 끝나면 앱 푸시 알림을 보냅니다. 중단한 작업이나 권한/선택지 대기 상태는 제외됩니다.
+            </p>
+          </div>
+          <button
+            onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+            className={`relative mt-0.5 inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full border transition-colors ${
+              notificationsEnabled
+                ? 'border-[#6a6d75] bg-claude-panel'
+                : 'border-claude-border bg-claude-bg'
+            }`}
+            title={notificationsEnabled ? '알림 끄기' : '알림 켜기'}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white transition-transform ${
+                notificationsEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -177,8 +365,8 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
                     : 'border-claude-border bg-claude-panel hover:bg-claude-bg'
                 }`}
               >
-                <div className={`text-sm font-medium ${active ? 'text-white' : 'text-claude-text'}`}>{option.title}</div>
-                <div className={`mt-1 text-xs leading-relaxed ${active ? 'text-[#c7cad1]' : 'text-claude-muted'}`}>{option.desc}</div>
+                <div className="text-sm font-medium text-claude-text">{option.title}</div>
+                <div className="mt-1 text-xs leading-relaxed text-claude-muted">{option.desc}</div>
               </button>
             )
           })}

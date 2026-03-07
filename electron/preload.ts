@@ -89,6 +89,7 @@ export type ClaudeAPI = {
   writeFileAbs: (params: { filePath: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
   checkInstallation: (claudePath?: string) => Promise<ClaudeInstallationStatus>
+  notify: (params: { title: string; body: string }) => Promise<void>
   toggleWindowMaximize: () => Promise<void>
   onClaudeEvent: (handler: (event: ClaudeStreamEvent) => void) => () => void
 }
@@ -117,6 +118,7 @@ const claudeAPI: ClaudeAPI = {
   writeFileAbs: (params) => ipcRenderer.invoke('claude:write-file-abs', params),
   deletePath: (params) => ipcRenderer.invoke('claude:delete-path', params),
   checkInstallation: (claudePath) => ipcRenderer.invoke('claude:check-installation', { claudePath }),
+  notify: (params) => ipcRenderer.invoke('app:notify', params),
   toggleWindowMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
 
   onClaudeEvent: (handler) => {

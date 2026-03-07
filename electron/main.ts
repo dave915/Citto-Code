@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification } from 'electron'
 import { join, dirname, extname } from 'path'
 import { tmpdir } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
@@ -7,8 +7,6 @@ import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
 
 const activeProcesses = new Map<string, ChildProcess>()
-
-const PLAN_MODE_ALLOWED_TOOLS = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Task'].join(',')
 
 // 모델 캐시 (5분)
 let modelsCache: { list: ModelInfo[]; fetchedAt: number } | null = null
@@ -662,10 +660,11 @@ app.whenReady().then(() => {
 
       if (sessionId) args.unshift('--resume', sessionId)
       if (model) args.push('--model', model)
-      if (permissionMode && permissionMode !== 'default') {
+      if (planMode) {
+        args.push('--permission-mode', 'plan')
+      } else if (permissionMode && permissionMode !== 'default') {
         args.push('--permission-mode', permissionMode)
       }
-      if (planMode) args.push('--allowedTools', PLAN_MODE_ALLOWED_TOOLS)
 
       const { CLAUDECODE: _, ...cleanEnv } = process.env
       const resolvedCwd = (cwd && cwd !== '~') ? cwd : (cleanEnv.HOME ?? '/tmp')
@@ -758,6 +757,16 @@ app.whenReady().then(() => {
       return
     }
     win.maximize()
+  })
+
+  ipcMain.handle('app:notify', (_event, { title, body }: { title: string; body: string }) => {
+    if (!Notification.isSupported()) return
+    const notification = new Notification({
+      title,
+      body,
+      silent: false,
+    })
+    notification.show()
   })
 
   app.on('activate', () => {

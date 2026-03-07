@@ -1,82 +1,63 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { Diff, Hunk, getChangeKey, parseDiff } from 'react-diff-view'
+import { codeToTokens } from 'shiki'
 import type { ToolCallBlock as ToolCallBlockType } from '../store/sessions'
 
-const TOOL_LABELS: Record<string, string> = {
-  Bash: '터미널 실행',
-  Read: '파일 읽기',
-  Write: '파일 쓰기',
-  Edit: '파일 편집',
-  Glob: '파일 검색',
-  Grep: '내용 검색',
-  TodoWrite: '할 일 목록',
-  WebFetch: '웹 페이지 조회',
-  WebSearch: '웹 검색',
-  Task: '서브 작업',
-  MultiEdit: '다중 파일 편집',
+type DiffHunk = {
+  before: string
+  after: string
 }
 
-function getToolLabel(name: string): string {
-  return TOOL_LABELS[name] || name
+type DiffRow = {
+  kind: 'removed' | 'added'
+  text: string
+  lineNumber: number
 }
 
-function getToolIcon(name: string) {
-  const baseClass = 'h-4 w-4'
+type ParsedDiffFile = ReturnType<typeof parseDiff>[number]
+type ParsedChange = ParsedDiffFile['hunks'][number]['changes'][number]
 
-  switch (name) {
-    case 'Bash':
-      return (
-        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7 8l4 4-4 4" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h4" />
-        </svg>
-      )
-    case 'Read':
-    case 'Write':
-    case 'Edit':
-    case 'MultiEdit':
-      return (
-        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7 4.5h7l3 3V19a1.5 1.5 0 01-1.5 1.5h-8A1.5 1.5 0 016 19V6A1.5 1.5 0 017.5 4.5z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M14 4.5V8h3.5" />
-        </svg>
-      )
-    case 'Glob':
-    case 'Grep':
-    case 'WebSearch':
-      return (
-        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <circle cx="11" cy="11" r="6" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 20l-4.2-4.2" />
-        </svg>
-      )
-    case 'TodoWrite':
-      return (
-        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 11l2 2 4-4" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 5.5h11A1.5 1.5 0 0119 7v10a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 015 17V7a1.5 1.5 0 011.5-1.5z" />
-        </svg>
-      )
-    case 'WebFetch':
-      return (
-        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <circle cx="12" cy="12" r="8" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16M12 4a13 13 0 010 16M12 4a13 13 0 000 16" />
-        </svg>
-      )
-    case 'Task':
-      return (
-        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <rect x="5" y="5" width="14" height="14" rx="3" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 10h6M9 14h4" />
-        </svg>
-      )
-    default:
-      return (
-        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6h4l1 2h3v4l-2 1 1 3-3 2-2-1-2 1-3-2 1-3-2-1V8h3l1-2z" />
-        </svg>
-      )
-  }
+type AskAboutSelectionPayload = {
+  kind: 'diff' | 'code'
+  path: string
+  startLine: number
+  endLine: number
+  code: string
+}
+
+type SelectableLine = {
+  key: string
+  lineNumber: number
+  text: string
+  sign: '+' | '-'
+}
+
+type TimelineEntry = {
+  id: string
+  kind: 'file' | 'todo' | 'generic'
+  label: string
+  badge: string | null
+  detail: string | null
+  toolCalls: ToolCallBlockType[]
+  added: number
+  removed: number
+  readLines: number
+  status: 'running' | 'done' | 'error'
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  Read: 'Read',
+  Edit: 'Edit',
+  Write: 'Write',
+  MultiEdit: 'Edit',
+  TodoWrite: 'Update Todos',
+  Bash: 'Run',
+  Glob: 'Glob',
+  Grep: 'Grep',
+  ToolSearch: 'Search',
+  WebFetch: 'Fetch',
+  WebSearch: 'Search',
+  Task: 'Task',
 }
 
 function formatToolInput(name: string, input: unknown): string {
@@ -85,7 +66,7 @@ function formatToolInput(name: string, input: unknown): string {
 
   if (name === 'Bash') return String(obj.command ?? '')
   if (name === 'Read') return String(obj.file_path ?? '')
-  if (name === 'Write' || name === 'Edit') return String(obj.file_path ?? '')
+  if (name === 'Write' || name === 'Edit' || name === 'MultiEdit') return String(obj.file_path ?? '')
   if (name === 'Glob') return String(obj.pattern ?? '')
   if (name === 'Grep') return String(obj.pattern ?? '') + (obj.path ? ` in ${obj.path}` : '')
   if (name === 'WebFetch') return String(obj.url ?? '')
@@ -97,18 +78,11 @@ function formatToolInput(name: string, input: unknown): string {
 function getEditableToolPath(name: string, input: unknown): string | null {
   if (!input || typeof input !== 'object') return null
   const obj = input as Record<string, unknown>
-
-  if (name === 'Write' || name === 'Edit' || name === 'MultiEdit') {
+  if (name === 'Write' || name === 'Edit' || name === 'MultiEdit' || name === 'Read') {
     const filePath = obj.file_path
     return typeof filePath === 'string' && filePath.trim() ? filePath : null
   }
-
   return null
-}
-
-type DiffHunk = {
-  before: string
-  after: string
 }
 
 function getEditDiffHunks(name: string, input: unknown): DiffHunk[] {
@@ -131,116 +105,791 @@ function getEditDiffHunks(name: string, input: unknown): DiffHunk[] {
       .filter((edit) => edit.before || edit.after)
   }
 
+  if (name === 'Write') {
+    const content = typeof obj.content === 'string' ? obj.content : ''
+    return content ? [{ before: '', after: content }] : []
+  }
+
   return []
 }
 
 function formatToolResult(result: unknown): string {
-  if (typeof result === 'string') {
-    return result.length > 500 ? result.slice(0, 500) + '...' : result
-  }
+  if (typeof result === 'string') return result
   if (Array.isArray(result)) {
-    const texts = result
+    return result
       .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
       .map((r) => (r.type === 'text' ? String(r.text) : JSON.stringify(r)))
-    const joined = texts.join('\n')
-    return joined.length > 500 ? joined.slice(0, 500) + '...' : joined
+      .join('\n')
   }
-  return JSON.stringify(result, null, 2)
+  return JSON.stringify(result ?? '', null, 2)
+}
+
+function countDisplayLines(content: string): number {
+  if (!content) return 0
+  return content.split('\n').length
+}
+
+function getDiffStats(hunks: DiffHunk[]) {
+  let added = 0
+  let removed = 0
+
+  for (const hunk of hunks) {
+    added += hunk.after ? hunk.after.split('\n').filter(Boolean).length : 0
+    removed += hunk.before ? hunk.before.split('\n').filter(Boolean).length : 0
+  }
+
+  return { added, removed }
+}
+
+function findLineStart(content: string, needle: string): number | null {
+  if (!content || !needle.trim()) return null
+  const index = content.indexOf(needle)
+  if (index >= 0) return content.slice(0, index).split('\n').length
+
+  const firstMeaningfulLine = needle
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean)
+
+  if (!firstMeaningfulLine) return null
+  const fallbackIndex = content.indexOf(firstMeaningfulLine)
+  if (fallbackIndex >= 0) return content.slice(0, fallbackIndex).split('\n').length
+  return null
+}
+
+function buildDiffRows(hunk: DiffHunk, editedFileContent: string | null): DiffRow[] {
+  const beforeLines = hunk.before.split('\n')
+  const afterLines = hunk.after.split('\n')
+  const anchorLine =
+    (editedFileContent ? findLineStart(editedFileContent, hunk.after) : null) ??
+    (editedFileContent ? findLineStart(editedFileContent, hunk.before) : null) ??
+    1
+
+  const rows = [
+    ...beforeLines.map((line, index) => ({
+      kind: 'removed' as const,
+      text: line,
+      lineNumber: anchorLine + index,
+    })),
+    ...afterLines.map((line, index) => ({
+      kind: 'added' as const,
+      text: line,
+      lineNumber: anchorLine + index,
+    })),
+  ]
+
+  return rows.length > 0 ? rows : [{ kind: 'added', text: '', lineNumber: anchorLine }]
 }
 
 function renderCodeLines(content: string) {
-  const lines = content.split('\n')
-  const normalizedLines = lines.map((line) => line.replace(/^\s*\d+→\s?/, ''))
+  return <CodePreview code={content} />
+}
+
+function inferLanguageFromPath(path: string | null | undefined): string {
+  const lower = path?.toLowerCase() ?? ''
+  if (lower.endsWith('.tsx')) return 'tsx'
+  if (lower.endsWith('.ts')) return 'ts'
+  if (lower.endsWith('.jsx')) return 'jsx'
+  if (lower.endsWith('.js')) return 'js'
+  if (lower.endsWith('.json')) return 'json'
+  if (lower.endsWith('.md')) return 'markdown'
+  if (lower.endsWith('.css')) return 'css'
+  if (lower.endsWith('.html')) return 'html'
+  if (lower.endsWith('.yml') || lower.endsWith('.yaml')) return 'yaml'
+  if (lower.endsWith('.sh')) return 'bash'
+  return 'text'
+}
+
+function getShikiTheme(): string {
+  if (typeof document === 'undefined') return 'github-dark'
+  const themeId = document.documentElement.dataset.theme ?? 'current'
+  return ['paper', 'mist', 'stone'].includes(themeId) ? 'github-light' : 'github-dark'
+}
+
+function buildUnifiedDiffText(path: string, diffHunks: DiffHunk[], editedFileContent: string | null) {
+  const lines = [`--- a/${path}`, `+++ b/${path}`]
+
+  for (const hunk of diffHunks) {
+    const beforeLines = hunk.before.split('\n')
+    const afterLines = hunk.after.split('\n')
+    const anchorLine =
+      (editedFileContent ? findLineStart(editedFileContent, hunk.after) : null) ??
+      (editedFileContent ? findLineStart(editedFileContent, hunk.before) : null) ??
+      1
+
+    const oldCount = beforeLines.length
+    const newCount = afterLines.length
+    lines.push(`@@ -${anchorLine},${oldCount} +${anchorLine},${newCount} @@`)
+    beforeLines.forEach((line) => lines.push(`-${line}`))
+    afterLines.forEach((line) => lines.push(`+${line}`))
+  }
+
+  return lines.join('\n')
+}
+
+function trimParsedDiffFile(file: ParsedDiffFile, limit: number): ParsedDiffFile {
+  let remaining = limit
+  const hunks = []
+
+  for (const hunk of file.hunks) {
+    if (remaining <= 0) break
+    const changes = hunk.changes.slice(0, remaining)
+    if (changes.length === 0) continue
+
+    let oldLines = 0
+    let newLines = 0
+    for (const change of changes) {
+      if (change.type === 'delete') oldLines += 1
+      else if (change.type === 'insert') newLines += 1
+      else {
+        oldLines += 1
+        newLines += 1
+      }
+    }
+
+    hunks.push({
+      ...hunk,
+      changes,
+      oldLines,
+      newLines,
+    })
+    remaining -= changes.length
+  }
+
+  return { ...file, hunks }
+}
+
+function buildSelectedRange<T extends { key: string }>(all: T[], anchorKey: string, activeKey: string): string[] {
+  const anchorIndex = all.findIndex((item) => item.key === anchorKey)
+  const activeIndex = all.findIndex((item) => item.key === activeKey)
+  if (anchorIndex < 0 || activeIndex < 0) return activeKey ? [activeKey] : []
+  const start = Math.min(anchorIndex, activeIndex)
+  const end = Math.max(anchorIndex, activeIndex)
+  return all.slice(start, end + 1).map((item) => item.key)
+}
+
+function summarizeLineRange(startLine: number, endLine: number) {
+  return startLine === endLine ? `줄 ${startLine}` : `줄 ${startLine}-${endLine}`
+}
+
+function buildDiffSelectionLines(file: ParsedDiffFile | null): SelectableLine[] {
+  if (!file) return []
+
+  return file.hunks.flatMap((hunk) =>
+    hunk.changes
+      .filter((change) => change.type === 'insert' || change.type === 'delete')
+      .map((change) => ({
+        key: getChangeKey(change),
+        lineNumber: change.lineNumber,
+        text: change.content,
+        sign: change.type === 'insert' ? '+' : '-',
+      }))
+  )
+}
+
+function buildSelectionPayload(kind: 'diff' | 'code', path: string, lines: Array<{ lineNumber: number; text: string; sign?: '+' | '-' }>): AskAboutSelectionPayload | null {
+  if (lines.length === 0) return null
+  const startLine = Math.min(...lines.map((line) => line.lineNumber))
+  const endLine = Math.max(...lines.map((line) => line.lineNumber))
+  const code = lines.map((line) => (kind === 'diff' ? `${line.sign ?? ' '} ${line.text}` : line.text)).join('\n')
+  return { kind, path, startLine, endLine, code }
+}
+
+function SelectionActionBar({
+  label,
+  onAskAgain,
+  onOpenComment,
+  commentOpen,
+  commentValue,
+  onCommentChange,
+  onSubmitComment,
+  onCancelComment,
+}: {
+  label: string
+  onAskAgain: () => void
+  onOpenComment: () => void
+  commentOpen: boolean
+  commentValue: string
+  onCommentChange: (value: string) => void
+  onSubmitComment: () => void
+  onCancelComment: () => void
+}) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-claude-border/70 bg-[#23252a]">
-      <div className="border-b border-claude-border/70 bg-[#1d1f23] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">
-        code
+    <div className="mt-2 rounded-lg border border-claude-border/70 bg-claude-panel px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] text-claude-muted">{label}</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onOpenComment}
+            className="inline-flex items-center gap-1 rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+          >
+            코멘트 입력
+          </button>
+          <button
+            type="button"
+            onClick={onAskAgain}
+            className="inline-flex items-center gap-1 rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+          >
+            이 줄들로 다시 질문
+          </button>
+        </div>
       </div>
-      <div className="py-2 font-mono text-[13px] leading-7 text-[#ddd6cf]">
-        {normalizedLines.map((line, index) => (
-          <div key={`${index}-${line}`} className="grid grid-cols-[56px_minmax(0,1fr)]">
-            <div className="select-none px-3 text-right text-[#7f817f]">
-              {index + 1}
-            </div>
-            <div className="whitespace-pre-wrap break-all pr-4">
-              {line || ' '}
-            </div>
+
+      {commentOpen && (
+        <div className="mt-2 flex items-end gap-2">
+          <textarea
+            value={commentValue}
+            onChange={(event) => onCommentChange(event.target.value)}
+            placeholder="선택한 줄에 대해 질문이나 코멘트를 입력하세요"
+            rows={2}
+            autoFocus
+            className="min-h-[56px] flex-1 resize-none rounded-md border border-claude-border bg-claude-surface px-3 py-2 text-[12px] leading-5 text-claude-text outline-none placeholder:text-claude-muted focus-visible:ring-1 focus-visible:ring-white/10"
+          />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onCancelComment}
+              className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={onSubmitComment}
+              disabled={!commentValue.trim()}
+              className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 disabled:opacity-40"
+            >
+              입력창에 추가
+            </button>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function renderDiffBlock(hunk: DiffHunk, index: number) {
-  const beforeLines = hunk.before.split('\n')
-  const afterLines = hunk.after.split('\n')
-  const maxLines = Math.max(beforeLines.length, afterLines.length, 1)
+function DiffPreview({
+  path,
+  diffHunks,
+  editedFileContent,
+  showFullDiff,
+  onShowFullDiff,
+  onAskAboutSelection,
+}: {
+  path: string
+  diffHunks: DiffHunk[]
+  editedFileContent: string | null
+  showFullDiff: boolean
+  onShowFullDiff?: () => void
+  onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
+}) {
+  const [anchorKey, setAnchorKey] = useState<string | null>(null)
+  const [selectedChangeKeys, setSelectedChangeKeys] = useState<string[]>([])
+  const [hoveredChangeKey, setHoveredChangeKey] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [commentOpen, setCommentOpen] = useState(false)
+  const [commentValue, setCommentValue] = useState('')
+  const parsed = useMemo(() => {
+    const diffText = buildUnifiedDiffText(path, diffHunks, editedFileContent)
+    return parseDiff(diffText)[0] ?? null
+  }, [path, diffHunks, editedFileContent])
 
-  return (
-    <div key={`${index}-${hunk.before.length}-${hunk.after.length}`} className="overflow-x-auto rounded-xl border border-claude-border/70 bg-[#23252a]">
-      <div className="border-b border-claude-border/70 bg-[#1d1f23] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">
-        diff {index + 1}
-      </div>
-      <div className="py-2 font-mono text-[13px] leading-7">
-        {Array.from({ length: maxLines }).map((_, lineIndex) => {
-          const before = beforeLines[lineIndex] ?? ''
-          const after = afterLines[lineIndex] ?? ''
-          return (
-            <div key={lineIndex} className="grid grid-cols-[56px_1fr_1fr]">
-              <div className="select-none px-3 text-right text-[#7f817f]">
-                {lineIndex + 1}
-              </div>
-              <div className="whitespace-pre-wrap break-all border-r border-claude-border/40 bg-[#402b2b] px-4 text-[#f0c8c8]">
-                {before ? `- ${before}` : ' '}
-              </div>
-              <div className="whitespace-pre-wrap break-all px-4 text-[#cde7cf] bg-[#23382a]">
-                {after ? `+ ${after}` : ' '}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-type Props = {
-  toolCall: ToolCallBlockType
-}
-
-export function ToolCallBlock({ toolCall }: Props) {
-  const [expanded, setExpanded] = useState(false)
-  const [editedFileContent, setEditedFileContent] = useState<string | null>(null)
-  const [loadingEditedFile, setLoadingEditedFile] = useState(false)
-  const inputStr = formatToolInput(toolCall.toolName, toolCall.toolInput)
-  const resultStr = toolCall.result ? formatToolResult(toolCall.result) : null
-  const editableFilePath = useMemo(
-    () => getEditableToolPath(toolCall.toolName, toolCall.toolInput),
-    [toolCall.toolInput, toolCall.toolName]
-  )
-  const diffHunks = useMemo(
-    () => getEditDiffHunks(toolCall.toolName, toolCall.toolInput),
-    [toolCall.toolInput, toolCall.toolName]
-  )
-
-  const isRunning = toolCall.status === 'running'
-  const isError = toolCall.status === 'error'
-  const shouldShowEditedFile = Boolean(editableFilePath) && !isRunning && !isError
+  const selectableLines = useMemo(() => buildDiffSelectionLines(parsed), [parsed])
+  const selectedLines = useMemo(() => {
+    const selected = new Set(selectedChangeKeys)
+    return selectableLines.filter((line) => selected.has(line.key))
+  }, [selectableLines, selectedChangeKeys])
+  const allRows = useMemo(() => diffHunks.flatMap((hunk) => buildDiffRows(hunk, editedFileContent)), [diffHunks, editedFileContent])
+  const previewLimit = 24
+  const hiddenCount = Math.max(0, allRows.length - previewLimit)
+  const visibleFile = useMemo(() => {
+    if (!parsed) return null
+    return showFullDiff ? parsed : trimParsedDiffFile(parsed, previewLimit)
+  }, [parsed, showFullDiff])
+  const visibleSelectableLines = useMemo(() => buildDiffSelectionLines(visibleFile), [visibleFile])
 
   useEffect(() => {
-    if (!expanded || !shouldShowEditedFile || !editableFilePath) return
+    if (!isDragging) return
+    const stopDragging = () => setIsDragging(false)
+    window.addEventListener('mouseup', stopDragging)
+    window.addEventListener('blur', stopDragging)
+    return () => {
+      window.removeEventListener('mouseup', stopDragging)
+      window.removeEventListener('blur', stopDragging)
+    }
+  }, [isDragging])
+
+  useEffect(() => {
+    if (selectedChangeKeys.length === 0) {
+      setCommentOpen(false)
+      setCommentValue('')
+    }
+  }, [selectedChangeKeys])
+
+  if (!visibleFile) return null
+
+  const selectSingleChange = (changeKey: string) => {
+    setAnchorKey(changeKey)
+    setSelectedChangeKeys([changeKey])
+  }
+
+  const handleChangeMouseDown = ({ change }: { change: ParsedChange | null }, event: ReactMouseEvent<HTMLElement>) => {
+    if (!change || (change.type !== 'insert' && change.type !== 'delete')) return
+
+    event.preventDefault()
+    const nextKey = getChangeKey(change)
+    if (!event.shiftKey || !anchorKey) {
+      if (selectedChangeKeys.length === 1 && selectedChangeKeys[0] === nextKey) {
+        setSelectedChangeKeys([])
+        setAnchorKey(null)
+        return
+      }
+      selectSingleChange(nextKey)
+      setCommentOpen(false)
+      setIsDragging(true)
+      return
+    }
+
+    setSelectedChangeKeys(buildSelectedRange(visibleSelectableLines, anchorKey, nextKey))
+    setCommentOpen(false)
+    setIsDragging(true)
+  }
+
+  const handleChangeMouseEnter = ({ change }: { change: ParsedChange | null }) => {
+    if (!change || (change.type !== 'insert' && change.type !== 'delete')) return
+    const nextKey = getChangeKey(change)
+    setHoveredChangeKey(nextKey)
+    if (!isDragging || !anchorKey) return
+    setSelectedChangeKeys(buildSelectedRange(visibleSelectableLines, anchorKey, nextKey))
+  }
+
+  const handleChangeMouseLeave = () => {
+    if (!isDragging) setHoveredChangeKey(null)
+  }
+
+  const openCommentForChange = (change: ParsedChange) => {
+    const nextKey = getChangeKey(change)
+    selectSingleChange(nextKey)
+    setCommentOpen(true)
+  }
+
+  const handleSubmitComment = () => {
+    if (!selectedPayload || !onAskAboutSelection || !commentValue.trim()) return
+    onAskAboutSelection({ ...selectedPayload, prompt: commentValue.trim() })
+    setCommentOpen(false)
+    setCommentValue('')
+  }
+
+  const selectedPayload = buildSelectionPayload('diff', path, selectedLines)
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-claude-border/70 bg-claude-bg">
+      <div className="tool-diff-shell">
+        <Diff
+          viewType="unified"
+          diffType={visibleFile.type}
+          hunks={visibleFile.hunks}
+          className="tool-diff-view"
+          selectedChanges={selectedChangeKeys}
+          generateLineClassName={({ changes, defaultGenerate }) => {
+            const classNames = [defaultGenerate()]
+            if (changes.some((change) => selectedChangeKeys.includes(getChangeKey(change)))) {
+              classNames.push('tool-diff-line-selected')
+            }
+            return classNames.join(' ')
+          }}
+          renderGutter={({ change, renderDefault, side }) => {
+            if (!change || (change.type !== 'insert' && change.type !== 'delete')) return renderDefault()
+            const shouldRenderAction =
+              (change.type === 'insert' && side === 'new') || (change.type === 'delete' && side === 'old')
+            return (
+              <div className="tool-diff-gutter-wrap">
+                {renderDefault()}
+                {shouldRenderAction && onAskAboutSelection ? (
+                  <button
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      openCommentForChange(change)
+                    }}
+                    className={`tool-line-action-button ${change.type === 'delete' ? 'tool-line-action-button-old' : ''} ${
+                      hoveredChangeKey === getChangeKey(change) && !selectedChangeKeys.includes(getChangeKey(change))
+                        ? 'tool-line-action-button-visible'
+                        : ''
+                    }`}
+                  >
+                    +
+                  </button>
+                ) : null}
+              </div>
+            )
+          }}
+          gutterEvents={{ onMouseDown: handleChangeMouseDown, onMouseEnter: handleChangeMouseEnter, onMouseLeave: handleChangeMouseLeave }}
+        >
+          {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
+        </Diff>
+      </div>
+      {hiddenCount > 0 && !showFullDiff && (
+        <button
+          type="button"
+          onClick={onShowFullDiff}
+          className="block w-full border-t border-claude-border/70 px-3 py-2 text-center text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+        >
+          Show full diff ({hiddenCount} more lines)
+        </button>
+      )}
+      {selectedPayload && onAskAboutSelection && (
+        <SelectionActionBar
+          label={summarizeLineRange(selectedPayload.startLine, selectedPayload.endLine)}
+          onAskAgain={() => onAskAboutSelection(selectedPayload)}
+          onOpenComment={() => setCommentOpen(true)}
+          commentOpen={commentOpen}
+          commentValue={commentValue}
+          onCommentChange={setCommentValue}
+          onSubmitComment={handleSubmitComment}
+          onCancelComment={() => {
+            setCommentOpen(false)
+            setCommentValue('')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function CodePreview({
+  code,
+  path,
+  onAskAboutSelection,
+}: {
+  code: string
+  path?: string | null
+  onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
+}) {
+  const [highlightReady, setHighlightReady] = useState(false)
+  const [tokenLines, setTokenLines] = useState<Array<Array<{ content: string; color?: string; fontStyle?: number }>>>([])
+  const [anchorLine, setAnchorLine] = useState<number | null>(null)
+  const [selectedLines, setSelectedLines] = useState<number[]>([])
+  const [hoveredLine, setHoveredLine] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [commentOpen, setCommentOpen] = useState(false)
+  const [commentValue, setCommentValue] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    const language = inferLanguageFromPath(path)
+    const theme = getShikiTheme()
+
+    codeToTokens(code, {
+      lang: language,
+      theme,
+    })
+      .then((result) => {
+        if (!cancelled) {
+          setTokenLines(result.tokens as Array<Array<{ content: string; color?: string; fontStyle?: number }>>)
+          setHighlightReady(true)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTokenLines([])
+          setHighlightReady(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [code, path])
+
+  useEffect(() => {
+    if (!isDragging) return
+    const stopDragging = () => setIsDragging(false)
+    window.addEventListener('mouseup', stopDragging)
+    window.addEventListener('blur', stopDragging)
+    return () => {
+      window.removeEventListener('mouseup', stopDragging)
+      window.removeEventListener('blur', stopDragging)
+    }
+  }, [isDragging])
+
+  useEffect(() => {
+    if (selectedLines.length === 0) {
+      setCommentOpen(false)
+      setCommentValue('')
+    }
+  }, [selectedLines])
+
+  const selectSingleLine = (lineNumber: number) => {
+    setAnchorLine(lineNumber)
+    setSelectedLines([lineNumber])
+  }
+
+  const handleLineMouseDown = (lineNumber: number, event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!event.shiftKey || anchorLine === null) {
+      if (selectedLines.length === 1 && selectedLines[0] === lineNumber) {
+        setSelectedLines([])
+        setAnchorLine(null)
+        return
+      }
+
+      selectSingleLine(lineNumber)
+      setCommentOpen(false)
+      setIsDragging(true)
+      return
+    }
+
+    const start = Math.min(anchorLine, lineNumber)
+    const end = Math.max(anchorLine, lineNumber)
+    setSelectedLines(Array.from({ length: end - start + 1 }, (_, index) => start + index))
+    setCommentOpen(false)
+    setIsDragging(true)
+  }
+
+  const handleLineMouseEnter = (lineNumber: number) => {
+    setHoveredLine(lineNumber)
+    if (!isDragging || anchorLine === null) return
+    const start = Math.min(anchorLine, lineNumber)
+    const end = Math.max(anchorLine, lineNumber)
+    setSelectedLines(Array.from({ length: end - start + 1 }, (_, index) => start + index))
+  }
+
+  const handleLineMouseLeave = () => {
+    if (!isDragging) setHoveredLine(null)
+  }
+
+  const openCommentForLine = (lineNumber: number) => {
+    selectSingleLine(lineNumber)
+    setCommentOpen(true)
+  }
+
+  const handleSubmitComment = () => {
+    if (!selectedPayload || !onAskAboutSelection || !commentValue.trim()) return
+    onAskAboutSelection({ ...selectedPayload, prompt: commentValue.trim() })
+    setCommentOpen(false)
+    setCommentValue('')
+  }
+
+  const selectedCodeLines = [...selectedLines]
+    .sort((a, b) => a - b)
+    .map((lineNumber) => ({
+      lineNumber,
+      text: code.split('\n')[lineNumber - 1] ?? '',
+    }))
+  const selectedPayload = path ? buildSelectionPayload('code', path, selectedCodeLines) : null
+
+  if (!highlightReady) {
+    return (
+      <div className="overflow-x-auto rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-2 font-mono text-[11px] leading-5 text-claude-text">
+        <pre className="whitespace-pre-wrap break-all">{code}</pre>
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-claude-border/70 bg-claude-bg">
+      <div className="tool-code-review overflow-x-auto">
+        <div className="tool-code-review-table">
+          {tokenLines.map((line, index) => {
+            const lineNumber = index + 1
+            const isSelected = selectedLines.includes(lineNumber)
+            return (
+              <div
+                key={lineNumber}
+                className={`tool-code-review-row ${isSelected ? 'tool-code-review-row-selected' : ''}`}
+              >
+                <span
+                  className="tool-code-review-gutter"
+                  onMouseDown={(event) => handleLineMouseDown(lineNumber, event)}
+                  onMouseEnter={() => handleLineMouseEnter(lineNumber)}
+                  onMouseLeave={handleLineMouseLeave}
+                >
+                  <span>{lineNumber}</span>
+                  {onAskAboutSelection ? (
+                    <button
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        openCommentForLine(lineNumber)
+                      }}
+                      className={`tool-line-action-button ${
+                        hoveredLine === lineNumber && !isSelected ? 'tool-line-action-button-visible' : ''
+                      }`}
+                    >
+                      +
+                    </button>
+                  ) : null}
+                </span>
+                <span className="tool-code-review-content">
+                  {line.length > 0 ? line.map((token, tokenIndex) => (
+                    <span
+                      key={`${lineNumber}-${tokenIndex}`}
+                      style={{
+                        color: token.color,
+                        fontStyle: token.fontStyle === 1 ? 'italic' : 'normal',
+                        fontWeight: token.fontStyle === 2 ? 600 : undefined,
+                      }}
+                    >
+                      {token.content}
+                    </span>
+                  )) : ' '}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {selectedPayload && onAskAboutSelection && (
+        <SelectionActionBar
+          label={summarizeLineRange(selectedPayload.startLine, selectedPayload.endLine)}
+          onAskAgain={() => onAskAboutSelection(selectedPayload)}
+          onOpenComment={() => setCommentOpen(true)}
+          commentOpen={commentOpen}
+          commentValue={commentValue}
+          onCommentChange={setCommentValue}
+          onSubmitComment={handleSubmitComment}
+          onCancelComment={() => {
+            setCommentOpen(false)
+            setCommentValue('')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function buildSummary(entries: TimelineEntry[]) {
+  const parts: string[] = []
+  const fileEdits = entries.filter((entry) => entry.kind === 'file' && (entry.added > 0 || entry.removed > 0)).length
+  const todos = entries.filter((entry) => entry.kind === 'todo').length
+  const reads = entries.filter((entry) => entry.label === 'Read').length
+
+  if (fileEdits > 0) parts.push(`${fileEdits}개 파일 수정됨`)
+  if (todos > 0) parts.push('할 일 목록 업데이트됨')
+  if (reads > 0) parts.push('파일 읽음')
+
+  return parts.length > 0 ? parts.join(', ') : `${entries.length}개 작업`
+}
+
+function buildTimelineEntries(toolCalls: ToolCallBlockType[]): TimelineEntry[] {
+  const grouped = new Map<string, TimelineEntry>()
+
+  for (const toolCall of toolCalls) {
+    const badge = formatToolInput(toolCall.toolName, toolCall.toolInput)
+    const path = getEditableToolPath(toolCall.toolName, toolCall.toolInput)
+    const diffStats = getDiffStats(getEditDiffHunks(toolCall.toolName, toolCall.toolInput))
+    const resultStr = formatToolResult(toolCall.result)
+    const actionLabel = ACTION_LABELS[toolCall.toolName] ?? toolCall.toolName
+    const key =
+      toolCall.toolName === 'TodoWrite'
+        ? `todo:${toolCall.id}`
+        : path
+          ? `file:${path}`
+          : `${toolCall.toolName}:${badge || toolCall.id}`
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        id: key,
+        kind: toolCall.toolName === 'TodoWrite' ? 'todo' : path ? 'file' : 'generic',
+        label: actionLabel,
+        badge: badge || null,
+        detail: toolCall.toolName === 'Read' ? `${countDisplayLines(resultStr)}줄 읽음` : null,
+        toolCalls: [toolCall],
+        added: diffStats.added,
+        removed: diffStats.removed,
+        readLines: toolCall.toolName === 'Read' ? countDisplayLines(resultStr) : 0,
+        status: toolCall.status,
+      })
+      continue
+    }
+
+    const existing = grouped.get(key)!
+    existing.toolCalls.push(toolCall)
+    existing.added += diffStats.added
+    existing.removed += diffStats.removed
+    existing.readLines += toolCall.toolName === 'Read' ? countDisplayLines(resultStr) : 0
+    existing.status =
+      existing.status === 'error' || toolCall.status === 'error'
+        ? 'error'
+        : existing.status === 'running' || toolCall.status === 'running'
+          ? 'running'
+          : 'done'
+
+    if (toolCall.toolName === 'Read') {
+      existing.label = 'Read'
+      existing.detail = `${existing.readLines}줄 읽음`
+    }
+    if (toolCall.toolName === 'TodoWrite') {
+      existing.label = 'Update Todos'
+    }
+  }
+
+  return Array.from(grouped.values())
+}
+
+function TodoPreview({ toolCalls }: { toolCalls: ToolCallBlockType[] }) {
+  const resultStr = formatToolResult(toolCalls[toolCalls.length - 1]?.result)
+  const lines = resultStr
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return (
+    <div className="space-y-1 text-[11px] leading-5 text-claude-muted">
+      {lines.map((line, index) => {
+        const done = /^[-*]?\s*\[[xX]\]/.test(line)
+        const normalized = line.replace(/^[-*]?\s*\[[ xX]\]\s*/, '')
+        return (
+          <div key={`${index}-${line}`} className="flex items-start gap-2">
+            <span className="mt-[2px] text-[10px] text-claude-muted/80">{done ? '☑' : '☐'}</span>
+            <span className={`truncate ${done ? 'opacity-55 line-through' : ''}`}>{normalized}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function TimelineEntryRow({
+  entry,
+  onAskAboutSelection,
+}: {
+  entry: TimelineEntry
+  onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [showFullDiff, setShowFullDiff] = useState(false)
+  const [editedFileContent, setEditedFileContent] = useState<string | null>(null)
+  const [loadingEditedFile, setLoadingEditedFile] = useState(false)
+
+  const primaryTool = entry.toolCalls[entry.toolCalls.length - 1]
+  const primaryPath = getEditableToolPath(primaryTool.toolName, primaryTool.toolInput)
+  const diffHunks = useMemo(
+    () => entry.toolCalls.flatMap((toolCall) => getEditDiffHunks(toolCall.toolName, toolCall.toolInput)),
+    [entry.toolCalls]
+  )
+  const resultStr = useMemo(() => formatToolResult(primaryTool.result), [primaryTool.result])
+  const showCodePreview = entry.label === 'Read' && resultStr.trim().length > 0
+  const diffRows = useMemo(
+    () => diffHunks.flatMap((hunk) => buildDiffRows(hunk, editedFileContent)),
+    [diffHunks, editedFileContent]
+  )
+
+  useEffect(() => {
+    if (!expanded || !primaryPath) return
     let cancelled = false
     setLoadingEditedFile(true)
 
-    window.claude.readFile(editableFilePath)
+    window.claude.readFile(primaryPath)
       .then((file) => {
-        if (cancelled) return
-        setEditedFileContent(file?.content ?? null)
+        if (!cancelled) setEditedFileContent(file?.content ?? null)
       })
       .catch(() => {
-        if (cancelled) return
-        setEditedFileContent(null)
+        if (!cancelled) setEditedFileContent(null)
       })
       .finally(() => {
         if (!cancelled) setLoadingEditedFile(false)
@@ -249,94 +898,149 @@ export function ToolCallBlock({ toolCall }: Props) {
     return () => {
       cancelled = true
     }
-  }, [editableFilePath, expanded, shouldShowEditedFile])
+  }, [expanded, primaryPath])
 
   return (
-    <div className={`tool-call overflow-hidden rounded-[20px] border text-sm ${
-      isError ? 'border-red-900/60 bg-red-950/20' : 'border-claude-border bg-[#303034]'
-    }`}>
-      <button
-        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
-          isError ? 'hover:bg-red-950/30' : 'hover:bg-[#36363a]'
-        }`}
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border ${
-          isError
-            ? 'border-red-900/60 bg-red-950/25 text-red-200'
-            : 'border-claude-border bg-[#38383d] text-claude-muted'
-        }`}>
-          {getToolIcon(toolCall.toolName)}
-        </span>
+    <div className="space-y-1">
+      <div className="flex items-start gap-1.5 text-[11px] leading-5 text-claude-muted">
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="mt-[1px] flex h-4 w-4 items-center justify-center text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+        >
+          <svg className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : 'rotate-0'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
+
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-claude-text">
-            {getToolLabel(toolCall.toolName)}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 text-[11px] text-claude-muted/95">{entry.label}</span>
+            {entry.badge && (
+              <button
+                type="button"
+                onClick={() => setExpanded((value) => !value)}
+                className="inline-flex max-w-[min(38rem,62vw)] items-center truncate rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-claude-text/90 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+              >
+                {entry.badge}
+              </button>
+            )}
+            {(entry.added > 0 || entry.removed > 0) && (
+              <span className="shrink-0 font-mono text-[10px]">
+                {entry.added > 0 && <span className="text-emerald-400">+{entry.added}</span>}
+                {entry.removed > 0 && <span className="ml-1 text-red-400">-{entry.removed}</span>}
+              </span>
+            )}
           </div>
-          {inputStr && (
-            <div className="mt-0.5 truncate font-mono text-xs text-claude-muted">
-              {inputStr}
-            </div>
+
+          {entry.detail && (
+            <div className="mt-0.5 text-[10px] text-claude-muted/80">{entry.detail}</div>
           )}
         </div>
-        {isRunning && (
-          <span className="flex items-center gap-1 text-xs text-claude-muted">
-            <span className="inline-block h-2 w-2 rounded-full bg-claude-muted animate-pulse" />
-            실행 중
-          </span>
-        )}
-        {!isRunning && (
-          <svg
-            className={`h-4 w-4 flex-shrink-0 text-claude-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        )}
-      </button>
+      </div>
 
       {expanded && (
-        <div className="border-t border-claude-border/70">
-          <div className="px-4 py-3">
-            {inputStr && (
-              <div className="mb-3">
-                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">입력</div>
-                <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-xl border border-claude-border/70 bg-[#2a2a2d] px-3 py-2 font-mono text-xs text-[#d7d1ca]">
-                  {inputStr}
-                </pre>
-              </div>
-            )}
-            {diffHunks.length > 0 && (
-              <div className="mb-3 space-y-2">
-                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">변경 diff</div>
-                {diffHunks.map((hunk, index) => renderDiffBlock(hunk, index))}
-              </div>
-            )}
-            {(resultStr || shouldShowEditedFile) && diffHunks.length === 0 && (
-              <div>
-                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">
-                  {shouldShowEditedFile ? '변경 후 내용' : '결과'}
-                </div>
-                {isError ? (
-                  <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-xl border border-red-900/60 bg-red-950/25 px-3 py-2 font-mono text-xs text-red-100">
-                    {resultStr}
-                  </pre>
-                ) : loadingEditedFile ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-claude-border/70 bg-[#23252a] px-3 py-3 text-xs text-claude-muted">
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-                    </svg>
-                    변경된 파일 내용을 불러오는 중...
-                  </div>
-                ) : shouldShowEditedFile && editedFileContent !== null ? (
-                  renderCodeLines(editedFileContent)
-                ) : (
-                  renderCodeLines(resultStr ?? '')
-                )}
-              </div>
-            )}
-          </div>
+        <div className="ml-[10px] border-l border-claude-border/70 pl-3">
+          {entry.kind === 'todo' ? (
+            <TodoPreview toolCalls={entry.toolCalls} />
+          ) : entry.status === 'error' ? (
+            <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-red-900/35 bg-red-950/10 px-3 py-2 font-mono text-[11px] leading-5 text-red-100">
+              {resultStr}
+            </pre>
+          ) : diffHunks.length > 0 ? (
+            <div className="space-y-1">
+              <DiffPreview
+                path={primaryPath ?? entry.badge ?? 'diff.txt'}
+                diffHunks={diffHunks}
+                editedFileContent={editedFileContent}
+                showFullDiff={showFullDiff}
+                onShowFullDiff={() => setShowFullDiff(true)}
+                onAskAboutSelection={onAskAboutSelection}
+              />
+            </div>
+          ) : loadingEditedFile ? (
+            <div className="text-[11px] text-claude-muted">파일 내용을 불러오는 중...</div>
+          ) : showCodePreview ? (
+            <div className="space-y-1">
+              <div className="text-[10px] text-claude-muted">{entry.detail}</div>
+              <CodePreview code={resultStr} path={primaryPath} onAskAboutSelection={onAskAboutSelection} />
+            </div>
+          ) : editedFileContent ? (
+            <CodePreview code={editedFileContent} path={primaryPath} onAskAboutSelection={onAskAboutSelection} />
+          ) : (
+            <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-2 font-mono text-[11px] leading-5 text-claude-text">
+              {resultStr}
+            </pre>
+          )}
         </div>
       )}
     </div>
   )
+}
+
+export function ToolTimeline({
+  toolCalls,
+  onAskAboutSelection,
+}: {
+  toolCalls: ToolCallBlockType[]
+  onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  const entries = useMemo(() => buildTimelineEntries(toolCalls), [toolCalls])
+  const visibleEntries = showAll ? entries : entries.slice(0, 3)
+  const hiddenCount = Math.max(0, entries.length - visibleEntries.length)
+
+  if (entries.length === 0) return null
+
+  return (
+    <div className="mb-0.5 space-y-0.5">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex items-center gap-1.5 text-left text-[12px] leading-5 text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+      >
+        <svg className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : 'rotate-0'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+        </svg>
+        <span>{buildSummary(entries)}</span>
+      </button>
+
+      {expanded && (
+        <div className="space-y-1">
+          {visibleEntries.map((entry) => (
+            <TimelineEntryRow key={entry.id} entry={entry} onAskAboutSelection={onAskAboutSelection} />
+          ))}
+          {hiddenCount > 0 && !showAll && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="ml-5 text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+            >
+              {hiddenCount}개 더 보기
+            </button>
+          )}
+          {showAll && entries.length > 3 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(false)}
+              className="ml-5 text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+            >
+              간단히 보기
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ToolCallBlock({
+  toolCall,
+  onAskAboutSelection,
+}: {
+  toolCall: ToolCallBlockType
+  onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
+}) {
+  return <ToolTimeline toolCalls={[toolCall]} onAskAboutSelection={onAskAboutSelection} />
 }

@@ -93,8 +93,8 @@ function SessionRow({
   const isActive = session.id === activeSessionId
   const isEditing = editingSessionId === session.id
   const itemCls = isActive
-    ? 'bg-claude-sidebar-active text-white shadow-[0_14px_32px_rgba(0,0,0,0.18)]'
-    : 'text-[#b1aaa2] hover:bg-claude-sidebar-hover hover:text-white'
+    ? 'bg-claude-sidebar-active text-claude-text shadow-[0_14px_32px_rgba(0,0,0,0.18)]'
+    : 'text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
 
   const startRename = () => {
     setEditingSessionId(session.id)
@@ -119,7 +119,7 @@ function SessionRow({
       <button
         onClick={() => onSelectSession(session.id)}
         onDoubleClick={startRename}
-        className="min-w-0 flex-1 flex items-start gap-2 text-left"
+        className="min-w-0 flex-1 flex items-start gap-2 rounded-xl text-left outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
       >
         {session.isStreaming ? (
           <span className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-claude-orange animate-pulse" />
@@ -147,7 +147,7 @@ function SessionRow({
                   cancelRename()
                 }
               }}
-              className="w-full rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-sm font-medium text-white outline-none focus:border-claude-orange/70"
+              className="w-full rounded-xl border border-claude-border bg-claude-surface px-2.5 py-1.5 text-sm font-medium text-claude-text outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
             />
           ) : (
             <p className="truncate text-[14px] font-medium">{getSessionDisplayName(session)}</p>
@@ -164,7 +164,7 @@ function SessionRow({
         <div className="flex flex-shrink-0 items-center gap-0.5 self-center">
           <button
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(session.id) }}
-            className={`rounded-lg p-1.5 hover:bg-white/10 ${session.favorite ? 'text-yellow-300 hover:text-yellow-200' : 'text-[#6f665f] hover:text-white'}`}
+            className={`rounded-lg p-1.5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 ${session.favorite ? 'text-claude-text hover:text-claude-text' : 'text-claude-muted/60 hover:text-claude-text'}`}
             title={session.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={session.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
@@ -174,7 +174,7 @@ function SessionRow({
 
           <button
             onClick={(e) => { e.stopPropagation(); onRemoveSession(session.id) }}
-            className="rounded-lg p-1.5 text-[#6f665f] hover:bg-white/10 hover:text-white"
+            className="rounded-lg p-1.5 text-claude-muted/60 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 hover:text-claude-text"
             title="세션 삭제"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -249,7 +249,7 @@ export function Sidebar({
       <div className="mb-3 flex flex-col gap-1 px-3">
         <button
           onClick={() => onNewSession()}
-          className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.035] bg-white/[0.03] px-3.5 py-2.5 text-sm text-[#d0c7be] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
+          className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.035] bg-white/[0.03] px-3.5 py-2.5 text-sm text-claude-text outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-claude-sidebar-hover hover:text-claude-text"
           title={`${sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'} (${newSessionShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -261,7 +261,7 @@ export function Sidebar({
 
       {favoriteSessions.length > 0 && (
         <div className="mb-3 px-3">
-          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f665f]">
+          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-claude-muted/60">
             즐겨찾기
           </div>
           <div className="space-y-0.5">
@@ -294,7 +294,7 @@ export function Sidebar({
               <div className="flex items-center gap-1 px-1">
                 <button
                   onClick={() => setCollapsedProjects((prev) => ({ ...prev, [group.cwd]: !prev[group.cwd] }))}
-                  className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left text-[#c7bbb0] hover:text-white"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:text-claude-text"
                 >
                   <svg
                     className={`w-3.5 h-3.5 flex-shrink-0 opacity-80 transition-transform ${collapsedProjects[group.cwd] ? '' : 'rotate-90'}`}
@@ -315,7 +315,7 @@ export function Sidebar({
                     setCollapsedProjects((prev) => ({ ...prev, [group.cwd]: false }))
                     onNewSession(group.cwd)
                   }}
-                  className="flex-shrink-0 rounded-lg p-1.5 text-[#6f665f] hover:bg-white/10 hover:text-white"
+                  className="flex-shrink-0 rounded-lg p-1.5 text-claude-muted/60 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 hover:text-claude-text"
                   title="이 프로젝트에 새 세션 추가"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -372,7 +372,7 @@ export function Sidebar({
       <div className="px-3 py-3">
         <button
           onClick={onOpenSettings}
-          className="flex w-full items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm text-[#c7bbb0] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
+          className="flex w-full items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm text-claude-text outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-claude-sidebar-hover hover:text-claude-text"
           title={`설정 (${settingsShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

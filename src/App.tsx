@@ -48,6 +48,13 @@ function normalizeSelectedFolder(value: unknown): string | null {
   return null
 }
 
+function summarizeNotificationBody(text: string | null | undefined): string {
+  const normalized = text?.replace(/\s+/g, ' ').trim() ?? ''
+  if (!normalized) return '작업이 완료되었습니다.'
+  if (normalized.length <= 120) return normalized
+  return `${normalized.slice(0, 117)}...`
+}
+
 function mapPendingQuestionRequest(denial: { toolName: string; toolUseId: string; toolInput: unknown }): PendingQuestionRequest | null {
   if (denial.toolName !== 'AskUserQuestion' || !denial.toolInput || typeof denial.toolInput !== 'object') {
     return null
@@ -139,6 +146,7 @@ export default function App() {
     setModel,
     envVars,
     themeId,
+    notificationsEnabled,
     shortcutConfig,
   } = useSessionsStore()
 
@@ -157,6 +165,7 @@ export default function App() {
   const currentAsstMsgRef = useRef<Map<string, string>>(new Map())
   const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
   const abortedTabIdsRef = useRef<Set<string>>(new Set())
+  const notifiedSessionEndsRef = useRef<Set<string>>(new Set())
   const sessionsRef = useRef(sessions)
   sessionsRef.current = sessions
 
@@ -357,6 +366,7 @@ export default function App() {
     if (event.type === 'stream-start') {
       const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
+      notifiedSessionEndsRef.current.delete(tabId)
       pendingProcessKeyByTabRef.current.delete(tabId)
       ensureAssistantMessage(tabId)
       return
@@ -441,8 +451,26 @@ export default function App() {
         sendStartedAtByTabRef.current.delete(tabId)
       }
       if (!tabId) return
+      const session = sessionsRef.current.find((item) => item.id === tabId)
+      const shouldNotify =
+        !notifiedSessionEndsRef.current.has(tabId) &&
+        !abortedTabIdsRef.current.has(tabId) &&
+        !session?.pendingPermission &&
+        !session?.pendingQuestion
       store.setStreaming(tabId, false)
       currentAsstMsgRef.current.delete(tabId)
+      if (shouldNotify) {
+        notifiedSessionEndsRef.current.add(tabId)
+        const lastAssistantMessage = [...(session?.messages ?? [])].reverse().find((message) => message.role === 'assistant')
+        const title = session?.error ? 'Claude 작업 실패' : 'Claude 작업 완료'
+        const body = summarizeNotificationBody(session?.error ?? lastAssistantMessage?.text)
+        if (notificationsEnabled) {
+          void window.claude.notify({
+            title: session?.name ? `${title} · ${session.name}` : title,
+            body,
+          })
+        }
+      }
       return
     }
 
