@@ -866,6 +866,15 @@ function handleClaudeEvent(
       isError: data.is_error,
       durationMs: data.duration_ms,
       resultText: typeof data.result === 'string' ? data.result : undefined,
+      permissionDenials: Array.isArray(data.permission_denials)
+        ? data.permission_denials
+            .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+            .map((item) => ({
+              toolName: String(item.tool_name ?? ''),
+              toolUseId: String(item.tool_use_id ?? ''),
+              toolInput: item.tool_input,
+            }))
+        : undefined,
     })
 
     if (data.is_error) {

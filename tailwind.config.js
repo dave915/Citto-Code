@@ -5,17 +5,17 @@ module.exports = {
     extend: {
       colors: {
         claude: {
-          orange: '#C98B5B',
-          bg: '#11100F',
-          panel: '#181614',
-          surface: '#1E1A18',
-          'surface-2': '#25211E',
-          sidebar: '#151412',
-          'sidebar-hover': '#201D1B',
-          'sidebar-active': '#2B2622',
-          border: '#312B27',
-          text: '#F3EEE7',
-          muted: '#A2978A',
+          orange: '#B97C56',
+          bg: '#242426',
+          panel: '#2B2B2E',
+          surface: '#303034',
+          'surface-2': '#38383D',
+          sidebar: '#232325',
+          'sidebar-hover': '#2D2D30',
+          'sidebar-active': '#343439',
+          border: '#3E3E44',
+          text: '#F2EEE8',
+          muted: '#A7A19A',
         }
       },
       fontFamily: {

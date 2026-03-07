@@ -5,7 +5,16 @@ export type ClaudeStreamEvent =
   | { type: 'text-chunk'; sessionId: string; text: string }
   | { type: 'tool-start'; sessionId: string; toolUseId: string; toolName: string; toolInput: unknown }
   | { type: 'tool-result'; sessionId: string; toolUseId: string; content: unknown; isError: boolean }
-  | { type: 'result'; sessionId: string; costUsd: number; totalCostUsd: number; isError: boolean; durationMs: number; resultText?: string }
+  | {
+      type: 'result'
+      sessionId: string
+      costUsd: number
+      totalCostUsd: number
+      isError: boolean
+      durationMs: number
+      resultText?: string
+      permissionDenials?: Array<{ toolName: string; toolUseId: string; toolInput: unknown }>
+    }
   | { type: 'stream-end'; sessionId: string | null; exitCode: number | null }
   | { type: 'error'; sessionId: string | null; error: string }
 

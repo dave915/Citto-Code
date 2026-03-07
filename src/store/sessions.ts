@@ -14,6 +14,25 @@ export type ToolCallBlock = {
   status: ToolCallStatus
 }
 
+export type PendingPermissionRequest = {
+  toolName: string
+  toolUseId: string
+  toolInput: unknown
+}
+
+export type PendingQuestionOption = {
+  label: string
+  description?: string
+}
+
+export type PendingQuestionRequest = {
+  toolUseId: string
+  question: string
+  header?: string
+  multiSelect?: boolean
+  options: PendingQuestionOption[]
+}
+
 export type AttachedFile = {
   id: string
   name: string
@@ -59,6 +78,8 @@ export type Session = {
   isStreaming: boolean
   currentAssistantMsgId: string | null
   error: string | null
+  pendingPermission: PendingPermissionRequest | null
+  pendingQuestion: PendingQuestionRequest | null
   lastCost?: number
   permissionMode: PermissionMode
   planMode: boolean
@@ -89,6 +110,8 @@ type SessionsStore = {
   setStreaming: (sessionId: string, value: boolean) => void
   setClaudeSessionId: (tabId: string, claudeSessionId: string) => void
   setError: (tabId: string, error: string | null) => void
+  setPendingPermission: (tabId: string, request: PendingPermissionRequest | null) => void
+  setPendingQuestion: (tabId: string, request: PendingQuestionRequest | null) => void
   setLastCost: (tabId: string, cost: number) => void
   setPermissionMode: (tabId: string, mode: PermissionMode) => void
   setPlanMode: (tabId: string, value: boolean) => void
@@ -121,6 +144,8 @@ function makeDefaultSession(cwd: string, name: string): Session {
     isStreaming: false,
     currentAssistantMsgId: null,
     error: null,
+    pendingPermission: null,
+    pendingQuestion: null,
     permissionMode: 'default',
     planMode: false,
     model: null,
@@ -206,7 +231,9 @@ export const useSessionsStore = create<SessionsStore>()(
                     attachedFiles: files,
                     createdAt: Date.now()
                   }
-                ]
+                ],
+                pendingPermission: null,
+                pendingQuestion: null,
               }
             : sess
         )
@@ -223,6 +250,8 @@ export const useSessionsStore = create<SessionsStore>()(
                 ...sess,
                 currentAssistantMsgId: msgId,
                 isStreaming: true,
+                pendingPermission: null,
+                pendingQuestion: null,
                 messages: [
                   ...sess.messages,
                   { id: msgId, role: 'assistant', text: '', toolCalls: [], createdAt: Date.now() }
@@ -326,11 +355,29 @@ export const useSessionsStore = create<SessionsStore>()(
                   ...sess,
                   messages: nextMessages,
                   error: shouldKeepExistingError ? sess.error : error,
+                  pendingPermission: null,
+                  pendingQuestion: null,
                   isStreaming: false,
                   currentAssistantMsgId: null,
                 }
               })()
             : sess
+        )
+      }))
+    },
+
+    setPendingPermission: (tabId, request) => {
+      set((s) => ({
+        sessions: s.sessions.map((sess) =>
+          sess.id === tabId ? { ...sess, pendingPermission: request } : sess
+        )
+      }))
+    },
+
+    setPendingQuestion: (tabId, request) => {
+      set((s) => ({
+        sessions: s.sessions.map((sess) =>
+          sess.id === tabId ? { ...sess, pendingQuestion: request } : sess
         )
       }))
     },
@@ -377,6 +424,7 @@ export const useSessionsStore = create<SessionsStore>()(
         envVars: state.envVars,
         sidebarMode: state.sidebarMode,
         claudeBinaryPath: state.claudeBinaryPath,
+        preferredOpenWithAppId: state.preferredOpenWithAppId,
         shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
@@ -385,6 +433,8 @@ export const useSessionsStore = create<SessionsStore>()(
           ...session,
           isStreaming: false,
           currentAssistantMsgId: null,
+          pendingPermission: null,
+          pendingQuestion: null,
           error: session.error ?? null,
         }))
 
@@ -397,6 +447,7 @@ export const useSessionsStore = create<SessionsStore>()(
           ...current,
           ...persistedState,
           claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
+          preferredOpenWithAppId: persistedState.preferredOpenWithAppId ?? '',
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,
             ...(persistedState.shortcutConfig ?? {}),

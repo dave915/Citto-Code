@@ -20,6 +20,8 @@ type Props = {
   session: Session
   onSend: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
+  onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
+  onQuestionResponse: (answer: string | null) => void
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
   sidebarShortcutLabel: string
@@ -46,7 +48,7 @@ const OPEN_WITH_ICONS: Record<string, string> = {
 }
 
 export function ChatView({
-  session, onSend, onAbort, sidebarCollapsed, onToggleSidebar,
+  session, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarCollapsed, onToggleSidebar,
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel, onSelectFolder,
   onPermissionModeChange, onPlanModeChange, onModelChange,
 }: Props) {
@@ -98,16 +100,24 @@ export function ChatView({
 
     window.claude.listOpenWithApps()
       .then((apps) => {
-        if (!cancelled) setOpenWithApps(apps)
+        if (cancelled) return
+        setOpenWithApps(apps)
+        if (preferredOpenWithAppId && !apps.some((app) => app.id === preferredOpenWithAppId)) {
+          setPreferredOpenWithAppId('')
+        }
       })
       .catch(() => {
-        if (!cancelled) setOpenWithApps([])
+        if (cancelled) return
+        setOpenWithApps([])
+        if (preferredOpenWithAppId) {
+          setPreferredOpenWithAppId('')
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [preferredOpenWithAppId, setPreferredOpenWithAppId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -157,10 +167,18 @@ export function ChatView({
 
     window.claude.listOpenWithApps()
       .then((apps) => {
-        if (!cancelled) setOpenWithApps(apps)
+        if (cancelled) return
+        setOpenWithApps(apps)
+        if (preferredOpenWithAppId && !apps.some((app) => app.id === preferredOpenWithAppId)) {
+          setPreferredOpenWithAppId('')
+        }
       })
       .catch(() => {
-        if (!cancelled) setOpenWithApps([])
+        if (cancelled) return
+        setOpenWithApps([])
+        if (preferredOpenWithAppId) {
+          setPreferredOpenWithAppId('')
+        }
       })
       .finally(() => {
         if (!cancelled) setOpenWithLoading(false)
@@ -365,7 +383,8 @@ export function ChatView({
               <div className="flex overflow-hidden rounded-2xl border border-claude-border/80 bg-claude-surface shadow-[0_8px_24px_rgba(0,0,0,0.16)]">
                 <button
                   onClick={() => void handleDefaultOpen()}
-                  className="flex items-center gap-2 bg-claude-surface px-3.5 py-2 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
+                  disabled={openWithApps.length === 0}
+                  className="flex items-center gap-2 bg-claude-surface px-3.5 py-2 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface"
                   title={defaultOpenWithApp ? `${defaultOpenWithApp.label}에서 열기` : '기본 앱으로 열기'}
                 >
                   <OpenWithAppIcon app={defaultOpenWithApp} />
@@ -373,7 +392,8 @@ export function ChatView({
                 </button>
                 <button
                   onClick={() => setOpenWithMenuOpen((open) => !open)}
-                  className={`border-l border-claude-border/80 px-2 py-1.5 text-claude-text transition-colors ${
+                  disabled={openWithApps.length === 0}
+                  className={`border-l border-claude-border/80 px-2 py-1.5 text-claude-text transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface ${
                     openWithMenuOpen ? 'bg-claude-surface-2' : 'bg-claude-surface hover:bg-claude-surface-2'
                   }`}
                   title="다음에서 열기"
@@ -447,15 +467,12 @@ export function ChatView({
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 18h10" />
             </svg>
           </button>
-            {session.lastCost !== undefined && (
-              <span className="text-xs text-claude-muted">${session.lastCost.toFixed(4)}</span>
-            )}
           </div>
         </div>
 
         {/* 메시지 영역 */}
-        <div className="min-w-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(201,139,91,0.06),transparent_22%)] px-6 py-7">
-          <div className="mx-auto w-full max-w-[980px]">
+        <div className="min-w-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,#2b2b2e_0%,#242427_100%)] px-6 py-7">
+          <div className="mx-auto w-full max-w-[860px]">
             {isNewSession
               ? <WelcomeScreen onSelectFolder={onSelectFolder} />
               : session.messages.map((msg) => (
@@ -463,6 +480,7 @@ export function ChatView({
                     key={msg.id}
                     message={msg}
                     isStreaming={session.isStreaming && msg.id === session.currentAssistantMsgId}
+                    onAbort={session.isStreaming && msg.id === session.currentAssistantMsgId ? onAbort : undefined}
                   />
                 ))
             }
@@ -496,6 +514,10 @@ export function ChatView({
           onSend={onSend}
           onAbort={onAbort}
           isStreaming={session.isStreaming}
+          pendingPermission={session.pendingPermission}
+          onPermissionRequestAction={onPermissionRequestAction}
+          pendingQuestion={session.pendingQuestion}
+          onQuestionResponse={onQuestionResponse}
           permissionMode={session.permissionMode}
           planMode={session.planMode}
           model={session.model}
@@ -559,7 +581,7 @@ export function ChatView({
                     <p className="text-sm">표시할 파일이 없습니다.</p>
                   </div>
                 ) : (
-                  <div className="border-l border-claude-border/60 pl-2">
+                  <div className="pl-2">
                     {rootEntries.map((entry) => (
                       <ExplorerNode
                         key={entry.path}

@@ -93,8 +93,8 @@ function SessionRow({
   const isActive = session.id === activeSessionId
   const isEditing = editingSessionId === session.id
   const itemCls = isActive
-    ? 'bg-claude-sidebar-active text-white shadow-[0_12px_28px_rgba(0,0,0,0.2)]'
-    : 'text-[#9f9489] hover:bg-claude-sidebar-hover hover:text-white'
+    ? 'bg-claude-sidebar-active text-white shadow-[0_14px_32px_rgba(0,0,0,0.18)]'
+    : 'text-[#b1aaa2] hover:bg-claude-sidebar-hover hover:text-white'
 
   const startRename = () => {
     setEditingSessionId(session.id)
@@ -243,13 +243,13 @@ export function Sidebar({
   }, [sidebarMode, projectGroups])
 
   return (
-    <aside className="flex h-full w-full flex-shrink-0 select-none flex-col bg-claude-sidebar">
+    <aside className="flex h-full w-full flex-shrink-0 select-none flex-col border-r border-white/5 bg-claude-sidebar">
       <div className="pt-10 pb-2 draggable-region" />
 
       <div className="mb-3 flex flex-col gap-1 px-3">
         <button
           onClick={() => onNewSession()}
-          className="flex w-full items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.03] px-3.5 py-2.5 text-sm text-[#c7bbb0] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
+          className="flex w-full items-center gap-2 rounded-2xl border border-white/6 bg-white/[0.035] px-3.5 py-2.5 text-sm text-[#d0c7be] transition-colors hover:bg-claude-sidebar-hover hover:text-white"
           title={`${sidebarMode === 'project' ? '프로젝트 추가' : '새 세션'} (${newSessionShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

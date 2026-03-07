@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { SelectedFile, ModelInfo, FileEntry } from '../../electron/preload'
-import type { PermissionMode } from '../store/sessions'
+import type { PendingPermissionRequest, PendingQuestionRequest, PermissionMode } from '../store/sessions'
 import { matchShortcut } from '../lib/shortcuts'
 
 type SlashCommand = {
@@ -42,6 +42,10 @@ type Props = {
   promptHistory: string[]
   onSend: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
+  pendingPermission: PendingPermissionRequest | null
+  onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
+  pendingQuestion: PendingQuestionRequest | null
+  onQuestionResponse: (answer: string | null) => void
   isStreaming: boolean
   disabled?: boolean
   permissionMode: PermissionMode
@@ -219,7 +223,7 @@ function ModelPicker({
 }
 
 export function InputArea({
-  cwd, promptHistory, onSend, onAbort, isStreaming, disabled,
+  cwd, promptHistory, onSend, onAbort, pendingPermission, onPermissionRequestAction, pendingQuestion, onQuestionResponse, isStreaming, disabled,
   permissionMode, planMode, model,
   onPermissionModeChange, onPlanModeChange, onModelChange,
   permissionShortcutLabel, bypassShortcutLabel,
@@ -244,8 +248,11 @@ export function InputArea({
   const [slashResults, setSlashResults] = useState<SlashCommand[]>([])
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const slashItemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const permissionItemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const draftTextRef = useRef('')
+  const [permissionSelectedIndex, setPermissionSelectedIndex] = useState(0)
+  const [questionInputMode, setQuestionInputMode] = useState(false)
 
   // 앱 시작 시 모델 목록 로드 (5분 캐시는 main process에서 처리)
   useEffect(() => {
@@ -318,6 +325,17 @@ export function InputArea({
     slashItemRefs.current[slashSelectedIndex]?.scrollIntoView({ block: 'nearest' })
   }, [slashSelectedIndex])
 
+  useEffect(() => {
+    permissionItemRefs.current[permissionSelectedIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [permissionSelectedIndex])
+
+  useEffect(() => {
+    if ((pendingPermission || pendingQuestion) && !isStreaming) {
+      setPermissionSelectedIndex(0)
+      setQuestionInputMode(false)
+    }
+  }, [pendingPermission, pendingQuestion, isStreaming])
+
   const handleSlashSelect = useCallback((command: SlashCommand) => {
     if (!slashMention) return
     const cursor = textareaRef.current?.selectionStart ?? (slashMention.startPos + slashMention.query.length + 1)
@@ -343,6 +361,19 @@ export function InputArea({
     draftTextRef.current = ''
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
   }, [text, attachedFiles, isStreaming, disabled, onSend, closeAtMention, closeSlashMention])
+
+  const handleQuestionSubmit = useCallback((answer: string | null) => {
+    const trimmed = answer?.trim() ?? ''
+    onQuestionResponse(trimmed || null)
+    if (!trimmed) return
+    setText('')
+    setAttachedFiles([])
+    closeAtMention()
+    closeSlashMention()
+    setHistoryIndex(null)
+    draftTextRef.current = ''
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+  }, [onQuestionResponse, closeAtMention, closeSlashMention])
 
   useEffect(() => {
     setHistoryIndex(null)
@@ -376,6 +407,111 @@ export function InputArea({
     const afterCursor = textarea.value.slice(cursor)
     const isAtFirstLine = !beforeCursor.includes('\n')
     const isAtLastLine = !afterCursor.includes('\n')
+
+    if (showQuestionPrompt) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        handleQuestionSubmit(null)
+        return
+      }
+
+      if (questionInputMode && e.key === 'ArrowUp' && isAtFirstLine && !hasSelection) {
+        e.preventDefault()
+        setQuestionInputMode(false)
+        setPermissionSelectedIndex(Math.max(questionOptions.length - 1, 0))
+        return
+      }
+
+      if (!questionInputMode && questionOptions.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          if (permissionSelectedIndex === questionOptions.length - 1) {
+            setQuestionInputMode(true)
+          } else {
+            setPermissionSelectedIndex((index) => (index + 1) % questionOptions.length)
+          }
+          return
+        }
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setPermissionSelectedIndex((index) => Math.max(index - 1, 0))
+          return
+        }
+
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          if (e.shiftKey) {
+            setPermissionSelectedIndex((index) => Math.max(index - 1, 0))
+          } else if (permissionSelectedIndex === questionOptions.length - 1) {
+            setQuestionInputMode(true)
+          } else {
+            setPermissionSelectedIndex((index) => (index + 1) % questionOptions.length)
+          }
+          return
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          handleQuestionSubmit(questionOptions[permissionSelectedIndex]?.label ?? null)
+          return
+        }
+
+        // 선택 모드에서는 텍스트 입력을 막고, 마지막 옵션 아래로 내려갔을 때만 직접 입력 허용
+        if (
+          e.key.length === 1 ||
+          e.key === 'Backspace' ||
+          e.key === 'Delete' ||
+          e.key === 'Home' ||
+          e.key === 'End'
+        ) {
+          e.preventDefault()
+          return
+        }
+      }
+
+      if (e.key === 'Enter' && !e.shiftKey && text.trim()) {
+        e.preventDefault()
+        handleQuestionSubmit(text)
+        return
+      }
+    }
+
+    if (showPermissionPrompt) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onPermissionRequestAction('deny')
+        return
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setPermissionSelectedIndex((index) => (index + 1) % permissionActions.length)
+        return
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setPermissionSelectedIndex((index) => (index - 1 + permissionActions.length) % permissionActions.length)
+        return
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          setPermissionSelectedIndex((index) => (index - 1 + permissionActions.length) % permissionActions.length)
+        } else {
+          setPermissionSelectedIndex((index) => (index + 1) % permissionActions.length)
+        }
+        return
+      }
+
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        onPermissionRequestAction(permissionActions[permissionSelectedIndex].action)
+        return
+      }
+    }
 
     if (e.key === 'Escape') {
       const now = Date.now()
@@ -585,10 +721,24 @@ export function InputArea({
   }
 
   const canSend = (text.trim().length > 0 || attachedFiles.length > 0) && !isStreaming && !disabled
+  const showPermissionPrompt = Boolean(pendingPermission) && !isStreaming
+  const showQuestionPrompt = Boolean(pendingQuestion) && !showPermissionPrompt && !isStreaming
+  const permissionPreview = formatPermissionPreview(pendingPermission)
+  const questionOptions = pendingQuestion?.options ?? []
+  const permissionActions: Array<{
+    action: 'once' | 'always' | 'deny'
+    title: string
+    description: string
+    badge: string
+  }> = [
+    { action: 'once', title: '이번만 허용 후 계속', description: '현재 요청만 승인하고 작업 이어서 진행', badge: '1회' },
+    { action: 'always', title: '이 세션에서 계속 허용', description: '현재 세션 권한을 올리고 중단된 작업 계속', badge: '세션' },
+    { action: 'deny', title: '권한 요청 닫기', description: '승인하지 않고 현재 요청 종료', badge: '취소' },
+  ]
 
   return (
     <div className="bg-claude-bg/95 px-6 pt-4 pb-5">
-      <div className="mx-auto w-full max-w-[980px]">
+      <div className="mx-auto w-full max-w-[860px]">
       {/* 첨부파일 칩 */}
       {attachedFiles.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-1.5">
@@ -614,6 +764,92 @@ export function InputArea({
 
       {/* 입력 컨테이너 (@ 드롭다운 포함) */}
       <div className="relative">
+        {showQuestionPrompt && pendingQuestion && (
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
+            <div className="flex items-center gap-2 border-b border-claude-border/60 bg-claude-surface px-3 py-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-claude-text">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 4h12a2 2 0 012 2v12l-4-3H6a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-claude-text">{pendingQuestion.header || '선택 필요'}</p>
+                <p className="truncate text-xs text-claude-muted">
+                  {pendingQuestion.question}
+                  {questionOptions.length > 0 ? ' · 마지막 항목에서 ↓로 직접 입력' : ''}
+                </p>
+              </div>
+            </div>
+            <div className="py-1">
+              {questionOptions.map((option, index) => (
+                <button
+                  key={`${option.label}-${index}`}
+                  ref={(element) => { permissionItemRefs.current[index] = element }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setQuestionInputMode(false)
+                    handleQuestionSubmit(option.label)
+                  }}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors ${
+                    !questionInputMode && index === permissionSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'hover:bg-claude-surface'
+                  }`}
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-xs font-semibold text-claude-text">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{option.label}</p>
+                    {option.description ? (
+                      <p className="truncate text-xs text-claude-muted">{option.description}</p>
+                    ) : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showPermissionPrompt && pendingPermission && (
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
+            <div className="flex items-center gap-2 border-b border-claude-border/60 bg-claude-surface px-3 py-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-claude-text">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-claude-text">권한 승인 필요</p>
+                <p className="truncate text-xs text-claude-muted">
+                  {pendingPermission.toolName} {permissionPreview}
+                </p>
+              </div>
+            </div>
+            <div className="py-1">
+              {permissionActions.map((item, index) => (
+                <button
+                  key={item.action}
+                  ref={(element) => { permissionItemRefs.current[index] = element }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onPermissionRequestAction(item.action)}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-claude-text transition-colors ${
+                    index === permissionSelectedIndex ? 'bg-[#2c241f] text-claude-text' : 'hover:bg-claude-surface'
+                  }`}
+                >
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-xs font-semibold ${
+                    item.action === 'deny' ? 'text-claude-muted' : 'text-claude-text'
+                  }`}>
+                    {item.badge}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{item.title}</p>
+                    <p className="truncate text-xs text-claude-muted">{item.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* @ 파일 참조 드롭다운 */}
         {(slashResults.length > 0 || atResults.length > 0) && (
           <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
@@ -678,7 +914,7 @@ export function InputArea({
           </div>
         )}
 
-        <div className="overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition-all focus-within:border-[#5f4a39] focus-within:ring-1 focus-within:ring-[#5f4a39]/60">
+        <div className="overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel transition-all focus-within:border-claude-border focus-within:ring-1 focus-within:ring-white/10">
 
         {/* Textarea */}
         <div className="px-5 pt-4 pb-3">
@@ -701,7 +937,8 @@ export function InputArea({
             }
             rows={1}
             disabled={isStreaming || disabled}
-            className="min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-[#756b62] disabled:opacity-50"
+            readOnly={showQuestionPrompt && !questionInputMode}
+            className="min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
           />
         </div>
 
@@ -712,7 +949,7 @@ export function InputArea({
             onClick={handleAttachFiles}
             disabled={isStreaming || disabled || isAttaching}
             title="파일 첨부"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-orange disabled:opacity-30"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text disabled:opacity-30"
           >
             {isAttaching
               ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" /></svg>
@@ -734,7 +971,7 @@ export function InputArea({
                   title={`${opt.title}${permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''}`}
                   className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                     isActive
-                      ? 'border border-[#4f4032] bg-[#2a221d] text-[#f8efe5] shadow-[0_8px_24px_rgba(0,0,0,0.18)]'
+                      ? 'border border-claude-border bg-claude-surface text-claude-text'
                       : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
                   }`}
                 >
@@ -756,7 +993,7 @@ export function InputArea({
               }
               className={`flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                 planMode
-                  ? 'border border-[#4f4032] bg-[#2a221d] text-[#f8efe5] shadow-[0_8px_24px_rgba(0,0,0,0.18)]'
+                  ? 'border border-claude-border bg-claude-surface text-claude-text'
                   : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
               }`}
             >
@@ -774,7 +1011,7 @@ export function InputArea({
               }
               className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                 permissionMode === 'bypassPermissions'
-                  ? 'border border-[#4f4032] bg-[#2a221d] text-[#f8efe5] shadow-[0_8px_24px_rgba(0,0,0,0.18)]'
+                  ? 'border border-claude-border bg-claude-surface text-claude-text'
                   : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
               }`}
             >
@@ -798,10 +1035,10 @@ export function InputArea({
           {isStreaming ? (
             <button
               onClick={onAbort}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-red-500 transition-colors hover:bg-red-600"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-[#1f1f22] transition-colors hover:bg-white/90"
               title="중단"
             >
-              <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="6" width="12" height="12" rx="1" />
               </svg>
             </button>
@@ -809,7 +1046,7 @@ export function InputArea({
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-orange shadow-[0_10px_24px_rgba(201,139,91,0.28)] transition-colors hover:brightness-110 disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-[#44444a] disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
               title="전송 (Enter)"
             >
               <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -823,4 +1060,24 @@ export function InputArea({
       </div>
     </div>
   )
+}
+
+function formatPermissionPreview(request: PendingPermissionRequest | null): string {
+  if (!request) return ''
+
+  const input = request.toolInput
+  if (input && typeof input === 'object') {
+    const record = input as Record<string, unknown>
+    const pathValue = record.file_path ?? record.path ?? record.notebook_path
+    if (typeof pathValue === 'string' && pathValue.trim()) {
+      return pathValue
+    }
+
+    const commandValue = record.command
+    if (typeof commandValue === 'string' && commandValue.trim()) {
+      return commandValue
+    }
+  }
+
+  return '권한 요청'
 }

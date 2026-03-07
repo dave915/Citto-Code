@@ -4,7 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
 import type { ClaudeInstallationStatus, ClaudeStreamEvent, SelectedFile } from '../electron/preload'
-import type { PermissionMode } from './store/sessions'
+import type { PermissionMode, PendingPermissionRequest, PendingQuestionRequest } from './store/sessions'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 
 function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
@@ -17,6 +17,71 @@ function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string
       return true
     })
   )
+}
+
+function normalizeSelectedFolder(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    const firstString = value.find((item): item is string => typeof item === 'string')
+    return firstString ?? null
+  }
+
+  if (value && typeof value === 'object') {
+    const candidate = (value as { path?: unknown; filePath?: unknown; filePaths?: unknown }).path
+      ?? (value as { path?: unknown; filePath?: unknown; filePaths?: unknown }).filePath
+
+    if (typeof candidate === 'string') {
+      return candidate
+    }
+
+    const filePaths = (value as { filePaths?: unknown }).filePaths
+    if (Array.isArray(filePaths)) {
+      const firstString = filePaths.find((item): item is string => typeof item === 'string')
+      return firstString ?? null
+    }
+  }
+
+  return null
+}
+
+function mapPendingQuestionRequest(denial: { toolName: string; toolUseId: string; toolInput: unknown }): PendingQuestionRequest | null {
+  if (denial.toolName !== 'AskUserQuestion' || !denial.toolInput || typeof denial.toolInput !== 'object') {
+    return null
+  }
+
+  const questions = (denial.toolInput as { questions?: unknown }).questions
+  if (!Array.isArray(questions) || questions.length === 0) return null
+
+  const first = questions[0]
+  if (!first || typeof first !== 'object') return null
+
+  const question = typeof (first as { question?: unknown }).question === 'string'
+    ? (first as { question: string }).question
+    : ''
+  if (!question.trim()) return null
+
+  const optionsRaw = Array.isArray((first as { options?: unknown }).options)
+    ? (first as { options: unknown[] }).options
+    : []
+
+  return {
+    toolUseId: denial.toolUseId,
+    question,
+    header: typeof (first as { header?: unknown }).header === 'string'
+      ? (first as { header: string }).header
+      : undefined,
+    multiSelect: Boolean((first as { multiSelect?: unknown }).multiSelect),
+    options: optionsRaw
+      .filter((option): option is Record<string, unknown> => typeof option === 'object' && option !== null)
+      .map((option) => ({
+        label: String(option.label ?? ''),
+        description: typeof option.description === 'string' ? option.description : undefined,
+      }))
+      .filter((option) => option.label.trim().length > 0),
+  }
 }
 
 function cycleClaudeCodeMode(
@@ -47,7 +112,7 @@ function cycleClaudeCodeMode(
 }
 
 export default function App() {
-  const expandedSidebarWidthRef = useRef(240)
+  const expandedSidebarWidthRef = useRef(290)
   const {
     sessions,
     activeSessionId,
@@ -64,6 +129,8 @@ export default function App() {
     setStreaming,
     setClaudeSessionId,
     setError,
+    setPendingPermission,
+    setPendingQuestion,
     setLastCost,
     updateSession,
     setPermissionMode,
@@ -74,7 +141,7 @@ export default function App() {
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(240)
+  const [sidebarWidth, setSidebarWidth] = useState(290)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [installationStatus, setInstallationStatus] = useState<ClaudeInstallationStatus | null>(null)
   const [installationDismissed, setInstallationDismissed] = useState(false)
@@ -92,12 +159,12 @@ export default function App() {
 
   const storeRef = useRef({
     setClaudeSessionId, startAssistantMessage, appendTextChunk,
-    addToolCall, resolveToolCall, setStreaming, setLastCost, setError,
+    addToolCall, resolveToolCall, setStreaming, setLastCost, setError, setPendingPermission, setPendingQuestion,
     activeSessionId
   })
   storeRef.current = {
     setClaudeSessionId, startAssistantMessage, appendTextChunk,
-    addToolCall, resolveToolCall, setStreaming, setLastCost, setError,
+    addToolCall, resolveToolCall, setStreaming, setLastCost, setError, setPendingPermission, setPendingQuestion,
     activeSessionId
   }
 
@@ -320,6 +387,24 @@ export default function App() {
       const tabId = resolveEventTabId(event.sessionId) ?? takePendingTabId()
       if (!tabId) return
       if (event.totalCostUsd) store.setLastCost(tabId, event.totalCostUsd)
+      const askUserQuestionRequest = event.permissionDenials
+        ?.map(mapPendingQuestionRequest)
+        .find((request): request is PendingQuestionRequest => Boolean(request))
+
+      const permissionRequest = event.permissionDenials
+        ?.find((denial) => denial.toolName && denial.toolName !== 'AskUserQuestion')
+
+      store.setPendingQuestion(tabId, askUserQuestionRequest ?? null)
+      store.setPendingPermission(
+        tabId,
+        permissionRequest
+          ? {
+              toolName: permissionRequest.toolName,
+              toolUseId: permissionRequest.toolUseId,
+              toolInput: permissionRequest.toolInput,
+            }
+          : null
+      )
       if (event.isError && event.resultText?.trim()) {
         const msgId = ensureAssistantMessage(tabId)
         const session = sessionsRef.current.find((item) => item.id === tabId)
@@ -366,10 +451,16 @@ export default function App() {
     }
   }
 
-  async function handleSend(text: string, files: SelectedFile[]) {
+  async function handleSend(
+    text: string,
+    files: SelectedFile[],
+    options?: { permissionModeOverride?: PermissionMode; visibleTextOverride?: string }
+  ) {
     if (!activeSession || !activeSessionId || activeSession.isStreaming) return
 
     setError(activeSessionId, null)
+    setPendingPermission(activeSessionId, null)
+    setPendingQuestion(activeSessionId, null)
     setStreaming(activeSessionId, true)
 
     // 첨부파일이 있으면 프롬프트 앞에 파일 내용 삽입
@@ -386,7 +477,7 @@ export default function App() {
     // UI에 표시할 메시지 (원본 텍스트 + 첨부파일 메타만)
     addUserMessage(
       activeSessionId,
-      text || `(파일 ${files.length}개 첨부)`,
+      options?.visibleTextOverride ?? (text || `(파일 ${files.length}개 첨부)`),
       files.length > 0 ? files : undefined
     )
 
@@ -405,7 +496,7 @@ export default function App() {
         sessionId: activeSession.sessionId ?? null,
         prompt: fullPrompt,
         cwd: activeSession.cwd && activeSession.cwd !== '~' ? activeSession.cwd : '~',
-        permissionMode: activeSession.permissionMode,
+        permissionMode: options?.permissionModeOverride ?? activeSession.permissionMode,
         planMode: activeSession.planMode,
         model: activeSession.model ?? undefined,
         envVars: Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined,
@@ -436,19 +527,61 @@ export default function App() {
     setStreaming(activeSessionId, false)
   }
 
+  function getPermissionApprovalMode(request: PendingPermissionRequest): PermissionMode {
+    if (['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(request.toolName)) {
+      return 'acceptEdits'
+    }
+    return 'bypassPermissions'
+  }
+
+  async function handlePermissionRequestAction(action: 'once' | 'always' | 'deny') {
+    if (!activeSession || !activeSessionId || !activeSession.pendingPermission || activeSession.isStreaming) return
+
+    const request = activeSession.pendingPermission
+    setPendingPermission(activeSessionId, null)
+
+    if (action === 'deny') return
+
+    const nextPermissionMode = getPermissionApprovalMode(request)
+    if (action === 'always' && activeSession.permissionMode !== nextPermissionMode) {
+      setPermissionMode(activeSessionId, nextPermissionMode)
+    }
+
+    await handleSend(
+      '방금 요청한 권한을 승인합니다. 중단된 작업을 이어서 계속 진행하세요.',
+      [],
+      {
+        permissionModeOverride: nextPermissionMode,
+        visibleTextOverride: action === 'always' ? '권한 승인 후 계속' : '이번만 권한 승인 후 계속',
+      }
+    )
+  }
+
+  async function handleQuestionResponse(answer: string | null) {
+    if (!activeSession || !activeSessionId || !activeSession.pendingQuestion || activeSession.isStreaming) return
+
+    setPendingQuestion(activeSessionId, null)
+
+    if (!answer?.trim()) return
+
+    await handleSend(answer.trim(), [], {
+      visibleTextOverride: answer.trim(),
+    })
+  }
+
   async function handleSelectFolder(tabId?: string) {
     const id = tabId ?? activeSessionId
     if (!id) return
-    const folder = await window.claude.selectFolder()
+    const folder = normalizeSelectedFolder(await window.claude.selectFolder())
     if (!folder) return
     const name = folder.split('/').pop() || folder
     updateSession(id, () => ({ cwd: folder, name }))
   }
 
   async function handleNewSession(cwdOverride?: string) {
-    let folder = cwdOverride ?? null
+    let folder = normalizeSelectedFolder(cwdOverride)
     if (!folder) {
-      folder = await window.claude.selectFolder()
+      folder = normalizeSelectedFolder(await window.claude.selectFolder())
     }
     const cwd = folder ?? '~'
     const name = folder ? (folder.split('/').pop() || folder) : '~'
@@ -525,6 +658,8 @@ export default function App() {
               onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSession.id, mode)}
               onPlanModeChange={(val: boolean) => setPlanMode(activeSession.id, val)}
               onModelChange={(model) => setModel(activeSession.id, model)}
+              onPermissionRequestAction={handlePermissionRequestAction}
+              onQuestionResponse={handleQuestionResponse}
               permissionShortcutLabel={getShortcutLabel(shortcutConfig, 'cyclePermissionMode', shortcutPlatform)}
               bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
             />

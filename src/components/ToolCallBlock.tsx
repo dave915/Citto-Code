@@ -19,21 +19,64 @@ function getToolLabel(name: string): string {
   return TOOL_LABELS[name] || name
 }
 
-function getToolIcon(name: string): string {
-  const icons: Record<string, string> = {
-    Bash: '⚡',
-    Read: '📖',
-    Write: '✍️',
-    Edit: '✏️',
-    Glob: '🔍',
-    Grep: '🔎',
-    TodoWrite: '✅',
-    WebFetch: '🌐',
-    WebSearch: '🔍',
-    Task: '🤖',
-    MultiEdit: '✏️',
+function getToolIcon(name: string) {
+  const baseClass = 'h-4 w-4'
+
+  switch (name) {
+    case 'Bash':
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 8l4 4-4 4" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h4" />
+        </svg>
+      )
+    case 'Read':
+    case 'Write':
+    case 'Edit':
+    case 'MultiEdit':
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 4.5h7l3 3V19a1.5 1.5 0 01-1.5 1.5h-8A1.5 1.5 0 016 19V6A1.5 1.5 0 017.5 4.5z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14 4.5V8h3.5" />
+        </svg>
+      )
+    case 'Glob':
+    case 'Grep':
+    case 'WebSearch':
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="11" cy="11" r="6" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 20l-4.2-4.2" />
+        </svg>
+      )
+    case 'TodoWrite':
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 11l2 2 4-4" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 5.5h11A1.5 1.5 0 0119 7v10a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 015 17V7a1.5 1.5 0 011.5-1.5z" />
+        </svg>
+      )
+    case 'WebFetch':
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16M12 4a13 13 0 010 16M12 4a13 13 0 000 16" />
+        </svg>
+      )
+    case 'Task':
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="5" y="5" width="14" height="14" rx="3" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 10h6M9 14h4" />
+        </svg>
+      )
+    default:
+      return (
+        <svg className={baseClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6h4l1 2h3v4l-2 1 1 3-3 2-2-1-2 1-3-2 1-3-2-1V8h3l1-2z" />
+        </svg>
+      )
   }
-  return icons[name] || '🔧'
 }
 
 function formatToolInput(name: string, input: unknown): string {
@@ -65,6 +108,30 @@ function formatToolResult(result: unknown): string {
   return JSON.stringify(result, null, 2)
 }
 
+function renderCodeLines(content: string) {
+  const lines = content.split('\n')
+  const normalizedLines = lines.map((line) => line.replace(/^\s*\d+→\s?/, ''))
+  return (
+    <div className="overflow-x-auto rounded-xl border border-claude-border/70 bg-[#23252a]">
+      <div className="border-b border-claude-border/70 bg-[#1d1f23] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">
+        code
+      </div>
+      <div className="py-2 font-mono text-[13px] leading-7 text-[#ddd6cf]">
+        {normalizedLines.map((line, index) => (
+          <div key={`${index}-${line}`} className="grid grid-cols-[56px_minmax(0,1fr)]">
+            <div className="select-none px-3 text-right text-[#7f817f]">
+              {index + 1}
+            </div>
+            <div className="whitespace-pre-wrap break-all pr-4">
+              {line || ' '}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 type Props = {
   toolCall: ToolCallBlockType
 }
@@ -78,27 +145,41 @@ export function ToolCallBlock({ toolCall }: Props) {
   const isError = toolCall.status === 'error'
 
   return (
-    <div className={`tool-call rounded-lg border overflow-hidden text-sm ${
-      isError ? 'border-red-200 bg-red-50' : 'border-claude-border bg-white'
+    <div className={`tool-call overflow-hidden rounded-[20px] border text-sm ${
+      isError ? 'border-red-900/60 bg-red-950/20' : 'border-claude-border bg-[#303034]'
     }`}>
-      {/* Header */}
       <button
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-claude-bg/50 transition-colors"
+        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+          isError ? 'hover:bg-red-950/30' : 'hover:bg-[#36363a]'
+        }`}
         onClick={() => setExpanded(!expanded)}
       >
-        <span className="text-base">{getToolIcon(toolCall.toolName)}</span>
-        <span className="font-medium text-claude-text flex-1">
-          {getToolLabel(toolCall.toolName)}
+        <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border ${
+          isError
+            ? 'border-red-900/60 bg-red-950/25 text-red-200'
+            : 'border-claude-border bg-[#38383d] text-claude-muted'
+        }`}>
+          {getToolIcon(toolCall.toolName)}
         </span>
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-claude-text">
+            {getToolLabel(toolCall.toolName)}
+          </div>
+          {inputStr && (
+            <div className="mt-0.5 truncate font-mono text-xs text-claude-muted">
+              {inputStr}
+            </div>
+          )}
+        </div>
         {isRunning && (
           <span className="flex items-center gap-1 text-xs text-claude-muted">
-            <span className="inline-block w-2 h-2 rounded-full bg-claude-orange animate-pulse" />
+            <span className="inline-block h-2 w-2 rounded-full bg-claude-muted animate-pulse" />
             실행 중
           </span>
         )}
         {!isRunning && (
           <svg
-            className={`w-4 h-4 text-claude-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`h-4 w-4 flex-shrink-0 text-claude-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -106,19 +187,30 @@ export function ToolCallBlock({ toolCall }: Props) {
         )}
       </button>
 
-      {/* Input preview (always visible, truncated) */}
-      {inputStr && (
-        <div className="px-3 pb-2 font-mono text-xs text-claude-muted truncate border-t border-claude-border/50 pt-1.5">
-          {inputStr}
-        </div>
-      )}
-
-      {/* Expanded result */}
-      {expanded && resultStr && (
-        <div className={`px-3 py-2 font-mono text-xs border-t whitespace-pre-wrap break-all ${
-          isError ? 'text-red-700 border-red-200 bg-red-50' : 'text-gray-700 border-claude-border bg-gray-50'
-        }`}>
-          {resultStr}
+      {expanded && (
+        <div className="border-t border-claude-border/70">
+          <div className="px-4 py-3">
+            {inputStr && (
+              <div className="mb-3">
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">입력</div>
+                <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-xl border border-claude-border/70 bg-[#2a2a2d] px-3 py-2 font-mono text-xs text-[#d7d1ca]">
+                  {inputStr}
+                </pre>
+              </div>
+            )}
+            {resultStr && (
+              <div>
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-claude-muted/80">결과</div>
+                {isError ? (
+                  <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-xl border border-red-900/60 bg-red-950/25 px-3 py-2 font-mono text-xs text-red-100">
+                    {resultStr}
+                  </pre>
+                ) : (
+                  renderCodeLines(resultStr)
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

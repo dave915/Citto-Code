@@ -1,3 +1,4 @@
+import { Children, isValidElement, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Message } from '../store/sessions'
@@ -6,6 +7,7 @@ import { ToolCallBlock } from './ToolCallBlock'
 type Props = {
   message: Message
   isStreaming?: boolean
+  onAbort?: () => void
 }
 
 function formatBytes(bytes: number): string {
@@ -14,7 +16,40 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
-export function MessageBubble({ message, isStreaming }: Props) {
+function normalizeInlineCodeChildren(children: React.ReactNode): React.ReactNode {
+  const normalizeText = (value: string): string => {
+    const match = value.match(/^(\s*)(`+)([\s\S]*?)(\2)(\s*)$/)
+    if (!match) return value
+    return `${match[1]}${match[3]}${match[5]}`
+  }
+
+  if (typeof children === 'string') {
+    return normalizeText(children)
+  }
+
+  if (Array.isArray(children)) {
+    return children.map((child) => (typeof child === 'string' ? normalizeText(child) : child))
+  }
+
+  return children
+}
+
+export function MessageBubble({ message, isStreaming, onAbort }: Props) {
+  const [showStreamingUi, setShowStreamingUi] = useState(Boolean(isStreaming))
+
+  useEffect(() => {
+    if (isStreaming) {
+      setShowStreamingUi(true)
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setShowStreamingUi(false)
+    }, 1200)
+
+    return () => window.clearTimeout(timeout)
+  }, [isStreaming])
+
   if (message.role === 'user') {
     return (
       <div className="flex justify-end mb-4">
@@ -39,8 +74,8 @@ export function MessageBubble({ message, isStreaming }: Props) {
           )}
 
           {message.text && (
-            <div className="rounded-[22px] rounded-tr-md border border-[#c69772]/20 bg-gradient-to-br from-[#2d231e] to-[#211b18] px-4 py-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
-              <p className="text-[14px] leading-7 whitespace-pre-wrap text-[#f5ede6]">{message.text}</p>
+            <div className="rounded-[22px] rounded-tr-md border border-claude-border bg-[#303034] px-4 py-3.5">
+              <p className="text-[14px] leading-7 whitespace-pre-wrap text-claude-text">{message.text}</p>
             </div>
           )}
         </div>
@@ -51,73 +86,80 @@ export function MessageBubble({ message, isStreaming }: Props) {
   // Assistant message
   return (
     <div className="flex justify-start mb-4">
-      <div className="flex gap-3.5 max-w-[88%]">
-        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text shadow-[0_8px_20px_rgba(0,0,0,0.16)]">
-          C
-        </div>
+      <div className="max-w-[88%]">
+        {message.toolCalls.length > 0 && (
+          <div className="mb-3 space-y-2">
+            {message.toolCalls.map((tc) => (
+              <ToolCallBlock key={tc.id} toolCall={tc} />
+            ))}
+          </div>
+        )}
 
-        <div className="flex-1 min-w-0">
-          {message.toolCalls.length > 0 && (
-            <div className="mb-3 space-y-2">
-              {message.toolCalls.map((tc) => (
-                <ToolCallBlock key={tc.id} toolCall={tc} />
-              ))}
-            </div>
-          )}
-
-          {(message.text || isStreaming) && (
-            <div className="rounded-[22px] rounded-tl-md border border-claude-border bg-claude-surface px-4 py-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.18)]">
-              {message.text ? (
-                <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      code({ className, children, ...props }) {
-                        const isInline = !className
-                        if (isInline) {
-                          return (
-                            <code
-                              className="rounded-md border border-claude-border bg-claude-surface-2 px-1.5 py-0.5 text-xs font-mono text-[#f0c49d]"
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          )
-                        }
+        {(message.text || showStreamingUi) && (
+          <div className="px-0.5 py-1">
+            {message.text ? (
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    code({ className, children, ...props }) {
+                      const isInline = !className
+                      if (isInline) {
                         return (
-                          <code className={`hljs ${className ?? ''}`} {...props}>
-                            {children}
+                          <code
+                            className="rounded-md border border-claude-border/70 bg-[#36383d] px-1.5 py-0.5 text-[0.85em] font-mono text-[#ddd6cf]"
+                            {...props}
+                          >
+                            {normalizeInlineCodeChildren(children)}
                           </code>
                         )
-                      },
-                      pre({ children }) {
-                        return (
-                          <pre className="!bg-transparent !p-0 overflow-x-auto">
+                      }
+                      return (
+                        <code className={`hljs ${className ?? ''}`} {...props}>
+                          {children}
+                        </code>
+                      )
+                    },
+                    pre({ children }) {
+                      const onlyChild = Children.toArray(children)[0]
+                      const className = isValidElement<{ className?: string }>(onlyChild)
+                        ? onlyChild.props.className ?? ''
+                        : ''
+                      const language = className
+                        .replace('hljs', '')
+                        .trim()
+                        .replace(/^language-/, '')
+                        .trim()
+
+                      return (
+                        <div className="code-block-shell">
+                          <div className="code-block-header">
+                            <span className="code-block-title">{language || 'code'}</span>
+                          </div>
+                          <pre className="code-block-pre">
                             {children}
                           </pre>
-                        )
-                      }
-                    }}
-                  >
-                    {message.text}
-                  </ReactMarkdown>
-                </div>
-              ) : null}
+                        </div>
+                      )
+                    }
+                  }}
+                >
+                  {message.text}
+                </ReactMarkdown>
+              </div>
+            ) : null}
 
-              {isStreaming && !message.text && (
-                <div className="flex items-center gap-1 py-1">
-                  <span className="w-2 h-2 rounded-full bg-claude-orange animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-claude-orange animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-claude-orange animate-bounce" style={{ animationDelay: '300ms' }} />
+            {showStreamingUi && (
+              <div className="flex items-center gap-1 py-1">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-claude-muted animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-claude-muted animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-claude-muted animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-              )}
-
-              {isStreaming && message.text && (
-                <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse align-middle bg-claude-orange" />
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
