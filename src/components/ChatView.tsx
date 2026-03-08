@@ -25,6 +25,7 @@ import warpIcon from '../assets/open-with/warp.png'
 import xcodeIcon from '../assets/open-with/xcode.png'
 import intellijIdeaIcon from '../assets/open-with/intellij-idea.png'
 import webstormIcon from '../assets/open-with/webstorm.png'
+import welcomeTypingGif from '../assets/mascot/welcome-typing-transparent.gif'
 
 type AskAboutSelectionPayload = {
   kind: 'diff' | 'code'
@@ -1307,7 +1308,7 @@ export function ChatView({
           className="min-w-0 flex-1 overflow-y-auto px-6 py-7"
           style={{ background: 'linear-gradient(180deg, rgb(var(--claude-panel)) 0%, rgb(var(--claude-bg)) 100%)' }}
         >
-          <div className="mx-auto w-full max-w-[860px]">
+          <div className={`mx-auto w-full max-w-[860px] ${isNewSession ? 'min-h-full' : ''}`}>
             {fileConflict && fileConflictLabel && (
               <div className="mb-4 rounded-2xl border border-red-900/35 bg-red-950/15 px-4 py-3 text-sm text-red-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
                 <div className="flex items-start gap-3">
@@ -1362,6 +1363,28 @@ export function ChatView({
             <div ref={bottomRef} />
           </div>
         </div>
+        {isNewSession && (
+          <div className="pointer-events-none relative z-10 mx-auto h-0 w-full max-w-[860px] px-6">
+            <div className="absolute bottom-[-16px] right-6 select-none sm:bottom-[-18px] sm:right-8">
+              <div className="relative h-12 w-20 sm:h-14 sm:w-24">
+                <div
+                  className="absolute inset-0 rounded-full blur-2xl"
+                  style={{ background: 'radial-gradient(circle at 55% 58%, rgb(var(--claude-orange) / 0.18) 0%, rgb(var(--claude-orange) / 0.08) 38%, transparent 72%)' }}
+                />
+                <img
+                  src={welcomeTypingGif}
+                  alt="노트북으로 작업 중인 캐릭터"
+                  className="relative h-full w-full object-contain"
+                  draggable={false}
+                  style={{
+                    imageRendering: 'pixelated',
+                    filter: 'drop-shadow(0 14px 30px rgba(0, 0, 0, 0.18))',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
         {/* 입력창 (설정 툴바 포함) */}
         <InputArea
           cwd={session.cwd}
@@ -2530,7 +2553,7 @@ function isTextPreviewable(name: string): boolean {
 
 function WelcomeScreen({ sidebarMode, onSelectFolder }: { sidebarMode: SidebarMode; onSelectFolder: () => void }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 pt-10 text-center">
+    <div className="flex min-h-full w-full flex-col items-center justify-center px-8 pb-10 pt-10 text-center">
       <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Citto Code</h2>
       <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
         Claude Code CLI 기반 코드 어시스턴트입니다.
