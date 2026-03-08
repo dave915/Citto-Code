@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification } from 'electron'
 import { join, dirname, extname, relative } from 'path'
-import { tmpdir } from 'os'
+import { tmpdir, userInfo } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import { existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { request as httpsRequest } from 'https'
@@ -9,7 +9,7 @@ import { request as httpRequest } from 'http'
 const activeProcesses = new Map<string, ChildProcess>()
 
 // 모델 캐시 (5분)
-let modelsCache: { list: ModelInfo[]; fetchedAt: number } | null = null
+let modelsCache: { list: ModelInfo[]; fetchedAt: number; cacheKey: string } | null = null
 const CACHE_TTL = 5 * 60 * 1000
 
 export type ModelInfo = {
@@ -36,6 +36,19 @@ const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
+}
+
+const SHELL_IMPORTED_ENV_KEYS = new Set([
+  'CLAUDE_CODE_USE_BEDROCK',
+  'ANTHROPIC_BEDROCK_BASE_URL',
+  'CLAUDE_CODE_SKIP_BEDROCK_AUTH',
+  'ANTHROPIC_AUTH_TOKEN',
+  'NODE_EXTRA_CA_CERTS',
+])
+
+function readEnvVar(envVars: Record<string, string> | undefined, key: string): string {
+  const value = envVars?.[key]
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 type GitStatusEntry = {
@@ -103,6 +116,118 @@ function modelDisplayName(id: string): string {
   const [, fam, major, minor] = m
   const name = fam.charAt(0).toUpperCase() + fam.slice(1)
   return minor ? `${name} ${major}.${minor}` : `${name} ${major}`
+}
+
+function getDefaultShellPath(): string | null {
+  const configuredShell = process.env.SHELL?.trim()
+  if (configuredShell) return configuredShell
+
+  const username = process.env.USER?.trim() || process.env.LOGNAME?.trim() || (() => {
+    try {
+      return userInfo().username
+    } catch {
+      return ''
+    }
+  })()
+
+  if (process.platform === 'darwin' && username) {
+    const result = spawnSync('dscl', ['.', '-read', `/Users/${username}`, 'UserShell'], {
+      encoding: 'utf-8',
+      timeout: 3000,
+    })
+    const shellPath = result.stdout
+      .split('\n')
+      .find((line) => line.startsWith('UserShell:'))
+      ?.split(':')
+      .slice(1)
+      .join(':')
+      .trim()
+
+    if (shellPath) return shellPath
+  }
+
+  if (process.platform === 'linux' && username) {
+    const result = spawnSync('getent', ['passwd', username], {
+      encoding: 'utf-8',
+      timeout: 3000,
+    })
+    const shellPath = result.stdout.trim().split(':')[6]?.trim()
+    if (shellPath) return shellPath
+  }
+
+  if (existsSync('/bin/zsh')) return '/bin/zsh'
+  if (existsSync('/bin/bash')) return '/bin/bash'
+  return null
+}
+
+function parseImportedShellEnv(output: string, nullDelimited: boolean): Record<string, string> {
+  const result: Record<string, string> = {}
+  const entries = output.split(nullDelimited ? '\0' : '\n')
+
+  for (const entry of entries) {
+    const separatorIndex = entry.indexOf('=')
+    if (separatorIndex <= 0) continue
+
+    const key = entry.slice(0, separatorIndex).trim()
+    if (!SHELL_IMPORTED_ENV_KEYS.has(key)) continue
+
+    const value = entry.slice(separatorIndex + 1).trim()
+    if (!value) continue
+    result[key] = value
+  }
+
+  return result
+}
+
+function importShellEnvironmentVars() {
+  const shellPath = getDefaultShellPath()
+  if (!shellPath) return
+
+  if (!process.env.SHELL) {
+    process.env.SHELL = shellPath
+  }
+
+  const shellName = shellPath.split('/').pop()?.toLowerCase() ?? ''
+  const commandCandidates = shellName === 'fish'
+    ? [
+        { args: ['-i', '-l', '-c', 'env'], nullDelimited: false },
+        { args: ['-l', '-c', 'env'], nullDelimited: false },
+        { args: ['-i', '-c', 'env'], nullDelimited: false },
+        { args: ['-c', 'env'], nullDelimited: false },
+      ]
+    : [
+        { args: ['-ilc', 'env -0'], nullDelimited: true },
+        { args: ['-lc', 'env -0'], nullDelimited: true },
+        { args: ['-ic', 'env -0'], nullDelimited: true },
+        { args: ['-c', 'env -0'], nullDelimited: true },
+        { args: ['-ilc', 'env'], nullDelimited: false },
+        { args: ['-lc', 'env'], nullDelimited: false },
+        { args: ['-ic', 'env'], nullDelimited: false },
+        { args: ['-c', 'env'], nullDelimited: false },
+      ]
+
+  for (const candidate of commandCandidates) {
+    try {
+      const result = spawnSync(shellPath, candidate.args, {
+        env: process.env,
+        encoding: 'utf-8',
+        timeout: 5000,
+        maxBuffer: 1024 * 1024,
+      })
+
+      if (result.status !== 0 || !result.stdout) continue
+
+      const importedEnv = parseImportedShellEnv(result.stdout, candidate.nullDelimited)
+      if (Object.keys(importedEnv).length === 0) continue
+
+      for (const [key, value] of Object.entries(importedEnv)) {
+        process.env[key] = value
+      }
+      break
+    } catch {
+      // 다음 후보 셸 옵션으로 재시도
+    }
+  }
 }
 
 function resolveTargetPath(targetPath: string): string {
@@ -704,14 +829,16 @@ function openPathWithApp(targetPath: string, appId: string): { ok: boolean; erro
   }
 }
 
-async function getApiConfig(): Promise<{ apiKey: string; baseUrl: string }> {
-  let apiKey = process.env.ANTHROPIC_API_KEY ?? ''
-  let baseUrl = process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com'
+async function getApiConfig(envVars?: Record<string, string>): Promise<{ apiKey: string; baseUrl: string }> {
+  const envApiKey = readEnvVar(envVars, 'ANTHROPIC_API_KEY')
+  const envBaseUrl = readEnvVar(envVars, 'ANTHROPIC_BASE_URL')
+  let apiKey = envApiKey || (process.env.ANTHROPIC_API_KEY ?? '')
+  let baseUrl = envBaseUrl || (process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com')
 
   try {
     const settingsPath = join(process.env.HOME ?? '', '.claude', 'settings.json')
     const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
-    if (settings.baseURL) baseUrl = settings.baseURL
+    if (!envBaseUrl && settings.baseURL) baseUrl = settings.baseURL
     if (!apiKey && settings.apiKeyHelper) {
       apiKey = execSync(settings.apiKeyHelper, { encoding: 'utf-8', timeout: 5000 }).trim()
     }
@@ -720,14 +847,15 @@ async function getApiConfig(): Promise<{ apiKey: string; baseUrl: string }> {
   return { apiKey, baseUrl }
 }
 
-async function fetchModelsFromApi(): Promise<ModelInfo[]> {
-  const { apiKey, baseUrl } = await getApiConfig()
+async function fetchModelsFromApi(envVars?: Record<string, string>): Promise<ModelInfo[]> {
+  const { apiKey, baseUrl } = await getApiConfig(envVars)
   if (!apiKey) return FALLBACK_MODELS
 
   return new Promise((resolve) => {
     const url = new URL('/v1/models', baseUrl)
     const isHttps = url.protocol === 'https:'
     const requester = isHttps ? httpsRequest : httpRequest
+    const extraCaCertPath = readEnvVar(envVars, 'NODE_EXTRA_CA_CERTS') || (process.env.NODE_EXTRA_CA_CERTS ?? '')
 
     const req = requester(
       {
@@ -739,6 +867,7 @@ async function fetchModelsFromApi(): Promise<ModelInfo[]> {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
         },
+        ca: extraCaCertPath && existsSync(extraCaCertPath) ? readFileSync(extraCaCertPath) : undefined,
       },
       (res) => {
         let data = ''
@@ -807,6 +936,8 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  importShellEnvironmentVars()
+
   const appIconPath = resolveAppIconPath()
   if (process.platform === 'darwin' && appIconPath) {
     const icon = nativeImage.createFromPath(appIconPath)
@@ -816,13 +947,22 @@ app.whenReady().then(() => {
   const win = createWindow()
 
   // ── 모델 목록 ────────────────────────────────────────────────
-  ipcMain.handle('claude:get-models', async () => {
+  ipcMain.handle('claude:get-models', async (_event, { envVars }: { envVars?: Record<string, string> } = {}) => {
     const now = Date.now()
-    if (modelsCache && now - modelsCache.fetchedAt < CACHE_TTL) {
+    const cacheKey = JSON.stringify({
+      anthropicApiKey: readEnvVar(envVars, 'ANTHROPIC_API_KEY'),
+      anthropicBaseUrl: readEnvVar(envVars, 'ANTHROPIC_BASE_URL'),
+      nodeExtraCaCerts: readEnvVar(envVars, 'NODE_EXTRA_CA_CERTS'),
+      processApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+      processBaseUrl: process.env.ANTHROPIC_BASE_URL ?? '',
+      processNodeExtraCaCerts: process.env.NODE_EXTRA_CA_CERTS ?? '',
+    })
+
+    if (modelsCache && modelsCache.cacheKey === cacheKey && now - modelsCache.fetchedAt < CACHE_TTL) {
       return modelsCache.list
     }
-    const list = await fetchModelsFromApi()
-    modelsCache = { list, fetchedAt: now }
+    const list = await fetchModelsFromApi(envVars)
+    modelsCache = { list, fetchedAt: now, cacheKey }
     return list
   })
 

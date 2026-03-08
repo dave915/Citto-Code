@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import type { SelectedFile, ModelInfo, FileEntry } from '../../electron/preload'
-import type { PendingPermissionRequest, PendingQuestionRequest, PermissionMode } from '../store/sessions'
+import { useSessionsStore, type PendingPermissionRequest, type PendingQuestionRequest, type PermissionMode } from '../store/sessions'
 import { matchShortcut } from '../lib/shortcuts'
 
 type SlashCommand = {
@@ -36,6 +36,18 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: 'terminal-setup', path: '', dir: '', legacy: false, kind: 'builtin', description: 'Shift+Enter 줄바꿈 설정' },
   { name: 'vim', path: '', dir: '', legacy: false, kind: 'builtin', description: 'vim 모드 전환' },
 ]
+
+function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(envVars).filter(([key, value]) => {
+      const trimmed = value.trim()
+      if (!trimmed) return false
+      if (key === 'ANTHROPIC_API_KEY' && trimmed === 'your-key') return false
+      if (key === 'ANTHROPIC_BASE_URL' && trimmed === 'https://api.example.com') return false
+      return true
+    })
+  )
+}
 
 type Props = {
   cwd: string
@@ -252,6 +264,8 @@ export function InputArea({
   permissionShortcutLabel, bypassShortcutLabel,
   externalDraft,
 }: Props) {
+  const envVars = useSessionsStore((state) => state.envVars)
+  const sanitizedEnvVars = useMemo(() => sanitizeEnvVars(envVars), [envVars])
   const [showStreamingUi, setShowStreamingUi] = useState(Boolean(isStreaming))
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<SelectedFile[]>([])
@@ -284,14 +298,16 @@ export function InputArea({
 
   // 앱 시작 시 모델 목록 로드 (5분 캐시는 main process에서 처리)
   useEffect(() => {
-    window.claude.getModels().then(setModels).catch(() => {})
+    const modelEnvVars = Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined
+
+    window.claude.getModels(modelEnvVars).then(setModels).catch(() => {})
     window.claude.listSkills()
       .then((commands) => {
         const customCommands = commands.map((command) => ({ ...command, kind: 'custom' as const }))
         setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...customCommands])
       })
       .catch(() => setSlashCommands(BUILTIN_SLASH_COMMANDS))
-  }, [])
+  }, [sanitizedEnvVars])
 
   const closeAtMention = useCallback(() => {
     setAtMention(null)
