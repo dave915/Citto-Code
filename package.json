@@ -7,7 +7,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "pack": "npm run build && electron-builder"
+    "pack": "npm run build && electron-builder",
+    "install:mac": "node ./scripts/install-mac-app.mjs",
+    "install:win": "node ./scripts/install-win-app.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -44,6 +46,9 @@
     "mac": {
       "target": "dmg",
       "icon": "build/icon.icns"
+    },
+    "win": {
+      "icon": "build/icon.png"
     }
   }
 }
