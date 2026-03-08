@@ -37,9 +37,13 @@
   },
   "build": {
     "appId": "com.company.claude-ui",
-    "productName": "Claude UI",
+    "productName": "Citto Code",
+    "directories": {
+      "buildResources": "build"
+    },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "build/icon.icns"
     }
   }
 }

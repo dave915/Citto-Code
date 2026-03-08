@@ -82,6 +82,11 @@ const MAC_OPEN_WITH_APPS: MacOpenWithApp[] = [
   { id: 'webstorm', label: 'WebStorm', bundleIds: ['com.jetbrains.WebStorm'] },
 ]
 
+function resolveAppIconPath() {
+  const iconPath = join(app.getAppPath(), 'build', 'icon.png')
+  return existsSync(iconPath) ? iconPath : undefined
+}
+
 function modelDisplayName(id: string): string {
   // claude-{family}-{major}-{minor}[-YYYYMMDD]
   const m = id.match(/^claude-([a-z]+)-(\d+)(?:-(\d+))?/)
@@ -759,6 +764,7 @@ async function fetchModelsFromApi(): Promise<ModelInfo[]> {
 }
 
 function createWindow(): BrowserWindow {
+  const appIconPath = resolveAppIconPath()
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -767,6 +773,7 @@ function createWindow(): BrowserWindow {
     backgroundColor: '#F5F0EB',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
+    icon: appIconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -786,6 +793,12 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  const appIconPath = resolveAppIconPath()
+  if (process.platform === 'darwin' && appIconPath) {
+    const icon = nativeImage.createFromPath(appIconPath)
+    if (!icon.isEmpty()) app.dock.setIcon(icon)
+  }
+
   const win = createWindow()
 
   // ── 모델 목록 ────────────────────────────────────────────────

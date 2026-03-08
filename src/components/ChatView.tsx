@@ -2531,7 +2531,7 @@ function isTextPreviewable(name: string): boolean {
 function WelcomeScreen({ sidebarMode, onSelectFolder }: { sidebarMode: SidebarMode; onSelectFolder: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 pt-10 text-center">
-      <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Claude UI</h2>
+      <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Citto Code</h2>
       <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
         Claude Code CLI 기반 코드 어시스턴트입니다.
       </p>
