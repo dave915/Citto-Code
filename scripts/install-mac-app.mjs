@@ -1,4 +1,4 @@
-import { accessSync, constants, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'fs'
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'fs'
 import { spawnSync } from 'child_process'
 import { homedir } from 'os'
 import { dirname, join, resolve } from 'path'
@@ -27,6 +27,17 @@ function run(command, args) {
 
 function findAppBundle(rootDir, appBundleName) {
   const entries = readdirSync(rootDir, { withFileTypes: true })
+
+  const macOutputDirs = entries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('mac'))
+    .map((entry) => join(rootDir, entry.name))
+
+  for (const outputDir of macOutputDirs) {
+    const candidate = join(outputDir, appBundleName)
+    if (existsSync(candidate) && statSync(candidate).isDirectory()) {
+      return candidate
+    }
+  }
 
   for (const entry of entries) {
     const fullPath = join(rootDir, entry.name)
@@ -74,7 +85,7 @@ mkdirSync(installDir, { recursive: true })
 
 const destinationAppPath = join(installDir, appBundleName)
 rmSync(destinationAppPath, { recursive: true, force: true })
-cpSync(sourceAppPath, destinationAppPath, { recursive: true })
+run('ditto', [sourceAppPath, destinationAppPath])
 
 spawnSync('xattr', ['-dr', 'com.apple.quarantine', destinationAppPath], {
   stdio: 'ignore',
