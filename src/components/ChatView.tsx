@@ -1363,28 +1363,6 @@ export function ChatView({
             <div ref={bottomRef} />
           </div>
         </div>
-        {isNewSession && (
-          <div className="pointer-events-none relative z-10 mx-auto h-0 w-full max-w-[860px] px-6">
-            <div className="absolute bottom-[-16px] right-6 select-none sm:bottom-[-18px] sm:right-8">
-              <div className="relative h-12 w-20 sm:h-14 sm:w-24">
-                <div
-                  className="absolute inset-0 rounded-full blur-2xl"
-                  style={{ background: 'radial-gradient(circle at 55% 58%, rgb(var(--claude-orange) / 0.18) 0%, rgb(var(--claude-orange) / 0.08) 38%, transparent 72%)' }}
-                />
-                <img
-                  src={welcomeTypingGif}
-                  alt="노트북으로 작업 중인 캐릭터"
-                  className="relative h-full w-full object-contain"
-                  draggable={false}
-                  style={{
-                    imageRendering: 'pixelated',
-                    filter: 'drop-shadow(0 14px 30px rgba(0, 0, 0, 0.18))',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
         {/* 입력창 (설정 툴바 포함) */}
         <InputArea
           cwd={session.cwd}
@@ -2558,6 +2536,25 @@ function WelcomeScreen({ sidebarMode, onSelectFolder }: { sidebarMode: SidebarMo
       <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
         Claude Code CLI 기반 코드 어시스턴트입니다.
       </p>
+
+      <div className="pointer-events-none mb-3 select-none">
+        <div className="relative h-12 w-20 sm:h-14 sm:w-24">
+          <div
+            className="absolute inset-0 rounded-full blur-2xl"
+            style={{ background: 'radial-gradient(circle at 55% 58%, rgb(var(--claude-orange) / 0.18) 0%, rgb(var(--claude-orange) / 0.08) 38%, transparent 72%)' }}
+          />
+          <img
+            src={welcomeTypingGif}
+            alt="노트북으로 작업 중인 캐릭터"
+            className="relative h-full w-full object-contain"
+            draggable={false}
+            style={{
+              imageRendering: 'pixelated',
+              filter: 'drop-shadow(0 14px 30px rgba(0, 0, 0, 0.18))',
+            }}
+          />
+        </div>
+      </div>
 
       <button
         onClick={onSelectFolder}
