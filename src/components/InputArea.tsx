@@ -171,7 +171,7 @@ function ModelPicker({
         transform: 'translateY(-100%) translateY(-6px)',
         zIndex: 9999,
       }}
-      className="w-56 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.32)]"
+      className="w-56 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel"
     >
       <div className="border-b border-claude-border px-3 py-2.5">
         <p className="text-xs font-semibold text-claude-muted uppercase tracking-wide">모델 선택</p>
@@ -227,7 +227,7 @@ function ModelPicker({
         title="모델 선택"
         className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
           model
-            ? `${familyColor(current?.family ?? 'sonnet')} border border-claude-border bg-claude-surface shadow-[0_8px_24px_rgba(0,0,0,0.18)]`
+            ? `${familyColor(current?.family ?? 'sonnet')} border border-claude-border bg-claude-surface`
             : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
         }`}
       >
@@ -1013,7 +1013,7 @@ export function InputArea({
       {/* 입력 컨테이너 (@ 드롭다운 포함) */}
       <div className="relative">
         {showQuestionPrompt && pendingQuestion && (
-          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel">
             <div className="flex items-center gap-2 border-b border-claude-border/60 bg-claude-surface px-3 py-2.5">
               <div className="flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-claude-text">
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1058,7 +1058,7 @@ export function InputArea({
         )}
 
         {showPermissionPrompt && pendingPermission && (
-          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel">
             <div className="flex items-center gap-2 border-b border-claude-border/60 bg-claude-surface px-3 py-2.5">
               <div className="flex h-7 w-7 items-center justify-center rounded-xl border border-claude-border bg-claude-surface-2 text-claude-text">
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1100,7 +1100,7 @@ export function InputArea({
 
         {/* @ 파일 참조 드롭다운 */}
         {(slashResults.length > 0 || atResults.length > 0) && (
-          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_20px_50px_rgba(0,0,0,0.36)]">
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel">
             <div className="flex items-center gap-1.5 border-b border-claude-border/60 bg-claude-surface px-3 py-2">
               {slashResults.length > 0 ? (
                 <svg className="w-3 h-3 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

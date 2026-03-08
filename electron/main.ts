@@ -818,10 +818,11 @@ app.whenReady().then(() => {
   })
 
   // ── 폴더 선택 ─────────────────────────────────────────────────
-  ipcMain.handle('claude:select-folder', async () => {
+  ipcMain.handle('claude:select-folder', async (_event, options?: { defaultPath?: string; title?: string }) => {
     const result = await dialog.showOpenDialog(win, {
       properties: ['openDirectory'],
-      title: '프로젝트 폴더 선택',
+      title: options?.title ?? '프로젝트 폴더 선택',
+      defaultPath: options?.defaultPath ? resolveTargetPath(options.defaultPath) : undefined,
     })
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]

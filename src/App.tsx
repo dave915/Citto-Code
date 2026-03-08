@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { useSessionsStore, findTabByClaudeSessionId, getProjectNameFromPath } from './store/sessions'
+import { useSessionsStore, findTabByClaudeSessionId, getProjectNameFromPath, DEFAULT_PROJECT_PATH } from './store/sessions'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -768,15 +768,24 @@ export default function App() {
   async function handleSelectFolder(tabId?: string) {
     const id = tabId ?? activeSessionId
     if (!id) return
-    const folder = normalizeSelectedFolder(await window.claude.selectFolder())
+    const session = sessions.find((item) => item.id === id)
+    const folder = normalizeSelectedFolder(await window.claude.selectFolder({
+      defaultPath: session?.cwd || defaultProjectPath,
+      title: '프로젝트 폴더 선택',
+    }))
     if (!folder) return
     const name = getProjectNameFromPath(folder)
     updateSession(id, () => ({ cwd: folder, name }))
   }
 
   async function handleNewSession(cwdOverride?: string) {
-    const folder = normalizeSelectedFolder(cwdOverride) ?? defaultProjectPath
-    const cwd = folder || defaultProjectPath
+    const fallbackPath = defaultProjectPath.trim() || DEFAULT_PROJECT_PATH
+    const folder = normalizeSelectedFolder(cwdOverride)
+      ?? normalizeSelectedFolder(await window.claude.selectFolder({
+        defaultPath: fallbackPath,
+        title: '프로젝트 폴더 선택',
+      }))
+    const cwd = folder || fallbackPath
     const name = getProjectNameFromPath(cwd)
     addSession(cwd, name)
   }
@@ -860,7 +869,7 @@ export default function App() {
               bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
             />
           ) : (
-            <EmptyMainState onNewSession={handleNewSession} />
+            <EmptyMainState sidebarMode={sidebarMode} onNewSession={handleNewSession} />
           )
         )}
       </main>
@@ -876,22 +885,35 @@ export default function App() {
   )
 }
 
-function EmptyMainState({ onNewSession }: { onNewSession: () => void }) {
+function EmptyMainState({
+  sidebarMode,
+  onNewSession,
+}: {
+  sidebarMode: 'session' | 'project'
+  onNewSession: () => void
+}) {
+  const isProjectMode = sidebarMode === 'project'
+  const title = isProjectMode ? '열린 프로젝트가 없습니다' : '열린 세션이 없습니다'
+  const actionLabel = isProjectMode ? '새 프로젝트 열기' : '새 세션'
+  const description = isProjectMode
+    ? '새 프로젝트 열기를 누르면 프로젝트 폴더를 고를 수 있습니다. 선택하지 않으면 설정한 기본 프로젝트 폴더로 바로 시작합니다.'
+    : '새 세션을 누르면 프로젝트 폴더를 고를 수 있습니다. 선택하지 않으면 설정한 기본 프로젝트 폴더로 바로 시작합니다.'
+
   return (
     <div className="flex h-full items-center justify-center bg-claude-bg px-8">
       <div className="max-w-sm text-center">
-        <h2 className="text-2xl font-semibold tracking-tight text-claude-text">열린 세션이 없습니다</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-claude-text">{title}</h2>
         <p className="mt-2 text-[15px] leading-7 text-claude-muted">
-          새 세션은 기본 프로젝트 폴더에서 시작합니다. 필요하면 세션 안에서 다른 폴더로 바로 바꿀 수 있습니다.
+          {description}
         </p>
         <button
           onClick={onNewSession}
-          className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-4 py-3 text-sm font-medium text-claude-text shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition-colors hover:bg-claude-surface-2"
+          className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-4 py-3 text-sm font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          새 세션
+          {actionLabel}
         </button>
       </div>
     </div>
@@ -909,7 +931,7 @@ function ClaudeInstallModal({
 }) {
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 px-6 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-[28px] border border-claude-border bg-claude-panel p-5 shadow-[0_30px_80px_rgba(0,0,0,0.4)]">
+      <div className="w-full max-w-md rounded-[28px] border border-claude-border bg-claude-panel p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-base font-semibold text-claude-text">Claude Code를 찾을 수 없습니다</p>

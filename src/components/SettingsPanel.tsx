@@ -84,7 +84,7 @@ export function SettingsPanel({
               onClick={() => setTab(t.id)}
               className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
                 tab === t.id
-                  ? 'bg-claude-surface-2 text-claude-text shadow-[0_8px_20px_rgba(0,0,0,0.24)]'
+                  ? 'bg-claude-surface-2 text-claude-text'
                   : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
               }`}
             >
@@ -191,7 +191,10 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
   const handleSelectDefaultProject = async () => {
     setDefaultProjectLoading(true)
     try {
-      const folder = await window.claude.selectFolder()
+      const folder = await window.claude.selectFolder({
+        defaultPath: defaultProjectPath,
+        title: '기본 프로젝트 폴더 선택',
+      })
       if (folder) setDefaultProjectPath(folder)
     } finally {
       setDefaultProjectLoading(false)
@@ -200,7 +203,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
 
   return (
     <div className="space-y-4 p-4">
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <p className="text-sm font-semibold text-claude-text">테마</p>
         <p className="mt-1 text-xs leading-relaxed text-claude-muted">
           기본 테마는 Default입니다. 아래 프리셋 중에서 바로 바꿔서 사용할 수 있습니다.
@@ -269,7 +272,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
                       closeThemeMenu()
                     }
                   }}
-                  className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-[0_18px_48px_rgba(0,0,0,0.28)] outline-none"
+                  className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel outline-none"
                 >
                   {themeOptions.map((theme) => {
                     const highlighted = theme.id === themeHighlightId
@@ -324,10 +327,10 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
         </div>
       </div>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <p className="text-sm font-semibold text-claude-text">기본 프로젝트 폴더</p>
         <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-          새 세션을 만들 때 기본으로 사용할 프로젝트 경로입니다. 기본값은 Desktop이며, 언제든 다른 폴더로 바꿀 수 있습니다.
+          새 세션이나 폴더 선택 창이 처음 열릴 위치입니다. 기본값은 Desktop이며, 언제든 다른 폴더로 바꿀 수 있습니다.
         </p>
 
         <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel p-3">
@@ -358,7 +361,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
         </div>
       </div>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <p className="text-sm font-semibold text-claude-text">작업 완료 알림</p>
         <p className="mt-1 text-xs leading-relaxed text-claude-muted">
           Claude 작업이 끝났을 때 알림을 언제 받을지 선택합니다. 중단한 작업이나 권한/선택지 대기 상태는 제외됩니다.
@@ -390,7 +393,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
                 onClick={() => setNotificationMode(option.value)}
                 className={`rounded-xl border p-3 text-left transition-colors ${
                   active
-                    ? 'border-[#6a6d75] bg-claude-panel shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
+                    ? 'border-[#6a6d75] bg-claude-panel'
                     : 'border-claude-border bg-claude-panel hover:bg-claude-bg'
                 }`}
               >
@@ -402,7 +405,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
         </div>
       </div>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <p className="text-sm font-semibold text-claude-text">사이드바 표시 방식</p>
         <p className="text-xs text-claude-muted mt-1 leading-relaxed">
           세션을 평면 목록으로 보거나, 프로젝트별로 묶어서 볼 수 있습니다.
@@ -428,7 +431,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
                 onClick={() => onSidebarModeChange(option.value)}
                 className={`rounded-xl border p-3 text-left transition-colors ${
                   active
-                    ? 'border-[#6a6d75] bg-claude-panel shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
+                    ? 'border-[#6a6d75] bg-claude-panel'
                     : 'border-claude-border bg-claude-panel hover:bg-claude-bg'
                 }`}
               >
@@ -440,7 +443,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
         </div>
       </div>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-claude-text">단축키</p>

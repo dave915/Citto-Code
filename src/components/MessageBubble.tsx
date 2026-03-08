@@ -139,7 +139,7 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
     <button
       type="button"
       onClick={handleCopyMessage}
-      className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted opacity-0 shadow-sm transition-all hover:bg-claude-surface-2 hover:text-claude-text group-hover/message:opacity-100 focus:outline-none focus-visible:opacity-100"
+      className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted opacity-0 transition-all hover:bg-claude-surface-2 hover:text-claude-text group-hover/message:opacity-100 focus:outline-none focus-visible:opacity-100"
       title={copied ? '복사됨' : '복사'}
       aria-label={copied ? '복사됨' : '복사'}
     >

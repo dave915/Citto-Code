@@ -1032,7 +1032,7 @@ export function ChatView({
                 </button>
 
                 {branchMenuOpen && (
-                  <div className="absolute left-0 top-full z-30 mt-2 w-[268px] rounded-[18px] border border-claude-border bg-claude-panel p-2 shadow-[0_16px_32px_rgba(0,0,0,0.26)]">
+                  <div className="absolute left-0 top-full z-30 mt-2 w-[268px] rounded-[18px] border border-claude-border bg-claude-panel p-2">
                     <div className="flex items-center gap-1.5">
                       <div className="relative min-w-0 flex-1">
                         <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -1220,7 +1220,7 @@ export function ChatView({
               </div>
 
               {openWithMenuOpen && (
-                <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-3xl border border-claude-border bg-claude-panel p-2 shadow-[0_24px_60px_rgba(0,0,0,0.34)]">
+                <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-3xl border border-claude-border bg-claude-panel p-2">
                   <p className="px-3 pb-2 pt-1 text-xs font-semibold text-claude-muted">다음에서 열기</p>
                   {openWithLoading ? (
                     <div className="flex items-center justify-center px-3 py-8 text-claude-muted">
@@ -1310,7 +1310,7 @@ export function ChatView({
         >
           <div className={`mx-auto w-full max-w-[860px] ${isNewSession ? 'min-h-full' : ''}`}>
             {fileConflict && fileConflictLabel && (
-              <div className="mb-4 rounded-2xl border border-red-900/35 bg-red-950/15 px-4 py-3 text-sm text-red-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+              <div className="mb-4 rounded-2xl border border-red-900/35 bg-red-950/15 px-4 py-3 text-sm text-red-100">
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl bg-red-950/30 text-red-200/80">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -1344,10 +1344,10 @@ export function ChatView({
             {showErrorCard && (
               <div className="mb-4 flex justify-start">
                 <div className="flex max-w-[88%] gap-3.5">
-                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text shadow-[0_8px_20px_rgba(0,0,0,0.16)]">
+                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text">
                     C
                   </div>
-                  <div className="rounded-[22px] rounded-tl-md border border-red-900/60 bg-red-950/30 px-4 py-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.18)]">
+                  <div className="rounded-[22px] rounded-tl-md border border-red-900/60 bg-red-950/30 px-4 py-3.5">
                     <div className="mb-1 flex items-center gap-2 font-medium text-red-200">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
@@ -1574,7 +1574,7 @@ export function ChatView({
           onMouseDown={() => setBranchCreateModalOpen(false)}
         >
           <div
-            className="w-full max-w-[312px] rounded-[18px] border border-claude-border bg-claude-panel p-3 shadow-[0_16px_36px_rgba(0,0,0,0.32)]"
+            className="w-full max-w-[312px] rounded-[18px] border border-claude-border bg-claude-panel p-3"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -1654,7 +1654,7 @@ function SessionInfoPanel({
 
   return (
     <div className="flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">세션</p>
         <div className="mt-3 space-y-3">
           <InfoRow label="이름" value={session.name} />
@@ -1668,7 +1668,7 @@ function SessionInfoPanel({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">현재 컨텍스트</p>
           <button
@@ -1700,7 +1700,7 @@ function SessionInfoPanel({
         <InfoStat label="마지막 비용" value={session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'} />
       </div>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">타임라인</p>
         <div className="mt-3 space-y-3">
           <InfoRow label="시작 시각" value={createdAt ? formatDateTime(createdAt) : '메시지 없음'} />
@@ -1766,7 +1766,7 @@ function InfoRow({
 
 function InfoStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+    <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
       <p className="text-xs text-claude-muted">{label}</p>
       <p className="mt-1 text-lg font-semibold text-claude-text">{value}</p>
     </div>
@@ -1840,7 +1840,7 @@ function ExplorerNode({
         }}
         className={`w-full flex items-center gap-2 rounded-md px-2 py-2 text-left transition-colors ${
           isSelected
-            ? 'bg-claude-surface-2 text-claude-text ring-1 ring-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
+            ? 'bg-claude-surface-2 text-claude-text ring-1 ring-white/10'
             : 'hover:bg-claude-surface'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -2161,7 +2161,7 @@ function IconTooltipButton({
       <button {...props} className={className} title={tooltip} aria-label={tooltip}>
         {children}
       </button>
-      <div className={`pointer-events-none absolute z-20 whitespace-nowrap rounded-md border border-claude-border bg-claude-panel px-2 py-1 text-[10px] font-medium text-claude-text opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 ${tooltipPositionClass} ${tooltipSideClass}`}>
+      <div className={`pointer-events-none absolute z-20 whitespace-nowrap rounded-md border border-claude-border bg-claude-panel px-2 py-1 text-[10px] font-medium text-claude-text opacity-0 transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 ${tooltipPositionClass} ${tooltipSideClass}`}>
         {tooltip}
       </div>
     </div>
@@ -2245,7 +2245,7 @@ function GitStatusPanel({
             }`}
           >
             <span>{currentFilterLabel}</span>
-            <span className="inline-flex h-[17px] min-w-[20px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-panel px-1.5 text-[11px] font-semibold leading-none text-claude-text shadow-[0_2px_8px_rgba(0,0,0,0.14)]">
+            <span className="inline-flex h-[17px] min-w-[20px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-panel px-1.5 text-[11px] font-semibold leading-none text-claude-text">
               {currentFilterCount}
             </span>
             <svg className={`h-3.5 w-3.5 text-claude-muted transition-transform ${filterOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -2254,7 +2254,7 @@ function GitStatusPanel({
           </button>
 
           {filterOpen && (
-            <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-[20px] border border-claude-border bg-claude-panel p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
+            <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-[20px] border border-claude-border bg-claude-panel p-1.5">
               {[
                 { key: 'unstaged' as const, label: '스테이징되지 않음', count: unstagedEntries.length },
                 { key: 'staged' as const, label: '스테이징됨', count: stagedEntries.length },
@@ -2374,7 +2374,7 @@ function GitStatusPanel({
                   onClick={() => void onSelectEntry(entry)}
                   className={`w-full rounded-xl border px-2.5 py-2 pr-[142px] text-left transition-colors ${
                     isSelected
-                      ? 'border-claude-border bg-claude-surface-2 text-claude-text shadow-[0_10px_22px_rgba(0,0,0,0.16)]'
+                      ? 'border-claude-border bg-claude-surface-2 text-claude-text'
                       : 'border-transparent bg-claude-panel text-claude-text hover:border-claude-border hover:bg-claude-surface'
                   }`}
                   title={entry.path}
@@ -2493,7 +2493,7 @@ const GitDiffPanel = memo(function GitDiffPanel({
         ) : parsedFiles.length > 0 ? (
           <div className="space-y-4">
             {parsedFiles.map((file, index) => (
-              <div key={`${file.oldPath}-${file.newPath}-${index}`} className="overflow-hidden rounded-2xl border border-claude-border/70 bg-claude-surface shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+              <div key={`${file.oldPath}-${file.newPath}-${index}`} className="overflow-hidden rounded-2xl border border-claude-border/70 bg-claude-surface">
                 <div className="border-b border-claude-border/70 bg-claude-panel px-3 py-2 text-[11px] font-mono text-claude-muted">
                   {file.oldPath === file.newPath ? file.newPath : `${file.oldPath} → ${file.newPath}`}
                 </div>
@@ -2537,7 +2537,7 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
         Claude Code CLI 기반 코드 어시스턴트입니다.
       </p>
 
-      <div className="pointer-events-none mb-3 select-none">
+      <div className="pointer-events-none mb-10 select-none">
         <div className="relative h-12 w-20 sm:h-14 sm:w-24">
           <div
             className="absolute inset-0 rounded-full blur-2xl"
@@ -2550,7 +2550,6 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
             draggable={false}
             style={{
               imageRendering: 'pixelated',
-              filter: 'drop-shadow(0 14px 30px rgba(0, 0, 0, 0.18))',
             }}
           />
         </div>
@@ -2558,7 +2557,7 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
 
       <button
         onClick={onSelectFolder}
-        className="mb-8 flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-5 py-3 text-sm font-medium text-claude-text shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition-colors hover:bg-claude-surface-2"
+        className="mb-8 flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-5 py-3 text-sm font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -2573,7 +2572,7 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
           { icon: '✨', label: '기능 추가해줘', desc: '새로운 기능 구현 요청' },
           { icon: '📋', label: '먼저 계획 세워줘', desc: '플랜 모드로 안전하게 검토' },
         ].map((item) => (
-          <div key={item.label} className="rounded-2xl border border-claude-border bg-claude-surface p-4 text-sm shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+          <div key={item.label} className="rounded-2xl border border-claude-border bg-claude-surface p-4 text-sm">
             <div className="text-xl mb-1">{item.icon}</div>
             <div className="font-medium text-claude-text">{item.label}</div>
             <div className="text-xs text-claude-muted mt-0.5">{item.desc}</div>

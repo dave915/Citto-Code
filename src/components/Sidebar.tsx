@@ -100,7 +100,7 @@ function SessionRow({
   const isActive = session.id === activeSessionId
   const isEditing = editingSessionId === session.id
   const itemCls = isActive
-    ? 'bg-claude-sidebar-active text-claude-text shadow-[0_14px_32px_rgba(0,0,0,0.18)]'
+    ? 'bg-claude-sidebar-active text-claude-text'
     : 'text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
 
   const startRename = () => {
@@ -240,6 +240,7 @@ export function Sidebar({
   const [editingName, setEditingName] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({})
   const inputRef = useRef<HTMLInputElement>(null)
+  const primaryActionLabel = sidebarMode === 'project' ? '새 프로젝트 열기' : '새 세션'
   const favoriteSessions = sortSessions(sessions.filter((session) => session.favorite))
   const nonFavoriteSessions = sessions.filter((session) => !session.favorite)
   const projectGroups = groupSessionsByProject(nonFavoriteSessions)
@@ -282,12 +283,12 @@ export function Sidebar({
         <button
           onClick={() => onNewSession()}
           className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.035] bg-white/[0.03] px-3.5 py-2.5 text-sm text-claude-text outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-claude-sidebar-hover hover:text-claude-text"
-          title={`새 세션 (${newSessionShortcutLabel})`}
+          title={`${primaryActionLabel} (${newSessionShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          새 세션
+          {primaryActionLabel}
         </button>
       </div>
 
