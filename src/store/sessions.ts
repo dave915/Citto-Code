@@ -93,6 +93,7 @@ export type Session = {
 type SessionsStore = {
   sessions: Session[]
   activeSessionId: string | null
+  defaultProjectPath: string
   envVars: Record<string, string>
   sidebarMode: SidebarMode
   claudeBinaryPath: string
@@ -103,6 +104,7 @@ type SessionsStore = {
   addSession: (cwd: string, name: string) => string
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
+  setDefaultProjectPath: (path: string) => void
   setSidebarMode: (mode: SidebarMode) => void
   setClaudeBinaryPath: (path: string) => void
   setPreferredOpenWithAppId: (appId: string) => void
@@ -128,8 +130,33 @@ type SessionsStore = {
   removeEnvVar: (key: string) => void
 }
 
-const DEFAULT_CWD = '~'
+export const DEFAULT_PROJECT_PATH = '~/Desktop'
 const GENERIC_CLAUDE_ERROR = 'Claude Code 요청이 실패했습니다.'
+
+export function getProjectNameFromPath(path: string): string {
+  if (!path || path === '~') return '~'
+  const normalized = path.replace(/\\/g, '/')
+  const parts = normalized.split('/').filter(Boolean)
+  return parts[parts.length - 1] || path
+}
+
+function isLegacyHomePlaceholderSession(session: Session): boolean {
+  return (
+    session.cwd === '~' &&
+    (session.name === '~' || session.name === '새 세션') &&
+    session.sessionId === null &&
+    session.messages.length === 0 &&
+    !session.favorite &&
+    !session.isStreaming &&
+    session.currentAssistantMsgId === null &&
+    session.error === null &&
+    session.pendingPermission === null &&
+    session.pendingQuestion === null &&
+    session.permissionMode === 'default' &&
+    !session.planMode &&
+    session.model === null
+  )
+}
 
 export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
   toggleSidebar: { mac: 'Cmd+B', windows: 'Ctrl+B' },
@@ -163,11 +190,12 @@ function makeDefaultSession(cwd: string, name: string): Session {
 export const useSessionsStore = create<SessionsStore>()(
   persist(
     (set) => {
-      const firstSession = makeDefaultSession(DEFAULT_CWD, '~')
+      const firstSession = makeDefaultSession(DEFAULT_PROJECT_PATH, getProjectNameFromPath(DEFAULT_PROJECT_PATH))
 
       return {
         sessions: [firstSession],
         activeSessionId: firstSession.id,
+        defaultProjectPath: DEFAULT_PROJECT_PATH,
         envVars: {},
         sidebarMode: 'session',
         claudeBinaryPath: '',
@@ -188,6 +216,7 @@ export const useSessionsStore = create<SessionsStore>()(
       return session.id
     },
 
+    setDefaultProjectPath: (defaultProjectPath) => set({ defaultProjectPath }),
     setSidebarMode: (mode) => set({ sidebarMode: mode }),
     setClaudeBinaryPath: (path) => set({ claudeBinaryPath: path }),
     setPreferredOpenWithAppId: (appId) => set({ preferredOpenWithAppId: appId }),
@@ -430,11 +459,12 @@ export const useSessionsStore = create<SessionsStore>()(
     {
       name: 'claude-ui-sessions',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
-      migrate: (persistedState) => {
+      version: 2,
+      migrate: (persistedState, version) => {
         const state = persistedState as Partial<SessionsStore> & {
           shortcutConfig?: Partial<ShortcutConfig>
         }
+        const defaultProjectPath = state.defaultProjectPath?.trim() || DEFAULT_PROJECT_PATH
 
         const bypassBinding = state.shortcutConfig?.toggleBypassPermissions
         const shouldApplyBypassDefault =
@@ -442,12 +472,31 @@ export const useSessionsStore = create<SessionsStore>()(
           ((!bypassBinding.mac || !bypassBinding.mac.trim()) &&
             (!bypassBinding.windows || !bypassBinding.windows.trim()))
 
+        const sessions =
+          version < 2 && state.sessions
+            ? state.sessions.map((session) =>
+                isLegacyHomePlaceholderSession(session)
+                  ? {
+                      ...session,
+                      cwd: defaultProjectPath,
+                      name: getProjectNameFromPath(defaultProjectPath),
+                    }
+                  : session
+              )
+            : state.sessions
+
         if (!shouldApplyBypassDefault) {
-          return state
+          return {
+            ...state,
+            defaultProjectPath,
+            sessions,
+          }
         }
 
         return {
           ...state,
+          defaultProjectPath,
+          sessions,
           shortcutConfig: {
             ...state.shortcutConfig,
             toggleBypassPermissions: DEFAULT_SHORTCUT_CONFIG.toggleBypassPermissions,
@@ -457,6 +506,7 @@ export const useSessionsStore = create<SessionsStore>()(
       partialize: (state) => ({
         sessions: state.sessions,
         activeSessionId: state.activeSessionId,
+        defaultProjectPath: state.defaultProjectPath,
         envVars: state.envVars,
         sidebarMode: state.sidebarMode,
         claudeBinaryPath: state.claudeBinaryPath,
@@ -484,6 +534,7 @@ export const useSessionsStore = create<SessionsStore>()(
         return {
           ...current,
           ...persistedState,
+          defaultProjectPath: persistedState.defaultProjectPath ?? DEFAULT_PROJECT_PATH,
           claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
           preferredOpenWithAppId: persistedState.preferredOpenWithAppId ?? '',
           themeId: persistedState.themeId ?? CURRENT_THEME_ID,

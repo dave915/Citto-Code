@@ -1329,7 +1329,7 @@ export function ChatView({
               </div>
             )}
             {isNewSession
-              ? <WelcomeScreen sidebarMode={sidebarMode} onSelectFolder={onSelectFolder} />
+              ? <WelcomeScreen onSelectFolder={onSelectFolder} />
               : session.messages.map((msg) => (
                   <MessageBubble
                     key={msg.id}
@@ -2529,7 +2529,7 @@ function isTextPreviewable(name: string): boolean {
   return /\.(txt|md|json|ya?ml|toml|xml|html|css|scss|ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|swift|rb|php|sh|zsh|env|sql|graphql|proto)$/i.test(name)
 }
 
-function WelcomeScreen({ sidebarMode, onSelectFolder }: { sidebarMode: SidebarMode; onSelectFolder: () => void }) {
+function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
   return (
     <div className="flex min-h-full w-full flex-col items-center justify-center px-8 pb-10 pt-10 text-center">
       <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Citto Code</h2>
@@ -2563,7 +2563,7 @@ function WelcomeScreen({ sidebarMode, onSelectFolder }: { sidebarMode: SidebarMo
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
-        {sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'}
+        프로젝트 폴더 선택
       </button>
 
       <div className="grid w-full max-w-md grid-cols-2 gap-3 text-left">

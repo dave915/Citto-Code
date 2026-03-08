@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import type { Session, SidebarMode } from '../store/sessions'
+import { getProjectNameFromPath, type Session, type SidebarMode } from '../store/sessions'
 
 type SessionLockState = {
   isLocked: boolean
@@ -30,9 +30,7 @@ type SessionGroup = {
 }
 
 function getDirName(p: string): string {
-  if (!p || p === '~') return '~'
-  const parts = p.split('/').filter(Boolean)
-  return parts[parts.length - 1] || p
+  return getProjectNameFromPath(p)
 }
 
 function getSessionDisplayName(session: Session): string {
@@ -284,12 +282,12 @@ export function Sidebar({
         <button
           onClick={() => onNewSession()}
           className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.035] bg-white/[0.03] px-3.5 py-2.5 text-sm text-claude-text outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-claude-sidebar-hover hover:text-claude-text"
-          title={`${sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'} (${newSessionShortcutLabel})`}
+          title={`새 세션 (${newSessionShortcutLabel})`}
         >
           <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          {sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'}
+          새 세션
         </button>
       </div>
 

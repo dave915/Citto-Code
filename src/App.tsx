@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { useSessionsStore, findTabByClaudeSessionId } from './store/sessions'
+import { useSessionsStore, findTabByClaudeSessionId, getProjectNameFromPath } from './store/sessions'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -239,6 +239,7 @@ export default function App() {
   const {
     sessions,
     activeSessionId,
+    defaultProjectPath,
     sidebarMode,
     addSession,
     removeSession,
@@ -769,17 +770,14 @@ export default function App() {
     if (!id) return
     const folder = normalizeSelectedFolder(await window.claude.selectFolder())
     if (!folder) return
-    const name = folder.split('/').pop() || folder
+    const name = getProjectNameFromPath(folder)
     updateSession(id, () => ({ cwd: folder, name }))
   }
 
   async function handleNewSession(cwdOverride?: string) {
-    let folder = normalizeSelectedFolder(cwdOverride)
-    if (!folder) {
-      folder = normalizeSelectedFolder(await window.claude.selectFolder())
-    }
-    const cwd = folder ?? '~'
-    const name = folder ? (folder.split('/').pop() || folder) : '~'
+    const folder = normalizeSelectedFolder(cwdOverride) ?? defaultProjectPath
+    const cwd = folder || defaultProjectPath
+    const name = getProjectNameFromPath(cwd)
     addSession(cwd, name)
   }
 
@@ -862,7 +860,7 @@ export default function App() {
               bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
             />
           ) : (
-            <EmptyMainState sidebarMode={sidebarMode} onNewSession={handleNewSession} />
+            <EmptyMainState onNewSession={handleNewSession} />
           )
         )}
       </main>
@@ -878,13 +876,13 @@ export default function App() {
   )
 }
 
-function EmptyMainState({ sidebarMode, onNewSession }: { sidebarMode: 'session' | 'project'; onNewSession: () => void }) {
+function EmptyMainState({ onNewSession }: { onNewSession: () => void }) {
   return (
     <div className="flex h-full items-center justify-center bg-claude-bg px-8">
       <div className="max-w-sm text-center">
         <h2 className="text-2xl font-semibold tracking-tight text-claude-text">열린 세션이 없습니다</h2>
         <p className="mt-2 text-[15px] leading-7 text-claude-muted">
-          새 세션을 만들고 프로젝트 폴더를 선택하면 바로 작업을 시작할 수 있습니다.
+          새 세션은 기본 프로젝트 폴더에서 시작합니다. 필요하면 세션 안에서 다른 폴더로 바로 바꿀 수 있습니다.
         </p>
         <button
           onClick={onNewSession}
@@ -893,7 +891,7 @@ function EmptyMainState({ sidebarMode, onNewSession }: { sidebarMode: 'session' 
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          {sidebarMode === 'project' ? '프로젝트 폴더 열기' : '새 세션'}
+          새 세션
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
+  DEFAULT_PROJECT_PATH,
   type NotificationMode,
   useSessionsStore,
   type SidebarMode,
@@ -107,9 +108,11 @@ export function SettingsPanel({
 function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
   const {
     sidebarMode,
+    defaultProjectPath,
     themeId,
     notificationMode,
     shortcutConfig,
+    setDefaultProjectPath,
     setThemeId,
     setNotificationMode,
     setShortcut,
@@ -126,6 +129,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [themePreviewId, setThemePreviewId] = useState<ThemeId | null>(null)
   const [themeHighlightId, setThemeHighlightId] = useState<ThemeId>(themeId)
+  const [defaultProjectLoading, setDefaultProjectLoading] = useState(false)
   const themeMenuRef = useRef<HTMLDivElement | null>(null)
 
   const activeThemeId = themePreviewId ?? themeId
@@ -182,6 +186,16 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
     const safeIndex = currentIndex < 0 ? 0 : currentIndex
     const nextIndex = Math.min(themeOptions.length - 1, Math.max(0, safeIndex + direction))
     previewTheme(themeOptions[nextIndex].id)
+  }
+
+  const handleSelectDefaultProject = async () => {
+    setDefaultProjectLoading(true)
+    try {
+      const folder = await window.claude.selectFolder()
+      if (folder) setDefaultProjectPath(folder)
+    } finally {
+      setDefaultProjectLoading(false)
+    }
   }
 
   return (
@@ -307,6 +321,40 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
           <p className="mt-2 text-xs leading-relaxed text-claude-muted">
             {THEME_PRESETS[activeThemeId].description}
           </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+        <p className="text-sm font-semibold text-claude-text">기본 프로젝트 폴더</p>
+        <p className="mt-1 text-xs leading-relaxed text-claude-muted">
+          새 세션을 만들 때 기본으로 사용할 프로젝트 경로입니다. 기본값은 Desktop이며, 언제든 다른 폴더로 바꿀 수 있습니다.
+        </p>
+
+        <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel p-3">
+          <label className="mb-2 block text-xs font-medium text-claude-muted">현재 경로</label>
+          <input
+            value={defaultProjectPath}
+            readOnly
+            className="w-full rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text outline-none"
+            spellCheck={false}
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleSelectDefaultProject()}
+              disabled={defaultProjectLoading}
+              className="rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-wait disabled:opacity-60"
+            >
+              {defaultProjectLoading ? '폴더 여는 중...' : '폴더 선택'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDefaultProjectPath(DEFAULT_PROJECT_PATH)}
+              className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-bg hover:text-claude-text"
+            >
+              Desktop으로 복원
+            </button>
+          </div>
         </div>
       </div>
 

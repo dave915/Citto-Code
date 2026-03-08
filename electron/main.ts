@@ -97,7 +97,12 @@ function modelDisplayName(id: string): string {
 }
 
 function resolveTargetPath(targetPath: string): string {
-  return targetPath === '~' ? (process.env.HOME ?? '') : targetPath
+  const homePath = process.env.HOME ?? app.getPath('home')
+  if (targetPath === '~') return homePath
+  if (targetPath.startsWith('~/') || targetPath.startsWith('~\\')) {
+    return join(homePath, targetPath.slice(2))
+  }
+  return targetPath
 }
 
 function runGit(args: string[], cwd: string) {
@@ -873,7 +878,7 @@ app.whenReady().then(() => {
 
   // ── @ 파일 참조: 파일 목록 조회 ──────────────────────────────
   ipcMain.handle('claude:list-files', (_event, { cwd, query }: { cwd: string; query: string }) => {
-    const resolvedCwd = (cwd === '~') ? (process.env.HOME ?? '') : cwd
+    const resolvedCwd = resolveTargetPath(cwd)
     if (!resolvedCwd) return []
 
     const results: { name: string; path: string; relativePath: string }[] = []
@@ -916,7 +921,7 @@ app.whenReady().then(() => {
 
   // ── 현재 디렉토리 항목 조회 ──────────────────────────────────
   ipcMain.handle('claude:list-current-dir', (_event, { path }: { path: string }) => {
-    const resolvedPath = path === '~' ? (process.env.HOME ?? '') : path
+    const resolvedPath = resolveTargetPath(path)
     if (!resolvedPath || !existsSync(resolvedPath)) return []
 
     try {
@@ -1218,7 +1223,7 @@ app.whenReady().then(() => {
       }
 
       const { CLAUDECODE: _, ...cleanEnv } = process.env
-      const resolvedCwd = (cwd && cwd !== '~') ? cwd : (cleanEnv.HOME ?? '/tmp')
+      const resolvedCwd = cwd ? resolveTargetPath(cwd) : (cleanEnv.HOME ?? '/tmp')
       const userShell = cleanEnv.SHELL || '/bin/bash'
 
       const proc = spawn(userShell, ['-l', '-c', '"$0" "$@"', claudeBin, ...args], {
