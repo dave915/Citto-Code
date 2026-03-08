@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import { Diff, Hunk, parseDiff } from 'react-diff-view'
 import type { Session, PermissionMode, SidebarMode } from '../store/sessions'
@@ -1936,6 +1937,84 @@ function FileGlyph({ name }: { name: string }) {
   )
 }
 
+function toFileUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  const encodedPath = encodeURI(normalized).replace(/\?/g, '%3F').replace(/#/g, '%23')
+
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    return `file:///${encodedPath}`
+  }
+
+  return normalized.startsWith('/') ? `file://${encodedPath}` : `file:///${encodedPath}`
+}
+
+function resolveMarkdownPreviewUrl(baseFilePath: string, url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return trimmed
+
+  if (/^[A-Za-z]:[\\/]/.test(trimmed)) {
+    return toFileUrl(trimmed)
+  }
+
+  if (
+    trimmed.startsWith('#')
+    || trimmed.startsWith('//')
+    || /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed)
+  ) {
+    return trimmed
+  }
+
+  try {
+    return new URL(trimmed, toFileUrl(baseFilePath)).href
+  } catch {
+    return trimmed
+  }
+}
+
+function fileUrlToPath(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'file:') return null
+
+    const decodedPath = decodeURIComponent(parsed.pathname)
+    if (/^\/[A-Za-z]:\//.test(decodedPath)) {
+      return decodedPath.slice(1)
+    }
+
+    return decodedPath
+  } catch {
+    return null
+  }
+}
+
+function normalizeMarkdownImageReference(reference: string): string {
+  const trimmed = reference.trim()
+  if (!trimmed) return ''
+
+  if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+    return trimmed.slice(1, -1)
+  }
+
+  const titleSeparated = trimmed.match(/^(\S+)\s+["'(]/)
+  return titleSeparated ? titleSeparated[1] : trimmed
+}
+
+function extractMarkdownImageUrls(markdown: string): string[] {
+  const urls = new Set<string>()
+
+  for (const match of markdown.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
+    const src = match[1]?.trim()
+    if (src) urls.add(src)
+  }
+
+  for (const match of markdown.matchAll(/!\[[^\]]*]\(([^)\n]+)\)/g)) {
+    const src = normalizeMarkdownImageReference(match[1] ?? '')
+    if (src) urls.add(src)
+  }
+
+  return [...urls]
+}
+
 function PreviewPane({
   entry,
   previewContent,
@@ -1949,6 +2028,45 @@ function PreviewPane({
   markdownPreviewEnabled: boolean
   onToggleMarkdownPreview: () => void
 }) {
+  const [markdownImageDataUrls, setMarkdownImageDataUrls] = useState<Record<string, string>>({})
+  const markdownImageSources = useMemo(() => {
+    if (!entry || previewState !== 'ready' || !isMarkdownFile(entry.name) || !markdownPreviewEnabled) return []
+
+    return extractMarkdownImageUrls(previewContent)
+      .map((url) => resolveMarkdownPreviewUrl(entry.path, url))
+      .filter((url, index, all) => url.startsWith('file://') && all.indexOf(url) === index)
+  }, [entry, previewContent, previewState, markdownPreviewEnabled])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (markdownImageSources.length === 0) {
+      setMarkdownImageDataUrls({})
+      return
+    }
+
+    void (async () => {
+      const pairs = await Promise.all(
+        markdownImageSources.map(async (sourceUrl) => {
+          const filePath = fileUrlToPath(sourceUrl)
+          if (!filePath) return null
+          const dataUrl = await window.claude.readFileDataUrl(filePath)
+          return dataUrl ? [sourceUrl, dataUrl] as const : null
+        })
+      )
+
+      if (cancelled) return
+
+      setMarkdownImageDataUrls(
+        Object.fromEntries(pairs.filter((pair): pair is readonly [string, string] => pair !== null))
+      )
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [markdownImageSources])
+
   if (!entry) {
     return (
       <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
@@ -1993,7 +2111,9 @@ function PreviewPane({
         <div className="flex-1 overflow-auto px-5 py-4">
           <div className="prose prose-sm max-w-none">
             <ReactMarkdown
+              rehypePlugins={[rehypeRaw]}
               remarkPlugins={[remarkGfm]}
+              urlTransform={(url) => resolveMarkdownPreviewUrl(entry.path, url)}
               components={{
                 code({ className, children, ...props }) {
                   const isInline = !className
@@ -2013,9 +2133,23 @@ function PreviewPane({
                     </code>
                   )
                 },
-                pre({ children }) {
+                img({ src = '', alt = '', ...props }) {
+                  const resolvedSrc = resolveMarkdownPreviewUrl(entry.path, src)
+                  const imageSrc = resolvedSrc.startsWith('file://')
+                    ? markdownImageDataUrls[resolvedSrc] ?? undefined
+                    : resolvedSrc
+
                   return (
-                    <pre className="!bg-transparent !p-0 overflow-x-auto">
+                    <img
+                      {...props}
+                      src={imageSrc}
+                      alt={alt}
+                    />
+                  )
+                },
+                pre({ children, ...props }) {
+                  return (
+                    <pre {...props} className="!bg-transparent !p-0 overflow-x-auto">
                       {children}
                     </pre>
                   )
@@ -2539,10 +2673,6 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
 
       <div className="pointer-events-none mb-10 select-none">
         <div className="relative h-12 w-20 sm:h-14 sm:w-24">
-          <div
-            className="absolute inset-0 rounded-full blur-2xl"
-            style={{ background: 'radial-gradient(circle at 55% 58%, rgb(var(--claude-orange) / 0.18) 0%, rgb(var(--claude-orange) / 0.08) 38%, transparent 72%)' }}
-          />
           <img
             src={welcomeTypingGif}
             alt="노트북으로 작업 중인 캐릭터"

@@ -29,6 +29,15 @@ type MacOpenWithApp = OpenWithApp & {
   bundleIds: string[]
 }
 
+const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+}
+
 type GitStatusEntry = {
   path: string
   relativePath: string
@@ -954,6 +963,16 @@ app.whenReady().then(() => {
       fsReadFile(filePath, 'utf-8', (err, data) => {
         if (err) { resolve(null); return }
         resolve({ name: filePath.split('/').pop() ?? filePath, path: filePath, content: data, size: data.length })
+      })
+    })
+  })
+
+  ipcMain.handle('claude:read-file-data-url', (_event, { filePath }: { filePath: string }) => {
+    return new Promise<string | null>((resolve) => {
+      fsReadFile(filePath, (err, data) => {
+        if (err) { resolve(null); return }
+        const mimeType = MIME_TYPES_BY_EXTENSION[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
+        resolve(`data:${mimeType};base64,${data.toString('base64')}`)
       })
     })
   })
