@@ -37,6 +37,8 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: 'vim', path: '', dir: '', legacy: false, kind: 'builtin', description: 'vim 모드 전환' },
 ]
 
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico', 'heic', 'heif'])
+
 function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(envVars).filter(([key, value]) => {
@@ -85,24 +87,47 @@ function formatBytes(bytes: number): string {
 
 async function readDroppedFiles(dataTransfer: DataTransfer): Promise<SelectedFile[]> {
   const files = Array.from(dataTransfer.files)
-  const selectedFiles = await Promise.all(
+  const selectedFiles: Array<SelectedFile | null> = await Promise.all(
     files.map(async (file) => {
       try {
+        const filePath = window.claude.getPathForFile(file)
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+
+        if (IMAGE_EXTENSIONS.has(ext)) {
+          const buffer = await file.arrayBuffer()
+          const bytes = new Uint8Array(buffer)
+          const CHUNK_SIZE = 0x8000
+          let binary = ''
+          for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE))
+          }
+          const base64 = btoa(binary)
+          return {
+            name: file.name,
+            path: filePath.trim().length > 0 ? filePath : file.name,
+            content: '',
+            size: file.size,
+            fileType: 'image' as const,
+            dataUrl: `data:${file.type || 'application/octet-stream'};base64,${base64}`,
+          }
+        }
+
         const content = await file.text()
-        const filePath = (file as File & { path?: string }).path
         return {
           name: file.name,
-          path: typeof filePath === 'string' && filePath.trim().length > 0 ? filePath : file.name,
+          path: filePath.trim().length > 0 ? filePath : file.name,
           content,
           size: file.size,
+          fileType: 'text' as const,
         }
-      } catch {
+      } catch (err) {
+        console.warn('[readDroppedFiles] Failed to read file:', file.name, err)
         return null
       }
     })
   )
 
-  return selectedFiles.filter((file): file is SelectedFile => Boolean(file))
+  return selectedFiles.filter((file): file is SelectedFile => file !== null)
 }
 
 function cycleClaudeCodeMode(
@@ -799,6 +824,7 @@ export function InputArea({
   const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
     if (isStreaming || disabled) return
     if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
     dragDepthRef.current += 1
     setIsDragOver(true)
   }

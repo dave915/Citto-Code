@@ -1,6 +1,7 @@
 import { Children, isValidElement, useEffect, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import type { Message } from '../store/sessions'
 import { ToolTimeline } from './ToolCallBlock'
@@ -196,7 +197,7 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
             <div className="relative">
               <div className="rounded-[18px] rounded-tr-md border border-claude-border bg-claude-surface px-3 py-1.5">
                 <div className="prose max-w-none text-left text-[14px] leading-6" onCopy={handleMarkdownCopy}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={userMarkdownComponents}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={userMarkdownComponents}>
                     {message.text}
                   </ReactMarkdown>
                 </div>
@@ -223,7 +224,7 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
           <div className="relative px-0.5 py-1">
             {message.text ? (
               <div className="prose max-w-none text-[14px] leading-6" onCopy={handleMarkdownCopy}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={assistantMarkdownComponents}>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={assistantMarkdownComponents}>
                   {message.text}
                 </ReactMarkdown>
               </div>

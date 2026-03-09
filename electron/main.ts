@@ -30,12 +30,26 @@ type MacOpenWithApp = OpenWithApp & {
 }
 
 const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
+  '.avif': 'image/avif',
+  '.bmp': 'image/bmp',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.ico': 'image/x-icon',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
+}
+
+type SelectedFileResult = {
+  name: string
+  path: string
+  content: string
+  size: number
+  fileType: 'text' | 'image'
+  dataUrl?: string
 }
 
 const SHELL_IMPORTED_ENV_KEYS = new Set([
@@ -116,6 +130,45 @@ function modelDisplayName(id: string): string {
   const [, fam, major, minor] = m
   const name = fam.charAt(0).toUpperCase() + fam.slice(1)
   return minor ? `${name} ${major}.${minor}` : `${name} ${major}`
+}
+
+function isImageFilePath(filePath: string): boolean {
+  return extname(filePath).toLowerCase() in MIME_TYPES_BY_EXTENSION
+}
+
+function readSelectedFile(filePath: string): Promise<SelectedFileResult | null> {
+  return new Promise((resolve) => {
+    if (isImageFilePath(filePath)) {
+      fsReadFile(filePath, (err, data) => {
+        if (err) {
+          resolve(null)
+          return
+        }
+        resolve({
+          name: filePath.split('/').pop() ?? filePath,
+          path: filePath,
+          content: '',
+          size: data.length,
+          fileType: 'image',
+        })
+      })
+      return
+    }
+
+    fsReadFile(filePath, 'utf-8', (err, data) => {
+      if (err) {
+        resolve(null)
+        return
+      }
+      resolve({
+        name: filePath.split('/').pop() ?? filePath,
+        path: filePath,
+        content: data,
+        size: Buffer.byteLength(data),
+        fileType: 'text',
+      })
+    })
+  })
 }
 
 function getDefaultShellPath(): string | null {
@@ -716,8 +769,8 @@ async function listOpenWithApps(): Promise<OpenWithApp[]> {
   if (process.platform !== 'darwin') return []
 
   const apps = await Promise.all(
-    MAC_OPEN_WITH_APPS.map(async (app) => {
-      const appPath = app.bundleIds.map(findBundlePath).find(Boolean)
+    MAC_OPEN_WITH_APPS.map(async (app): Promise<OpenWithApp | null> => {
+      const appPath = app.bundleIds.map(findBundlePath).find((candidate): candidate is string => Boolean(candidate))
       if (!appPath) return null
 
       let iconDataUrl: string | undefined
@@ -744,7 +797,7 @@ async function listOpenWithApps(): Promise<OpenWithApp[]> {
     })
   )
 
-  return apps.filter((entry): entry is OpenWithApp => Boolean(entry))
+  return apps.filter((entry): entry is OpenWithApp => entry !== null)
 }
 
 function resolveBundleIconPath(appPath: string): string | null {
@@ -800,12 +853,12 @@ function convertIcnsToPng(iconPath: string, cacheKey: string): string | undefine
   }
 }
 
-function openPathWithApp(targetPath: string, appId: string): { ok: boolean; error?: string } {
+async function openPathWithApp(targetPath: string, appId: string): Promise<{ ok: boolean; error?: string }> {
   const resolvedPath = resolveTargetPath(targetPath)
   if (!resolvedPath) return { ok: false, error: '열 경로를 찾지 못했습니다.' }
 
   if (appId === 'default' || process.platform !== 'darwin') {
-    const error = shell.openPath(resolvedPath)
+    const error = await shell.openPath(resolvedPath)
     return error ? { ok: false, error } : { ok: true }
   }
 
@@ -984,6 +1037,10 @@ app.whenReady().then(() => {
       title: '첨부할 파일 선택',
       filters: [
         {
+          name: '이미지 파일',
+          extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico', 'heic', 'heif'],
+        },
+        {
           name: '텍스트/코드 파일',
           extensions: [
             'txt', 'md', 'ts', 'tsx', 'js', 'jsx', 'py', 'go', 'rs',
@@ -997,19 +1054,7 @@ app.whenReady().then(() => {
     })
     if (result.canceled || result.filePaths.length === 0) return []
 
-    const files = await Promise.all(
-      result.filePaths.map(
-        (filePath) =>
-          new Promise<{ name: string; path: string; content: string; size: number } | null>(
-            (resolve) => {
-              fsReadFile(filePath, 'utf-8', (err, data) => {
-                if (err) { resolve(null); return }
-                resolve({ name: filePath.split('/').pop() ?? filePath, path: filePath, content: data, size: data.length })
-              })
-            }
-          )
-      )
-    )
+    const files = await Promise.all(result.filePaths.map((filePath) => readSelectedFile(filePath)))
     return files.filter(Boolean)
   })
 
@@ -1099,12 +1144,7 @@ app.whenReady().then(() => {
 
   // ── @ 파일 참조: 단일 파일 읽기 ──────────────────────────────
   ipcMain.handle('claude:read-file', (_event, { filePath }: { filePath: string }) => {
-    return new Promise<{ name: string; path: string; content: string; size: number } | null>((resolve) => {
-      fsReadFile(filePath, 'utf-8', (err, data) => {
-        if (err) { resolve(null); return }
-        resolve({ name: filePath.split('/').pop() ?? filePath, path: filePath, content: data, size: data.length })
-      })
-    })
+    return readSelectedFile(filePath)
   })
 
   ipcMain.handle('claude:read-file-data-url', (_event, { filePath }: { filePath: string }) => {
@@ -1186,7 +1226,7 @@ app.whenReady().then(() => {
 
   // ── Skills 목록 (new dir-based + legacy commands) ─────────────
   ipcMain.handle('claude:list-skills', () => {
-    const results: { name: string; path: string; legacy: boolean }[] = []
+    const results: Array<{ name: string; path: string; dir?: string; legacy: boolean }> = []
 
     // 헬퍼: 심볼릭 링크를 포함해 디렉토리인지 확인
     function isDir(p: string): boolean {
@@ -1371,8 +1411,11 @@ app.whenReady().then(() => {
         activeProcesses.delete(sessionId)
       }
 
-      const claudeBin = resolveClaude()
-      const args: string[] = ['--output-format', 'stream-json', '--verbose', '-p', prompt]
+      const expandedPath = claudePath?.replace(/^~/, process.env.HOME ?? '')
+      const claudeBin = expandedPath && existsSync(expandedPath)
+        ? expandedPath
+        : resolveClaude()
+      const args: string[] = ['--output-format', 'stream-json', '--verbose']
 
       if (sessionId) args.unshift('--resume', sessionId)
       if (model) args.push('--model', model)
@@ -1381,6 +1424,7 @@ app.whenReady().then(() => {
       } else if (permissionMode && permissionMode !== 'default') {
         args.push('--permission-mode', permissionMode)
       }
+      args.push('-p')
 
       const { CLAUDECODE: _, ...cleanEnv } = process.env
       const resolvedCwd = cwd ? resolveTargetPath(cwd) : (cleanEnv.HOME ?? '/tmp')
@@ -1389,8 +1433,12 @@ app.whenReady().then(() => {
       const proc = spawn(userShell, ['-l', '-c', '"$0" "$@"', claudeBin, ...args], {
         cwd: resolvedCwd,
         env: { ...cleanEnv, ...(envVars ?? {}) },
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe'],
       })
+
+      // Write the prompt through stdin so large attachments do not hit OS ARG_MAX limits.
+      proc.stdin?.write(prompt)
+      proc.stdin?.end()
       const tempKey = `pending-${Date.now()}`
 
       let resolvedSessionId: string | null = sessionId
@@ -1497,9 +1545,11 @@ app.on('window-all-closed', () => {
 
 function detectClaudeInstallation(overridePath?: string): { installed: boolean; path: string | null; version: string | null } {
   const userShell = process.env.SHELL || '/bin/bash'
-  const commandPath = overridePath && existsSync(overridePath)
-    ? overridePath
-    : resolveClaude()
+  const expandedOverride = overridePath?.replace(/^~/, process.env.HOME ?? '')
+  if (expandedOverride && !existsSync(expandedOverride)) {
+    return { installed: false, path: null, version: null }
+  }
+  const commandPath = expandedOverride ?? resolveClaude()
   const result = spawnSync(userShell, ['-l', '-c', '"$0" --version', commandPath], {
     encoding: 'utf-8',
     timeout: 3000,

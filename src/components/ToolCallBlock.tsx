@@ -30,6 +30,7 @@ type AskAboutSelectionPayload = {
   startLine: number
   endLine: number
   code: string
+  prompt?: string
 }
 
 type SelectableLine = {
@@ -194,20 +195,45 @@ function buildDiffSegments(toolCalls: ToolCallBlockType[], fallbackFileContent: 
   return segments
 }
 
+function stripSystemTags(str: string): string {
+  return str.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').replace(/\n{3,}/g, '\n\n').trimEnd()
+}
+
 function formatToolResult(result: unknown): string {
-  if (typeof result === 'string') return result
+  if (typeof result === 'string') return stripSystemTags(result)
   if (Array.isArray(result)) {
-    return result
-      .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
-      .map((r) => (r.type === 'text' ? String(r.text) : JSON.stringify(r)))
-      .join('\n')
+    return stripSystemTags(
+      result
+        .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+        .map((r) => (r.type === 'text' ? String(r.text) : JSON.stringify(r)))
+        .join('\n')
+    )
   }
-  return JSON.stringify(result ?? '', null, 2)
+  return stripSystemTags(JSON.stringify(result ?? '', null, 2))
 }
 
 function countDisplayLines(content: string): number {
   if (!content) return 0
   return content.split('\n').length
+}
+
+function stripLineNumberPrefixes(content: string): { code: string; startLine: number } {
+  if (!content) return { code: '', startLine: 1 }
+  const lines = content.split('\n')
+  const lineNumberPattern = /^\s*(\d+)(?:→|:\s)/
+
+  const firstMatch = lines.find((line) => lineNumberPattern.test(line))
+  if (!firstMatch) return { code: content, startLine: 1 }
+
+  const matchedCount = lines.filter((line) => lineNumberPattern.test(line)).length
+  if (matchedCount < lines.length * 0.5) return { code: content, startLine: 1 }
+
+  const startLine = Number(firstMatch.match(lineNumberPattern)![1])
+  const stripped = lines.map((line) => {
+    const match = line.match(lineNumberPattern)
+    return match ? line.slice(match[0].length) : line
+  })
+  return { code: stripped.join('\n'), startLine }
 }
 
 function getDiffStats(hunks: DiffHunk[]) {
@@ -744,10 +770,12 @@ function DiffPreview({
 function CodePreview({
   code,
   path,
+  startLine = 1,
   onAskAboutSelection,
 }: {
   code: string
   path?: string | null
+  startLine?: number
   onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
 }) {
   const [highlightReady, setHighlightReady] = useState(false)
@@ -761,7 +789,7 @@ function CodePreview({
 
   useEffect(() => {
     let cancelled = false
-    const language = inferLanguageFromPath(path)
+    const language = inferLanguageFromPath(path) as Parameters<typeof codeToTokens>[1]['lang']
     const theme = getShikiTheme()
 
     codeToTokens(code, {
@@ -809,7 +837,7 @@ function CodePreview({
     setSelectedLines([lineNumber])
   }
 
-  const handleLineMouseDown = (lineNumber: number, event: ReactMouseEvent<HTMLDivElement>) => {
+  const handleLineMouseDown = (lineNumber: number, event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault()
     if (!event.shiftKey || anchorLine === null) {
       if (selectedLines.length === 1 && selectedLines[0] === lineNumber) {
@@ -855,11 +883,12 @@ function CodePreview({
     setCommentValue('')
   }
 
+  const codeLines = useMemo(() => code.split('\n'), [code])
   const selectedCodeLines = [...selectedLines]
     .sort((a, b) => a - b)
     .map((lineNumber) => ({
       lineNumber,
-      text: code.split('\n')[lineNumber - 1] ?? '',
+      text: codeLines[lineNumber - startLine] ?? '',
     }))
   const selectedPayload = path ? buildSelectionPayload('code', path, selectedCodeLines) : null
 
@@ -876,7 +905,7 @@ function CodePreview({
       <div className="tool-code-review overflow-x-auto">
         <div className="tool-code-review-table">
           {tokenLines.map((line, index) => {
-            const lineNumber = index + 1
+            const lineNumber = index + startLine
             const isSelected = selectedLines.includes(lineNumber)
             return (
               <div
@@ -1021,7 +1050,7 @@ function TodoPreview({ toolCalls }: { toolCalls: ToolCallBlockType[] }) {
     .filter(Boolean)
 
   return (
-    <div className="space-y-1 text-[11px] leading-5 text-claude-muted">
+    <div className="space-y-1 text-[14px] leading-5 text-claude-muted">
       {lines.map((line, index) => {
         const done = /^[-*]?\s*\[[xX]\]/.test(line)
         const normalized = line.replace(/^[-*]?\s*\[[ xX]\]\s*/, '')
@@ -1088,7 +1117,7 @@ function TimelineEntryRow({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-start gap-1.5 text-[11px] leading-5 text-claude-muted">
+      <div className="flex items-start gap-1.5 text-[14px] leading-5 text-claude-muted">
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
@@ -1101,7 +1130,7 @@ function TimelineEntryRow({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 text-[11px] text-claude-muted/95">{entry.label}</span>
+            <span className="shrink-0 text-[14px] text-claude-muted/95">{entry.label}</span>
             {entry.badge && (
               <button
                 type="button"
@@ -1149,8 +1178,17 @@ function TimelineEntryRow({
             <div className="text-[11px] text-claude-muted">파일 내용을 불러오는 중...</div>
           ) : showCodePreview ? (
             <div className="space-y-1">
-              <div className="text-[10px] text-claude-muted">{entry.detail}</div>
-              <CodePreview code={resultStr} path={primaryPath} onAskAboutSelection={onAskAboutSelection} />
+              {(() => {
+                const parsed = stripLineNumberPrefixes(resultStr)
+                return (
+                  <CodePreview
+                    code={parsed.code}
+                    path={primaryPath}
+                    startLine={parsed.startLine}
+                    onAskAboutSelection={onAskAboutSelection}
+                  />
+                )
+              })()}
             </div>
           ) : editedFileContent ? (
             <CodePreview code={editedFileContent} path={primaryPath} onAskAboutSelection={onAskAboutSelection} />
@@ -1202,7 +1240,7 @@ export function ToolTimeline({
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="ml-5 text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+              className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
             >
               {hiddenCount}개 더 보기
             </button>
@@ -1211,7 +1249,7 @@ export function ToolTimeline({
             <button
               type="button"
               onClick={() => setShowAll(false)}
-              className="ml-5 text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+              className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
             >
               간단히 보기
             </button>

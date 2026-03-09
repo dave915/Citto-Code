@@ -42,6 +42,7 @@ export type AttachedFile = {
   path: string
   content: string
   size: number
+  fileType?: 'text' | 'image'
 }
 
 export type Message = {

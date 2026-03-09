@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 export type ClaudeStreamEvent =
   | { type: 'stream-start'; sessionId: string; cwd: string }
@@ -30,6 +30,8 @@ export type SelectedFile = {
   path: string
   content: string
   size: number
+  fileType: 'text' | 'image'
+  dataUrl?: string
 }
 
 export type FileEntry = {
@@ -148,6 +150,7 @@ export type ClaudeAPI = {
   writeClaudeFile: (params: { subdir: string; name: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   writeFileAbs: (params: { filePath: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
+  getPathForFile: (file: File) => string
   checkInstallation: (claudePath?: string) => Promise<ClaudeInstallationStatus>
   notify: (params: { title: string; body: string }) => Promise<void>
   toggleWindowMaximize: () => Promise<void>
@@ -190,6 +193,7 @@ const claudeAPI: ClaudeAPI = {
   writeClaudeFile: (params) => ipcRenderer.invoke('claude:write-claude-file', params),
   writeFileAbs: (params) => ipcRenderer.invoke('claude:write-file-abs', params),
   deletePath: (params) => ipcRenderer.invoke('claude:delete-path', params),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   checkInstallation: (claudePath) => ipcRenderer.invoke('claude:check-installation', { claudePath }),
   notify: (params) => ipcRenderer.invoke('app:notify', params),
   toggleWindowMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),

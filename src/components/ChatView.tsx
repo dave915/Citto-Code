@@ -57,6 +57,8 @@ type Props = {
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
+  permissionShortcutLabel: string
+  bypassShortcutLabel: string
 }
 
 const INITIAL_RIGHT_PANEL_WIDTH = 290
@@ -104,7 +106,7 @@ const OPEN_WITH_ICONS: Record<string, string> = {
 export function ChatView({
   session, fileConflict, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel, onSelectFolder,
-  onPermissionModeChange, onPlanModeChange, onModelChange,
+  onPermissionModeChange, onPlanModeChange, onModelChange, permissionShortcutLabel, bypassShortcutLabel,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -1027,6 +1029,12 @@ export function ChatView({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
                   </svg>
                   <span className="min-w-0 truncate">{gitStatus.branch}</span>
+                  {gitStatus.behind > 0 && (
+                    <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400" />
+                  )}
+                  {gitStatus.ahead > 0 && (
+                    <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-400" />
+                  )}
                   <svg className={`h-3.5 w-3.5 flex-shrink-0 text-claude-muted transition-transform ${branchMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
                   </svg>
@@ -1055,9 +1063,9 @@ export function ChatView({
                           disabled={gitActionLoading || gitLoading}
                           tooltip="Pull"
                           tooltipAlign="right"
-                          className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                          className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
                         >
-                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <svg className={`h-3.5 w-3.5 ${gitStatus.behind > 0 ? 'text-amber-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="m7 11 5 5 5-5" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14" />
@@ -1069,9 +1077,9 @@ export function ChatView({
                           disabled={gitActionLoading || gitLoading}
                           tooltip="Push"
                           tooltipAlign="right"
-                          className="flex h-6.5 w-6.5 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                          className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
                         >
-                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <svg className={`h-3.5 w-3.5 ${gitStatus.ahead > 0 ? 'text-blue-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V8" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="m7 13 5-5 5 5" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h14" />
@@ -1381,6 +1389,8 @@ export function ChatView({
           onPermissionModeChange={onPermissionModeChange}
           onPlanModeChange={onPlanModeChange}
           onModelChange={onModelChange}
+          permissionShortcutLabel={permissionShortcutLabel}
+          bypassShortcutLabel={bypassShortcutLabel}
           externalDraft={externalDraft}
         />
       </div>

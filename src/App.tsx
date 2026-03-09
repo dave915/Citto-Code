@@ -264,6 +264,7 @@ export default function App() {
     themeId,
     notificationMode,
     shortcutConfig,
+    claudeBinaryPath,
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -296,6 +297,7 @@ export default function App() {
   const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
   const abortedTabIdsRef = useRef<Set<string>>(new Set())
   const notifiedSessionEndsRef = useRef<Set<string>>(new Set())
+  const streamEndTimerByTabRef = useRef<Map<string, number>>(new Map())
   const notificationModeRef = useRef(notificationMode)
   const sessionsRef = useRef(sessions)
   sessionsRef.current = sessions
@@ -323,6 +325,15 @@ export default function App() {
 
   useEffect(() => {
     void refreshInstallationStatus()
+  }, [claudeBinaryPath])
+
+  useEffect(() => {
+    return () => {
+      for (const timer of streamEndTimerByTabRef.current.values()) {
+        window.clearTimeout(timer)
+      }
+      streamEndTimerByTabRef.current.clear()
+    }
   }, [])
 
   useEffect(() => {
@@ -348,6 +359,7 @@ export default function App() {
         if (Date.now() - startedAt < 4000) {
           return
         }
+        clearPendingStreamEndTimer(activeSessionId)
         setStreaming(activeSessionId, false)
         currentAsstMsgRef.current.delete(activeSessionId)
         if (pendingTabIdRef.current === activeSessionId) {
@@ -361,6 +373,7 @@ export default function App() {
       if (cancelled || hasActiveProcess) return
 
       pendingProcessKeyByTabRef.current.delete(activeSessionId)
+      clearPendingStreamEndTimer(activeSessionId)
       currentAsstMsgRef.current.delete(activeSessionId)
       if (pendingTabIdRef.current === activeSessionId) {
         pendingTabIdRef.current = null
@@ -503,6 +516,19 @@ export default function App() {
     return msgId
   }
 
+  function clearPendingStreamEndTimer(tabId: string) {
+    const pendingTimer = streamEndTimerByTabRef.current.get(tabId)
+    if (pendingTimer != null) {
+      window.clearTimeout(pendingTimer)
+      streamEndTimerByTabRef.current.delete(tabId)
+    }
+  }
+
+  function getLatestSession(tabId: string): Session | undefined {
+    return useSessionsStore.getState().sessions.find((item) => item.id === tabId)
+      ?? sessionsRef.current.find((item) => item.id === tabId)
+  }
+
   function handleClaudeEvent(event: ClaudeStreamEvent) {
     const store = storeRef.current
 
@@ -510,6 +536,7 @@ export default function App() {
       const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
       notifiedSessionEndsRef.current.delete(tabId)
+      clearPendingStreamEndTimer(tabId)
       pendingProcessKeyByTabRef.current.delete(tabId)
       ensureAssistantMessage(tabId)
       return
@@ -586,34 +613,76 @@ export default function App() {
       if (event.sessionId) {
         claudeSessionToTabRef.current.delete(event.sessionId)
       }
-      if (tabId) {
-        abortedTabIdsRef.current.delete(tabId)
-        pendingProcessKeyByTabRef.current.delete(tabId)
-        if (pendingTabIdRef.current === tabId) {
-          pendingTabIdRef.current = null
-        }
-        sendStartedAtByTabRef.current.delete(tabId)
-      }
       if (!tabId) return
-      const session = sessionsRef.current.find((item) => item.id === tabId)
-      const shouldNotify =
-        !notifiedSessionEndsRef.current.has(tabId) &&
-        !abortedTabIdsRef.current.has(tabId) &&
-        !session?.pendingPermission &&
-        !session?.pendingQuestion
-      store.setStreaming(tabId, false)
-      currentAsstMsgRef.current.delete(tabId)
-      if (shouldNotify) {
-        notifiedSessionEndsRef.current.add(tabId)
-        const lastAssistantMessage = [...(session?.messages ?? [])].reverse().find((message) => message.role === 'assistant')
-        const title = session?.error ? 'Claude 작업 실패' : 'Claude 작업 완료'
-        const body = summarizeNotificationBody(session?.error ?? lastAssistantMessage?.text)
-        if (shouldDeliverNotification(notificationModeRef.current)) {
-          void window.claude.notify({
-            title: session?.name ? `${title} · ${session.name}` : title,
-            body,
-          })
+      const wasAborted = abortedTabIdsRef.current.has(tabId)
+      clearPendingStreamEndTimer(tabId)
+      pendingProcessKeyByTabRef.current.delete(tabId)
+      if (pendingTabIdRef.current === tabId) {
+        pendingTabIdRef.current = null
+      }
+      sendStartedAtByTabRef.current.delete(tabId)
+
+      const commitStreamEnd = () => {
+        clearPendingStreamEndTimer(tabId)
+        store.setStreaming(tabId, false)
+        currentAsstMsgRef.current.delete(tabId)
+
+        const session = getLatestSession(tabId)
+        const hasPendingInteraction = Boolean(session?.pendingPermission || session?.pendingQuestion)
+        const shouldNotify =
+          !notifiedSessionEndsRef.current.has(tabId) &&
+          !wasAborted &&
+          !hasPendingInteraction
+
+        if (shouldNotify) {
+          notifiedSessionEndsRef.current.add(tabId)
+          const lastAssistantMessage = [...(session?.messages ?? [])].reverse().find((message) => message.role === 'assistant')
+          const title = session?.error ? 'Claude 작업 실패' : 'Claude 작업 완료'
+          const body = summarizeNotificationBody(session?.error ?? lastAssistantMessage?.text)
+          if (shouldDeliverNotification(notificationModeRef.current)) {
+            void window.claude.notify({
+              title: session?.name ? `${title} · ${session.name}` : title,
+              body,
+            })
+          }
         }
+
+        abortedTabIdsRef.current.delete(tabId)
+      }
+
+      const session = getLatestSession(tabId)
+      const hasPendingInteraction = Boolean(session?.pendingPermission || session?.pendingQuestion)
+      if (hasPendingInteraction || wasAborted) {
+        commitStreamEnd()
+      } else {
+        const sessionId = event.sessionId ?? session?.sessionId
+        let consecutiveDead = 0
+        const POLL_INTERVAL = 500
+        const MAX_POLLS = 8
+        const DEAD_THRESHOLD = 2
+        let pollCount = 0
+
+        const pollAndCommit = async () => {
+          pollCount += 1
+          streamEndTimerByTabRef.current.delete(tabId)
+          if (sessionId) {
+            const stillActive = await window.claude.hasActiveProcess({ sessionId }).catch(() => false)
+            if (stillActive) {
+              consecutiveDead = 0
+              return
+            }
+          }
+          consecutiveDead += 1
+          if (consecutiveDead < DEAD_THRESHOLD && pollCount < MAX_POLLS) {
+            const timer = window.setTimeout(() => void pollAndCommit(), POLL_INTERVAL)
+            streamEndTimerByTabRef.current.set(tabId, timer)
+            return
+          }
+          commitStreamEnd()
+        }
+
+        const timer = window.setTimeout(() => void pollAndCommit(), POLL_INTERVAL)
+        streamEndTimerByTabRef.current.set(tabId, timer)
       }
       return
     }
@@ -626,6 +695,7 @@ export default function App() {
       if (tabId) {
         if (abortedTabIdsRef.current.has(tabId)) {
           abortedTabIdsRef.current.delete(tabId)
+          clearPendingStreamEndTimer(tabId)
           pendingProcessKeyByTabRef.current.delete(tabId)
           if (pendingTabIdRef.current === tabId) {
             pendingTabIdRef.current = null
@@ -634,13 +704,16 @@ export default function App() {
           store.setStreaming(tabId, false)
           return
         }
+        clearPendingStreamEndTimer(tabId)
         pendingProcessKeyByTabRef.current.delete(tabId)
         if (pendingTabIdRef.current === tabId) {
           pendingTabIdRef.current = null
         }
         sendStartedAtByTabRef.current.delete(tabId)
       }
-      store.setError(tabId, event.error)
+      if (tabId) {
+        store.setError(tabId, event.error)
+      }
       return
     }
   }
@@ -662,18 +735,28 @@ export default function App() {
     let fullPrompt = text
     if (files.length > 0) {
       const fileSections = files
-        .map((f) => `<file path="${f.path}">\n${f.content}\n</file>`)
+        .map((f) => {
+          if (f.fileType === 'image') {
+            return `<file path="${f.path}" type="image">\n[이미지 파일: ${f.name} (${f.size} bytes) - 경로에서 직접 확인하세요]\n</file>`
+          }
+          return `<file path="${f.path}">\n${f.content}\n</file>`
+        })
         .join('\n\n')
       fullPrompt = files.length > 0 && text
         ? `${fileSections}\n\n${text}`
         : fileSections || text
     }
 
+    const visibleFiles = files.map(({ dataUrl: _dataUrl, ...file }) => ({
+      ...file,
+      id: file.path,
+    }))
+
     // UI에 표시할 메시지 (원본 텍스트 + 첨부파일 메타만)
     addUserMessage(
       activeSessionId,
       options?.visibleTextOverride ?? (text || `(파일 ${files.length}개 첨부)`),
-      files.length > 0 ? files : undefined
+      visibleFiles.length > 0 ? visibleFiles : undefined
     )
 
     const assistantMsgId = startAssistantMessage(activeSessionId)
@@ -695,12 +778,14 @@ export default function App() {
         planMode: activeSession.planMode,
         model: activeSession.model ?? undefined,
         envVars: Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined,
+        claudePath: claudeBinaryPath || undefined,
       })
       if (result?.tempKey) {
         pendingProcessKeyByTabRef.current.set(activeSessionId, result.tempKey)
       }
     } catch (err) {
       setError(activeSessionId, String(err))
+      clearPendingStreamEndTimer(activeSessionId)
       pendingProcessKeyByTabRef.current.delete(activeSessionId)
       pendingTabIdRef.current = null
       currentAsstMsgRef.current.delete(activeSessionId)
@@ -714,6 +799,7 @@ export default function App() {
     if (!processKey) return
     abortedTabIdsRef.current.add(activeSessionId)
     await window.claude.abort({ sessionId: processKey })
+    clearPendingStreamEndTimer(activeSessionId)
     pendingProcessKeyByTabRef.current.delete(activeSessionId)
     if (pendingTabIdRef.current === activeSessionId) {
       pendingTabIdRef.current = null
@@ -796,7 +882,7 @@ export default function App() {
   }
 
   async function refreshInstallationStatus() {
-    const status = await window.claude.checkInstallation().catch(() => ({
+    const status = await window.claude.checkInstallation(claudeBinaryPath || undefined).catch(() => ({
       installed: false,
       path: null,
       version: null,
