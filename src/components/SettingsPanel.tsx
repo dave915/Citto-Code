@@ -122,6 +122,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
   const currentPlatform = getCurrentPlatform()
   const platformLabel = currentPlatform === 'mac' ? 'macOS' : 'Windows'
   const [recordingAction, setRecordingAction] = useState<ShortcutAction | null>(null)
+  const [claudePathDraft, setClaudePathDraft] = useState(claudeBinaryPath)
   const [pathStatus, setPathStatus] = useState<{ ok: true; version: string | null } | { ok: false } | null>(null)
   const themeOptions = Object.values(THEME_PRESETS) as Array<{
     id: ThemeId
@@ -164,14 +165,24 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
   }, [themeMenuOpen, themeId])
 
   useEffect(() => {
-    if (!claudeBinaryPath.trim()) {
+    setClaudePathDraft(claudeBinaryPath)
+  }, [claudeBinaryPath])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!claudePathDraft.trim()) {
       setPathStatus(null)
-      return
     }
 
-    let cancelled = false
     const timer = window.setTimeout(async () => {
-      const res = await window.claude.checkInstallation(claudeBinaryPath).catch(() => ({
+      if (!cancelled && claudePathDraft !== claudeBinaryPath) {
+        setClaudeBinaryPath(claudePathDraft)
+      }
+
+      if (!claudePathDraft.trim()) return
+
+      const res = await window.claude.checkInstallation(claudePathDraft).catch(() => ({
         installed: false,
         version: null,
       }))
@@ -183,7 +194,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [claudeBinaryPath])
+  }, [claudeBinaryPath, claudePathDraft, setClaudeBinaryPath])
 
   const previewTheme = (nextThemeId: ThemeId) => {
     setThemeHighlightId(nextThemeId)
@@ -394,8 +405,8 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
           경로를 확인할 수 있습니다.
         </p>
         <input
-          value={claudeBinaryPath}
-          onChange={(event) => setClaudeBinaryPath(event.target.value)}
+          value={claudePathDraft}
+          onChange={(event) => setClaudePathDraft(event.target.value)}
           placeholder="~/.local/bin/claude"
           className="mt-3 w-full rounded-xl border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text outline-none focus:border-claude-accent"
           spellCheck={false}
