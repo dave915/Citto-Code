@@ -8,6 +8,8 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "pack": "npm run build && electron-builder",
+    "pack:mac": "npm run build && electron-builder --mac dmg",
+    "pack:win": "npm run build && electron-builder --win nsis",
     "install:mac": "node ./scripts/install-mac-app.mjs",
     "install:win": "node ./scripts/install-win-app.mjs"
   },
@@ -50,7 +52,22 @@
       "icon": "build/icon.icns"
     },
     "win": {
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }

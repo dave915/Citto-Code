@@ -72,6 +72,14 @@ npm run install:mac
 
 처음 실행할 때 macOS 보안 경고가 나오면, 시스템 설정에서 실행을 허용해야 할 수 있습니다.
 
+macOS 배포용 설치파일 `.dmg`를 만들려면 아래 명령을 실행하세요.
+
+```bash
+npm run pack:mac
+```
+
+생성된 설치파일은 `dist/` 아래의 `Citto Code-버전.dmg` 형식으로 만들어집니다.
+
 ## Windows 설치 방법
 
 프로젝트를 내려받은 뒤, 해당 폴더에서 PowerShell을 열고 아래 순서대로 실행하면 됩니다.
@@ -87,6 +95,14 @@ npm run install:win
 - 바탕화면과 시작 메뉴에 바로가기가 생성됩니다.
 
 회사 PC 정책에 따라 Windows SmartScreen 경고가 나올 수 있습니다.
+
+윈도우 배포용 설치파일 `.exe`를 만들려면 아래 명령을 실행하세요.
+
+```powershell
+npm run pack:win
+```
+
+생성된 인스톨러는 `dist/` 아래의 `Citto Code-Setup-버전.exe` 형식으로 만들어집니다.
 
 ## 설치 후 바로 쓰는 방법
 
