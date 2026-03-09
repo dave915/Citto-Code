@@ -2,11 +2,28 @@ import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification }
 import { join, dirname, extname, relative } from 'path'
 import { tmpdir, userInfo } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
-import { existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
+import { appendFileSync, existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
 
 const activeProcesses = new Map<string, ChildProcess>()
+const IS_DEV = process.env.NODE_ENV === 'development'
+
+function appendClaudeResponseLog(entry: Record<string, unknown>) {
+  if (!IS_DEV) return
+  try {
+    const logsDir = join(app.getPath('userData'), 'logs')
+    mkdirSync(logsDir, { recursive: true })
+    const logPath = join(logsDir, 'claude-response.jsonl')
+    appendFileSync(
+      logPath,
+      `${JSON.stringify({ timestamp: new Date().toISOString(), ...entry })}\n\n`,
+      'utf-8'
+    )
+  } catch {
+    // Logging failures should not affect Claude execution.
+  }
+}
 
 // 모델 캐시 (5분)
 let modelsCache: { list: ModelInfo[]; fetchedAt: number; cacheKey: string } | null = null
@@ -1453,6 +1470,12 @@ app.whenReady().then(() => {
           if (!trimmed) continue
           try {
             const eventData = JSON.parse(trimmed)
+            appendClaudeResponseLog({
+              source: 'stdout',
+              sessionId: resolvedSessionId,
+              eventType: typeof eventData.type === 'string' ? eventData.type : null,
+              payload: eventData,
+            })
             handleClaudeEvent(event.sender, eventData, resolvedSessionId, (sid) => {
               resolvedSessionId = sid
               if (sid && !sessionId) {
@@ -1460,7 +1483,15 @@ app.whenReady().then(() => {
                 activeProcesses.delete(tempKey)
               }
             })
-          } catch { /* not JSON */ }
+          } catch (err) {
+            appendClaudeResponseLog({
+              source: 'stdout',
+              sessionId: resolvedSessionId,
+              eventType: 'parse-error',
+              error: String(err),
+              raw: trimmed,
+            })
+          }
         }
       }
 
@@ -1471,6 +1502,11 @@ app.whenReady().then(() => {
 
       proc.stderr!.on('data', (chunk: Buffer) => {
         const text = chunk.toString()
+        appendClaudeResponseLog({
+          source: 'stderr',
+          sessionId: resolvedSessionId,
+          text,
+        })
         if (text.toLowerCase().includes('error') || text.toLowerCase().includes('fatal')) {
           event.sender.send('claude:error', { sessionId: resolvedSessionId, error: text })
         }
@@ -1482,11 +1518,23 @@ app.whenReady().then(() => {
         }
         activeProcesses.delete(tempKey)
         if (resolvedSessionId) activeProcesses.delete(resolvedSessionId)
+        appendClaudeResponseLog({
+          source: 'lifecycle',
+          sessionId: resolvedSessionId,
+          eventType: 'stream-end',
+          exitCode: code,
+        })
         event.sender.send('claude:stream-end', { sessionId: resolvedSessionId, exitCode: code })
       })
 
       proc.on('error', (err) => {
         activeProcesses.delete(tempKey)
+        appendClaudeResponseLog({
+          source: 'lifecycle',
+          sessionId: resolvedSessionId,
+          eventType: 'process-error',
+          error: err.message,
+        })
         event.sender.send('claude:error', { sessionId: resolvedSessionId, error: err.message })
       })
 

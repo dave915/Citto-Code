@@ -1,4 +1,4 @@
-import { Children, isValidElement, useEffect, useState } from 'react'
+import { Children, isValidElement, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -109,8 +109,8 @@ const assistantMarkdownComponents = createMarkdownComponents({ showCodeHeader: t
 const userMarkdownComponents = createMarkdownComponents({ showCodeHeader: false })
 
 export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelection }: Props) {
-  const [showStreamingUi, setShowStreamingUi] = useState(Boolean(isStreaming))
   const [copied, setCopied] = useState(false)
+  const showStreamingUi = Boolean(isStreaming)
 
   const handleMarkdownCopy = (event: ClipboardEvent<HTMLDivElement>) => {
     const selectedText = window.getSelection()?.toString()
@@ -156,19 +156,6 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
       )}
     </button>
   ) : null
-
-  useEffect(() => {
-    if (isStreaming) {
-      setShowStreamingUi(true)
-      return
-    }
-
-    const timeout = window.setTimeout(() => {
-      setShowStreamingUi(false)
-    }, 1200)
-
-    return () => window.clearTimeout(timeout)
-  }, [isStreaming])
 
   if (message.role === 'user') {
     return (

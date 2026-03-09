@@ -652,37 +652,8 @@ export default function App() {
 
       const session = getLatestSession(tabId)
       const hasPendingInteraction = Boolean(session?.pendingPermission || session?.pendingQuestion)
-      if (hasPendingInteraction || wasAborted) {
+      if (event.exitCode === 0 || hasPendingInteraction || wasAborted) {
         commitStreamEnd()
-      } else {
-        const sessionId = event.sessionId ?? session?.sessionId
-        let consecutiveDead = 0
-        const POLL_INTERVAL = 500
-        const MAX_POLLS = 8
-        const DEAD_THRESHOLD = 2
-        let pollCount = 0
-
-        const pollAndCommit = async () => {
-          pollCount += 1
-          streamEndTimerByTabRef.current.delete(tabId)
-          if (sessionId) {
-            const stillActive = await window.claude.hasActiveProcess({ sessionId }).catch(() => false)
-            if (stillActive) {
-              consecutiveDead = 0
-              return
-            }
-          }
-          consecutiveDead += 1
-          if (consecutiveDead < DEAD_THRESHOLD && pollCount < MAX_POLLS) {
-            const timer = window.setTimeout(() => void pollAndCommit(), POLL_INTERVAL)
-            streamEndTimerByTabRef.current.set(tabId, timer)
-            return
-          }
-          commitStreamEnd()
-        }
-
-        const timer = window.setTimeout(() => void pollAndCommit(), POLL_INTERVAL)
-        streamEndTimerByTabRef.current.set(tabId, timer)
       }
       return
     }
