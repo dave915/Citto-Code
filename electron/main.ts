@@ -1,13 +1,21 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification, Tray, Menu, globalShortcut, screen } from 'electron'
 import { join, dirname, extname, relative } from 'path'
 import { tmpdir, userInfo } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import { appendFileSync, existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
+import { deflateSync } from 'zlib'
 
 const activeProcesses = new Map<string, ChildProcess>()
 const IS_DEV = process.env.NODE_ENV === 'development'
+let mainWindow: BrowserWindow | null = null
+let quickPanelWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let quickPanelAccelerator = process.platform === 'darwin' ? 'Option+Space' : 'Alt+Space'
+let quickPanelEnabled = true
+let quickPanelRegisteredAccelerator: string | null = null
+let devLogForwardingInstalled = false
 
 function appendClaudeResponseLog(entry: Record<string, unknown>) {
   if (!IS_DEV) return
@@ -116,6 +124,51 @@ type GitBranchInfo = {
   current: boolean
 }
 
+type CliHistoryEntry = {
+  id: string
+  filePath: string
+  claudeSessionId: string | null
+  cwd: string
+  title: string
+  preview: string
+  updatedAt: number
+  source: 'project' | 'transcript'
+}
+
+type ImportedCliToolCall = {
+  toolUseId: string
+  toolName: string
+  toolInput: unknown
+  fileSnapshotBefore?: string | null
+  result?: unknown
+  isError?: boolean
+  status: 'running' | 'done' | 'error'
+}
+
+type ImportedCliMessage = {
+  role: 'user' | 'assistant'
+  text: string
+  toolCalls: ImportedCliToolCall[]
+  createdAt: number
+}
+
+type ImportedCliSession = {
+  sessionId: string | null
+  name: string
+  cwd: string
+  messages: ImportedCliMessage[]
+  lastCost?: number
+  model?: string | null
+}
+
+type RecentProject = {
+  path: string
+  name: string
+  lastUsedAt: number
+}
+
+let quickPanelProjects: RecentProject[] = []
+
 const FALLBACK_MODELS: ModelInfo[] = [
   { id: 'claude-opus-4-6',    displayName: 'Opus 4.6',    family: 'opus' },
   { id: 'claude-sonnet-4-6',  displayName: 'Sonnet 4.6',  family: 'sonnet' },
@@ -135,9 +188,348 @@ const MAC_OPEN_WITH_APPS: MacOpenWithApp[] = [
   { id: 'webstorm', label: 'WebStorm', bundleIds: ['com.jetbrains.WebStorm'] },
 ]
 
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256)
+  for (let i = 0; i < 256; i += 1) {
+    let c = i
+    for (let bit = 0; bit < 8; bit += 1) {
+      c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1)
+    }
+    table[i] = c >>> 0
+  }
+  return table
+})()
+
 function resolveAppIconPath() {
-  const iconPath = join(app.getAppPath(), 'build', 'icon.png')
-  return existsSync(iconPath) ? iconPath : undefined
+  const candidates = [
+    join(process.cwd(), 'build', 'icon.png'),
+    join(app.getAppPath(), 'build', 'icon.png'),
+    join(dirname(app.getAppPath()), 'build', 'icon.png'),
+    join(process.resourcesPath, 'build', 'icon.png'),
+    join(process.resourcesPath, 'app.asar.unpacked', 'build', 'icon.png'),
+  ]
+
+  for (const iconPath of candidates) {
+    if (existsSync(iconPath)) return iconPath
+  }
+
+  return undefined
+}
+
+function resolveMacTrayTemplatePath() {
+  const candidates = [
+    join(process.cwd(), 'electron', 'assets', 'tray-mac-template.png'),
+    join(app.getAppPath(), 'electron', 'assets', 'tray-mac-template.png'),
+    join(dirname(app.getAppPath()), 'electron', 'assets', 'tray-mac-template.png'),
+    join(process.resourcesPath, 'electron', 'assets', 'tray-mac-template.png'),
+    join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'assets', 'tray-mac-template.png'),
+  ]
+
+  for (const assetPath of candidates) {
+    if (existsSync(assetPath)) return assetPath
+  }
+
+  return undefined
+}
+
+function crc32(buffer: Buffer) {
+  let crc = 0xffffffff
+  for (let i = 0; i < buffer.length; i += 1) {
+    crc = CRC32_TABLE[(crc ^ buffer[i]) & 0xff] ^ (crc >>> 8)
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function createPngChunk(type: string, data: Buffer) {
+  const typeBuffer = Buffer.from(type, 'ascii')
+  const lengthBuffer = Buffer.alloc(4)
+  lengthBuffer.writeUInt32BE(data.length, 0)
+
+  const crcBuffer = Buffer.alloc(4)
+  crcBuffer.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), 0)
+
+  return Buffer.concat([lengthBuffer, typeBuffer, data, crcBuffer])
+}
+
+function encodeRgbaPng(width: number, height: number, pixels: Buffer) {
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8
+  ihdr[9] = 6
+  ihdr[10] = 0
+  ihdr[11] = 0
+  ihdr[12] = 0
+
+  const stride = width * 4
+  const raw = Buffer.alloc((stride + 1) * height)
+  for (let y = 0; y < height; y += 1) {
+    const rawOffset = y * (stride + 1)
+    raw[rawOffset] = 0
+    pixels.copy(raw, rawOffset + 1, y * stride, (y + 1) * stride)
+  }
+
+  return Buffer.concat([
+    PNG_SIGNATURE,
+    createPngChunk('IHDR', ihdr),
+    createPngChunk('IDAT', deflateSync(raw)),
+    createPngChunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+function createMacTrayImageFromAsset(assetPath: string, size: number) {
+  const source = nativeImage.createFromPath(assetPath)
+  if (source.isEmpty()) return null
+  const image = source.resize({
+    width: size,
+    height: size,
+    quality: 'best',
+  })
+
+  if (image.isEmpty()) return null
+  return image
+}
+
+function createBurstTrayPixels(size: number, color: [number, number, number, number]) {
+  const pixels = Buffer.alloc(size * size * 4, 0)
+  const [r, g, b, a] = color
+
+  const setPixel = (x: number, y: number, pixelColor: [number, number, number, number] = color) => {
+    if (x < 0 || y < 0 || x >= size || y >= size) return
+    const offset = (y * size + x) * 4
+    pixels[offset] = pixelColor[0]
+    pixels[offset + 1] = pixelColor[1]
+    pixels[offset + 2] = pixelColor[2]
+    pixels[offset + 3] = pixelColor[3]
+  }
+
+  const drawDot = (cx: number, cy: number, radius: number, pixelColor: [number, number, number, number] = color) => {
+    for (let y = cy - radius; y <= cy + radius; y += 1) {
+      for (let x = cx - radius; x <= cx + radius; x += 1) {
+        const dx = x - cx
+        const dy = y - cy
+        if ((dx * dx) + (dy * dy) <= radius * radius) {
+          setPixel(x, y, pixelColor)
+        }
+      }
+    }
+  }
+
+  const drawLine = (
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    thickness: number,
+    pixelColor: [number, number, number, number] = color,
+  ) => {
+    let currentX = x0
+    let currentY = y0
+    const deltaX = Math.abs(x1 - x0)
+    const stepX = x0 < x1 ? 1 : -1
+    const deltaY = -Math.abs(y1 - y0)
+    const stepY = y0 < y1 ? 1 : -1
+    let error = deltaX + deltaY
+
+    while (true) {
+      for (let offsetY = -thickness; offsetY <= thickness; offsetY += 1) {
+        for (let offsetX = -thickness; offsetX <= thickness; offsetX += 1) {
+          if ((offsetX * offsetX) + (offsetY * offsetY) <= thickness * thickness) {
+            setPixel(currentX + offsetX, currentY + offsetY, pixelColor)
+          }
+        }
+      }
+
+      if (currentX === x1 && currentY === y1) break
+      const doubleError = 2 * error
+      if (doubleError >= deltaY) {
+        error += deltaY
+        currentX += stepX
+      }
+      if (doubleError <= deltaX) {
+        error += deltaX
+        currentY += stepY
+      }
+    }
+  }
+
+  const center = Math.floor(size / 2)
+  const end = size - 3
+  const start = 2
+
+  drawLine(center, start, center, center - 3, 1)
+  drawLine(center, center + 3, center, end, 1)
+  drawLine(start, center, center - 3, center, 1)
+  drawLine(center + 3, center, end, center, 1)
+  drawLine(4, 4, center - 2, center - 2, 1)
+  drawLine(center + 2, center + 2, size - 5, size - 5, 1)
+  drawLine(size - 5, 4, center + 2, center - 2, 1)
+  drawLine(center - 2, center + 2, 4, size - 5, 1)
+  drawDot(center, center, 2)
+
+  return pixels
+}
+
+function createMacMascotTrayPixels(size: number, color: [number, number, number, number]) {
+  const pixels = Buffer.alloc(size * size * 4, 0)
+  const clear: [number, number, number, number] = [0, 0, 0, 0]
+
+  const setPixel = (x: number, y: number, pixelColor: [number, number, number, number] = color) => {
+    if (x < 0 || y < 0 || x >= size || y >= size) return
+    const offset = (y * size + x) * 4
+    pixels[offset] = pixelColor[0]
+    pixels[offset + 1] = pixelColor[1]
+    pixels[offset + 2] = pixelColor[2]
+    pixels[offset + 3] = pixelColor[3]
+  }
+
+  const fillRect = (x: number, y: number, width: number, height: number, pixelColor: [number, number, number, number] = color) => {
+    for (let row = y; row < y + height; row += 1) {
+      for (let col = x; col < x + width; col += 1) {
+        setPixel(col, row, pixelColor)
+      }
+    }
+  }
+
+  const fillCircle = (cx: number, cy: number, radius: number, pixelColor: [number, number, number, number] = color) => {
+    for (let y = cy - radius; y <= cy + radius; y += 1) {
+      for (let x = cx - radius; x <= cx + radius; x += 1) {
+        const dx = x - cx
+        const dy = y - cy
+        if ((dx * dx) + (dy * dy) <= radius * radius) {
+          setPixel(x, y, pixelColor)
+        }
+      }
+    }
+  }
+
+  const fillLine = (
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    thickness: number,
+    pixelColor: [number, number, number, number] = color,
+  ) => {
+    let currentX = x0
+    let currentY = y0
+    const deltaX = Math.abs(x1 - x0)
+    const stepX = x0 < x1 ? 1 : -1
+    const deltaY = -Math.abs(y1 - y0)
+    const stepY = y0 < y1 ? 1 : -1
+    let error = deltaX + deltaY
+
+    while (true) {
+      fillCircle(currentX, currentY, thickness, pixelColor)
+      if (currentX === x1 && currentY === y1) break
+      const doubleError = 2 * error
+      if (doubleError >= deltaY) {
+        error += deltaY
+        currentX += stepX
+      }
+      if (doubleError <= deltaX) {
+        error += deltaX
+        currentY += stepY
+      }
+    }
+  }
+
+  const scale = Math.max(1, Math.floor(size / 18))
+  const scaled = (value: number) => Math.max(1, Math.round(value * scale))
+
+  fillRect(scaled(4), scaled(5), scaled(10), scaled(7), color)
+  fillRect(scaled(3), scaled(7), scaled(12), scaled(5), color)
+  fillRect(scaled(4), scaled(11), scaled(10), scaled(2), color)
+  fillCircle(scaled(7), scaled(4), scaled(3), color)
+  fillCircle(scaled(11), scaled(4), scaled(3), color)
+  fillCircle(scaled(3), scaled(10), scaled(3), color)
+  fillCircle(scaled(15), scaled(10), scaled(3), color)
+  fillRect(scaled(4), scaled(12), scaled(2), scaled(4), color)
+  fillRect(scaled(7), scaled(12), scaled(2), scaled(4), color)
+  fillRect(scaled(10), scaled(12), scaled(2), scaled(4), color)
+  fillRect(scaled(13), scaled(12), scaled(2), scaled(4), color)
+
+  fillCircle(scaled(7), scaled(8), scaled(1), clear)
+  fillCircle(scaled(11), scaled(8), scaled(1), clear)
+  fillLine(scaled(6), scaled(10), scaled(8), scaled(11), scaled(1), clear)
+  fillLine(scaled(8), scaled(11), scaled(10), scaled(11), scaled(1), clear)
+  fillLine(scaled(10), scaled(11), scaled(12), scaled(10), scaled(1), clear)
+
+  return pixels
+}
+
+function createTrayImage() {
+  const size = process.platform === 'darwin' ? 18 : 16
+  if (process.platform === 'darwin') {
+    const templatePath = resolveMacTrayTemplatePath()
+    if (templatePath) {
+      const templateImage = createMacTrayImageFromAsset(templatePath, size)
+      if (templateImage) {
+        return templateImage
+      }
+    }
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+        <defs>
+          <mask id="face-cut">
+            <rect width="72" height="72" fill="white" />
+            <circle cx="28" cy="33" r="3.5" fill="black" />
+            <circle cx="44" cy="33" r="3.5" fill="black" />
+            <path
+              d="M26 43 C31 47, 41 47, 46 43"
+              fill="none"
+              stroke="black"
+              stroke-width="4"
+              stroke-linecap="round"
+            />
+            <ellipse cx="36" cy="59" rx="8" ry="5.5" fill="black" />
+          </mask>
+        </defs>
+        <g fill="#000000" mask="url(#face-cut)">
+          <rect x="16" y="20" width="40" height="28" rx="8" />
+          <circle cx="30" cy="18" r="10" />
+          <circle cx="42" cy="18" r="10" />
+          <circle cx="15" cy="39" r="10" />
+          <circle cx="57" cy="39" r="10" />
+          <rect x="19" y="46" width="6" height="16" rx="3" />
+          <rect x="28" y="47" width="5" height="15" rx="2.5" />
+          <rect x="39" y="47" width="5" height="15" rx="2.5" />
+          <rect x="48" y="46" width="6" height="16" rx="3" />
+        </g>
+      </svg>
+    `.trim()
+    const templateImage = nativeImage.createFromDataURL(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+    )
+    if (!templateImage.isEmpty()) {
+      templateImage.setTemplateImage(true)
+      return templateImage
+    }
+  }
+
+  const color: [number, number, number, number] = process.platform === 'darwin'
+    ? [0, 0, 0, 255]
+    : [217, 119, 87, 255]
+  const pixels = process.platform === 'darwin'
+    ? createMacMascotTrayPixels(size, color)
+    : createBurstTrayPixels(size, color)
+  const png = encodeRgbaPng(size, size, pixels)
+  let image = nativeImage.createFromBuffer(png)
+
+  if (image.isEmpty()) {
+    const appIconPath = resolveAppIconPath()
+    if (appIconPath) {
+      image = nativeImage.createFromPath(appIconPath).resize({ width: size, height: size })
+    }
+  }
+
+  if (process.platform === 'darwin' && !image.isEmpty()) {
+    image.setTemplateImage(true)
+  }
+
+  return image
 }
 
 function modelDisplayName(id: string): string {
@@ -307,6 +699,13 @@ function resolveTargetPath(targetPath: string): string {
     return join(homePath, targetPath.slice(2))
   }
   return targetPath
+}
+
+function getProjectNameFromPath(path: string): string {
+  if (!path || path === '~') return '~'
+  const normalized = path.replace(/\\/g, '/')
+  const parts = normalized.split('/').filter(Boolean)
+  return parts[parts.length - 1] || path
 }
 
 function runGit(args: string[], cwd: string) {
@@ -976,6 +1375,84 @@ async function fetchModelsFromApi(envVars?: Record<string, string>): Promise<Mod
   })
 }
 
+function formatDevLogArg(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value instanceof Error) return value.stack ?? value.message
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function sendToAllWindows(channel: string, payload: unknown) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(channel, payload)
+    }
+  }
+}
+
+function installDevLogForwarding() {
+  if (!IS_DEV || devLogForwardingInstalled) return
+  devLogForwardingInstalled = true
+
+  const originalLog = console.log.bind(console)
+  const originalError = console.error.bind(console)
+
+  console.log = (...args: unknown[]) => {
+    originalLog(...args)
+    sendToAllWindows('dev:main-log', {
+      level: 'log',
+      args: args.map(formatDevLogArg),
+    })
+  }
+
+  console.error = (...args: unknown[]) => {
+    originalError(...args)
+    sendToAllWindows('dev:main-log', {
+      level: 'error',
+      args: args.map(formatDevLogArg),
+    })
+  }
+}
+
+function setupExternalNavigation(window: BrowserWindow) {
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) {
+      void shell.openExternal(url)
+      return { action: 'deny' }
+    }
+    return { action: 'allow' }
+  })
+
+  window.webContents.on('will-navigate', (event, url) => {
+    if (url === window.webContents.getURL()) return
+    if (!/^https?:\/\//i.test(url)) return
+    event.preventDefault()
+    void shell.openExternal(url)
+  })
+}
+
+function focusWindow(window: BrowserWindow) {
+  if (window.isMinimized()) {
+    window.restore()
+  }
+  window.show()
+  window.focus()
+}
+
+function sendWhenRendererReady(window: BrowserWindow, channel: string, payload?: unknown) {
+  if (window.webContents.isLoadingMainFrame()) {
+    window.webContents.once('did-finish-load', () => {
+      window.webContents.send(channel, payload)
+    })
+    return
+  }
+
+  window.webContents.send(channel, payload)
+}
+
 function createWindow(): BrowserWindow {
   const appIconPath = resolveAppIconPath()
   const win = new BrowserWindow({
@@ -995,6 +1472,14 @@ function createWindow(): BrowserWindow {
     },
   })
 
+  setupExternalNavigation(win)
+
+  win.on('closed', () => {
+    if (mainWindow === win) {
+      mainWindow = null
+    }
+  })
+
   if (process.env.NODE_ENV === 'development') {
     win.loadURL('http://localhost:5173')
     win.webContents.openDevTools()
@@ -1005,8 +1490,491 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+function showMainWindow() {
+  const window = mainWindow ?? createWindow()
+  mainWindow = window
+  focusWindow(window)
+  return window
+}
+
+function createQuickPanelWindow(): BrowserWindow {
+  if (quickPanelWindow && !quickPanelWindow.isDestroyed()) {
+    return quickPanelWindow
+  }
+
+  quickPanelWindow = new BrowserWindow({
+    width: 780,
+    height: 220,
+    frame: false,
+    show: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+
+  setupExternalNavigation(quickPanelWindow)
+
+  quickPanelWindow.on('closed', () => {
+    quickPanelWindow = null
+  })
+
+  if (IS_DEV) {
+    void quickPanelWindow.loadURL('http://localhost:5173/quick-panel.html')
+  } else {
+    void quickPanelWindow.loadFile(join(__dirname, '../renderer/quick-panel.html'))
+  }
+
+  return quickPanelWindow
+}
+
+function positionQuickPanel(window: BrowserWindow) {
+  const activeDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const bounds = activeDisplay.workArea
+  const width = 780
+  const height = 220
+  const x = Math.round(bounds.x + Math.max((bounds.width - width) / 2, 0))
+  const y = Math.round(bounds.y + Math.max(bounds.height - height - 40, 24))
+  window.setBounds({ x, y, width, height })
+}
+
+function hideQuickPanel() {
+  if (quickPanelWindow && !quickPanelWindow.isDestroyed()) {
+    quickPanelWindow.hide()
+  }
+}
+
+function toggleQuickPanel() {
+  if (!quickPanelEnabled) return
+  const window = createQuickPanelWindow()
+
+  if (window.isVisible()) {
+    window.hide()
+    return
+  }
+
+  positionQuickPanel(window)
+  window.show()
+  window.focus()
+  sendWhenRendererReady(window, 'quick-panel:show')
+}
+
+async function selectFolderFromQuickPanel(options?: { defaultPath?: string; title?: string }) {
+  const panelWindow = createQuickPanelWindow()
+  const restoreOnTop = panelWindow.isAlwaysOnTop()
+  if (restoreOnTop) {
+    panelWindow.setAlwaysOnTop(false)
+  }
+
+  try {
+    const result = await dialog.showOpenDialog(panelWindow, {
+      properties: ['openDirectory'],
+      title: options?.title ?? '프로젝트 폴더 선택',
+      defaultPath: options?.defaultPath ? resolveTargetPath(options.defaultPath) : undefined,
+    })
+
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  } finally {
+    if (!panelWindow.isDestroyed() && restoreOnTop) {
+      panelWindow.setAlwaysOnTop(true)
+      if (panelWindow.isVisible()) {
+        panelWindow.focus()
+      }
+    }
+  }
+}
+
+function normalizeAcceleratorForElectron(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  return trimmed
+    .split('+')
+    .map((token) => {
+      const lower = token.trim().toLowerCase()
+      if (lower === 'cmd') return 'Command'
+      if (lower === 'ctrl') return 'Control'
+      if (lower === 'alt' || lower === 'option') return process.platform === 'darwin' ? 'Option' : 'Alt'
+      if (lower === 'space') return 'Space'
+      if (lower === 'esc') return 'Escape'
+      if (token.length === 1) return token.toUpperCase()
+      return token
+    })
+    .join('+')
+}
+
+function registerQuickPanelShortcut() {
+  if (quickPanelRegisteredAccelerator) {
+    globalShortcut.unregister(quickPanelRegisteredAccelerator)
+    quickPanelRegisteredAccelerator = null
+  }
+
+  if (!quickPanelEnabled) return
+
+  const accelerator = normalizeAcceleratorForElectron(quickPanelAccelerator)
+  if (!accelerator) return
+
+  const registered = globalShortcut.register(accelerator, () => {
+    toggleQuickPanel()
+  })
+
+  if (registered) {
+    quickPanelRegisteredAccelerator = accelerator
+  }
+}
+
+function updateTrayMenu() {
+  if (!tray) return
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: '새 세션',
+      click: () => {
+        sendWhenRendererReady(showMainWindow(), 'tray:new-session')
+      },
+    },
+    {
+      label: '보이기',
+      click: () => {
+        showMainWindow()
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '종료',
+      click: () => {
+        app.quit()
+      },
+    },
+  ])
+
+  tray.setContextMenu(menu)
+}
+
+function createTray() {
+  if (tray) return tray
+
+  const image = createTrayImage()
+  if (image.isEmpty()) {
+    console.error('[tray] failed to create tray image')
+    return null
+  }
+
+  try {
+    tray = new Tray(image)
+  } catch (error) {
+    console.error('[tray] failed to create tray', error)
+    return null
+  }
+
+  tray.setToolTip('Citto Code')
+  updateTrayMenu()
+
+  tray.on('click', () => {
+    showMainWindow()
+  })
+
+  if (process.platform === 'darwin') {
+    tray.on('right-click', () => {
+      updateTrayMenu()
+      tray?.popUpContextMenu()
+    })
+  }
+
+  return tray
+}
+
+function parseJsonlFile(filePath: string): Array<Record<string, unknown>> {
+  try {
+    return readFileSync(filePath, 'utf-8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>
+        } catch {
+          return null
+        }
+      })
+      .filter((record): record is Record<string, unknown> => record !== null)
+  } catch {
+    return []
+  }
+}
+
+function getRecordTimestamp(record: Record<string, unknown>): number {
+  const value = typeof record.timestamp === 'string' ? Date.parse(record.timestamp) : NaN
+  return Number.isFinite(value) ? value : 0
+}
+
+function extractTextBlocks(content: unknown): string {
+  if (typeof content === 'string') return content.trim()
+  if (!Array.isArray(content)) return ''
+
+  return content
+    .flatMap((block) => {
+      if (typeof block === 'string') return [block]
+      if (!block || typeof block !== 'object') return []
+      if ((block as { type?: unknown }).type === 'text' && typeof (block as { text?: unknown }).text === 'string') {
+        return [(block as { text: string }).text]
+      }
+      return []
+    })
+    .join('\n')
+    .trim()
+}
+
+function buildCliHistoryEntry(filePath: string, source: 'project' | 'transcript'): CliHistoryEntry | null {
+  const records = parseJsonlFile(filePath)
+  if (records.length === 0) return null
+
+  let cwd = ''
+  let claudeSessionId: string | null = null
+  let preview = ''
+  let updatedAt = 0
+
+  for (const record of records) {
+    if (!cwd && typeof record.cwd === 'string') {
+      cwd = record.cwd
+    }
+    if (!claudeSessionId && typeof record.sessionId === 'string') {
+      claudeSessionId = record.sessionId
+    }
+    if (!preview && record.type === 'user') {
+      const message = record.message as { content?: unknown } | undefined
+      preview = extractTextBlocks(message?.content ?? record.content)
+    }
+    updatedAt = Math.max(updatedAt, getRecordTimestamp(record))
+  }
+
+  if (!updatedAt) {
+    try {
+      updatedAt = statSync(filePath).mtimeMs
+    } catch {
+      updatedAt = Date.now()
+    }
+  }
+
+  const title = cwd ? getProjectNameFromPath(cwd) : (claudeSessionId ?? filePath.split('/').pop() ?? '세션')
+  return {
+    id: `${source}:${filePath}`,
+    filePath,
+    claudeSessionId,
+    cwd,
+    title,
+    preview,
+    updatedAt,
+    source,
+  }
+}
+
+function listCliHistoryFiles(): Array<{ filePath: string; source: 'project' | 'transcript' }> {
+  const files: Array<{ filePath: string; source: 'project' | 'transcript' }> = []
+  const home = process.env.HOME ?? app.getPath('home')
+  const projectsDir = join(home, '.claude', 'projects')
+  const transcriptsDir = join(home, '.claude', 'transcripts')
+
+  try {
+    if (existsSync(projectsDir)) {
+      for (const projectDir of readdirSync(projectsDir, { withFileTypes: true })) {
+        if (!projectDir.isDirectory()) continue
+        const fullProjectDir = join(projectsDir, projectDir.name)
+        for (const entry of readdirSync(fullProjectDir, { withFileTypes: true })) {
+          if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue
+          files.push({
+            filePath: join(fullProjectDir, entry.name),
+            source: 'project',
+          })
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (existsSync(transcriptsDir)) {
+      for (const entry of readdirSync(transcriptsDir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue
+        files.push({
+          filePath: join(transcriptsDir, entry.name),
+          source: 'transcript',
+        })
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return files
+}
+
+function listCliSessions(query = ''): CliHistoryEntry[] {
+  const entries = listCliHistoryFiles()
+    .map(({ filePath, source }) => buildCliHistoryEntry(filePath, source))
+    .filter((entry): entry is CliHistoryEntry => entry !== null)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  const trimmed = query.trim().toLowerCase()
+  if (!trimmed) return entries.slice(0, 200)
+
+  return entries
+    .filter((entry) => {
+      const haystack = `${entry.title}\n${entry.cwd}\n${entry.preview}`.toLowerCase()
+      return haystack.includes(trimmed)
+    })
+    .slice(0, 200)
+}
+
+function loadCliSession(filePath: string): ImportedCliSession | null {
+  const records = parseJsonlFile(filePath)
+  if (records.length === 0) return null
+
+  let cwd = ''
+  let sessionId: string | null = null
+  let model: string | null = null
+  let lastCost: number | undefined
+  const messages: ImportedCliMessage[] = []
+  const toolCallsById = new Map<string, ImportedCliToolCall>()
+
+  for (const record of records) {
+    if (!cwd && typeof record.cwd === 'string') {
+      cwd = record.cwd
+    }
+    if (!sessionId && typeof record.sessionId === 'string') {
+      sessionId = record.sessionId
+    }
+
+    if (record.type === 'assistant') {
+      const message = record.message as { model?: unknown; content?: unknown } | undefined
+      if (typeof message?.model === 'string') {
+        model = message.model
+      }
+
+      const content = Array.isArray(message?.content) ? message.content : []
+      const toolCalls: ImportedCliToolCall[] = []
+      const textParts: string[] = []
+
+      for (const block of content) {
+        if (!block || typeof block !== 'object') continue
+        const blockRecord = block as Record<string, unknown>
+        if (blockRecord.type === 'text' && typeof blockRecord.text === 'string') {
+          textParts.push(blockRecord.text)
+          continue
+        }
+
+        if (blockRecord.type === 'tool_use') {
+          const toolCall: ImportedCliToolCall = {
+            toolUseId: String(blockRecord.id ?? ''),
+            toolName: String(blockRecord.name ?? ''),
+            toolInput: blockRecord.input,
+            fileSnapshotBefore: getToolFileSnapshotBefore(String(blockRecord.name ?? ''), blockRecord.input),
+            status: 'running',
+          }
+          toolCalls.push(toolCall)
+          if (toolCall.toolUseId) {
+            toolCallsById.set(toolCall.toolUseId, toolCall)
+          }
+        }
+      }
+
+      if (textParts.length > 0 || toolCalls.length > 0) {
+        messages.push({
+          role: 'assistant',
+          text: textParts.join('\n').trim(),
+          toolCalls,
+          createdAt: getRecordTimestamp(record),
+        })
+      }
+      continue
+    }
+
+    if (record.type === 'user') {
+      const message = record.message as { content?: unknown } | undefined
+      const content = message?.content ?? record.content
+
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (!block || typeof block !== 'object') continue
+          const blockRecord = block as Record<string, unknown>
+          if (blockRecord.type !== 'tool_result') continue
+          const toolUseId = String(blockRecord.tool_use_id ?? '')
+          const toolCall = toolCallsById.get(toolUseId)
+          if (!toolCall) continue
+          toolCall.result = blockRecord.content
+          toolCall.isError = Boolean(blockRecord.is_error)
+          toolCall.status = toolCall.isError ? 'error' : 'done'
+        }
+      }
+
+      const text = extractTextBlocks(content)
+      if (text) {
+        messages.push({
+          role: 'user',
+          text,
+          toolCalls: [],
+          createdAt: getRecordTimestamp(record),
+        })
+      }
+      continue
+    }
+
+    if (record.type === 'result' && typeof record.total_cost_usd === 'number') {
+      lastCost = record.total_cost_usd
+    }
+  }
+
+  for (const message of messages) {
+    for (const toolCall of message.toolCalls) {
+      if (toolCall.status === 'running') {
+        toolCall.status = 'done'
+      }
+    }
+  }
+
+  return {
+    sessionId,
+    name: cwd ? getProjectNameFromPath(cwd) : (sessionId ?? '가져온 세션'),
+    cwd: cwd || DEFAULT_PROJECT_PATH,
+    messages,
+    lastCost,
+    model,
+  }
+}
+
+function normalizeQuickPanelProjects(projects: RecentProject[]): RecentProject[] {
+  const seen = new Set<string>()
+  const normalized: RecentProject[] = []
+
+  for (const project of projects) {
+    const path = typeof project.path === 'string' ? project.path.trim() : ''
+    if (!path || seen.has(path)) continue
+    seen.add(path)
+    normalized.push({
+      path,
+      name: typeof project.name === 'string' && project.name.trim()
+        ? project.name.trim()
+        : getProjectNameFromPath(path),
+      lastUsedAt: Number.isFinite(project.lastUsedAt) ? project.lastUsedAt : 0,
+    })
+  }
+
+  return normalized
+}
+
 app.whenReady().then(() => {
   importShellEnvironmentVars()
+  installDevLogForwarding()
 
   const appIconPath = resolveAppIconPath()
   if (process.platform === 'darwin' && appIconPath) {
@@ -1014,7 +1982,10 @@ app.whenReady().then(() => {
     if (!icon.isEmpty()) app.dock.setIcon(icon)
   }
 
-  const win = createWindow()
+  mainWindow = createWindow()
+  createTray()
+  registerQuickPanelShortcut()
+  showMainWindow()
 
   // ── 모델 목록 ────────────────────────────────────────────────
   ipcMain.handle('claude:get-models', async (_event, { envVars }: { envVars?: Record<string, string> } = {}) => {
@@ -1038,7 +2009,7 @@ app.whenReady().then(() => {
 
   // ── 폴더 선택 ─────────────────────────────────────────────────
   ipcMain.handle('claude:select-folder', async (_event, options?: { defaultPath?: string; title?: string }) => {
-    const result = await dialog.showOpenDialog(win, {
+    const result = await dialog.showOpenDialog(mainWindow ?? showMainWindow(), {
       properties: ['openDirectory'],
       title: options?.title ?? '프로젝트 폴더 선택',
       defaultPath: options?.defaultPath ? resolveTargetPath(options.defaultPath) : undefined,
@@ -1049,7 +2020,7 @@ app.whenReady().then(() => {
 
   // ── 파일 선택 + 읽기 ─────────────────────────────────────────
   ipcMain.handle('claude:select-files', async () => {
-    const result = await dialog.showOpenDialog(win, {
+    const result = await dialog.showOpenDialog(mainWindow ?? showMainWindow(), {
       properties: ['openFile', 'multiSelections'],
       title: '첨부할 파일 선택',
       filters: [
@@ -1401,6 +2372,45 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('claude:list-cli-sessions', (_event, { query }: { query?: string }) => {
+    return listCliSessions(query)
+  })
+
+  ipcMain.handle('claude:load-cli-session', (_event, { filePath }: { filePath: string }) => {
+    return loadCliSession(filePath)
+  })
+
+  ipcMain.handle('quick-panel:get-recent-projects', () => {
+    return quickPanelProjects
+  })
+
+  ipcMain.handle('quick-panel:set-projects', (_event, { projects }: { projects: RecentProject[] }) => {
+    quickPanelProjects = normalizeQuickPanelProjects(Array.isArray(projects) ? projects : [])
+    return { ok: true }
+  })
+
+  ipcMain.handle('quick-panel:select-folder', (_event, options?: { defaultPath?: string; title?: string }) => {
+    return selectFolderFromQuickPanel(options)
+  })
+
+  ipcMain.handle('quick-panel:update-shortcut', (_event, { accelerator, enabled }: { accelerator: string; enabled: boolean }) => {
+    quickPanelAccelerator = accelerator
+    quickPanelEnabled = enabled
+    registerQuickPanelShortcut()
+    return { ok: true }
+  })
+
+  ipcMain.handle('quick-panel:submit', async (_event, { text, cwd }: { text: string; cwd: string }) => {
+    hideQuickPanel()
+    const window = showMainWindow()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    sendWhenRendererReady(window, 'quick-panel:message', { text, cwd })
+  })
+
+  ipcMain.handle('quick-panel:hide', () => {
+    hideQuickPanel()
+  })
+
   ipcMain.handle('claude:check-installation', (_event, { claudePath }: { claudePath?: string }) => {
     return detectClaudeInstallation(claudePath)
   })
@@ -1480,7 +2490,9 @@ app.whenReady().then(() => {
               resolvedSessionId = sid
               if (sid && !sessionId) {
                 activeProcesses.set(sid, proc)
-                activeProcesses.delete(tempKey)
+                if (activeProcesses.get(tempKey) === proc) {
+                  activeProcesses.delete(tempKey)
+                }
               }
             })
           } catch (err) {
@@ -1516,8 +2528,12 @@ app.whenReady().then(() => {
         if (buffer.trim()) {
           processOutputLines(true)
         }
-        activeProcesses.delete(tempKey)
-        if (resolvedSessionId) activeProcesses.delete(resolvedSessionId)
+        if (activeProcesses.get(tempKey) === proc) {
+          activeProcesses.delete(tempKey)
+        }
+        if (resolvedSessionId && activeProcesses.get(resolvedSessionId) === proc) {
+          activeProcesses.delete(resolvedSessionId)
+        }
         appendClaudeResponseLog({
           source: 'lifecycle',
           sessionId: resolvedSessionId,
@@ -1528,7 +2544,12 @@ app.whenReady().then(() => {
       })
 
       proc.on('error', (err) => {
-        activeProcesses.delete(tempKey)
+        if (activeProcesses.get(tempKey) === proc) {
+          activeProcesses.delete(tempKey)
+        }
+        if (resolvedSessionId && activeProcesses.get(resolvedSessionId) === proc) {
+          activeProcesses.delete(resolvedSessionId)
+        }
         appendClaudeResponseLog({
           source: 'lifecycle',
           sessionId: resolvedSessionId,
@@ -1582,13 +2603,24 @@ app.whenReady().then(() => {
   })
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createWindow()
+      return
+    }
+
+    if (mainWindow) {
+      showMainWindow()
+    }
   })
 })
 
 app.on('window-all-closed', () => {
   for (const proc of activeProcesses.values()) proc.kill()
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 function detectClaudeInstallation(overridePath?: string): { installed: boolean; path: string | null; version: string | null } {

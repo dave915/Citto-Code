@@ -299,7 +299,6 @@ export function InputArea({
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isComposingRef = useRef(false)
-  const compositionEndedAtRef = useRef(0)
   const escapePressedAtRef = useRef(0)
   const lastAppliedDraftIdRef = useRef<number | null>(null)
 
@@ -448,6 +447,12 @@ export function InputArea({
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
   }, [text, attachedFiles, isStreaming, disabled, onSend, closeAtMention, closeSlashMention])
 
+  const isImeKeyboardEvent = useCallback((native: KeyboardEvent) => (
+    isComposingRef.current
+    || native.isComposing
+    || (native.keyCode || native.which) === 229
+  ), [])
+
   const handleQuestionSubmit = useCallback((answer: string | null) => {
     const trimmed = answer?.trim() ?? ''
     onQuestionResponse(trimmed || null)
@@ -557,6 +562,10 @@ export function InputArea({
       }
 
       if (e.key === 'Enter' && !e.shiftKey && text.trim()) {
+        const native = e.nativeEvent as KeyboardEvent
+        if (isImeKeyboardEvent(native)) {
+          return
+        }
         e.preventDefault()
         handleQuestionSubmit(text)
         return
@@ -675,7 +684,7 @@ export function InputArea({
       }
       if (e.key === 'Enter' && !e.shiftKey) {
         const native = e.nativeEvent as KeyboardEvent
-        const isIme = isComposingRef.current || native.isComposing || (native.keyCode || native.which) === 229
+        const isIme = isImeKeyboardEvent(native)
         if (!isIme) {
           e.preventDefault()
           handleSlashSelect(slashResults[slashSelectedIndex])
@@ -703,7 +712,7 @@ export function InputArea({
       }
       if (e.key === 'Enter' && !e.shiftKey) {
         const native = e.nativeEvent as KeyboardEvent
-        const isIme = isComposingRef.current || native.isComposing || (native.keyCode || native.which) === 229
+        const isIme = isImeKeyboardEvent(native)
         if (!isIme) {
           e.preventDefault()
           handleAtSelect(atResults[atSelectedIndex])
@@ -720,13 +729,7 @@ export function InputArea({
     if (e.key !== 'Enter' || e.shiftKey) return
 
     const native = e.nativeEvent as KeyboardEvent
-    const keyCode = native.keyCode || native.which
-    const withinImeCommitWindow = Date.now() - compositionEndedAtRef.current < 40
-    const isImeComposing = isComposingRef.current || native.isComposing || keyCode === 229
-
-    // 한글/일본어 IME 조합 종료 직후 Enter 이벤트에서 마지막 글자가 중복 전송되는 케이스 방지
-    if (isImeComposing || withinImeCommitWindow) {
-      e.preventDefault()
+    if (isImeKeyboardEvent(native)) {
       return
     }
 
@@ -1231,7 +1234,6 @@ export function InputArea({
             onCompositionStart={() => { isComposingRef.current = true }}
             onCompositionEnd={() => {
               isComposingRef.current = false
-              compositionEndedAtRef.current = Date.now()
             }}
             placeholder={
               isStreaming ? '응답을 기다리는 중...'

@@ -1,8 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { CURRENT_THEME_ID, type ThemeId } from '../lib/theme'
 import { nanoid } from './nanoid'
-import type { ThemeId } from '../lib/theme'
-import { CURRENT_THEME_ID } from '../lib/theme'
 
 export type ToolCallStatus = 'running' | 'done' | 'error'
 
@@ -54,23 +53,28 @@ export type Message = {
   createdAt: number
 }
 
-// 편집 권한 모드
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 export type SidebarMode = 'session' | 'project'
 export type NotificationMode = 'all' | 'background' | 'off'
+
 export type ShortcutAction =
   | 'toggleSidebar'
   | 'toggleFiles'
   | 'toggleSessionInfo'
   | 'newSession'
   | 'openSettings'
+  | 'openCommandPalette'
+  | 'toggleQuickPanel'
   | 'cyclePermissionMode'
   | 'toggleBypassPermissions'
+
 export type ShortcutPlatform = 'mac' | 'windows'
+
 export type ShortcutBinding = {
   mac: string
   windows: string
 }
+
 export type ShortcutConfig = Record<ShortcutAction, ShortcutBinding>
 
 export type Session = {
@@ -88,7 +92,29 @@ export type Session = {
   lastCost?: number
   permissionMode: PermissionMode
   planMode: boolean
-  model: string | null  // null = Claude Code 기본값 사용
+  model: string | null
+}
+
+export type ImportedToolCall = Omit<ToolCallBlock, 'id'>
+
+export type ImportedMessage = {
+  role: 'user' | 'assistant'
+  text: string
+  toolCalls: ImportedToolCall[]
+  attachedFiles?: AttachedFile[]
+  createdAt: number
+}
+
+export type ImportedSessionData = {
+  sessionId: string | null
+  name: string
+  cwd: string
+  messages: ImportedMessage[]
+  lastCost?: number
+  permissionMode?: PermissionMode
+  planMode?: boolean
+  model?: string | null
+  favorite?: boolean
 }
 
 type SessionsStore = {
@@ -101,8 +127,10 @@ type SessionsStore = {
   preferredOpenWithAppId: string
   themeId: ThemeId
   notificationMode: NotificationMode
+  quickPanelEnabled: boolean
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
+  importSession: (data: ImportedSessionData) => string
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   setDefaultProjectPath: (path: string) => void
@@ -111,6 +139,7 @@ type SessionsStore = {
   setPreferredOpenWithAppId: (appId: string) => void
   setThemeId: (themeId: ThemeId) => void
   setNotificationMode: (mode: NotificationMode) => void
+  setQuickPanelEnabled: (value: boolean) => void
   setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
@@ -119,6 +148,7 @@ type SessionsStore = {
   addToolCall: (sessionId: string, assistantMsgId: string, toolCall: Omit<ToolCallBlock, 'id'>) => void
   resolveToolCall: (sessionId: string, toolUseId: string, result: unknown, isError: boolean) => void
   setStreaming: (sessionId: string, value: boolean) => void
+  commitStreamEnd: (sessionId: string) => void
   setClaudeSessionId: (tabId: string, claudeSessionId: string) => void
   setError: (tabId: string, error: string | null) => void
   setPendingPermission: (tabId: string, request: PendingPermissionRequest | null) => void
@@ -165,6 +195,8 @@ export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
   toggleSessionInfo: { mac: 'Cmd+I', windows: 'Ctrl+I' },
   newSession: { mac: 'Cmd+N', windows: 'Ctrl+N' },
   openSettings: { mac: 'Cmd+,', windows: 'Ctrl+,' },
+  openCommandPalette: { mac: 'Cmd+K', windows: 'Ctrl+K' },
+  toggleQuickPanel: { mac: 'Alt+Space', windows: 'Alt+Space' },
   cyclePermissionMode: { mac: 'Shift+Tab', windows: 'Shift+Tab' },
   toggleBypassPermissions: { mac: 'Cmd+Shift+Enter', windows: 'Ctrl+Shift+Enter' },
 }
@@ -188,10 +220,36 @@ function makeDefaultSession(cwd: string, name: string): Session {
   }
 }
 
+function normalizeImportedMessage(message: ImportedMessage): Message {
+  return {
+    id: nanoid(),
+    role: message.role,
+    text: message.text,
+    toolCalls: message.toolCalls.map((toolCall) => ({
+      ...toolCall,
+      id: nanoid(),
+    })),
+    attachedFiles: message.attachedFiles,
+    createdAt: message.createdAt,
+  }
+}
+
+function pruneEmptyCurrentAssistantMessage(session: Session): Message[] {
+  if (!session.currentAssistantMsgId) return session.messages
+
+  return session.messages.filter((message) => {
+    if (message.id !== session.currentAssistantMsgId) return true
+    return message.text.trim().length > 0 || message.toolCalls.length > 0
+  })
+}
+
 export const useSessionsStore = create<SessionsStore>()(
   persist(
     (set) => {
-      const firstSession = makeDefaultSession(DEFAULT_PROJECT_PATH, getProjectNameFromPath(DEFAULT_PROJECT_PATH))
+      const firstSession = makeDefaultSession(
+        DEFAULT_PROJECT_PATH,
+        getProjectNameFromPath(DEFAULT_PROJECT_PATH),
+      )
 
       return {
         sessions: [firstSession],
@@ -203,256 +261,338 @@ export const useSessionsStore = create<SessionsStore>()(
         preferredOpenWithAppId: '',
         themeId: CURRENT_THEME_ID,
         notificationMode: 'all',
+        quickPanelEnabled: true,
         shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
-    setEnvVar: (key, value) => set((s) => ({ envVars: { ...s.envVars, [key]: value } })),
-    removeEnvVar: (key) => set((s) => {
-      const { [key]: _, ...rest } = s.envVars
-      return { envVars: rest }
-    }),
+        setEnvVar: (key, value) => set((state) => ({
+          envVars: { ...state.envVars, [key]: value },
+        })),
 
-    addSession: (cwd, name) => {
-      const session = makeDefaultSession(cwd, name)
-      set((s) => ({ sessions: [...s.sessions, session], activeSessionId: session.id }))
-      return session.id
-    },
+        removeEnvVar: (key) => set((state) => {
+          const { [key]: _ignored, ...rest } = state.envVars
+          return { envVars: rest }
+        }),
 
-    setDefaultProjectPath: (defaultProjectPath) => set({ defaultProjectPath }),
-    setSidebarMode: (mode) => set({ sidebarMode: mode }),
-    setClaudeBinaryPath: (path) => set({ claudeBinaryPath: path }),
-    setPreferredOpenWithAppId: (appId) => set({ preferredOpenWithAppId: appId }),
-    setThemeId: (themeId) => set({ themeId }),
-    setNotificationMode: (notificationMode) => set({ notificationMode }),
-    setShortcut: (action, platform, value) => set((s) => ({
-      shortcutConfig: {
-        ...s.shortcutConfig,
-        [action]: {
-          ...s.shortcutConfig[action],
-          [platform]: value,
+        addSession: (cwd, name) => {
+          const session = makeDefaultSession(cwd, name)
+          set((state) => ({
+            sessions: [...state.sessions, session],
+            activeSessionId: session.id,
+          }))
+          return session.id
         },
-      },
-    })),
 
-    removeSession: (id) => {
-      set((s) => {
-        const remaining = s.sessions.filter((sess) => sess.id !== id)
-        if (remaining.length === 0) {
-          return { sessions: [], activeSessionId: null }
-        }
-        const newActive = s.activeSessionId === id
-          ? remaining[remaining.length - 1].id
-          : s.activeSessionId
-        return { sessions: remaining, activeSessionId: newActive }
-      })
-    },
+        importSession: (data) => {
+          const session: Session = {
+            id: nanoid(),
+            sessionId: data.sessionId,
+            name: data.name,
+            favorite: Boolean(data.favorite),
+            cwd: data.cwd,
+            messages: data.messages.map(normalizeImportedMessage),
+            isStreaming: false,
+            currentAssistantMsgId: null,
+            error: null,
+            pendingPermission: null,
+            pendingQuestion: null,
+            lastCost: data.lastCost,
+            permissionMode: data.permissionMode ?? 'default',
+            planMode: data.planMode ?? false,
+            model: data.model ?? null,
+          }
 
-    setActiveSession: (id) => set({ activeSessionId: id }),
+          set((state) => ({
+            sessions: [...state.sessions, session],
+            activeSessionId: session.id,
+          }))
 
-    updateSession: (id, updater) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === id ? { ...sess, ...updater(sess) } : sess
-        )
-      }))
-    },
+          return session.id
+        },
 
-    addUserMessage: (tabId, text, files) => {
-      const msgId = nanoid()
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId
-            ? {
-                ...sess,
-                messages: [
-                  ...sess.messages,
-                  {
-                    id: msgId,
-                    role: 'user',
-                    text,
-                    toolCalls: [],
-                    attachedFiles: files,
-                    createdAt: Date.now()
+        setDefaultProjectPath: (defaultProjectPath) => set({ defaultProjectPath }),
+        setSidebarMode: (sidebarMode) => set({ sidebarMode }),
+        setClaudeBinaryPath: (claudeBinaryPath) => set({ claudeBinaryPath }),
+        setPreferredOpenWithAppId: (preferredOpenWithAppId) => set({ preferredOpenWithAppId }),
+        setThemeId: (themeId) => set({ themeId }),
+        setNotificationMode: (notificationMode) => set({ notificationMode }),
+        setQuickPanelEnabled: (quickPanelEnabled) => set({ quickPanelEnabled }),
+
+        setShortcut: (action, platform, value) => set((state) => ({
+          shortcutConfig: {
+            ...state.shortcutConfig,
+            [action]: {
+              ...state.shortcutConfig[action],
+              [platform]: value,
+            },
+          },
+        })),
+
+        removeSession: (id) => {
+          set((state) => {
+            const remaining = state.sessions.filter((session) => session.id !== id)
+            if (remaining.length === 0) {
+              return { sessions: [], activeSessionId: null }
+            }
+
+            const activeSessionId = state.activeSessionId === id
+              ? remaining[remaining.length - 1].id
+              : state.activeSessionId
+
+            return {
+              sessions: remaining,
+              activeSessionId,
+            }
+          })
+        },
+
+        setActiveSession: (activeSessionId) => set({ activeSessionId }),
+
+        updateSession: (id, updater) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === id
+                ? { ...session, ...updater(session) }
+                : session,
+            ),
+          }))
+        },
+
+        addUserMessage: (tabId, text, files) => {
+          const msgId = nanoid()
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? {
+                    ...session,
+                    messages: [
+                      ...session.messages,
+                      {
+                        id: msgId,
+                        role: 'user',
+                        text,
+                        toolCalls: [],
+                        attachedFiles: files,
+                        createdAt: Date.now(),
+                      },
+                    ],
+                    pendingPermission: null,
+                    pendingQuestion: null,
                   }
-                ],
+                : session,
+            ),
+          }))
+          return msgId
+        },
+
+        startAssistantMessage: (tabId) => {
+          const msgId = nanoid()
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? {
+                    ...session,
+                    currentAssistantMsgId: msgId,
+                    isStreaming: true,
+                    pendingPermission: null,
+                    pendingQuestion: null,
+                    messages: [
+                      ...session.messages,
+                      {
+                        id: msgId,
+                        role: 'assistant',
+                        text: '',
+                        toolCalls: [],
+                        createdAt: Date.now(),
+                      },
+                    ],
+                  }
+                : session,
+            ),
+          }))
+          return msgId
+        },
+
+        appendTextChunk: (tabId, assistantMsgId, chunk) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? {
+                    ...session,
+                    messages: session.messages.map((message) =>
+                      message.id === assistantMsgId
+                        ? { ...message, text: message.text + chunk }
+                        : message,
+                    ),
+                  }
+                : session,
+            ),
+          }))
+        },
+
+        addToolCall: (tabId, assistantMsgId, toolCall) => {
+          const nextToolCall: ToolCallBlock = { id: nanoid(), ...toolCall }
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? {
+                    ...session,
+                    messages: session.messages.map((message) =>
+                      message.id === assistantMsgId
+                        ? { ...message, toolCalls: [...message.toolCalls, nextToolCall] }
+                        : message,
+                    ),
+                  }
+                : session,
+            ),
+          }))
+        },
+
+        resolveToolCall: (tabId, toolUseId, result, isError) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? {
+                    ...session,
+                    messages: session.messages.map((message) => ({
+                      ...message,
+                      toolCalls: message.toolCalls.map((toolCall) =>
+                        toolCall.toolUseId === toolUseId
+                          ? {
+                              ...toolCall,
+                              result,
+                              isError,
+                              status: isError ? 'error' : 'done',
+                            }
+                          : toolCall,
+                      ),
+                    })),
+                  }
+                : session,
+            ),
+          }))
+        },
+
+        setStreaming: (tabId, value) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, isStreaming: value }
+                : session,
+            ),
+          }))
+        },
+
+        commitStreamEnd: (tabId) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) => {
+              if (session.id !== tabId) return session
+              const nextSession = {
+                ...session,
+                isStreaming: false,
+              }
+              return {
+                ...nextSession,
+                messages: pruneEmptyCurrentAssistantMessage(nextSession),
+                currentAssistantMsgId: null,
+              }
+            }),
+          }))
+        },
+
+        setClaudeSessionId: (tabId, claudeSessionId) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, sessionId: claudeSessionId }
+                : session,
+            ),
+          }))
+        },
+
+        setError: (tabId, error) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) => {
+              if (session.id !== tabId) return session
+
+              const shouldKeepExistingError =
+                error === GENERIC_CLAUDE_ERROR &&
+                Boolean(session.error) &&
+                session.error !== GENERIC_CLAUDE_ERROR
+
+              const nextSession = {
+                ...session,
+                error: shouldKeepExistingError ? session.error : error,
                 pendingPermission: null,
                 pendingQuestion: null,
+                isStreaming: false,
               }
-            : sess
-        )
-      }))
-      return msgId
-    },
 
-    startAssistantMessage: (tabId) => {
-      const msgId = nanoid()
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId
-            ? {
-                ...sess,
-                currentAssistantMsgId: msgId,
-                isStreaming: true,
-                pendingPermission: null,
-                pendingQuestion: null,
-                messages: [
-                  ...sess.messages,
-                  { id: msgId, role: 'assistant', text: '', toolCalls: [], createdAt: Date.now() }
-                ]
+              return {
+                ...nextSession,
+                messages: pruneEmptyCurrentAssistantMessage(nextSession),
+                currentAssistantMsgId: null,
               }
-            : sess
-        )
-      }))
-      return msgId
-    },
+            }),
+          }))
+        },
 
-    appendTextChunk: (tabId, assistantMsgId, chunk) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId
-            ? {
-                ...sess,
-                messages: sess.messages.map((m) =>
-                  m.id === assistantMsgId ? { ...m, text: m.text + chunk } : m
-                )
-              }
-            : sess
-        )
-      }))
-    },
+        setPendingPermission: (tabId, request) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, pendingPermission: request }
+                : session,
+            ),
+          }))
+        },
 
-    addToolCall: (tabId, assistantMsgId, toolCall) => {
-      const tc: ToolCallBlock = { id: nanoid(), ...toolCall }
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId
-            ? {
-                ...sess,
-                messages: sess.messages.map((m) =>
-                  m.id === assistantMsgId
-                    ? { ...m, toolCalls: [...m.toolCalls, tc] }
-                    : m
-                )
-              }
-            : sess
-        )
-      }))
-    },
+        setPendingQuestion: (tabId, request) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, pendingQuestion: request }
+                : session,
+            ),
+          }))
+        },
 
-    resolveToolCall: (tabId, toolUseId, result, isError) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId
-            ? {
-                ...sess,
-                messages: sess.messages.map((m) => ({
-                  ...m,
-                  toolCalls: m.toolCalls.map((tc) =>
-                    tc.toolUseId === toolUseId
-                      ? { ...tc, result, isError, status: isError ? 'error' : 'done' }
-                      : tc
-                  )
-                }))
-              }
-            : sess
-        )
-      }))
-    },
+        setLastCost: (tabId, cost) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, lastCost: cost }
+                : session,
+            ),
+          }))
+        },
 
-    setStreaming: (tabId, value) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId
-            ? { ...sess, isStreaming: value, currentAssistantMsgId: value ? sess.currentAssistantMsgId : null }
-            : sess
-        )
-      }))
-    },
+        setPermissionMode: (tabId, mode) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, permissionMode: mode }
+                : session,
+            ),
+          }))
+        },
 
-    setClaudeSessionId: (tabId, claudeSessionId) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, sessionId: claudeSessionId } : sess
-        )
-      }))
-    },
-
-    setError: (tabId, error) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId
-            ? (() => {
-                const shouldKeepExistingError =
-                  error === GENERIC_CLAUDE_ERROR &&
-                  Boolean(sess.error) &&
-                  sess.error !== GENERIC_CLAUDE_ERROR
-
-                const nextMessages = sess.currentAssistantMsgId
-                  ? sess.messages.filter((message) => {
-                      if (message.id !== sess.currentAssistantMsgId) return true
-                      return message.text.trim().length > 0 || message.toolCalls.length > 0
-                    })
-                  : sess.messages
-
-                return {
-                  ...sess,
-                  messages: nextMessages,
-                  error: shouldKeepExistingError ? sess.error : error,
-                  pendingPermission: null,
-                  pendingQuestion: null,
-                  isStreaming: false,
-                  currentAssistantMsgId: null,
-                }
-              })()
-            : sess
-        )
-      }))
-    },
-
-    setPendingPermission: (tabId, request) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, pendingPermission: request } : sess
-        )
-      }))
-    },
-
-    setPendingQuestion: (tabId, request) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, pendingQuestion: request } : sess
-        )
-      }))
-    },
-
-    setLastCost: (tabId, cost) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, lastCost: cost } : sess
-        )
-      }))
-    },
-
-    setPermissionMode: (tabId, mode) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, permissionMode: mode } : sess
-        )
-      }))
-    },
-
-    setPlanMode: (tabId, value) => {
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === tabId ? { ...sess, planMode: value } : sess
-        )
-      }))
-    },
+        setPlanMode: (tabId, value) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, planMode: value }
+                : session,
+            ),
+          }))
+        },
 
         setModel: (tabId, model) => {
-          set((s) => ({
-            sessions: s.sessions.map((sess) =>
-              sess.id === tabId ? { ...sess, model } : sess
-            )
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? { ...session, model }
+                : session,
+            ),
           }))
         },
       }
@@ -460,18 +600,12 @@ export const useSessionsStore = create<SessionsStore>()(
     {
       name: 'claude-ui-sessions',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SessionsStore> & {
           shortcutConfig?: Partial<ShortcutConfig>
         }
         const defaultProjectPath = state.defaultProjectPath?.trim() || DEFAULT_PROJECT_PATH
-
-        const bypassBinding = state.shortcutConfig?.toggleBypassPermissions
-        const shouldApplyBypassDefault =
-          !bypassBinding ||
-          ((!bypassBinding.mac || !bypassBinding.mac.trim()) &&
-            (!bypassBinding.windows || !bypassBinding.windows.trim()))
 
         const sessions =
           version < 2 && state.sessions
@@ -482,25 +616,18 @@ export const useSessionsStore = create<SessionsStore>()(
                       cwd: defaultProjectPath,
                       name: getProjectNameFromPath(defaultProjectPath),
                     }
-                  : session
+                  : session,
               )
             : state.sessions
-
-        if (!shouldApplyBypassDefault) {
-          return {
-            ...state,
-            defaultProjectPath,
-            sessions,
-          }
-        }
 
         return {
           ...state,
           defaultProjectPath,
           sessions,
+          quickPanelEnabled: state.quickPanelEnabled ?? true,
           shortcutConfig: {
-            ...state.shortcutConfig,
-            toggleBypassPermissions: DEFAULT_SHORTCUT_CONFIG.toggleBypassPermissions,
+            ...DEFAULT_SHORTCUT_CONFIG,
+            ...(state.shortcutConfig ?? {}),
           },
         }
       },
@@ -514,10 +641,14 @@ export const useSessionsStore = create<SessionsStore>()(
         preferredOpenWithAppId: state.preferredOpenWithAppId,
         themeId: state.themeId,
         notificationMode: state.notificationMode,
+        quickPanelEnabled: state.quickPanelEnabled,
         shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
-        const persistedState = persisted as Partial<SessionsStore> & { notificationsEnabled?: boolean }
+        const persistedState = persisted as Partial<SessionsStore> & {
+          notificationsEnabled?: boolean
+        }
+
         const restoredSessions = (persistedState.sessions ?? []).map((session) => ({
           ...session,
           isStreaming: false,
@@ -542,6 +673,7 @@ export const useSessionsStore = create<SessionsStore>()(
           notificationMode:
             persistedState.notificationMode
             ?? (persistedState.notificationsEnabled === false ? 'off' : 'all'),
+          quickPanelEnabled: persistedState.quickPanelEnabled ?? true,
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,
             ...(persistedState.shortcutConfig ?? {}),
@@ -550,13 +682,31 @@ export const useSessionsStore = create<SessionsStore>()(
           activeSessionId,
         }
       },
-    }
-  )
+    },
+  ),
 )
 
 export function findTabByClaudeSessionId(
   sessions: Session[],
-  claudeSessionId: string
+  claudeSessionId: string,
 ): Session | undefined {
-  return sessions.find((s) => s.sessionId === claudeSessionId)
+  return sessions.find((session) => session.sessionId === claudeSessionId)
+}
+
+export function searchSessions(sessions: Session[], query: string): Session[] {
+  const trimmed = query.trim().toLowerCase()
+  if (!trimmed) return sessions
+
+  return sessions.filter((session) => {
+    const haystack = [
+      session.name,
+      session.cwd,
+      session.sessionId ?? '',
+      ...session.messages.slice(-6).map((message) => message.text),
+    ]
+      .join('\n')
+      .toLowerCase()
+
+    return haystack.includes(trimmed)
+  })
 }

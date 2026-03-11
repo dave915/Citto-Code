@@ -3,7 +3,8 @@ import { useSessionsStore, findTabByClaudeSessionId, getProjectNameFromPath, DEF
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
-import type { ClaudeInstallationStatus, ClaudeStreamEvent, SelectedFile } from '../electron/preload'
+import { CommandPalette } from './components/CommandPalette'
+import type { ClaudeInstallationStatus, ClaudeStreamEvent, RecentProject, SelectedFile } from '../electron/preload'
 import type {
   NotificationMode,
   PermissionMode,
@@ -234,6 +235,24 @@ function buildSessionFileLockState(sessions: Session[]): Record<string, SessionF
   return stateBySessionId
 }
 
+function buildQuickPanelProjects(sessions: Session[]): RecentProject[] {
+  const seen = new Set<string>()
+  const projects: RecentProject[] = []
+
+  for (const session of sessions) {
+    const cwd = session.cwd.trim()
+    if (!cwd || seen.has(cwd)) continue
+    seen.add(cwd)
+    projects.push({
+      path: cwd,
+      name: getProjectNameFromPath(cwd),
+      lastUsedAt: 0,
+    })
+  }
+
+  return projects
+}
+
 export default function App() {
   const expandedSidebarWidthRef = useRef(290)
   const {
@@ -260,20 +279,28 @@ export default function App() {
     setPermissionMode,
     setPlanMode,
     setModel,
+    commitStreamEnd,
     envVars,
     themeId,
     notificationMode,
+    quickPanelEnabled,
     shortcutConfig,
     claudeBinaryPath,
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(290)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [installationStatus, setInstallationStatus] = useState<ClaudeInstallationStatus | null>(null)
   const [installationDismissed, setInstallationDismissed] = useState(false)
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) ?? null : null
   const sessionFileLockState = useMemo(() => buildSessionFileLockState(sessions), [sessions])
+  const quickPanelProjects = useMemo(() => buildQuickPanelProjects(sessions), [sessions])
+  const quickPanelProjectsSignature = useMemo(
+    () => quickPanelProjects.map((project) => project.path).join('\n'),
+    [quickPanelProjects],
+  )
   const shortcutPlatform = getCurrentPlatform()
   const sanitizedEnvVars = sanitizeEnvVars(envVars)
   const hasUnsafeReloadState = useMemo(
@@ -300,17 +327,18 @@ export default function App() {
   const streamEndTimerByTabRef = useRef<Map<string, number>>(new Map())
   const notificationModeRef = useRef(notificationMode)
   const sessionsRef = useRef(sessions)
+  const syncedQuickPanelProjectsSignatureRef = useRef<string>('')
   sessionsRef.current = sessions
   notificationModeRef.current = notificationMode
 
   const storeRef = useRef({
     setClaudeSessionId, startAssistantMessage, appendTextChunk,
-    addToolCall, resolveToolCall, setStreaming, setLastCost, setError, setPendingPermission, setPendingQuestion,
+    addToolCall, resolveToolCall, setStreaming, commitStreamEnd, setLastCost, setError, setPendingPermission, setPendingQuestion,
     activeSessionId
   })
   storeRef.current = {
     setClaudeSessionId, startAssistantMessage, appendTextChunk,
-    addToolCall, resolveToolCall, setStreaming, setLastCost, setError, setPendingPermission, setPendingQuestion,
+    addToolCall, resolveToolCall, setStreaming, commitStreamEnd, setLastCost, setError, setPendingPermission, setPendingQuestion,
     activeSessionId
   }
 
@@ -348,50 +376,35 @@ export default function App() {
   }, [hasUnsafeReloadState])
 
   useEffect(() => {
-    if (!activeSessionId || !activeSession?.isStreaming) return
+    if (syncedQuickPanelProjectsSignatureRef.current === quickPanelProjectsSignature) return
+    syncedQuickPanelProjectsSignatureRef.current = quickPanelProjectsSignature
+    void window.claude.setQuickPanelProjects(quickPanelProjects).catch(() => undefined)
+  }, [quickPanelProjects, quickPanelProjectsSignature])
 
-    let cancelled = false
+  useEffect(() => {
+    void window.claude.updateQuickPanelShortcut({
+      accelerator: shortcutConfig.toggleQuickPanel[shortcutPlatform],
+      enabled: quickPanelEnabled,
+    }).catch(() => undefined)
+  }, [quickPanelEnabled, shortcutConfig, shortcutPlatform])
 
-    const verifyStreamingState = async () => {
-      const processKey = activeSession.sessionId ?? pendingProcessKeyByTabRef.current.get(activeSessionId)
-      if (!processKey) {
-        const startedAt = sendStartedAtByTabRef.current.get(activeSessionId) ?? 0
-        if (Date.now() - startedAt < 4000) {
-          return
-        }
-        clearPendingStreamEndTimer(activeSessionId)
-        setStreaming(activeSessionId, false)
-        currentAsstMsgRef.current.delete(activeSessionId)
-        if (pendingTabIdRef.current === activeSessionId) {
-          pendingTabIdRef.current = null
-        }
-        sendStartedAtByTabRef.current.delete(activeSessionId)
-        return
+  useEffect(() => {
+    const cleanup = window.claude.onTrayNewSession(() => {
+      void handleNewSession()
+    })
+    return cleanup
+  }, [defaultProjectPath])
+
+  useEffect(() => {
+    const cleanup = window.claude.onQuickPanelMessage(async (payload) => {
+      const sessionId = await handleNewSession(payload.cwd)
+      setSettingsOpen(false)
+      if (payload.text.trim()) {
+        await handleSendForSession(sessionId, payload.text, [])
       }
-
-      const hasActiveProcess = await window.claude.hasActiveProcess({ sessionId: processKey }).catch(() => false)
-      if (cancelled || hasActiveProcess) return
-
-      pendingProcessKeyByTabRef.current.delete(activeSessionId)
-      clearPendingStreamEndTimer(activeSessionId)
-      currentAsstMsgRef.current.delete(activeSessionId)
-      if (pendingTabIdRef.current === activeSessionId) {
-        pendingTabIdRef.current = null
-      }
-      sendStartedAtByTabRef.current.delete(activeSessionId)
-      setStreaming(activeSessionId, false)
-    }
-
-    void verifyStreamingState()
-    const interval = window.setInterval(() => {
-      void verifyStreamingState()
-    }, 1500)
-
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [activeSessionId, activeSession?.isStreaming, activeSession?.sessionId, setStreaming])
+    })
+    return cleanup
+  }, [defaultProjectPath])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -403,6 +416,7 @@ export default function App() {
 
       if (matchShortcut(event, shortcutConfig.openSettings[shortcutPlatform])) {
         event.preventDefault()
+        setCommandPaletteOpen(false)
         setSettingsOpen(true)
         return
       }
@@ -410,6 +424,12 @@ export default function App() {
       if (matchShortcut(event, shortcutConfig.newSession[shortcutPlatform])) {
         event.preventDefault()
         void handleNewSession()
+        return
+      }
+
+      if (matchShortcut(event, shortcutConfig.openCommandPalette[shortcutPlatform])) {
+        event.preventDefault()
+        setCommandPaletteOpen((open) => !open)
         return
       }
 
@@ -578,6 +598,7 @@ export default function App() {
       const tabId = resolveEventTabId(event.sessionId) ?? takePendingTabId()
       if (!tabId) return
       if (abortedTabIdsRef.current.has(tabId)) return
+      store.setStreaming(tabId, false)
       if (event.totalCostUsd) store.setLastCost(tabId, event.totalCostUsd)
       const askUserQuestionRequest = event.permissionDenials
         ?.map(mapPendingQuestionRequest)
@@ -614,6 +635,19 @@ export default function App() {
         claudeSessionToTabRef.current.delete(event.sessionId)
       }
       if (!tabId) return
+      const latestSession = getLatestSession(tabId)
+      const isStaleStreamEnd =
+        !latestSession?.isStreaming &&
+        !latestSession?.pendingPermission &&
+        !latestSession?.pendingQuestion &&
+        latestSession?.currentAssistantMsgId === null
+
+      if (isStaleStreamEnd) {
+        pendingProcessKeyByTabRef.current.delete(tabId)
+        sendStartedAtByTabRef.current.delete(tabId)
+        return
+      }
+
       const wasAborted = abortedTabIdsRef.current.has(tabId)
       clearPendingStreamEndTimer(tabId)
       pendingProcessKeyByTabRef.current.delete(tabId)
@@ -624,8 +658,7 @@ export default function App() {
 
       const commitStreamEnd = () => {
         clearPendingStreamEndTimer(tabId)
-        store.setStreaming(tabId, false)
-        currentAsstMsgRef.current.delete(tabId)
+        store.commitStreamEnd(tabId)
 
         const session = getLatestSession(tabId)
         const hasPendingInteraction = Boolean(session?.pendingPermission || session?.pendingQuestion)
@@ -672,7 +705,7 @@ export default function App() {
             pendingTabIdRef.current = null
           }
           sendStartedAtByTabRef.current.delete(tabId)
-          store.setStreaming(tabId, false)
+          store.commitStreamEnd(tabId)
           return
         }
         clearPendingStreamEndTimer(tabId)
@@ -689,20 +722,16 @@ export default function App() {
     }
   }
 
-  async function handleSend(
+  async function handleSendForSession(
+    sessionId: string,
     text: string,
     files: SelectedFile[],
     options?: { permissionModeOverride?: PermissionMode; visibleTextOverride?: string }
   ) {
-    if (!activeSession || !activeSessionId || activeSession.isStreaming) return
-    abortedTabIdsRef.current.delete(activeSessionId)
+    const session = useSessionsStore.getState().sessions.find((item) => item.id === sessionId)
+    if (!session || session.isStreaming) return
+    abortedTabIdsRef.current.delete(sessionId)
 
-    setError(activeSessionId, null)
-    setPendingPermission(activeSessionId, null)
-    setPendingQuestion(activeSessionId, null)
-    setStreaming(activeSessionId, true)
-
-    // 첨부파일이 있으면 프롬프트 앞에 파일 내용 삽입
     let fullPrompt = text
     if (files.length > 0) {
       const fileSections = files
@@ -723,45 +752,58 @@ export default function App() {
       id: file.path,
     }))
 
-    // UI에 표시할 메시지 (원본 텍스트 + 첨부파일 메타만)
     addUserMessage(
-      activeSessionId,
+      sessionId,
       options?.visibleTextOverride ?? (text || `(파일 ${files.length}개 첨부)`),
       visibleFiles.length > 0 ? visibleFiles : undefined
     )
 
-    const assistantMsgId = startAssistantMessage(activeSessionId)
-    currentAsstMsgRef.current.set(activeSessionId, assistantMsgId)
-    sendStartedAtByTabRef.current.set(activeSessionId, Date.now())
+    setError(sessionId, null)
+    setPendingPermission(sessionId, null)
+    setPendingQuestion(sessionId, null)
+    setStreaming(sessionId, true)
 
-    if (!activeSession.sessionId) {
-      pendingTabIdRef.current = activeSessionId
+    const assistantMsgId = startAssistantMessage(sessionId)
+    currentAsstMsgRef.current.set(sessionId, assistantMsgId)
+    sendStartedAtByTabRef.current.set(sessionId, Date.now())
+
+    if (!session.sessionId) {
+      pendingTabIdRef.current = sessionId
     } else {
-      claudeSessionToTabRef.current.set(activeSession.sessionId, activeSessionId)
+      claudeSessionToTabRef.current.set(session.sessionId, sessionId)
     }
 
     try {
       const result = await window.claude.sendMessage({
-        sessionId: activeSession.sessionId ?? null,
+        sessionId: session.sessionId ?? null,
         prompt: fullPrompt,
-        cwd: activeSession.cwd && activeSession.cwd !== '~' ? activeSession.cwd : '~',
-        permissionMode: options?.permissionModeOverride ?? activeSession.permissionMode,
-        planMode: activeSession.planMode,
-        model: activeSession.model ?? undefined,
+        cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',
+        permissionMode: options?.permissionModeOverride ?? session.permissionMode,
+        planMode: session.planMode,
+        model: session.model ?? undefined,
         envVars: Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined,
         claudePath: claudeBinaryPath || undefined,
       })
       if (result?.tempKey) {
-        pendingProcessKeyByTabRef.current.set(activeSessionId, result.tempKey)
+        pendingProcessKeyByTabRef.current.set(sessionId, result.tempKey)
       }
     } catch (err) {
-      setError(activeSessionId, String(err))
-      clearPendingStreamEndTimer(activeSessionId)
-      pendingProcessKeyByTabRef.current.delete(activeSessionId)
+      setError(sessionId, String(err))
+      clearPendingStreamEndTimer(sessionId)
+      pendingProcessKeyByTabRef.current.delete(sessionId)
       pendingTabIdRef.current = null
-      currentAsstMsgRef.current.delete(activeSessionId)
-      sendStartedAtByTabRef.current.delete(activeSessionId)
+      currentAsstMsgRef.current.delete(sessionId)
+      sendStartedAtByTabRef.current.delete(sessionId)
     }
+  }
+
+  async function handleSend(
+    text: string,
+    files: SelectedFile[],
+    options?: { permissionModeOverride?: PermissionMode; visibleTextOverride?: string }
+  ) {
+    if (!activeSessionId) return
+    await handleSendForSession(activeSessionId, text, files, options)
   }
 
   async function handleAbort() {
@@ -777,7 +819,7 @@ export default function App() {
     }
     currentAsstMsgRef.current.delete(activeSessionId)
     sendStartedAtByTabRef.current.delete(activeSessionId)
-    setStreaming(activeSessionId, false)
+    commitStreamEnd(activeSessionId)
   }
 
   function getPermissionApprovalMode(request: PendingPermissionRequest): PermissionMode {
@@ -800,7 +842,8 @@ export default function App() {
       setPermissionMode(activeSessionId, nextPermissionMode)
     }
 
-    await handleSend(
+    await handleSendForSession(
+      activeSessionId,
       '방금 요청한 권한을 승인합니다. 중단된 작업을 이어서 계속 진행하세요.',
       [],
       {
@@ -817,7 +860,7 @@ export default function App() {
 
     if (!answer?.trim()) return
 
-    await handleSend(answer.trim(), [], {
+    await handleSendForSession(activeSessionId, answer.trim(), [], {
       visibleTextOverride: answer.trim(),
     })
   }
@@ -835,7 +878,9 @@ export default function App() {
     updateSession(id, () => ({ cwd: folder, name }))
   }
 
-  async function handleNewSession(cwdOverride?: string) {
+  async function handleNewSession(cwdOverride?: string): Promise<string> {
+    setSettingsOpen(false)
+    setCommandPaletteOpen(false)
     const fallbackPath = defaultProjectPath.trim() || DEFAULT_PROJECT_PATH
     const folder = normalizeSelectedFolder(cwdOverride)
       ?? normalizeSelectedFolder(await window.claude.selectFolder({
@@ -844,11 +889,12 @@ export default function App() {
       }))
     const cwd = folder || fallbackPath
     const name = getProjectNameFromPath(cwd)
-    addSession(cwd, name)
+    return addSession(cwd, name)
   }
 
   function handleSelectSession(sessionId: string) {
     setSettingsOpen(false)
+    setCommandPaletteOpen(false)
     setActiveSession(sessionId)
   }
 
@@ -863,14 +909,15 @@ export default function App() {
   }
 
   function handleToggleSidebar() {
-    if (sidebarCollapsed) {
-      setSidebarWidth(expandedSidebarWidthRef.current)
-      setSidebarCollapsed(false)
-      return
-    }
+    setSidebarCollapsed((previous) => {
+      if (previous) {
+        setSidebarWidth(expandedSidebarWidthRef.current)
+        return false
+      }
 
-    expandedSidebarWidthRef.current = sidebarWidth
-    setSidebarCollapsed(true)
+      expandedSidebarWidthRef.current = sidebarWidth
+      return true
+    })
   }
 
   return (
@@ -938,6 +985,18 @@ export default function App() {
           onClose={() => setInstallationDismissed(true)}
         />
       )}
+
+      <CommandPalette
+        open={commandPaletteOpen}
+        sessions={sessions}
+        onClose={() => setCommandPaletteOpen(false)}
+        onNewSession={handleNewSession}
+        onOpenSettings={() => {
+          setCommandPaletteOpen(false)
+          setSettingsOpen(true)
+        }}
+        onSelectSession={handleSelectSession}
+      />
     </div>
   )
 }

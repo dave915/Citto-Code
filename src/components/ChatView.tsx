@@ -259,7 +259,7 @@ export function ChatView({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [session.messages.length, lastMsg?.text?.length])
+  }, [session.messages.length, lastMsg?.text?.length, lastMsg?.toolCalls.length])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -992,7 +992,7 @@ export function ChatView({
           onDoubleClick={handleHeaderDoubleClick}
         >
           <div
-            className="flex min-w-0 items-center gap-2 px-2 py-1.5 text-xs text-claude-muted"
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2 py-1.5 text-xs text-claude-muted"
             title="현재 작업 폴더"
           >
             <button
@@ -1202,7 +1202,7 @@ export function ChatView({
             ) : null}
           </div>
 
-          <div className="no-drag flex items-center gap-2" data-no-drag="true">
+          <div className="no-drag flex flex-shrink-0 items-center gap-2" data-no-drag="true">
             <div ref={openWithMenuRef} className="relative" data-no-drag="true">
               <div className="flex overflow-hidden rounded-lg border border-claude-border bg-claude-surface">
                 <button

@@ -183,7 +183,7 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
           {message.text && (
             <div className="relative">
               <div className="rounded-[18px] rounded-tr-md border border-claude-border bg-claude-surface px-3 py-1.5">
-                <div className="prose max-w-none text-left text-[14px] leading-6" onCopy={handleMarkdownCopy}>
+                <div className="prose max-w-none overflow-x-auto break-words text-left text-[14px] leading-6 [overflow-wrap:anywhere]" onCopy={handleMarkdownCopy}>
                   <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={userMarkdownComponents}>
                     {message.text}
                   </ReactMarkdown>
@@ -210,7 +210,7 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
         {(message.text || showStreamingUi) && (
           <div className="relative px-0.5 py-1">
             {message.text ? (
-              <div className="prose max-w-none text-[14px] leading-6" onCopy={handleMarkdownCopy}>
+              <div className="prose max-w-none overflow-x-auto break-words text-[14px] leading-6 [overflow-wrap:anywhere]" onCopy={handleMarkdownCopy}>
                 <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={assistantMarkdownComponents}>
                   {message.text}
                 </ReactMarkdown>

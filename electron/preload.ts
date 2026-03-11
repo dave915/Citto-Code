@@ -105,6 +105,57 @@ export type GitBranchInfo = {
   current: boolean
 }
 
+export type CliHistoryEntry = {
+  id: string
+  filePath: string
+  claudeSessionId: string | null
+  cwd: string
+  title: string
+  preview: string
+  updatedAt: number
+  source: 'project' | 'transcript'
+}
+
+export type ImportedCliToolCall = {
+  toolUseId: string
+  toolName: string
+  toolInput: unknown
+  fileSnapshotBefore?: string | null
+  result?: unknown
+  isError?: boolean
+  status: 'running' | 'done' | 'error'
+}
+
+export type ImportedCliMessage = {
+  role: 'user' | 'assistant'
+  text: string
+  toolCalls: ImportedCliToolCall[]
+  createdAt: number
+}
+
+export type ImportedCliSession = {
+  sessionId: string | null
+  name: string
+  cwd: string
+  messages: ImportedCliMessage[]
+  lastCost?: number
+  model?: string | null
+}
+
+export type RecentProject = {
+  path: string
+  name: string
+  lastUsedAt: number
+}
+
+export type QuickPanelAPI = {
+  submit: (message: string, projectPath?: string) => Promise<void>
+  hide: () => Promise<void>
+  getRecentProjects: () => Promise<RecentProject[]>
+  selectFolder: (options?: { defaultPath?: string; title?: string }) => Promise<string | null>
+  onShow: (handler: () => void) => () => void
+}
+
 export type ClaudeAPI = {
   sendMessage: (params: {
     sessionId: string | null
@@ -154,7 +205,28 @@ export type ClaudeAPI = {
   checkInstallation: (claudePath?: string) => Promise<ClaudeInstallationStatus>
   notify: (params: { title: string; body: string }) => Promise<void>
   toggleWindowMaximize: () => Promise<void>
+  listCliSessions: (query?: string) => Promise<CliHistoryEntry[]>
+  loadCliSession: (params: { filePath: string }) => Promise<ImportedCliSession | null>
+  getRecentProjects: () => Promise<RecentProject[]>
+  setQuickPanelProjects: (projects: RecentProject[]) => Promise<{ ok: boolean }>
+  updateQuickPanelShortcut: (params: { accelerator: string; enabled: boolean }) => Promise<{ ok: boolean; error?: string }>
+  quickPanelSubmit: (params: { text: string; cwd: string }) => Promise<void>
+  quickPanelHide: () => Promise<void>
   onClaudeEvent: (handler: (event: ClaudeStreamEvent) => void) => () => void
+  onQuickPanelMessage: (handler: (payload: { text: string; cwd: string }) => void) => () => void
+  onTrayNewSession: (handler: () => void) => () => void
+}
+
+const quickPanelAPI: QuickPanelAPI = {
+  submit: (message, projectPath) => ipcRenderer.invoke('quick-panel:submit', { text: message, cwd: projectPath }),
+  hide: () => ipcRenderer.invoke('quick-panel:hide'),
+  getRecentProjects: () => ipcRenderer.invoke('quick-panel:get-recent-projects'),
+  selectFolder: (options) => ipcRenderer.invoke('quick-panel:select-folder', options),
+  onShow: (handler) => {
+    const listener = () => handler()
+    ipcRenderer.on('quick-panel:show', listener)
+    return () => ipcRenderer.removeListener('quick-panel:show', listener)
+  },
 }
 
 const claudeAPI: ClaudeAPI = {
@@ -197,11 +269,23 @@ const claudeAPI: ClaudeAPI = {
   checkInstallation: (claudePath) => ipcRenderer.invoke('claude:check-installation', { claudePath }),
   notify: (params) => ipcRenderer.invoke('app:notify', params),
   toggleWindowMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
+  listCliSessions: (query) => ipcRenderer.invoke('claude:list-cli-sessions', { query }),
+  loadCliSession: (params) => ipcRenderer.invoke('claude:load-cli-session', params),
+  getRecentProjects: () => ipcRenderer.invoke('quick-panel:get-recent-projects'),
+  setQuickPanelProjects: (projects) => ipcRenderer.invoke('quick-panel:set-projects', { projects }),
+  updateQuickPanelShortcut: (params) => ipcRenderer.invoke('quick-panel:update-shortcut', params),
+  quickPanelSubmit: (params) => ipcRenderer.invoke('quick-panel:submit', params),
+  quickPanelHide: () => ipcRenderer.invoke('quick-panel:hide'),
 
   onClaudeEvent: (handler) => {
     const channels = [
-      'claude:stream-start', 'claude:text-chunk', 'claude:tool-start',
-      'claude:tool-result', 'claude:result', 'claude:stream-end', 'claude:error',
+      'claude:stream-start',
+      'claude:text-chunk',
+      'claude:tool-start',
+      'claude:tool-result',
+      'claude:result',
+      'claude:stream-end',
+      'claude:error',
     ] as const
 
     const listeners = channels.map((channel) => {
@@ -219,12 +303,33 @@ const claudeAPI: ClaudeAPI = {
       }
     }
   },
+
+  onQuickPanelMessage: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: { text: string; cwd: string }) => handler(payload)
+    ipcRenderer.on('quick-panel:message', listener)
+    return () => ipcRenderer.removeListener('quick-panel:message', listener)
+  },
+
+  onTrayNewSession: (handler) => {
+    const listener = () => handler()
+    ipcRenderer.on('tray:new-session', listener)
+    return () => ipcRenderer.removeListener('tray:new-session', listener)
+  },
+}
+
+if (process.env.NODE_ENV === 'development') {
+  ipcRenderer.on('dev:main-log', (_event, payload: { level: 'log' | 'error'; args: string[] }) => {
+    const logger = payload.level === 'error' ? console.error : console.log
+    logger('[Main]', ...payload.args)
+  })
 }
 
 contextBridge.exposeInMainWorld('claude', claudeAPI)
+contextBridge.exposeInMainWorld('quickPanel', quickPanelAPI)
 
 declare global {
   interface Window {
     claude: ClaudeAPI
+    quickPanel: QuickPanelAPI
   }
 }

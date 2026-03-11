@@ -4,3 +4,4 @@ dist/
 .idea/
 *.log
 .DS_Store
+.omc/
