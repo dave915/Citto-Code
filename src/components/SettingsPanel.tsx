@@ -2116,6 +2116,9 @@ function EnvTab() {
         <p className="text-xs text-claude-muted leading-relaxed">
           Claude Code 실행 시 함께 전달되는 환경변수입니다. 기본은 키/값 목록으로 보이고, 수정 시 JSON 객체로 편집합니다.
         </p>
+        <p className="mt-2 text-[11px] text-claude-muted leading-relaxed">
+          Ollama는 이제 로컬 모델 선택 시 자동 연결됩니다. 수동 연결이 필요할 때만 `ANTHROPIC_BASE_URL`과 `ANTHROPIC_AUTH_TOKEN`을 지정하세요.
+        </p>
       </div>
 
       <div className="border border-claude-border rounded-xl bg-claude-bg p-4">
@@ -2161,7 +2164,7 @@ function EnvTab() {
             <textarea
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
-              placeholder={'{\n  "ANTHROPIC_API_KEY": "your-key",\n  "ANTHROPIC_BASE_URL": "https://api.example.com"\n}'}
+              placeholder={'{\n  "ANTHROPIC_API_KEY": "your-key",\n  "ANTHROPIC_BASE_URL": "https://api.example.com",\n  "ANTHROPIC_AUTH_TOKEN": "ollama"\n}'}
               className="w-full h-72 text-xs font-mono px-3 py-2 border border-claude-border rounded-lg bg-claude-panel resize-y focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10 leading-relaxed"
               spellCheck={false}
             />

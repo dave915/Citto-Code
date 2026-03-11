@@ -15,6 +15,8 @@ import type {
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 import { applyTheme } from './lib/theme'
 
+const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
+
 function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(envVars).filter(([key, value]) => {
@@ -25,6 +27,31 @@ function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string
       return true
     })
   )
+}
+
+function isLocalModelSelection(model: string | null | undefined): boolean {
+  if (!model) return false
+  const normalized = model.trim().toLowerCase()
+  if (!normalized) return false
+  if (/^claude-/i.test(normalized)) return false
+  if (normalized === 'sonnet' || normalized === 'opus' || normalized === 'haiku') return false
+  return true
+}
+
+function isThinkingSignatureError(error: string | null | undefined): boolean {
+  return (error?.toLowerCase() ?? '').includes('invalid signature in thinking block')
+}
+
+function resolveEnvVarsForModel(model: string | null | undefined, envVars: Record<string, string>): Record<string, string> | undefined {
+  const resolved = { ...envVars }
+
+  if (isLocalModelSelection(model)) {
+    if (!resolved.ANTHROPIC_BASE_URL) resolved.ANTHROPIC_BASE_URL = DEFAULT_OLLAMA_BASE_URL
+    if (!resolved.ANTHROPIC_AUTH_TOKEN) resolved.ANTHROPIC_AUTH_TOKEN = 'ollama'
+    resolved.ANTHROPIC_API_KEY = ''
+  }
+
+  return Object.keys(resolved).length > 0 ? resolved : undefined
 }
 
 function normalizeSelectedFolder(value: unknown): string | null {
@@ -266,6 +293,7 @@ export default function App() {
     setSidebarMode,
     addUserMessage,
     startAssistantMessage,
+    appendThinkingChunk,
     appendTextChunk,
     addToolCall,
     resolveToolCall,
@@ -334,12 +362,12 @@ export default function App() {
   notificationModeRef.current = notificationMode
 
   const storeRef = useRef({
-    setClaudeSessionId, startAssistantMessage, appendTextChunk,
+    setClaudeSessionId, startAssistantMessage, appendThinkingChunk, appendTextChunk,
     addToolCall, resolveToolCall, setStreaming, commitStreamEnd, setLastCost, setError, setPendingPermission, setPendingQuestion,
     activeSessionId
   })
   storeRef.current = {
-    setClaudeSessionId, startAssistantMessage, appendTextChunk,
+    setClaudeSessionId, startAssistantMessage, appendThinkingChunk, appendTextChunk,
     addToolCall, resolveToolCall, setStreaming, commitStreamEnd, setLastCost, setError, setPendingPermission, setPendingQuestion,
     activeSessionId
   }
@@ -578,6 +606,15 @@ export default function App() {
       return
     }
 
+    if (event.type === 'thinking-chunk') {
+      const tabId = resolveEventTabId(event.sessionId)
+      if (!tabId) return
+      if (abortedTabIdsRef.current.has(tabId)) return
+      const msgId = ensureAssistantMessage(tabId)
+      store.appendThinkingChunk(tabId, msgId, event.text)
+      return
+    }
+
     if (event.type === 'tool-start') {
       const tabId = resolveEventTabId(event.sessionId)
       if (!tabId) return
@@ -723,6 +760,9 @@ export default function App() {
         sendStartedAtByTabRef.current.delete(tabId)
       }
       if (tabId) {
+        if (isThinkingSignatureError(event.error)) {
+          updateSession(tabId, () => ({ sessionId: null }))
+        }
         store.setError(tabId, event.error)
       }
       return
@@ -781,6 +821,11 @@ export default function App() {
     }
 
     try {
+      const effectiveEnvVars = resolveEnvVarsForModel(
+        session.model,
+        Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : {},
+      )
+
       const result = await window.claude.sendMessage({
         sessionId: session.sessionId ?? null,
         prompt: fullPrompt,
@@ -788,7 +833,7 @@ export default function App() {
         permissionMode: options?.permissionModeOverride ?? session.permissionMode,
         planMode: session.planMode,
         model: session.model ?? undefined,
-        envVars: Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined,
+        envVars: effectiveEnvVars,
         claudePath: claudeBinaryPath || undefined,
       })
       if (result?.tempKey) {
@@ -811,6 +856,27 @@ export default function App() {
   ) {
     if (!activeSessionId) return
     await handleSendForSession(activeSessionId, text, files, options)
+  }
+
+  function handleModelChange(sessionId: string, nextModel: string | null) {
+    const session = useSessionsStore.getState().sessions.find((item) => item.id === sessionId)
+    if (!session) return
+
+    const backendChanged = isLocalModelSelection(session.model) !== isLocalModelSelection(nextModel)
+    if (!backendChanged) {
+      setModel(sessionId, nextModel)
+      return
+    }
+
+    if (session.sessionId) {
+      claudeSessionToTabRef.current.delete(session.sessionId)
+    }
+
+    updateSession(sessionId, () => ({
+      model: nextModel,
+      sessionId: null,
+      error: null,
+    }))
   }
 
   async function handleAbort() {
@@ -973,7 +1039,7 @@ export default function App() {
               onSelectFolder={() => handleSelectFolder()}
               onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSession.id, mode)}
               onPlanModeChange={(val: boolean) => setPlanMode(activeSession.id, val)}
-              onModelChange={(model) => setModel(activeSession.id, model)}
+              onModelChange={(model) => handleModelChange(activeSession.id, model)}
               onPermissionRequestAction={handlePermissionRequestAction}
               onQuestionResponse={handleQuestionResponse}
               permissionShortcutLabel={getShortcutLabel(shortcutConfig, 'cyclePermissionMode', shortcutPlatform)}

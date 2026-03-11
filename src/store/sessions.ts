@@ -48,6 +48,7 @@ export type Message = {
   id: string
   role: 'user' | 'assistant'
   text: string
+  thinking?: string
   toolCalls: ToolCallBlock[]
   attachedFiles?: AttachedFile[]
   createdAt: number
@@ -104,6 +105,7 @@ export type ImportedToolCall = Omit<ToolCallBlock, 'id'>
 export type ImportedMessage = {
   role: 'user' | 'assistant'
   text: string
+  thinking?: string
   toolCalls: ImportedToolCall[]
   attachedFiles?: AttachedFile[]
   createdAt: number
@@ -152,6 +154,7 @@ type SessionsStore = {
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string
   startAssistantMessage: (sessionId: string) => string
+  appendThinkingChunk: (sessionId: string, assistantMsgId: string, chunk: string) => void
   appendTextChunk: (sessionId: string, assistantMsgId: string, chunk: string) => void
   addToolCall: (sessionId: string, assistantMsgId: string, toolCall: Omit<ToolCallBlock, 'id'>) => void
   resolveToolCall: (sessionId: string, toolUseId: string, result: unknown, isError: boolean) => void
@@ -252,6 +255,7 @@ function normalizeImportedMessage(message: ImportedMessage): Message {
       ...toolCall,
       id: nanoid(),
     })),
+    thinking: message.thinking ?? '',
     attachedFiles: message.attachedFiles,
     createdAt: message.createdAt,
   }
@@ -262,7 +266,7 @@ function pruneEmptyCurrentAssistantMessage(session: Session): Message[] {
 
   return session.messages.filter((message) => {
     if (message.id !== session.currentAssistantMsgId) return true
-    return message.text.trim().length > 0 || message.toolCalls.length > 0
+    return message.text.trim().length > 0 || (message.thinking?.trim().length ?? 0) > 0 || message.toolCalls.length > 0
   })
 }
 
@@ -397,6 +401,7 @@ export const useSessionsStore = create<SessionsStore>()(
                         id: msgId,
                         role: 'user',
                         text,
+                        thinking: '',
                         toolCalls: [],
                         attachedFiles: files,
                         createdAt: Date.now(),
@@ -428,6 +433,7 @@ export const useSessionsStore = create<SessionsStore>()(
                         id: msgId,
                         role: 'assistant',
                         text: '',
+                        thinking: '',
                         toolCalls: [],
                         createdAt: Date.now(),
                       },
@@ -437,6 +443,23 @@ export const useSessionsStore = create<SessionsStore>()(
             ),
           }))
           return msgId
+        },
+
+        appendThinkingChunk: (tabId, assistantMsgId, chunk) => {
+          set((state) => ({
+            sessions: state.sessions.map((session) =>
+              session.id === tabId
+                ? {
+                    ...session,
+                    messages: session.messages.map((message) =>
+                      message.id === assistantMsgId
+                        ? { ...message, thinking: (message.thinking ?? '') + chunk }
+                        : message,
+                    ),
+                  }
+                : session,
+            ),
+          }))
         },
 
         appendTextChunk: (tabId, assistantMsgId, chunk) => {

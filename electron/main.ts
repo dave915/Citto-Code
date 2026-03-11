@@ -16,6 +16,7 @@ let quickPanelAccelerator = process.platform === 'darwin' ? 'Option+Space' : 'Al
 let quickPanelEnabled = true
 let quickPanelRegisteredAccelerator: string | null = null
 let devLogForwardingInstalled = false
+const streamedAssistantStateBySession = new Map<string, { sawTextDelta: boolean; sawThinkingDelta: boolean }>()
 
 function appendClaudeResponseLog(entry: Record<string, unknown>) {
   if (!IS_DEV) return
@@ -84,10 +85,17 @@ const SHELL_IMPORTED_ENV_KEYS = new Set([
   'ANTHROPIC_AUTH_TOKEN',
   'NODE_EXTRA_CA_CERTS',
 ])
+const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 
 function readEnvVar(envVars: Record<string, string> | undefined, key: string): string {
   const value = envVars?.[key]
   return typeof value === 'string' ? value.trim() : ''
+}
+
+type ApiConfig = {
+  apiKey: string
+  authToken: string
+  baseUrl: string
 }
 
 type GitStatusEntry = {
@@ -668,6 +676,196 @@ function modelDisplayName(id: string): string {
   const [, fam, major, minor] = m
   const name = fam.charAt(0).toUpperCase() + fam.slice(1)
   return minor ? `${name} ${major}.${minor}` : `${name} ${major}`
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  return /\/$/.test(baseUrl) ? baseUrl : `${baseUrl}/`
+}
+
+function buildApiUrl(baseUrl: string, path: string): URL {
+  return new URL(path.replace(/^\/+/, ''), normalizeBaseUrl(baseUrl))
+}
+
+function isOfficialAnthropicBaseUrl(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl)
+    return url.protocol === 'https:' && url.hostname === 'api.anthropic.com'
+  } catch {
+    return false
+  }
+}
+
+function isLikelyOllamaBaseUrl(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl)
+    return (
+      url.hostname === 'localhost' ||
+      url.hostname === '127.0.0.1' ||
+      url.hostname === '0.0.0.0' ||
+      /(^|\.)ollama\.com$/i.test(url.hostname)
+    )
+  } catch {
+    return false
+  }
+}
+
+function inferModelFamily(modelId: string, familyHint?: string): string {
+  const lowered = (familyHint || modelId).toLowerCase()
+  if (lowered.includes('opus')) return 'opus'
+  if (lowered.includes('haiku')) return 'haiku'
+  if (lowered.includes('sonnet')) return 'sonnet'
+  if (lowered.includes('llama')) return 'llama'
+  if (lowered.includes('qwen')) return 'qwen'
+  if (lowered.includes('deepseek')) return 'deepseek'
+  if (lowered.includes('gemma')) return 'gemma'
+  if (lowered.includes('mistral')) return 'mistral'
+  if (lowered.includes('phi')) return 'phi'
+  const match = lowered.match(/[a-z0-9]+/)
+  return match?.[0] ?? 'model'
+}
+
+function createModelInfo(id: string, displayName?: string, familyHint?: string): ModelInfo {
+  const normalizedId = id.trim()
+  const normalizedDisplayName = displayName?.trim()
+
+  return {
+    id: normalizedId,
+    displayName: normalizedDisplayName || (/^claude-/i.test(normalizedId) ? modelDisplayName(normalizedId) : normalizedId),
+    family: inferModelFamily(normalizedId, familyHint),
+  }
+}
+
+function uniqueModels(models: ModelInfo[]): ModelInfo[] {
+  const seen = new Set<string>()
+  const deduped: ModelInfo[] = []
+
+  for (const model of models) {
+    if (!model.id || seen.has(model.id)) continue
+    seen.add(model.id)
+    deduped.push(model)
+  }
+
+  return deduped
+}
+
+function parseV1ModelsPayload(payload: unknown): ModelInfo[] {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) return []
+
+  return uniqueModels(
+    payload.data.flatMap((entry) => {
+      if (!isRecord(entry)) return []
+      const id = typeof entry.id === 'string' ? entry.id : ''
+      if (!id) return []
+
+      const displayName = typeof entry.display_name === 'string'
+        ? entry.display_name
+        : typeof entry.name === 'string'
+          ? entry.name
+          : undefined
+      const family = typeof entry.family === 'string' ? entry.family : undefined
+      return [createModelInfo(id, displayName, family)]
+    })
+  )
+}
+
+function parseOllamaTagsPayload(payload: unknown): ModelInfo[] {
+  if (!isRecord(payload) || !Array.isArray(payload.models)) return []
+
+  return uniqueModels(
+    payload.models.flatMap((entry) => {
+      if (!isRecord(entry)) return []
+
+      const id = typeof entry.name === 'string'
+        ? entry.name
+        : typeof entry.model === 'string'
+          ? entry.model
+          : ''
+      if (!id) return []
+
+      const details = isRecord(entry.details) ? entry.details : null
+      const family = typeof details?.family === 'string'
+        ? details.family
+        : Array.isArray(details?.families)
+          ? details.families.find((value): value is string => typeof value === 'string')
+          : undefined
+
+      return [createModelInfo(id, id, family)]
+    })
+  )
+}
+
+async function requestJson(
+  baseUrl: string,
+  path: string,
+  headers: Record<string, string>,
+  envVars?: Record<string, string>
+): Promise<unknown | null> {
+  return new Promise((resolve) => {
+    let url: URL
+    try {
+      url = buildApiUrl(baseUrl, path)
+    } catch {
+      resolve(null)
+      return
+    }
+
+    const isHttps = url.protocol === 'https:'
+    const requester = isHttps ? httpsRequest : httpRequest
+    const extraCaCertPath = readEnvVar(envVars, 'NODE_EXTRA_CA_CERTS') || (process.env.NODE_EXTRA_CA_CERTS ?? '')
+
+    const req = requester(
+      {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: url.pathname + (url.search || ''),
+        method: 'GET',
+        headers,
+        ca: extraCaCertPath && existsSync(extraCaCertPath) ? readFileSync(extraCaCertPath) : undefined,
+      },
+      (res) => {
+        let data = ''
+        res.on('data', (chunk) => { data += chunk })
+        res.on('end', () => {
+          if ((res.statusCode ?? 500) >= 400 || !data.trim()) {
+            resolve(null)
+            return
+          }
+
+          try {
+            resolve(JSON.parse(data))
+          } catch {
+            resolve(null)
+          }
+        })
+      }
+    )
+
+    req.on('error', () => resolve(null))
+    req.setTimeout(5000, () => {
+      req.destroy()
+      resolve(null)
+    })
+    req.end()
+  })
+}
+
+function mergeFallbackModels(models: ModelInfo[]): ModelInfo[] {
+  return uniqueModels([...models, ...FALLBACK_MODELS])
+}
+
+async function fetchOllamaModels(
+  baseUrl: string,
+  envVars?: Record<string, string>,
+  authToken?: string,
+  apiKey?: string
+): Promise<ModelInfo[]> {
+  const headers = authToken
+    ? { Authorization: `Bearer ${authToken}` }
+    : apiKey
+      ? { Authorization: `Bearer ${apiKey}` }
+      : {}
+  const payload = await requestJson(baseUrl, '/api/tags', headers, envVars)
+  return parseOllamaTagsPayload(payload)
 }
 
 function isImageFilePath(filePath: string): boolean {
@@ -1427,10 +1625,12 @@ async function openPathWithApp(targetPath: string, appId: string): Promise<{ ok:
   }
 }
 
-async function getApiConfig(envVars?: Record<string, string>): Promise<{ apiKey: string; baseUrl: string }> {
+async function getApiConfig(envVars?: Record<string, string>): Promise<ApiConfig> {
   const envApiKey = readEnvVar(envVars, 'ANTHROPIC_API_KEY')
+  const envAuthToken = readEnvVar(envVars, 'ANTHROPIC_AUTH_TOKEN')
   const envBaseUrl = readEnvVar(envVars, 'ANTHROPIC_BASE_URL')
   let apiKey = envApiKey || (process.env.ANTHROPIC_API_KEY ?? '')
+  let authToken = envAuthToken || (process.env.ANTHROPIC_AUTH_TOKEN ?? '')
   let baseUrl = envBaseUrl || (process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com')
 
   try {
@@ -1442,66 +1642,43 @@ async function getApiConfig(envVars?: Record<string, string>): Promise<{ apiKey:
     }
   } catch { /* ignore */ }
 
-  return { apiKey, baseUrl }
+  return { apiKey, authToken, baseUrl }
 }
 
 async function fetchModelsFromApi(envVars?: Record<string, string>): Promise<ModelInfo[]> {
-  const { apiKey, baseUrl } = await getApiConfig(envVars)
-  if (!apiKey) return FALLBACK_MODELS
+  const { apiKey, authToken, baseUrl } = await getApiConfig(envVars)
+  const usingOfficialAnthropic = isOfficialAnthropicBaseUrl(baseUrl)
+  const usingOllama = isLikelyOllamaBaseUrl(baseUrl)
+  const remoteHeaders: Record<string, string> = {}
+  if (apiKey) remoteHeaders['x-api-key'] = apiKey
+  if (authToken) remoteHeaders.Authorization = `Bearer ${authToken}`
+  if (!usingOllama) remoteHeaders['anthropic-version'] = '2023-06-01'
 
-  return new Promise((resolve) => {
-    const url = new URL('/v1/models', baseUrl)
-    const isHttps = url.protocol === 'https:'
-    const requester = isHttps ? httpsRequest : httpRequest
-    const extraCaCertPath = readEnvVar(envVars, 'NODE_EXTRA_CA_CERTS') || (process.env.NODE_EXTRA_CA_CERTS ?? '')
+  let configuredModels: ModelInfo[] = []
 
-    const req = requester(
-      {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: url.pathname + (url.search || ''),
-        method: 'GET',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        ca: extraCaCertPath && existsSync(extraCaCertPath) ? readFileSync(extraCaCertPath) : undefined,
-      },
-      (res) => {
-        let data = ''
-        res.on('data', (c) => { data += c })
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(data)
-            const apiModels: ModelInfo[] = (json.data ?? [])
-              .filter((m: { id: string }) => /^claude-/i.test(m.id))
-              .map((m: { id: string; display_name?: string }) => ({
-                id: m.id,
-                displayName: m.display_name || modelDisplayName(m.id),
-                family: m.id.includes('opus') ? 'opus'
-                  : m.id.includes('haiku') ? 'haiku'
-                  : 'sonnet',
-              }))
+  if (usingOllama) {
+    configuredModels = await fetchOllamaModels(baseUrl, envVars, authToken, apiKey)
+  } else if (apiKey || authToken) {
+    const modelsPayload = await requestJson(baseUrl, '/v1/models', remoteHeaders, envVars)
+    configuredModels = parseV1ModelsPayload(modelsPayload)
+  } else if (usingOfficialAnthropic) {
+    configuredModels = FALLBACK_MODELS
+  }
 
-            // API 결과 + fallback 병합 (중복 제거, id 역순 정렬)
-            const merged = [...apiModels]
-            for (const fb of FALLBACK_MODELS) {
-              if (!merged.find((m) => m.id === fb.id)) merged.push(fb)
-            }
-            const models = merged.sort((a, b) => b.id.localeCompare(a.id))
+  const localOllamaModels = usingOllama
+    ? configuredModels
+    : await fetchOllamaModels(DEFAULT_OLLAMA_BASE_URL, envVars)
 
-            resolve(models.length > 0 ? models : FALLBACK_MODELS)
-          } catch {
-            resolve(FALLBACK_MODELS)
-          }
-        })
-      }
-    )
+  const mergedConfiguredModels = usingOfficialAnthropic
+    ? mergeFallbackModels(configuredModels)
+    : configuredModels
+  const mergedModels = uniqueModels([
+    ...localOllamaModels,
+    ...mergedConfiguredModels,
+  ])
 
-    req.on('error', () => resolve(FALLBACK_MODELS))
-    req.setTimeout(5000, () => { req.destroy(); resolve(FALLBACK_MODELS) })
-    req.end()
-  })
+  if (mergedModels.length > 0) return mergedModels
+  return usingOfficialAnthropic ? FALLBACK_MODELS : []
 }
 
 function formatDevLogArg(value: unknown): string {
@@ -2113,9 +2290,11 @@ app.whenReady().then(() => {
     const now = Date.now()
     const cacheKey = JSON.stringify({
       anthropicApiKey: readEnvVar(envVars, 'ANTHROPIC_API_KEY'),
+      anthropicAuthToken: readEnvVar(envVars, 'ANTHROPIC_AUTH_TOKEN'),
       anthropicBaseUrl: readEnvVar(envVars, 'ANTHROPIC_BASE_URL'),
       nodeExtraCaCerts: readEnvVar(envVars, 'NODE_EXTRA_CA_CERTS'),
       processApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+      processAuthToken: process.env.ANTHROPIC_AUTH_TOKEN ?? '',
       processBaseUrl: process.env.ANTHROPIC_BASE_URL ?? '',
       processNodeExtraCaCerts: process.env.NODE_EXTRA_CA_CERTS ?? '',
     })
@@ -2563,7 +2742,7 @@ app.whenReady().then(() => {
       const claudeBin = expandedPath && existsSync(expandedPath)
         ? expandedPath
         : resolveClaude()
-      const args: string[] = ['--output-format', 'stream-json', '--verbose']
+      const args: string[] = ['--output-format', 'stream-json', '--include-partial-messages', '--verbose']
 
       if (sessionId) args.unshift('--resume', sessionId)
       if (model) args.push('--model', model)
@@ -2810,6 +2989,22 @@ function getToolFileSnapshotBefore(toolName: string, toolInput: unknown): string
   }
 }
 
+function resetStreamedAssistantState(sessionId: string) {
+  streamedAssistantStateBySession.set(sessionId, {
+    sawTextDelta: false,
+    sawThinkingDelta: false,
+  })
+}
+
+function getStreamedAssistantState(sessionId: string): { sawTextDelta: boolean; sawThinkingDelta: boolean } {
+  const current = streamedAssistantStateBySession.get(sessionId)
+  if (current) return current
+
+  const next = { sawTextDelta: false, sawThinkingDelta: false }
+  streamedAssistantStateBySession.set(sessionId, next)
+  return next
+}
+
 function handleClaudeEvent(
   sender: Sender,
   data: Record<string, unknown>,
@@ -2824,15 +3019,60 @@ function handleClaudeEvent(
     return
   }
 
+  if (type === 'stream_event') {
+    const sid = (data.session_id as string) || sessionId
+    if (sid) onSessionId(sid)
+    const event = isRecord(data.event) ? data.event : null
+    if (!sid || !event) return
+
+    const eventType = typeof event.type === 'string' ? event.type : ''
+    if (eventType === 'message_start') {
+      resetStreamedAssistantState(sid)
+      return
+    }
+
+    if (eventType === 'message_stop') {
+      streamedAssistantStateBySession.delete(sid)
+      return
+    }
+
+    if (eventType !== 'content_block_delta') return
+
+    const delta = isRecord(event.delta) ? event.delta : null
+    if (!delta || typeof delta.type !== 'string') return
+
+    if (delta.type === 'thinking_delta') {
+      const text = typeof delta.thinking === 'string' ? delta.thinking : ''
+      if (!text) return
+      getStreamedAssistantState(sid).sawThinkingDelta = true
+      sender.send('claude:thinking-chunk', { sessionId: sid, text })
+      return
+    }
+
+    if (delta.type === 'text_delta') {
+      const text = typeof delta.text === 'string' ? delta.text : ''
+      if (!text) return
+      getStreamedAssistantState(sid).sawTextDelta = true
+      sender.send('claude:text-chunk', { sessionId: sid, text })
+    }
+    return
+  }
+
   if (type === 'assistant') {
     const message = data.message as Record<string, unknown>
     const sid = (data.session_id as string) || sessionId
     if (sid) onSessionId(sid)
     const content = message.content as Array<Record<string, unknown>>
     if (!Array.isArray(content)) return
+    const streamedState = sid ? streamedAssistantStateBySession.get(sid) : null
     const textBlocks: string[] = []
     for (const block of content) {
-      if ((block.type as string) === 'text') {
+      if ((block.type as string) === 'thinking') {
+        if (streamedState?.sawThinkingDelta) continue
+        const text = String(block.thinking ?? block.text ?? '')
+        sender.send('claude:thinking-chunk', { sessionId: sid, text })
+      } else if ((block.type as string) === 'text') {
+        if (streamedState?.sawTextDelta) continue
         const text = String(block.text ?? '')
         textBlocks.push(text)
         sender.send('claude:text-chunk', { sessionId: sid, text })
@@ -2871,6 +3111,7 @@ function handleClaudeEvent(
 
   if (type === 'result') {
     const sid = (data.session_id as string) || sessionId
+    if (sid) streamedAssistantStateBySession.delete(sid)
     sender.send('claude:result', {
       sessionId: sid, costUsd: data.cost_usd,
       totalCostUsd: data.total_cost_usd,

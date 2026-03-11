@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 export type ClaudeStreamEvent =
   | { type: 'stream-start'; sessionId: string; cwd: string }
+  | { type: 'thinking-chunk'; sessionId: string; text: string }
   | { type: 'text-chunk'; sessionId: string; text: string }
   | {
       type: 'tool-start'
@@ -291,6 +292,7 @@ const claudeAPI: ClaudeAPI = {
   onClaudeEvent: (handler) => {
     const channels = [
       'claude:stream-start',
+      'claude:thinking-chunk',
       'claude:text-chunk',
       'claude:tool-start',
       'claude:tool-result',

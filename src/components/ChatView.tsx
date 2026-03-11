@@ -259,7 +259,7 @@ export function ChatView({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [session.messages.length, lastMsg?.text?.length, lastMsg?.toolCalls.length])
+  }, [session.messages.length, lastMsg?.text?.length, lastMsg?.thinking?.length, lastMsg?.toolCalls.length])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

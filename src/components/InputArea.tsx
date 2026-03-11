@@ -158,10 +158,11 @@ function cycleClaudeCodeMode(
 }
 
 function ModelPicker({
-  model, models, onChange, disabled,
+  model, models, loading, onChange, disabled,
 }: {
   model: string | null
   models: ModelInfo[]
+  loading: boolean
   onChange: (model: string | null) => void
   disabled?: boolean
 }) {
@@ -190,13 +191,32 @@ function ModelPicker({
   }
 
   const current = models.find((m) => m.id === model)
-  const label = current ? current.displayName : '기본 모델'
+  const label = current ? current.displayName : (model || '기본 모델')
 
   const familyColor = (family: string) => {
     if (family === 'opus') return 'text-violet-300'
     if (family === 'haiku') return 'text-emerald-300'
-    return 'text-sky-300'
+    if (family === 'sonnet') return 'text-sky-300'
+    if (family === 'llama') return 'text-orange-300'
+    if (family === 'qwen') return 'text-amber-300'
+    if (family === 'deepseek') return 'text-cyan-300'
+    if (family === 'gemma') return 'text-rose-300'
+    if (family === 'mistral') return 'text-fuchsia-300'
+    if (family === 'phi') return 'text-lime-300'
+    return 'text-amber-200'
   }
+
+  const familyBadge = (family: string) => {
+    const first = family.trim().charAt(0)
+    return first ? first.toUpperCase() : 'M'
+  }
+
+  const currentFamily = current?.family ?? (model ? model.toLowerCase() : 'sonnet')
+  const emptyState = loading ? '모델 목록을 불러오는 중...' : '선택 가능한 모델이 없습니다.'
+  const emptyStateHint = loading
+    ? '잠시만 기다려 주세요.'
+    : 'Ollama를 쓰는 경우 앱과 함께 Ollama 서버가 실행 중인지 확인하세요.'
+  const emptyStateClassName = loading ? 'text-claude-muted' : 'text-amber-200'
 
   const dropdown = open && dropdownPos && createPortal(
     <div
@@ -235,7 +255,7 @@ function ModelPicker({
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${model === m.id ? 'bg-claude-surface' : 'hover:bg-claude-surface'}`}
           >
             <span className={`w-4 text-center font-bold text-sm ${familyColor(m.family)}`}>
-              {m.family === 'opus' ? 'O' : m.family === 'haiku' ? 'H' : 'S'}
+              {familyBadge(m.family)}
             </span>
             <div className="flex-1 min-w-0">
               <p className={`font-medium ${familyColor(m.family)}`}>{m.displayName}</p>
@@ -246,8 +266,9 @@ function ModelPicker({
         ))}
 
         {models.length === 0 && (
-          <div className="px-3 py-3 text-xs text-claude-muted text-center">
-            모델 목록을 불러오는 중...
+          <div className={`px-3 py-3 text-xs text-center ${emptyStateClassName}`}>
+            <p>{emptyState}</p>
+            <p className="mt-1 text-[11px] text-claude-muted">{emptyStateHint}</p>
           </div>
         )}
       </div>
@@ -264,7 +285,7 @@ function ModelPicker({
         title="모델 선택"
         className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
           model
-            ? `${familyColor(current?.family ?? 'sonnet')} border border-claude-border bg-claude-surface`
+            ? `${familyColor(currentFamily)} border border-claude-border bg-claude-surface`
             : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
         }`}
       >
@@ -319,12 +340,14 @@ export function InputArea({
   const [questionInputMode, setQuestionInputMode] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
+  const [modelsLoading, setModelsLoading] = useState(true)
 
   // 앱 시작 시 모델 목록 로드 (5분 캐시는 main process에서 처리)
   useEffect(() => {
     const modelEnvVars = Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined
 
-    window.claude.getModels(modelEnvVars).then(setModels).catch(() => {})
+    setModelsLoading(true)
+    window.claude.getModels(modelEnvVars).then(setModels).catch(() => setModels([])).finally(() => setModelsLoading(false))
     window.claude.listSkills()
       .then((commands) => {
         const customCommands = commands.map((command) => ({ ...command, kind: 'custom' as const }))
@@ -1333,6 +1356,7 @@ export function InputArea({
           <ModelPicker
             model={model}
             models={models}
+            loading={modelsLoading}
             onChange={onModelChange}
             disabled={isStreaming}
           />
