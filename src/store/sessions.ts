@@ -77,6 +77,10 @@ export type ShortcutBinding = {
 
 export type ShortcutConfig = Record<ShortcutAction, ShortcutBinding>
 
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
 export type Session = {
   id: string
   sessionId: string | null
@@ -127,6 +131,8 @@ type SessionsStore = {
   preferredOpenWithAppId: string
   themeId: ThemeId
   notificationMode: NotificationMode
+  uiFontSize: number
+  uiZoomPercent: number
   quickPanelEnabled: boolean
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
@@ -139,6 +145,8 @@ type SessionsStore = {
   setPreferredOpenWithAppId: (appId: string) => void
   setThemeId: (themeId: ThemeId) => void
   setNotificationMode: (mode: NotificationMode) => void
+  setUiFontSize: (value: number) => void
+  setUiZoomPercent: (value: number) => void
   setQuickPanelEnabled: (value: boolean) => void
   setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
@@ -162,7 +170,22 @@ type SessionsStore = {
 }
 
 export const DEFAULT_PROJECT_PATH = '~/Desktop'
+export const DEFAULT_UI_FONT_SIZE = 16
+export const MIN_UI_FONT_SIZE = 13
+export const MAX_UI_FONT_SIZE = 20
+export const DEFAULT_UI_ZOOM_PERCENT = 100
+export const MIN_UI_ZOOM_PERCENT = 80
+export const MAX_UI_ZOOM_PERCENT = 130
 const GENERIC_CLAUDE_ERROR = 'Claude Code 요청이 실패했습니다.'
+
+export function clampUiFontSize(value: number): number {
+  return clampNumber(Math.round(value), MIN_UI_FONT_SIZE, MAX_UI_FONT_SIZE)
+}
+
+export function clampUiZoomPercent(value: number): number {
+  const rounded = Math.round(value / 5) * 5
+  return clampNumber(rounded, MIN_UI_ZOOM_PERCENT, MAX_UI_ZOOM_PERCENT)
+}
 
 export function getProjectNameFromPath(path: string): string {
   if (!path || path === '~') return '~'
@@ -261,6 +284,8 @@ export const useSessionsStore = create<SessionsStore>()(
         preferredOpenWithAppId: '',
         themeId: CURRENT_THEME_ID,
         notificationMode: 'all',
+        uiFontSize: DEFAULT_UI_FONT_SIZE,
+        uiZoomPercent: DEFAULT_UI_ZOOM_PERCENT,
         quickPanelEnabled: true,
         shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
@@ -315,6 +340,8 @@ export const useSessionsStore = create<SessionsStore>()(
         setPreferredOpenWithAppId: (preferredOpenWithAppId) => set({ preferredOpenWithAppId }),
         setThemeId: (themeId) => set({ themeId }),
         setNotificationMode: (notificationMode) => set({ notificationMode }),
+        setUiFontSize: (uiFontSize) => set({ uiFontSize: clampUiFontSize(uiFontSize) }),
+        setUiZoomPercent: (uiZoomPercent) => set({ uiZoomPercent: clampUiZoomPercent(uiZoomPercent) }),
         setQuickPanelEnabled: (quickPanelEnabled) => set({ quickPanelEnabled }),
 
         setShortcut: (action, platform, value) => set((state) => ({
@@ -600,7 +627,7 @@ export const useSessionsStore = create<SessionsStore>()(
     {
       name: 'claude-ui-sessions',
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SessionsStore> & {
           shortcutConfig?: Partial<ShortcutConfig>
@@ -624,6 +651,8 @@ export const useSessionsStore = create<SessionsStore>()(
           ...state,
           defaultProjectPath,
           sessions,
+          uiFontSize: clampUiFontSize(state.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
+          uiZoomPercent: clampUiZoomPercent(state.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
           quickPanelEnabled: state.quickPanelEnabled ?? true,
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,
@@ -641,6 +670,8 @@ export const useSessionsStore = create<SessionsStore>()(
         preferredOpenWithAppId: state.preferredOpenWithAppId,
         themeId: state.themeId,
         notificationMode: state.notificationMode,
+        uiFontSize: state.uiFontSize,
+        uiZoomPercent: state.uiZoomPercent,
         quickPanelEnabled: state.quickPanelEnabled,
         shortcutConfig: state.shortcutConfig,
       }),
@@ -673,6 +704,8 @@ export const useSessionsStore = create<SessionsStore>()(
           notificationMode:
             persistedState.notificationMode
             ?? (persistedState.notificationsEnabled === false ? 'off' : 'all'),
+          uiFontSize: clampUiFontSize(persistedState.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
+          uiZoomPercent: clampUiZoomPercent(persistedState.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
           quickPanelEnabled: persistedState.quickPanelEnabled ?? true,
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,

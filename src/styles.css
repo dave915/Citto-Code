@@ -6,6 +6,8 @@
 
 :root,
 :root[data-theme='current'] {
+  --claude-ui-font-size: 16px;
+  --claude-ui-zoom: 1;
   --claude-orange: 185 124 86;
   --claude-bg: 36 36 38;
   --claude-panel: 43 43 46;
@@ -258,10 +260,15 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  font-size: var(--claude-ui-font-size);
+}
+
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  zoom: var(--claude-ui-zoom);
   background:
     radial-gradient(circle at top, rgb(var(--claude-body-radial) / 0.045), transparent 24%),
     linear-gradient(180deg, rgb(var(--claude-body-top)) 0%, rgb(var(--claude-body-bottom)) 100%);

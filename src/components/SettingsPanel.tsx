@@ -1,7 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { CliHistoryEntry, McpConfigScope, McpReadResult } from '../../electron/preload'
 import {
+  DEFAULT_UI_FONT_SIZE,
+  DEFAULT_UI_ZOOM_PERCENT,
   DEFAULT_PROJECT_PATH,
+  MAX_UI_FONT_SIZE,
+  MAX_UI_ZOOM_PERCENT,
+  MIN_UI_FONT_SIZE,
+  MIN_UI_ZOOM_PERCENT,
   getProjectNameFromPath,
   type NotificationMode,
   useSessionsStore,
@@ -137,12 +143,16 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
     defaultProjectPath,
     themeId,
     notificationMode,
+    uiFontSize,
+    uiZoomPercent,
     quickPanelEnabled,
     shortcutConfig,
     claudeBinaryPath,
     setDefaultProjectPath,
     setThemeId,
     setNotificationMode,
+    setUiFontSize,
+    setUiZoomPercent,
     setQuickPanelEnabled,
     setShortcut,
     setClaudeBinaryPath,
@@ -466,6 +476,69 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
             >
               Desktop으로 복원
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-claude-text">표시</p>
+            <p className="mt-1 text-xs leading-relaxed text-claude-muted">
+              글자 크기와 전체 UI 배율을 조절합니다. 변경 사항은 즉시 화면에 반영됩니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setUiFontSize(DEFAULT_UI_FONT_SIZE)
+              setUiZoomPercent(DEFAULT_UI_ZOOM_PERCENT)
+            }}
+            className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs text-claude-muted transition-colors hover:bg-claude-bg hover:text-claude-text"
+          >
+            기본값 복원
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-4 rounded-xl border border-claude-border bg-claude-panel p-3">
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label className="text-xs font-medium text-claude-muted">폰트 크기</label>
+              <span className="text-xs font-mono text-claude-text">{uiFontSize}px</span>
+            </div>
+            <input
+              type="range"
+              min={MIN_UI_FONT_SIZE}
+              max={MAX_UI_FONT_SIZE}
+              step={1}
+              value={uiFontSize}
+              onChange={(event) => setUiFontSize(Number(event.target.value))}
+              className="w-full accent-claude-muted"
+            />
+            <div className="mt-1 flex items-center justify-between text-[11px] text-claude-muted/80">
+              <span>{MIN_UI_FONT_SIZE}px</span>
+              <span>{MAX_UI_FONT_SIZE}px</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label className="text-xs font-medium text-claude-muted">화면 비율</label>
+              <span className="text-xs font-mono text-claude-text">{uiZoomPercent}%</span>
+            </div>
+            <input
+              type="range"
+              min={MIN_UI_ZOOM_PERCENT}
+              max={MAX_UI_ZOOM_PERCENT}
+              step={5}
+              value={uiZoomPercent}
+              onChange={(event) => setUiZoomPercent(Number(event.target.value))}
+              className="w-full accent-claude-muted"
+            />
+            <div className="mt-1 flex items-center justify-between text-[11px] text-claude-muted/80">
+              <span>{MIN_UI_ZOOM_PERCENT}%</span>
+              <span>{MAX_UI_ZOOM_PERCENT}%</span>
+            </div>
           </div>
         </div>
       </div>

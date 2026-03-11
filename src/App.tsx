@@ -283,6 +283,8 @@ export default function App() {
     envVars,
     themeId,
     notificationMode,
+    uiFontSize,
+    uiZoomPercent,
     quickPanelEnabled,
     shortcutConfig,
     claudeBinaryPath,
@@ -345,6 +347,11 @@ export default function App() {
   useEffect(() => {
     applyTheme(themeId)
   }, [themeId])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--claude-ui-font-size', `${uiFontSize}px`)
+    document.documentElement.style.setProperty('--claude-ui-zoom', `${uiZoomPercent / 100}`)
+  }, [uiFontSize, uiZoomPercent])
 
   useEffect(() => {
     const cleanup = window.claude.onClaudeEvent(handleClaudeEvent)
