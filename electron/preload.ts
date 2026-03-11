@@ -148,6 +148,17 @@ export type RecentProject = {
   lastUsedAt: number
 }
 
+export type McpConfigScope = 'user' | 'local' | 'project'
+
+export type McpReadResult = {
+  scope: McpConfigScope
+  available: boolean
+  targetPath: string
+  projectPath: string | null
+  mcpServers: Record<string, unknown>
+  message?: string
+}
+
 export type QuickPanelAPI = {
   submit: (message: string, projectPath?: string) => Promise<void>
   hide: () => Promise<void>
@@ -193,8 +204,8 @@ export type ClaudeAPI = {
   initGitRepo: (params: { cwd: string }) => Promise<{ ok: boolean; error?: string }>
   readClaudeSettings: () => Promise<Record<string, unknown>>
   writeSettings: (settings: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>
-  readMcpServers: () => Promise<Record<string, unknown>>
-  writeMcpServers: (mcpServers: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>
+  readMcpServers: (params?: { scope?: McpConfigScope; cwd?: string | null }) => Promise<McpReadResult>
+  writeMcpServers: (params: { scope?: McpConfigScope; cwd?: string | null; mcpServers: Record<string, unknown> }) => Promise<{ ok: boolean; error?: string }>
   listClaudeDir: (subdir: string) => Promise<{ name: string; path: string }[]>
   listSkills: () => Promise<{ name: string; path: string; dir: string; legacy: boolean }[]>
   listDirAbs: (dirPath: string) => Promise<{ name: string; path: string }[]>
@@ -257,8 +268,8 @@ const claudeAPI: ClaudeAPI = {
   initGitRepo: (params) => ipcRenderer.invoke('claude:init-git-repo', params),
   readClaudeSettings: () => ipcRenderer.invoke('claude:read-settings'),
   writeSettings: (settings) => ipcRenderer.invoke('claude:write-settings', { settings }),
-  readMcpServers: () => ipcRenderer.invoke('claude:read-mcp-servers'),
-  writeMcpServers: (mcpServers) => ipcRenderer.invoke('claude:write-mcp-servers', { mcpServers }),
+  readMcpServers: (params) => ipcRenderer.invoke('claude:read-mcp-servers', params),
+  writeMcpServers: (params) => ipcRenderer.invoke('claude:write-mcp-servers', params),
   listClaudeDir: (subdir) => ipcRenderer.invoke('claude:list-claude-dir', { subdir }),
   listSkills: () => ipcRenderer.invoke('claude:list-skills'),
   listDirAbs: (dirPath) => ipcRenderer.invoke('claude:list-dir-abs', { dirPath }),

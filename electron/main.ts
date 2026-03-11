@@ -167,6 +167,17 @@ type RecentProject = {
   lastUsedAt: number
 }
 
+type McpConfigScope = 'user' | 'local' | 'project'
+
+type McpReadResult = {
+  scope: McpConfigScope
+  available: boolean
+  targetPath: string
+  projectPath: string | null
+  mcpServers: Record<string, unknown>
+  message?: string
+}
+
 let quickPanelProjects: RecentProject[] = []
 
 const FALLBACK_MODELS: ModelInfo[] = [
@@ -200,6 +211,124 @@ const CRC32_TABLE = (() => {
   }
   return table
 })()
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function readJsonObject(filePath: string): Record<string, unknown> {
+  if (!existsSync(filePath)) return {}
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, 'utf-8'))
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeJsonObject(filePath: string, value: Record<string, unknown>) {
+  const dir = dirname(filePath)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8')
+}
+
+function sanitizeMcpServers(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {}
+}
+
+function normalizeMcpProjectPath(cwd?: string | null): string | null {
+  if (typeof cwd !== 'string') return null
+  const trimmed = cwd.trim()
+  if (!trimmed || trimmed === '~') return null
+  const home = process.env.HOME ?? ''
+  if (trimmed === '~') return home || null
+  if (trimmed.startsWith('~/')) return home ? join(home, trimmed.slice(2)) : trimmed
+  return trimmed
+}
+
+function getClaudeJsonPath() {
+  return join(process.env.HOME ?? '', '.claude.json')
+}
+
+function readMcpServersForScope(scope: McpConfigScope, cwd?: string | null): McpReadResult {
+  const claudeJsonPath = getClaudeJsonPath()
+  const projectPath = normalizeMcpProjectPath(cwd)
+
+  if (scope === 'user') {
+    const root = readJsonObject(claudeJsonPath)
+    return {
+      scope,
+      available: true,
+      targetPath: claudeJsonPath,
+      projectPath,
+      mcpServers: sanitizeMcpServers(root.mcpServers),
+    }
+  }
+
+  if (!projectPath) {
+    return {
+      scope,
+      available: false,
+      targetPath: scope === 'local' ? claudeJsonPath : '.mcp.json',
+      projectPath: null,
+      mcpServers: {},
+      message: '현재 프로젝트 경로가 없어 이 범위를 편집할 수 없습니다.',
+    }
+  }
+
+  if (scope === 'local') {
+    const root = readJsonObject(claudeJsonPath)
+    const projects = isRecord(root.projects) ? root.projects : {}
+    const projectEntry = isRecord(projects[projectPath]) ? projects[projectPath] : {}
+    return {
+      scope,
+      available: true,
+      targetPath: claudeJsonPath,
+      projectPath,
+      mcpServers: sanitizeMcpServers(projectEntry.mcpServers),
+    }
+  }
+
+  const projectConfigPath = join(projectPath, '.mcp.json')
+  const root = readJsonObject(projectConfigPath)
+  return {
+    scope,
+    available: true,
+    targetPath: projectConfigPath,
+    projectPath,
+    mcpServers: sanitizeMcpServers(root.mcpServers),
+  }
+}
+
+function writeMcpServersForScope(scope: McpConfigScope, cwd: string | null | undefined, mcpServers: unknown) {
+  const servers = sanitizeMcpServers(mcpServers)
+  const claudeJsonPath = getClaudeJsonPath()
+
+  if (scope === 'user') {
+    const root = readJsonObject(claudeJsonPath)
+    writeJsonObject(claudeJsonPath, { ...root, mcpServers: servers })
+    return { ok: true }
+  }
+
+  const projectPath = normalizeMcpProjectPath(cwd)
+  if (!projectPath) {
+    return { ok: false, error: '현재 프로젝트 경로가 없어 저장할 수 없습니다.' }
+  }
+
+  if (scope === 'local') {
+    const root = readJsonObject(claudeJsonPath)
+    const projects = isRecord(root.projects) ? { ...root.projects } : {}
+    const currentProject = isRecord(projects[projectPath]) ? { ...projects[projectPath] } : {}
+    projects[projectPath] = { ...currentProject, mcpServers: servers }
+    writeJsonObject(claudeJsonPath, { ...root, projects })
+    return { ok: true }
+  }
+
+  const projectConfigPath = join(projectPath, '.mcp.json')
+  const root = readJsonObject(projectConfigPath)
+  writeJsonObject(projectConfigPath, { ...root, mcpServers: servers })
+  return { ok: true }
+}
 
 function resolveAppIconPath() {
   const candidates = [
@@ -1632,10 +1761,8 @@ function registerQuickPanelShortcut() {
   }
 }
 
-function updateTrayMenu() {
-  if (!tray) return
-
-  const menu = Menu.buildFromTemplate([
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
     {
       label: '새 세션',
       click: () => {
@@ -1656,8 +1783,6 @@ function updateTrayMenu() {
       },
     },
   ])
-
-  tray.setContextMenu(menu)
 }
 
 function createTray() {
@@ -1677,18 +1802,14 @@ function createTray() {
   }
 
   tray.setToolTip('Citto Code')
-  updateTrayMenu()
 
   tray.on('click', () => {
     showMainWindow()
   })
 
-  if (process.platform === 'darwin') {
-    tray.on('right-click', () => {
-      updateTrayMenu()
-      tray?.popUpContextMenu()
-    })
-  }
+  tray.on('right-click', () => {
+    tray?.popUpContextMenu(buildTrayMenu())
+  })
 
   return tray
 }
@@ -2319,32 +2440,32 @@ app.whenReady().then(() => {
     }
   })
 
-  // ── ~/.claude.json MCP 서버 읽기 ─────────────────────────────
-  ipcMain.handle('claude:read-mcp-servers', () => {
+  // ── MCP 서버 읽기/쓰기 ───────────────────────────────────────
+  ipcMain.handle('claude:read-mcp-servers', (_event, payload?: { scope?: McpConfigScope; cwd?: string | null }) => {
     try {
-      const jsonPath = join(process.env.HOME ?? '', '.claude.json')
-      if (!existsSync(jsonPath)) return {}
-      const raw = readFileSync(jsonPath, 'utf-8')
-      const parsed = JSON.parse(raw)
-      return (parsed?.mcpServers ?? {}) as Record<string, unknown>
-    } catch { return {} }
-  })
-
-  // ── ~/.claude.json MCP 서버 쓰기 ─────────────────────────────
-  ipcMain.handle('claude:write-mcp-servers', (_event, { mcpServers }: { mcpServers: unknown }) => {
-    try {
-      const jsonPath = join(process.env.HOME ?? '', '.claude.json')
-      let existing: Record<string, unknown> = {}
-      if (existsSync(jsonPath)) {
-        try { existing = JSON.parse(readFileSync(jsonPath, 'utf-8')) } catch { /* ignore */ }
-      }
-      const updated = { ...existing, mcpServers }
-      writeFileSync(jsonPath, JSON.stringify(updated, null, 2), 'utf-8')
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, error: String(err) }
+      return readMcpServersForScope(payload?.scope ?? 'user', payload?.cwd)
+    } catch {
+      return {
+        scope: payload?.scope ?? 'user',
+        available: false,
+        targetPath: getClaudeJsonPath(),
+        projectPath: normalizeMcpProjectPath(payload?.cwd),
+        mcpServers: {},
+        message: 'MCP 설정을 읽는 중 오류가 발생했습니다.',
+      } satisfies McpReadResult
     }
   })
+
+  ipcMain.handle(
+    'claude:write-mcp-servers',
+    (_event, payload: { scope?: McpConfigScope; cwd?: string | null; mcpServers: unknown }) => {
+      try {
+        return writeMcpServersForScope(payload?.scope ?? 'user', payload?.cwd, payload?.mcpServers)
+      } catch (err) {
+        return { ok: false, error: String(err) }
+      }
+    },
+  )
 
   // ── Claude 설정 파일 쓰기 ─────────────────────────────────────
   ipcMain.handle('claude:write-settings', (_event, { settings }: { settings: unknown }) => {

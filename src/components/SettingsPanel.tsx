@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
-import type { CliHistoryEntry } from '../../electron/preload'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import type { CliHistoryEntry, McpConfigScope, McpReadResult } from '../../electron/preload'
 import {
   DEFAULT_PROJECT_PATH,
+  getProjectNameFromPath,
   type NotificationMode,
   useSessionsStore,
   type SidebarMode,
@@ -38,6 +39,30 @@ type McpForm = {
 }
 
 const EMPTY_MCP_FORM: McpForm = { name: '', serverType: 'http', command: '', args: '', url: '', headers: '', env: '' }
+
+const MCP_SCOPE_OPTIONS: Array<{
+  value: McpConfigScope
+  label: string
+  description: string
+}> = [
+  { value: 'user', label: '전체', description: '~/.claude.json 전체 공통 설정' },
+  { value: 'local', label: '프로젝트별', description: '~/.claude.json 안에서 선택한 프로젝트별 설정' },
+  { value: 'project', label: '프로젝트 폴더', description: '선택한 프로젝트의 .mcp.json 설정' },
+]
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function formatDisplayPath(path: string): string {
+  return path || '-'
+}
+
+function normalizeProjectPath(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === '~') return null
+  return trimmed
+}
 
 export function SettingsPanel({
   onClose,
@@ -760,10 +785,38 @@ function buildEntry(f: McpForm): Record<string, unknown> {
   return entry
 }
 
+function mapMcpServers(raw: Record<string, unknown>): McpServer[] {
+  return Object.entries(raw)
+    .map(([name, config]) => ({
+      name,
+      ...(isRecord(config) ? config : {}),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 function McpTab() {
+  const sessions = useSessionsStore((state) => state.sessions)
+  const activeSessionId = useSessionsStore((state) => state.activeSessionId)
+  const defaultProjectPath = useSessionsStore((state) => state.defaultProjectPath)
+  const activeSession = activeSessionId
+    ? sessions.find((session) => session.id === activeSessionId) ?? null
+    : null
+  const currentProjectPath = useMemo(() => {
+    const activePath = activeSession?.cwd?.trim()
+    if (activePath && activePath !== '~') return activePath
+
+    const fallbackPath = defaultProjectPath.trim()
+    if (fallbackPath && fallbackPath !== '~') return fallbackPath
+
+    return null
+  }, [activeSession?.cwd, defaultProjectPath])
+
+  const [scope, setScope] = useState<McpConfigScope>('user')
+  const [selectedProjectPath, setSelectedProjectPath] = useState(currentProjectPath ?? '')
   const [servers, setServers] = useState<McpServer[]>([])
   const [loading, setLoading] = useState(true)
   const [rawMcp, setRawMcp] = useState<Record<string, unknown>>({})
+  const [scopeInfo, setScopeInfo] = useState<McpReadResult | null>(null)
 
   // 추가 폼
   const [showAdd, setShowAdd] = useState(false)
@@ -780,17 +833,54 @@ function McpTab() {
   // 삭제 확인
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!selectedProjectPath.trim() && currentProjectPath) {
+      setSelectedProjectPath(currentProjectPath)
+    }
+  }, [currentProjectPath, selectedProjectPath])
+
+  const effectiveProjectPath = normalizeProjectPath(selectedProjectPath)
+
   const loadServers = () => {
     setLoading(true)
-    window.claude.readMcpServers().then((raw) => {
-      setRawMcp(raw)
-      setServers(Object.entries(raw).map(([name, cfg]) => ({ name, ...(cfg as Omit<McpServer, 'name'>) })))
-    }).catch(() => {}).finally(() => setLoading(false))
+    window.claude.readMcpServers({ scope, cwd: effectiveProjectPath }).then((result) => {
+      setScopeInfo(result)
+      setRawMcp(result.mcpServers)
+      setServers(mapMcpServers(result.mcpServers))
+    }).catch(() => {
+      setScopeInfo({
+        scope,
+        available: false,
+        targetPath: scope === 'project' ? '.mcp.json' : '~/.claude.json',
+        projectPath: null,
+        mcpServers: {},
+        message: 'MCP 설정을 불러오지 못했습니다.',
+      })
+      setRawMcp({})
+      setServers([])
+    }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadServers() }, [])
+  useEffect(() => {
+    loadServers()
+    setShowAdd(false)
+    setForm(EMPTY_MCP_FORM)
+    setFormError('')
+    setEditingServer(null)
+    setEditForm(EMPTY_MCP_FORM)
+    setEditError('')
+    setConfirmDelete(null)
+  }, [scope, effectiveProjectPath])
+
+  const canManageScope = scope === 'user'
+    ? true
+    : Boolean(effectiveProjectPath) && (scopeInfo?.available ?? true)
+  const selectedScope = MCP_SCOPE_OPTIONS.find((option) => option.value === scope) ?? MCP_SCOPE_OPTIONS[0]
+  const currentProjectLabel = scopeInfo?.projectPath ?? effectiveProjectPath
+  const currentProjectName = currentProjectLabel ? getProjectNameFromPath(currentProjectLabel) : null
 
   const handleSave = async () => {
+    if (!canManageScope) { setFormError('현재 범위를 편집할 수 없습니다.'); return }
     const name = form.name.trim()
     if (!name) { setFormError('이름을 입력하세요.'); return }
     if (form.serverType === 'stdio' && !form.command.trim()) { setFormError('커맨드를 입력하세요.'); return }
@@ -799,7 +889,7 @@ function McpTab() {
     setSaving(true)
     setFormError('')
     const updated = { ...rawMcp, [name]: buildEntry(form) }
-    const result = await window.claude.writeMcpServers(updated)
+    const result = await window.claude.writeMcpServers({ scope, cwd: effectiveProjectPath, mcpServers: updated })
     setSaving(false)
     if (!result.ok) { setFormError(result.error ?? '저장 실패'); return }
 
@@ -819,6 +909,7 @@ function McpTab() {
 
   const handleEditSave = async () => {
     if (!editingServer) return
+    if (!canManageScope) { setEditError('현재 범위를 편집할 수 없습니다.'); return }
     const newName = editForm.name.trim()
     if (!newName) { setEditError('이름을 입력하세요.'); return }
     if (editForm.serverType === 'stdio' && !editForm.command.trim()) { setEditError('커맨드를 입력하세요.'); return }
@@ -829,7 +920,7 @@ function McpTab() {
     // 이름이 바뀐 경우 기존 항목 삭제 후 새 이름으로 추가
     const { [editingServer]: _, ...rest } = rawMcp
     const updated = { ...rest, [newName]: buildEntry({ ...editForm, name: newName }) }
-    const result = await window.claude.writeMcpServers(updated)
+    const result = await window.claude.writeMcpServers({ scope, cwd: effectiveProjectPath, mcpServers: updated })
     setEditSaving(false)
     if (!result.ok) { setEditError(result.error ?? '저장 실패'); return }
 
@@ -838,12 +929,23 @@ function McpTab() {
   }
 
   const handleDelete = async (name: string) => {
+    if (!canManageScope) return
     const { [name]: _, ...rest } = rawMcp
-    const result = await window.claude.writeMcpServers(rest)
+    const result = await window.claude.writeMcpServers({ scope, cwd: effectiveProjectPath, mcpServers: rest })
     if (!result.ok) return
     setConfirmDelete(null)
     if (editingServer === name) setEditingServer(null)
     loadServers()
+  }
+
+  const handlePickProject = async () => {
+    const folder = await window.claude.selectFolder({
+      defaultPath: effectiveProjectPath ?? currentProjectPath ?? defaultProjectPath,
+      title: 'MCP 대상 프로젝트 선택',
+    })
+    if (folder) {
+      setSelectedProjectPath(folder)
+    }
   }
 
   const inputCls = "w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
@@ -852,12 +954,78 @@ function McpTab() {
 
   return (
     <div className="p-4 space-y-3">
-      {/* 헤더 */}
+      <div className="rounded-xl border border-claude-border bg-claude-surface p-4 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {MCP_SCOPE_OPTIONS.map((option) => {
+            return (
+              <button
+                key={option.value}
+                onClick={() => setScope(option.value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  scope === option.value
+                    ? 'bg-claude-surface-2 text-claude-text'
+                    : 'bg-claude-bg text-claude-muted hover:bg-claude-panel hover:text-claude-text'
+                }`}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-xs text-claude-muted">{selectedScope.description}</p>
+          {scope !== 'user' && (
+            <div className="space-y-2 pt-1">
+              <p className="text-xs text-claude-muted">대상 프로젝트를 직접 선택해서 이 범위에 저장합니다.</p>
+              <div className="flex gap-2">
+                <input
+                  value={selectedProjectPath}
+                  onChange={(event) => setSelectedProjectPath(event.target.value)}
+                  placeholder={currentProjectPath ?? defaultProjectPath}
+                  className="w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
+                  spellCheck={false}
+                />
+                <button
+                  onClick={handlePickProject}
+                  className="shrink-0 rounded-lg border border-claude-border px-3 py-2 text-xs text-claude-muted hover:bg-claude-panel hover:text-claude-text transition-colors"
+                >
+                  폴더 선택
+                </button>
+              </div>
+              {currentProjectLabel && (
+                <p className="text-xs text-claude-muted">
+                  선택된 프로젝트:
+                  <span className="ml-1 font-mono text-claude-text">{currentProjectLabel}</span>
+                  {currentProjectName && <span className="ml-2 text-claude-muted/70">({currentProjectName})</span>}
+                </p>
+              )}
+            </div>
+          )}
+          <p className="text-xs text-claude-muted">
+            저장 파일:
+            <span className="ml-1 font-mono text-claude-text">{formatDisplayPath(scopeInfo?.targetPath ?? '')}</span>
+          </p>
+          {scope === 'local' && scopeInfo?.projectPath && (
+            <p className="text-xs text-claude-muted">
+              저장 키:
+              <span className="ml-1 font-mono text-claude-text break-all">{`projects["${scopeInfo.projectPath}"].mcpServers`}</span>
+            </p>
+          )}
+          {!canManageScope && (
+            <p className="text-xs text-amber-400">{scopeInfo?.message ?? '대상 프로젝트 경로를 선택해야 이 범위를 편집할 수 있습니다.'}</p>
+          )}
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-claude-muted">~/.claude.json의 mcpServers 목록</p>
+        <p className="text-xs text-claude-muted">
+          {scope === 'user' ? '공통 MCP 서버 목록' : scope === 'local' ? '선택한 프로젝트 전용 MCP 서버 목록' : '선택한 프로젝트의 .mcp.json MCP 서버 목록'}
+        </p>
         <button
           onClick={() => { setShowAdd(true); setForm(EMPTY_MCP_FORM); setFormError('') }}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-claude-text bg-claude-surface hover:bg-claude-surface-2 rounded-lg transition-colors"
+          disabled={!canManageScope}
+          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-claude-text bg-claude-surface hover:bg-claude-surface-2 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -993,7 +1161,13 @@ function McpTab() {
       )}
 
       {/* 서버 목록 */}
-      {servers.length === 0 && !showAdd ? (
+      {!canManageScope && !showAdd ? (
+        <EmptyState
+          icon="📁"
+          title="프로젝트 범위 사용 불가"
+          desc={<>대상 프로젝트 폴더를 먼저 선택해야 이 범위를 편집할 수 있습니다.</>}
+        />
+      ) : servers.length === 0 && !showAdd ? (
         <EmptyState
           icon="🔌"
           title="MCP 서버 없음"
