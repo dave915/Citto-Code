@@ -2128,7 +2128,7 @@ function listCliSessions(query = ''): CliHistoryEntry[] {
 
   return entries
     .filter((entry) => {
-      const haystack = `${entry.title}\n${entry.cwd}\n${entry.preview}`.toLowerCase()
+      const haystack = `${entry.title}\n${entry.cwd}\n${entry.preview}\n${entry.claudeSessionId ?? ''}`.toLowerCase()
       return haystack.includes(trimmed)
     })
     .slice(0, 200)
@@ -2140,6 +2140,8 @@ function loadCliSession(filePath: string): ImportedCliSession | null {
 
   let cwd = ''
   let sessionId: string | null = null
+  let sidechainAgentId: string | null = null
+  let isSidechain = false
   let model: string | null = null
   let lastCost: number | undefined
   const messages: ImportedCliMessage[] = []
@@ -2151,6 +2153,12 @@ function loadCliSession(filePath: string): ImportedCliSession | null {
     }
     if (!sessionId && typeof record.sessionId === 'string') {
       sessionId = record.sessionId
+    }
+    if (record.isSidechain === true) {
+      isSidechain = true
+      if (!sidechainAgentId && typeof record.agentId === 'string' && record.agentId.trim()) {
+        sidechainAgentId = record.agentId.trim()
+      }
     }
 
     if (record.type === 'assistant') {
@@ -2240,9 +2248,16 @@ function loadCliSession(filePath: string): ImportedCliSession | null {
     }
   }
 
+  const importedSessionId = isSidechain
+    ? `subagent:${sidechainAgentId ?? filePath}`
+    : sessionId
+  const importedName = isSidechain
+    ? `${cwd ? getProjectNameFromPath(cwd) : '가져온 세션'} · ${sidechainAgentId ?? 'Subagent'}`
+    : cwd ? getProjectNameFromPath(cwd) : (sessionId ?? '가져온 세션')
+
   return {
-    sessionId,
-    name: cwd ? getProjectNameFromPath(cwd) : (sessionId ?? '가져온 세션'),
+    sessionId: importedSessionId,
+    name: importedName,
     cwd: cwd || DEFAULT_PROJECT_PATH,
     messages,
     lastCost,

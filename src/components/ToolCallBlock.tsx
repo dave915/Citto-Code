@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Diff, Hunk, getChangeKey, parseDiff } from 'react-diff-view'
 import { codeToTokens } from 'shiki'
-import type { ToolCallBlock as ToolCallBlockType } from '../store/sessions'
+import { useSessionsStore, type ToolCallBlock as ToolCallBlockType } from '../store/sessions'
 
 type DiffHunk = {
   before: string
@@ -65,7 +65,52 @@ const ACTION_LABELS: Record<string, string> = {
   ToolSearch: 'Search',
   WebFetch: 'Fetch',
   WebSearch: 'Search',
+  Agent: 'Task',
   Task: 'Task',
+}
+
+type SubagentSessionInfo = {
+  lookupId: string
+  outputFile: string
+  agent: string | null
+  description: string | null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function extractOutputFileFromText(text: string): string | null {
+  const normalized = text.trim()
+  if (!normalized) return null
+
+  const taggedMatch = normalized.match(/<output-file>\s*([^<\n]+?)\s*<\/output-file>/i)
+  if (taggedMatch?.[1]?.trim()) return taggedMatch[1].trim()
+
+  const lineMatch = normalized.match(/(?:^|\n)\s*output[_-]?file\s*:\s*([^\n]+)$/im)
+  if (lineMatch?.[1]?.trim()) return lineMatch[1].trim()
+
+  return null
+}
+
+function inferSubagentLookupId(outputFile: string, result: Record<string, unknown> | null, input: Record<string, unknown> | null): string {
+  const explicitAgentId = typeof result?.agentId === 'string'
+    ? result.agentId.trim()
+    : typeof result?.agent_id === 'string'
+      ? result.agent_id.trim()
+      : ''
+  if (explicitAgentId) return `subagent:${explicitAgentId}`
+
+  const taskOutputMatch = outputFile.match(/\/tasks\/([^/]+)\.output$/i)
+  if (taskOutputMatch?.[1]) return `subagent:${taskOutputMatch[1]}`
+
+  const transcriptMatch = outputFile.match(/\/subagents\/agent-([^/]+)\.jsonl$/i)
+  if (transcriptMatch?.[1]) return `subagent:${transcriptMatch[1]}`
+
+  const inputAgent = typeof input?.subagent_type === 'string' ? input.subagent_type.trim() : ''
+  if (inputAgent) return `subagent:${inputAgent}:${outputFile}`
+
+  return `subagent:${outputFile}`
 }
 
 function formatToolInput(name: string, input: unknown): string {
@@ -79,8 +124,42 @@ function formatToolInput(name: string, input: unknown): string {
   if (name === 'Grep') return String(obj.pattern ?? '') + (obj.path ? ` in ${obj.path}` : '')
   if (name === 'WebFetch') return String(obj.url ?? '')
   if (name === 'WebSearch') return String(obj.query ?? '')
-
+  if (name === 'Task' || name === 'Agent') {
+    const description = typeof obj.description === 'string' ? obj.description.trim() : ''
+    if (description) return description
+    const subagentType = typeof obj.subagent_type === 'string' ? obj.subagent_type.trim() : ''
+    if (subagentType) return subagentType
+  }
   return JSON.stringify(input, null, 2)
+}
+
+function getSubagentSessionInfo(toolCall: ToolCallBlockType): SubagentSessionInfo | null {
+  if (toolCall.toolName !== 'Task' && toolCall.toolName !== 'Agent') return null
+
+  const resultText = formatToolResult(toolCall.result)
+  const result = isRecord(toolCall.result) ? toolCall.result : null
+  const input = isRecord(toolCall.toolInput) ? toolCall.toolInput : null
+  const outputFile = typeof result?.outputFile === 'string'
+    ? result.outputFile.trim()
+    : typeof result?.output_file === 'string'
+      ? result.output_file.trim()
+      : extractOutputFileFromText(resultText)
+  if (!outputFile) return null
+
+  return {
+    lookupId: inferSubagentLookupId(outputFile, result, input),
+    outputFile,
+    agent: typeof result.agent === 'string'
+      ? result.agent
+      : typeof input?.subagent_type === 'string'
+        ? input.subagent_type
+        : null,
+    description: typeof result.description === 'string'
+      ? result.description
+      : typeof input?.description === 'string'
+        ? input.description
+        : null,
+  }
 }
 
 function getEditableToolPath(name: string, input: unknown): string | null {
@@ -1076,9 +1155,14 @@ function TimelineEntryRow({
   const [showFullDiff, setShowFullDiff] = useState(false)
   const [editedFileContent, setEditedFileContent] = useState<string | null>(null)
   const [loadingEditedFile, setLoadingEditedFile] = useState(false)
+  const [openingSubagentSession, setOpeningSubagentSession] = useState(false)
+  const [subagentSessionError, setSubagentSessionError] = useState<string | null>(null)
+  const importSession = useSessionsStore((state) => state.importSession)
+  const setActiveSession = useSessionsStore((state) => state.setActiveSession)
 
   const primaryTool = entry.toolCalls[entry.toolCalls.length - 1]
   const primaryPath = getEditableToolPath(primaryTool.toolName, primaryTool.toolInput)
+  const subagentSessionInfo = useMemo(() => getSubagentSessionInfo(primaryTool), [primaryTool])
   const diffHunks = useMemo(
     () => entry.toolCalls.flatMap((toolCall) => getEditDiffHunks(toolCall.toolName, toolCall.toolInput)),
     [entry.toolCalls]
@@ -1115,6 +1199,44 @@ function TimelineEntryRow({
     }
   }, [expanded, primaryPath])
 
+  const handleOpenSubagentSession = async (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (!subagentSessionInfo || openingSubagentSession) return
+
+    const existingSession = useSessionsStore.getState().sessions.find(
+      (session) => session.sessionId === subagentSessionInfo.lookupId
+    )
+    if (existingSession) {
+      setActiveSession(existingSession.id)
+      return
+    }
+
+    setOpeningSubagentSession(true)
+    setSubagentSessionError(null)
+
+    try {
+      const session = await window.claude.loadCliSession({ filePath: subagentSessionInfo.outputFile })
+      if (!session) {
+        setSubagentSessionError('서브에이전트 transcript를 아직 불러올 수 없습니다.')
+        return
+      }
+
+      importSession({
+        ...session,
+        sessionId: session.sessionId ?? subagentSessionInfo.lookupId,
+        name: subagentSessionInfo.description?.trim()
+          ? `${session.name} · ${subagentSessionInfo.description.trim()}`
+          : session.name,
+      })
+    } catch {
+      setSubagentSessionError('서브에이전트 세션을 여는 중 오류가 발생했습니다.')
+    } finally {
+      setOpeningSubagentSession(false)
+    }
+  }
+
   return (
     <div className="space-y-1">
       <div className="flex items-start gap-1.5 text-[14px] leading-5 text-claude-muted">
@@ -1135,9 +1257,9 @@ function TimelineEntryRow({
               <button
                 type="button"
                 onClick={() => setExpanded((value) => !value)}
-                className="inline-flex max-w-[min(38rem,62vw)] items-center truncate rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-claude-text/90 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+                className="inline-flex max-w-[min(38rem,62vw)] items-center gap-1 truncate rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-claude-text/90 outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
               >
-                {entry.badge}
+                <span className="truncate">{entry.badge}</span>
               </button>
             )}
             {(entry.added > 0 || entry.removed > 0) && (
@@ -1158,6 +1280,26 @@ function TimelineEntryRow({
         <div className="ml-[10px] border-l border-claude-border/70 pl-3">
           {entry.kind === 'todo' ? (
             <TodoPreview toolCalls={entry.toolCalls} />
+          ) : subagentSessionInfo ? (
+            <div className="space-y-1 rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-2">
+              <div className="text-[11px] font-medium text-claude-text/80">서브에이전트 세션</div>
+              {subagentSessionInfo.description && (
+                <div className="text-[11px] text-claude-muted/80">{subagentSessionInfo.description}</div>
+              )}
+              <div className="font-mono text-[10px] text-claude-muted/80 break-all">{subagentSessionInfo.outputFile}</div>
+              {subagentSessionError ? (
+                <div className="text-[11px] text-amber-200">{subagentSessionError}</div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleOpenSubagentSession}
+                  disabled={openingSubagentSession}
+                  className="mt-1 rounded bg-claude-border/50 px-2 py-0.5 text-[11px] text-claude-text/80 transition-colors hover:bg-claude-border disabled:opacity-50"
+                >
+                  세션 열기
+                </button>
+              )}
+            </div>
           ) : entry.status === 'error' ? (
             <pre className="tool-error-block overflow-x-auto whitespace-pre-wrap break-all rounded-lg px-3 py-2 font-mono text-[11px] leading-5">
               {resultStr}
