@@ -253,6 +253,7 @@ export function ChatView({
     .filter((message) => message.role === 'user' && message.text.trim().length > 0)
     .map((message) => message.text)
   const lastAssistantMessage = [...session.messages].reverse().find((message) => message.role === 'assistant')
+  const latestAssistantMessageId = lastAssistantMessage?.id ?? null
   const showErrorCard = Boolean(
     session.error &&
     session.error.trim() &&
@@ -1789,6 +1790,7 @@ export function ChatView({
                   >
                     <MessageBubble
                       message={msg}
+                      isLatestAssistantMessage={msg.id === latestAssistantMessageId}
                       isStreaming={session.isStreaming && msg.id === session.currentAssistantMsgId}
                       onAbort={session.isStreaming && msg.id === session.currentAssistantMsgId ? onAbort : undefined}
                       onAskAboutSelection={handleAskAboutSelection}

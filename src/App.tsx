@@ -19,6 +19,42 @@ import { applyTheme } from './lib/theme'
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 const SCHEDULED_TASK_WRITE_TOOL_NAMES = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
+const AUTO_HTML_PREVIEW_TRIGGER_PATTERNS = [
+  /보여줘/,
+  /보여주세요/,
+  /시각화/,
+  /데모/,
+  /예시/,
+  /애니메이션/,
+  /인터랙티브/,
+  /움직/,
+  /화면/,
+  /미리보기/,
+  /목업/,
+  /프로토타입/,
+  /템플릿/,
+  /\bui\b/i,
+  /\bux\b/i,
+  /\bdemo\b/i,
+  /\bshow\b/i,
+  /\bvisual/i,
+  /\bpreview\b/i,
+  /\binteractive\b/i,
+  /\banimat(?:e|ion)\b/i,
+  /\bprototype\b/i,
+  /\bmockup\b/i,
+  /\bsimulat(?:e|ion)\b/i,
+]
+const AUTO_HTML_PREVIEW_SKIP_PATTERNS = [
+  /설명만/,
+  /텍스트만/,
+  /코드\s*말고/,
+  /html\s*말고/i,
+  /미리보기\s*없이/,
+  /preview\s*없이/i,
+  /text\s*only/i,
+]
+const AUTO_HTML_PREVIEW_PATH_MARKER = '/.claude-ui/previews/'
 
 function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
@@ -155,6 +191,111 @@ function normalizeSelectedFolder(value: unknown): string | null {
   }
 
   return null
+}
+
+function shouldAutoGenerateHtmlPreview(text: string, files: SelectedFile[]): boolean {
+  const normalized = text.trim()
+  if (!normalized) return false
+  if (normalized.length > 3000) return false
+  if (files.some((file) => file.fileType === 'image')) return false
+  if (AUTO_HTML_PREVIEW_SKIP_PATTERNS.some((pattern) => pattern.test(normalized))) return false
+  return AUTO_HTML_PREVIEW_TRIGGER_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+function formatAutoPreviewTimestamp(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`
+}
+
+function joinPromptPath(basePath: string, child: string): string {
+  const normalizedBase = basePath.replace(/\\/g, '/').replace(/\/+$/, '')
+  return `${normalizedBase}/${child.replace(/^\/+/, '')}`
+}
+
+function normalizePathKey(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+/g, '/').trim().toLowerCase()
+}
+
+function extractToolReferencedFilePaths(toolName: string, toolInput: unknown): string[] {
+  if (!toolInput || typeof toolInput !== 'object') return []
+  if (toolName !== 'Read' && !isWriteLikeTool(toolName)) return []
+
+  const record = toolInput as {
+    file_path?: unknown
+    notebook_path?: unknown
+    path?: unknown
+  }
+
+  const candidate = record.file_path ?? record.notebook_path ?? record.path
+  if (typeof candidate !== 'string' || !candidate.trim()) return []
+  return [candidate.trim()]
+}
+
+function getAutoPreviewDirectoryFromPath(path: string): string | null {
+  const normalizedPath = path.replace(/\\/g, '/').replace(/\/+/g, '/').trim()
+  const normalizedKey = normalizedPath.toLowerCase()
+  const markerIndex = normalizedKey.indexOf(AUTO_HTML_PREVIEW_PATH_MARKER)
+  if (markerIndex < 0) return null
+
+  const suffix = normalizedPath.slice(markerIndex + AUTO_HTML_PREVIEW_PATH_MARKER.length)
+  const folderName = suffix.split('/').filter(Boolean)[0]
+  if (!folderName) return null
+
+  return normalizedPath.slice(0, markerIndex + AUTO_HTML_PREVIEW_PATH_MARKER.length + folderName.length)
+}
+
+function getSessionAutoPreviewDirectories(session: Session): string[] {
+  const directories = new Map<string, string>()
+  const collect = (toolName: string, toolInput: unknown) => {
+    for (const path of extractToolReferencedFilePaths(toolName, toolInput)) {
+      const previewDirectory = getAutoPreviewDirectoryFromPath(path)
+      if (!previewDirectory) continue
+      directories.set(normalizePathKey(previewDirectory), previewDirectory)
+    }
+  }
+
+  if (session.pendingPermission) {
+    collect(session.pendingPermission.toolName, session.pendingPermission.toolInput)
+  }
+
+  for (const message of session.messages) {
+    for (const toolCall of message.toolCalls) {
+      collect(toolCall.toolName, toolCall.toolInput)
+    }
+  }
+
+  return Array.from(directories.values())
+}
+
+function buildAutoHtmlPreviewInstruction(userText: string, cwd: string): string {
+  const previewRoot = joinPromptPath(cwd || '~', `.claude-ui/previews/visual-demo-${formatAutoPreviewTimestamp()}`)
+  const indexPath = joinPromptPath(previewRoot, 'index.html')
+  const stylesPath = joinPromptPath(previewRoot, 'styles.css')
+  const scriptPath = joinPromptPath(previewRoot, 'app.js')
+
+  return [
+    '<system-reminder>',
+    '이 요청은 실행 가능한 HTML 미리보기 데모로 답하세요. 텍스트 설명만 하고 끝내지 마세요.',
+    `산출물은 다음 파일에 작성하세요: ${indexPath}, ${stylesPath}, ${scriptPath}`,
+    '파일 생성이나 수정이 필요하면 반드시 Write/Edit/MultiEdit 같은 도구를 직접 호출하세요.',
+    '파일 저장 권한이 필요할 때는 채팅 본문으로 허락을 묻거나 코드 전문을 붙이지 말고, 도구 호출을 통해 앱의 권한 승인 UI를 띄우세요.',
+    '사용자가 권한을 허용하면 바로 이어서 파일을 작성하고, 권한이 거절되면 짧게 중단 사실만 설명하세요.',
+    '최종 응답에 HTML/CSS/JavaScript 전체 코드를 그대로 붙이지 마세요. <details> 같은 HTML 태그로 코드 블록을 감싸서 대신 제시하지도 마세요.',
+    'HTML/CSS/JavaScript만 사용하고 빌드 도구나 프레임워크는 쓰지 마세요.',
+    '사용자의 언어와 톤을 유지하고, 요청이 개념 설명이면 입력값이나 조작 가능한 컨트롤을 넣어 인터랙티브하게 만드세요.',
+    '요청이 UI, 타이포그래피, 템플릿, 애니메이션, 레이아웃 고민이면 시각 완성도를 높이고 움직임을 적극적으로 사용하세요.',
+    'CSS와 JavaScript는 가능한 한 별도 파일로 분리하세요.',
+    `작업이 끝나면 반드시 ${indexPath} 를 Read 해서 HTML preview가 바로 보이게 하세요.`,
+    '필수 정보가 조금 비어 있어도 합리적으로 가정하고 바로 구현하세요.',
+    '마지막 응답은 짧게 유지하고, 사용자가 무엇을 눌러보면 되는지만 간단히 알려주세요.',
+    `사용자 요청: ${userText.trim()}`,
+    '</system-reminder>',
+  ].join('\n')
 }
 
 function summarizeNotificationBody(text: string | null | undefined): string {
@@ -981,6 +1122,13 @@ export default function App() {
         : fileSections || text
     }
 
+    if (shouldAutoGenerateHtmlPreview(text, files)) {
+      const autoPreviewInstruction = buildAutoHtmlPreviewInstruction(text, session.cwd && session.cwd !== '~' ? session.cwd : '~')
+      fullPrompt = fullPrompt.trim()
+        ? `${fullPrompt}\n\n${autoPreviewInstruction}`
+        : autoPreviewInstruction
+    }
+
     const visibleFiles = files.map(({ dataUrl: _dataUrl, ...file }) => ({
       ...file,
       id: file.path,
@@ -1043,6 +1191,53 @@ export default function App() {
   ) {
     if (!activeSessionId) return
     await handleSendForSession(activeSessionId, text, files, options)
+  }
+
+  async function cleanupSessionAutoPreviewDirectories(session: Session, remainingSessions: Session[]) {
+    const previewDirectories = getSessionAutoPreviewDirectories(session)
+    if (previewDirectories.length === 0) return
+
+    const retainedDirectories = new Set(
+      remainingSessions.flatMap(getSessionAutoPreviewDirectories).map((path) => normalizePathKey(path))
+    )
+
+    await Promise.all(
+      previewDirectories
+        .filter((path) => !retainedDirectories.has(normalizePathKey(path)))
+        .map(async (targetPath) => {
+          try {
+            const result = await window.claude.deletePath({ targetPath, recursive: true })
+            if (!result.ok && result.error) {
+              console.warn(`Failed to delete preview directory: ${targetPath}`, result.error)
+            }
+          } catch (error) {
+            console.warn(`Failed to delete preview directory: ${targetPath}`, error)
+          }
+        })
+    )
+  }
+
+  function handleRemoveSession(sessionId: string) {
+    const session = useSessionsStore.getState().sessions.find((item) => item.id === sessionId)
+    if (!session) return
+
+    const remainingSessions = useSessionsStore.getState().sessions.filter((item) => item.id !== sessionId)
+
+    if (session.sessionId) {
+      claudeSessionToTabRef.current.delete(session.sessionId)
+    }
+
+    pendingProcessKeyByTabRef.current.delete(sessionId)
+    currentAsstMsgRef.current.delete(sessionId)
+    abortedTabIdsRef.current.delete(sessionId)
+    sendStartedAtByTabRef.current.delete(sessionId)
+    scheduledTaskRunMetaBySessionRef.current.delete(sessionId)
+    if (pendingTabIdRef.current === sessionId) {
+      pendingTabIdRef.current = null
+    }
+
+    removeSession(sessionId)
+    void cleanupSessionAutoPreviewDirectories(session, remainingSessions)
   }
 
   function handleModelChange(sessionId: string, nextModel: string | null) {
@@ -1209,7 +1404,7 @@ export default function App() {
           onRenameSession={(id, name) => updateSession(id, () => ({ name }))}
           onToggleFavorite={(id) => updateSession(id, (session) => ({ favorite: !session.favorite }))}
           onNewSession={handleNewSession}
-          onRemoveSession={removeSession}
+          onRemoveSession={handleRemoveSession}
           onSelectFolder={(sid) => handleSelectFolder(sid)}
           onOpenSchedule={() => {
             setSettingsOpen(false)

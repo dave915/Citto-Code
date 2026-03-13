@@ -1,13 +1,14 @@
-import { Children, isValidElement, useEffect, useState } from 'react'
+import { Children, isValidElement, useEffect, useMemo, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import type { Message } from '../store/sessions'
-import { ToolTimeline } from './ToolCallBlock'
+import { HtmlPreview, ToolTimeline, extractHtmlPreviewCandidate } from './ToolCallBlock'
 
 type Props = {
   message: Message
+  isLatestAssistantMessage?: boolean
   isStreaming?: boolean
   onAbort?: () => void
   onAskAboutSelection?: (payload: {
@@ -132,13 +133,32 @@ function ThinkingDots({ muted = false }: { muted?: boolean }) {
   )
 }
 
-export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelection }: Props) {
+export function MessageBubble({
+  message,
+  isLatestAssistantMessage = false,
+  isStreaming,
+  onAbort,
+  onAskAboutSelection,
+}: Props) {
   const [copied, setCopied] = useState(false)
   const [thinkingOpen, setThinkingOpen] = useState(false)
+  const [htmlPreviewContent, setHtmlPreviewContent] = useState<string | null>(null)
+  const [htmlPreviewLoading, setHtmlPreviewLoading] = useState(false)
   const showStreamingUi = Boolean(isStreaming)
   const hasThinking = Boolean(message.thinking?.trim())
+  const hasFinalAssistantText = Boolean(message.text.trim())
   const showThinkingRow = hasThinking || showStreamingUi
   const showThinkingPanel = hasThinking && thinkingOpen
+  const htmlPreviewCandidate = useMemo(
+    () => (message.role === 'assistant' ? extractHtmlPreviewCandidate(message.toolCalls) : null),
+    [message.role, message.toolCalls]
+  )
+  const shouldShowHtmlPreview = Boolean(
+    isLatestAssistantMessage &&
+    !showStreamingUi &&
+    hasFinalAssistantText &&
+    htmlPreviewCandidate
+  )
 
   useEffect(() => {
     if (showStreamingUi) {
@@ -150,6 +170,49 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
       setThinkingOpen(false)
     }
   }, [showStreamingUi])
+
+  useEffect(() => {
+    if (!htmlPreviewCandidate) {
+      setHtmlPreviewContent(null)
+      setHtmlPreviewLoading(false)
+      return
+    }
+
+    if (!htmlPreviewCandidate.path) {
+      setHtmlPreviewContent(htmlPreviewCandidate.fallbackContent ?? null)
+      setHtmlPreviewLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setHtmlPreviewContent(null)
+    setHtmlPreviewLoading(true)
+
+    window.claude.readFile(htmlPreviewCandidate.path)
+      .then((file) => {
+        if (cancelled) return
+        if (file?.content?.trim()) {
+          setHtmlPreviewContent(file.content)
+          return
+        }
+
+        setHtmlPreviewContent(htmlPreviewCandidate.fallbackContent ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHtmlPreviewContent(htmlPreviewCandidate.fallbackContent ?? null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setHtmlPreviewLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [htmlPreviewCandidate])
 
   const handleMarkdownCopy = (event: ClipboardEvent<HTMLDivElement>) => {
     const selectedText = window.getSelection()?.toString()
@@ -241,13 +304,27 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
   // Assistant message
   return (
     <div className="flex justify-start mb-2.5">
-      <div className="group/message max-w-[88%]">
+      <div className="group/message w-full">
         {message.toolCalls.length > 0 && (
-          <ToolTimeline toolCalls={message.toolCalls} onAskAboutSelection={onAskAboutSelection} />
+          <div className="max-w-[88%]">
+            <ToolTimeline toolCalls={message.toolCalls} onAskAboutSelection={onAskAboutSelection} />
+          </div>
         )}
 
+        {shouldShowHtmlPreview ? (
+          <div className="py-1">
+            {htmlPreviewContent ? (
+              <HtmlPreview html={htmlPreviewContent} path={htmlPreviewCandidate!.path} />
+            ) : htmlPreviewLoading ? (
+              <div className="rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-3 text-[11px] text-claude-muted">
+                HTML 미리보기를 불러오는 중...
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {(message.text || hasThinking || showStreamingUi) && (
-          <div className="relative px-0.5 py-1">
+          <div className="relative max-w-[88%] px-0.5 py-1">
             {showThinkingRow ? (
               <div className="mb-2 space-y-1">
                 <button
