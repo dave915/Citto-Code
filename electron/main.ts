@@ -6,6 +6,8 @@ import { appendFileSync, existsSync, readFile as fsReadFile, readFileSync, readd
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
 import { deflateSync } from 'zlib'
+import { AppPersistence } from './persistence'
+import type { Session as PersistedSession, ScheduledTask as PersistedScheduledTask } from './persistence-types'
 
 const activeProcesses = new Map<string, ChildProcess>()
 const IS_DEV = process.env.NODE_ENV === 'development'
@@ -17,6 +19,7 @@ let quickPanelEnabled = true
 let quickPanelRegisteredAccelerator: string | null = null
 let devLogForwardingInstalled = false
 const streamedAssistantStateBySession = new Map<string, { sawTextDelta: boolean; sawThinkingDelta: boolean }>()
+const appPersistence = new AppPersistence()
 
 function appendClaudeResponseLog(entry: Record<string, unknown>) {
   if (!IS_DEV) return
@@ -88,6 +91,7 @@ const SHELL_IMPORTED_ENV_KEYS = new Set([
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 const QUICK_PANEL_WIDTH = 780
 const QUICK_PANEL_HEIGHT = 520
+const DEFAULT_PROJECT_PATH = '~/Desktop'
 
 function readEnvVar(envVars: Record<string, string> | undefined, key: string): string {
   const value = envVars?.[key]
@@ -1029,11 +1033,12 @@ async function fetchOllamaModels(
   authToken?: string,
   apiKey?: string
 ): Promise<ModelInfo[]> {
-  const headers = authToken
-    ? { Authorization: `Bearer ${authToken}` }
-    : apiKey
-      ? { Authorization: `Bearer ${apiKey}` }
-      : {}
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`
+  } else if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`
+  }
   const payload = await requestJson(baseUrl, '/api/tags', headers, envVars)
   return parseOllamaTagsPayload(payload)
 }
@@ -2699,6 +2704,25 @@ function normalizeScheduledTasks(tasks: ScheduledTaskSyncItem[]): ScheduledTaskS
   return normalized
 }
 
+function mapPersistedScheduledTaskToSyncItem(task: PersistedScheduledTask): ScheduledTaskSyncItem {
+  return {
+    id: task.id,
+    name: task.name,
+    prompt: task.prompt,
+    projectPath: task.projectPath,
+    permissionMode: task.permissionMode,
+    frequency: task.frequency,
+    enabled: task.enabled,
+    hour: task.hour,
+    minute: task.minute,
+    weeklyDay: task.weeklyDay,
+    skipDays: task.skipDays,
+    quietHoursStart: task.quietHoursStart,
+    quietHoursEnd: task.quietHoursEnd,
+    nextRunAt: task.nextRunAt,
+  }
+}
+
 function getScheduledTaskWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
   return showMainWindow()
@@ -2806,9 +2830,13 @@ function startScheduledTaskScheduler() {
   scheduleNextTaskCheck()
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   importShellEnvironmentVars()
   installDevLogForwarding()
+  await appPersistence.initialize(app.getPath('userData'))
+  scheduledTasks = normalizeScheduledTasks(
+    appPersistence.loadScheduledTasks().map(mapPersistedScheduledTaskToSyncItem),
+  )
 
   const appIconPath = resolveAppIconPath()
   if (process.platform === 'darwin' && appIconPath) {
@@ -3184,6 +3212,46 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle(
+    'claude:save-text-file',
+    async (
+      event,
+      {
+        suggestedName,
+        defaultPath,
+        content,
+        filters,
+      }: {
+        suggestedName: string
+        defaultPath?: string
+        content: string
+        filters?: Array<{ name: string; extensions: string[] }>
+      },
+    ) => {
+      try {
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) ?? mainWindow ?? showMainWindow()
+        const fallbackDir = app.getPath('documents')
+        const resolvedDefaultPath = defaultPath?.trim()
+          ? defaultPath
+          : join(fallbackDir, suggestedName)
+
+        const result = await dialog.showSaveDialog(parentWindow, {
+          defaultPath: resolvedDefaultPath,
+          filters,
+        })
+
+        if (result.canceled || !result.filePath) {
+          return { ok: false, canceled: true }
+        }
+
+        writeFileSync(result.filePath, content, 'utf-8')
+        return { ok: true, path: result.filePath }
+      } catch (err) {
+        return { ok: false, error: String(err) }
+      }
+    },
+  )
+
   // ── 파일/디렉토리 삭제 ────────────────────────────────────────
   ipcMain.handle('claude:delete-path', (_event, { targetPath, recursive }: { targetPath: string; recursive?: boolean }) => {
     try {
@@ -3362,6 +3430,63 @@ app.whenReady().then(() => {
     hideQuickPanel()
   })
 
+  ipcMain.handle(
+    'app-storage:init',
+    async (
+      _event,
+      {
+        legacySessions,
+        legacyScheduledTasks,
+      }: {
+        legacySessions?: PersistedSession[]
+        legacyScheduledTasks?: PersistedScheduledTask[]
+      } = {},
+    ) => {
+      const snapshot = await appPersistence.initializeAndLoad(app.getPath('userData'), {
+        legacySessions,
+        legacyScheduledTasks,
+      })
+
+      scheduledTasks = normalizeScheduledTasks(
+        snapshot.scheduledTasks.map(mapPersistedScheduledTaskToSyncItem),
+      )
+      scheduleNextTaskCheck()
+      void checkMissedRuns()
+
+      return snapshot
+    },
+  )
+
+  ipcMain.handle(
+    'app-storage:save-sessions',
+    async (
+      _event,
+      { sessions }: { sessions: PersistedSession[] },
+    ) => {
+      try {
+        appPersistence.saveSessions(Array.isArray(sessions) ? sessions : [])
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: String(error) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'app-storage:save-scheduled-tasks',
+    async (
+      _event,
+      { tasks }: { tasks: PersistedScheduledTask[] },
+    ) => {
+      try {
+        appPersistence.saveScheduledTasks(Array.isArray(tasks) ? tasks : [])
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: String(error) }
+      }
+    },
+  )
+
   ipcMain.handle('scheduled-tasks:sync', (_event, { tasks }: { tasks: ScheduledTaskSyncItem[] }) => {
     scheduledTasks = normalizeScheduledTasks(Array.isArray(tasks) ? tasks : [])
     scheduleNextTaskCheck()
@@ -3425,13 +3550,13 @@ app.whenReady().then(() => {
       const { CLAUDECODE: _, ...cleanEnv } = process.env
       const homePath = getUserHomePath(cleanEnv)
       const resolvedCwd = cwd ? resolveTargetPath(cwd) : homePath
-      const procEnv = {
+      const procEnv: NodeJS.ProcessEnv = {
         ...cleanEnv,
         HOME: cleanEnv.HOME ?? homePath,
         USERPROFILE: cleanEnv.USERPROFILE ?? homePath,
         ...(envVars ?? {}),
       }
-      const userShell = procEnv.SHELL || '/bin/bash'
+      const userShell = procEnv.SHELL ?? '/bin/bash'
 
       const proc = process.platform === 'win32'
         ? spawn(claudeBin, args, {

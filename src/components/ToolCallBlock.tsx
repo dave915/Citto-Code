@@ -149,12 +149,12 @@ function getSubagentSessionInfo(toolCall: ToolCallBlockType): SubagentSessionInf
   return {
     lookupId: inferSubagentLookupId(outputFile, result, input),
     outputFile,
-    agent: typeof result.agent === 'string'
+    agent: typeof result?.agent === 'string'
       ? result.agent
       : typeof input?.subagent_type === 'string'
         ? input.subagent_type
         : null,
-    description: typeof result.description === 'string'
+    description: typeof result?.description === 'string'
       ? result.description
       : typeof input?.description === 'string'
         ? input.description

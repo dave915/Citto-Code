@@ -175,8 +175,8 @@ export function ScheduledTaskForm({
   }
 
   return (
-    <div className="rounded-[24px] border border-claude-border bg-claude-panel p-5 shadow-2xl">
-      <div className="mb-4 flex items-start justify-between gap-4">
+    <div className="flex max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel p-5 shadow-2xl">
+      <div className="mb-4 flex flex-shrink-0 items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-claude-text">{title}</h3>
           <p className="mt-1 text-sm text-claude-muted">
@@ -194,201 +194,203 @@ export function ScheduledTaskForm({
         </button>
       </div>
 
-      <div className="space-y-4">
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-claude-muted">작업 이름</span>
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="예: 아침 점검"
-            className="h-10 w-full rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-claude-muted">프롬프트</span>
-          <textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            rows={5}
-            placeholder="매일 아침 에러 로그를 요약해줘"
-            className="w-full rounded-2xl border border-claude-border bg-claude-panel px-3 py-2.5 text-sm leading-relaxed text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-claude-muted">작업 폴더</span>
-          <div className="relative">
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-claude-muted">작업 이름</span>
             <input
-              value={projectPath}
-              onChange={(event) => setProjectPath(event.target.value)}
-              placeholder={defaultProjectPath}
-              className="h-10 w-full rounded-xl border border-claude-border bg-claude-panel px-3 pr-11 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="예: 아침 점검"
+              className="h-10 w-full rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
             />
-            <button
-              onClick={handleSelectFolder}
-              className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-              title="폴더 선택"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z" />
-              </svg>
-            </button>
-          </div>
-        </label>
+          </label>
 
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-claude-muted">빈도</span>
-            <Sel value={frequency} onChange={(value) => setFrequency(value as ScheduledTaskFrequency)}>
-              {FREQUENCY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </Sel>
-            <p className="mt-1.5 text-xs text-claude-muted">{selectedFrequency?.description}</p>
-          </div>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-claude-muted">프롬프트</span>
+            <textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              rows={5}
+              placeholder="매일 아침 에러 로그를 요약해줘"
+              className="w-full rounded-2xl border border-claude-border bg-claude-panel px-3 py-2.5 text-sm leading-relaxed text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+            />
+          </label>
 
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-claude-muted">권한 모드</span>
-            <Sel value={permissionMode} onChange={(value) => setPermissionMode(value as PermissionMode)}>
-              {PERMISSION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </Sel>
-          </div>
-        </div>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-claude-muted">작업 폴더</span>
+            <div className="relative">
+              <input
+                value={projectPath}
+                onChange={(event) => setProjectPath(event.target.value)}
+                placeholder={defaultProjectPath}
+                className="h-10 w-full rounded-xl border border-claude-border bg-claude-panel px-3 pr-11 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+              />
+              <button
+                onClick={handleSelectFolder}
+                className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                title="폴더 선택"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z" />
+                </svg>
+              </button>
+            </div>
+          </label>
 
-        {permissionMode === 'bypassPermissions' && (
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-200">
-            Bypass는 파일 수정과 외부 명령 실행까지 자동 승인합니다. 작업 프롬프트를 반드시 검토한 뒤 사용하세요.
-          </div>
-        )}
-
-        {requiresTime && (
-          <div className="grid gap-4 md:grid-cols-3">
-            {requiresHour && (
-              <div>
-                <span className="mb-1.5 block text-xs font-medium text-claude-muted">시각</span>
-                <Sel value={String(hour)} onChange={(value) => setHour(Number(value))}>
-                  {HOUR_OPTIONS.map((value) => (
-                    <option key={value} value={value}>{formatHour(value)}</option>
-                  ))}
-                </Sel>
-              </div>
-            )}
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-claude-muted">빈도</span>
+              <Sel value={frequency} onChange={(value) => setFrequency(value as ScheduledTaskFrequency)}>
+                {FREQUENCY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Sel>
+              <p className="mt-1.5 text-xs text-claude-muted">{selectedFrequency?.description}</p>
+            </div>
 
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-claude-muted">분</span>
-              {minuteManual ? (
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    max={59}
-                    value={minute}
-                    onChange={(event) => setMinute(Math.min(59, Math.max(0, Number(event.target.value) || 0)))}
-                    className="h-10 w-full rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
-                  />
-                  <button
-                    onClick={() => setMinuteManual(false)}
-                    className="rounded-xl border border-claude-border px-3 text-xs text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-                  >
-                    목록
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <Sel value={String(minute)} onChange={(value) => setMinute(Number(value))} className="w-full">
-                    {MINUTE_OPTIONS.map((value) => (
-                      <option key={value} value={value}>{formatMinute(value)}</option>
+              <span className="mb-1.5 block text-xs font-medium text-claude-muted">권한 모드</span>
+              <Sel value={permissionMode} onChange={(value) => setPermissionMode(value as PermissionMode)}>
+                {PERMISSION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Sel>
+            </div>
+          </div>
+
+          {permissionMode === 'bypassPermissions' && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-200">
+              Bypass는 파일 수정과 외부 명령 실행까지 자동 승인합니다. 작업 프롬프트를 반드시 검토한 뒤 사용하세요.
+            </div>
+          )}
+
+          {requiresTime && (
+            <div className="grid gap-4 md:grid-cols-3">
+              {requiresHour && (
+                <div>
+                  <span className="mb-1.5 block text-xs font-medium text-claude-muted">시각</span>
+                  <Sel value={String(hour)} onChange={(value) => setHour(Number(value))}>
+                    {HOUR_OPTIONS.map((value) => (
+                      <option key={value} value={value}>{formatHour(value)}</option>
                     ))}
                   </Sel>
-                  <button
-                    onClick={() => setMinuteManual(true)}
-                    className="rounded-xl border border-claude-border px-3 text-xs text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-                  >
-                    직접입력
-                  </button>
+                </div>
+              )}
+
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-claude-muted">분</span>
+                {minuteManual ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={minute}
+                      onChange={(event) => setMinute(Math.min(59, Math.max(0, Number(event.target.value) || 0)))}
+                      className="h-10 w-full rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+                    />
+                    <button
+                      onClick={() => setMinuteManual(false)}
+                      className="rounded-xl border border-claude-border px-3 text-xs text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                    >
+                      목록
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Sel value={String(minute)} onChange={(value) => setMinute(Number(value))} className="w-full">
+                      {MINUTE_OPTIONS.map((value) => (
+                        <option key={value} value={value}>{formatMinute(value)}</option>
+                      ))}
+                    </Sel>
+                    <button
+                      onClick={() => setMinuteManual(true)}
+                      className="rounded-xl border border-claude-border px-3 text-xs text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                    >
+                      직접입력
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {frequency === 'weekly' && (
+                <div>
+                  <span className="mb-1.5 block text-xs font-medium text-claude-muted">요일</span>
+                  <Sel value={weeklyDay} onChange={(value) => setWeeklyDay(value as ScheduledTaskDay)}>
+                    {DAY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Sel>
                 </div>
               )}
             </div>
+          )}
 
-            {frequency === 'weekly' && (
-              <div>
-                <span className="mb-1.5 block text-xs font-medium text-claude-muted">요일</span>
-                <Sel value={weeklyDay} onChange={(value) => setWeeklyDay(value as ScheduledTaskDay)}>
-                  {DAY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </Sel>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-claude-muted">실행 안 할 요일</span>
+              <div className="flex flex-wrap gap-2">
+                {DAY_OPTIONS.map((option) => {
+                  const selected = skipDays.includes(option.value)
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => toggleSkipDay(option.value)}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        selected
+                          ? 'border-red-500/40 bg-red-500/15 text-red-200'
+                          : 'border-claude-border bg-claude-panel text-claude-muted hover:text-claude-text'
+                      }`}
+                    >
+                      {option.shortLabel}
+                    </button>
+                  )
+                })}
               </div>
-            )}
-          </div>
-        )}
+            </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-claude-muted">실행 안 할 요일</span>
-            <div className="flex flex-wrap gap-2">
-              {DAY_OPTIONS.map((option) => {
-                const selected = skipDays.includes(option.value)
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => toggleSkipDay(option.value)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                      selected
-                        ? 'border-red-500/40 bg-red-500/15 text-red-200'
-                        : 'border-claude-border bg-claude-panel text-claude-muted hover:text-claude-text'
-                    }`}
-                  >
-                    {option.shortLabel}
-                  </button>
-                )
-              })}
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-claude-muted">조용한 시간대</span>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <input
+                  type="time"
+                  value={quietHoursStart ?? ''}
+                  onChange={(event) => setQuietHoursStart(event.target.value || null)}
+                  className="h-10 rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+                />
+                <span className="text-sm text-claude-muted">~</span>
+                <input
+                  type="time"
+                  value={quietHoursEnd ?? ''}
+                  onChange={(event) => setQuietHoursEnd(event.target.value || null)}
+                  className="h-10 rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-claude-muted">
+                {quietHoursEnabled ? '자정을 넘는 구간도 지원합니다. 예: 22:00 ~ 08:00' : '비워두면 항상 실행합니다.'}
+              </p>
             </div>
           </div>
 
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-claude-muted">조용한 시간대</span>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <input
-                type="time"
-                value={quietHoursStart ?? ''}
-                onChange={(event) => setQuietHoursStart(event.target.value || null)}
-                className="h-10 rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
-              />
-              <span className="text-sm text-claude-muted">~</span>
-              <input
-                type="time"
-                value={quietHoursEnd ?? ''}
-                onChange={(event) => setQuietHoursEnd(event.target.value || null)}
-                className="h-10 rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
-              />
+          <label className="flex items-center gap-2.5 rounded-2xl border border-claude-border bg-claude-surface px-3.5 py-3">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => setEnabled(event.target.checked)}
+              className="h-4 w-4 rounded border-claude-border bg-claude-panel text-claude-text"
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-claude-text">활성화</p>
+              <p className="text-xs text-claude-muted">비활성화하면 스케줄러에서 제외됩니다.</p>
             </div>
-            <p className="mt-1.5 text-xs text-claude-muted">
-              {quietHoursEnabled ? '자정을 넘는 구간도 지원합니다. 예: 22:00 ~ 08:00' : '비워두면 항상 실행합니다.'}
-            </p>
-          </div>
+          </label>
+
+          {error && <p className="text-sm text-red-300">{error}</p>}
         </div>
-
-        <label className="flex items-center gap-2.5 rounded-2xl border border-claude-border bg-claude-surface px-3.5 py-3">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => setEnabled(event.target.checked)}
-            className="h-4 w-4 rounded border-claude-border bg-claude-panel text-claude-text"
-          />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-claude-text">활성화</p>
-            <p className="text-xs text-claude-muted">비활성화하면 스케줄러에서 제외됩니다.</p>
-          </div>
-        </label>
-
-        {error && <p className="text-sm text-red-300">{error}</p>}
       </div>
 
-      <div className="mt-5 flex justify-end gap-2">
+      <div className="mt-4 flex flex-shrink-0 justify-end gap-2 border-t border-claude-border pt-4">
         <button
           onClick={onCancel}
           className="rounded-xl border border-claude-border px-3.5 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"

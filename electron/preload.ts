@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { Session, ScheduledTask } from './persistence-types'
 
 export type ClaudeStreamEvent =
   | { type: 'stream-start'; sessionId: string; cwd: string }
@@ -238,7 +239,20 @@ export type QuickPanelAPI = {
   onShow: (handler: () => void) => () => void
 }
 
+export type PersistenceSnapshot = {
+  sessions: Session[]
+  scheduledTasks: ScheduledTask[]
+  migratedSessions: boolean
+  migratedScheduledTasks: boolean
+}
+
 export type ClaudeAPI = {
+  initPersistence: (params?: {
+    legacySessions?: Session[]
+    legacyScheduledTasks?: ScheduledTask[]
+  }) => Promise<PersistenceSnapshot>
+  saveSessionsSnapshot: (params: { sessions: Session[] }) => Promise<{ ok: boolean; error?: string }>
+  saveScheduledTasksSnapshot: (params: { tasks: ScheduledTask[] }) => Promise<{ ok: boolean; error?: string }>
   sendMessage: (params: {
     sessionId: string | null
     prompt: string
@@ -294,6 +308,12 @@ export type ClaudeAPI = {
   listDirAbs: (dirPath: string) => Promise<{ name: string; path: string }[]>
   writeClaudeFile: (params: { subdir: string; name: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   writeFileAbs: (params: { filePath: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  saveTextFile: (params: {
+    suggestedName: string
+    defaultPath?: string
+    content: string
+    filters?: Array<{ name: string; extensions: string[] }>
+  }) => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
   syncScheduledTasks: (tasks: ScheduledTaskSyncItem[]) => Promise<{ ok: boolean; error?: string }>
   runScheduledTaskNow: (params: { taskId: string }) => Promise<{ ok: boolean; error?: string }>
@@ -328,6 +348,9 @@ const quickPanelAPI: QuickPanelAPI = {
 }
 
 const claudeAPI: ClaudeAPI = {
+  initPersistence: (params) => ipcRenderer.invoke('app-storage:init', params),
+  saveSessionsSnapshot: (params) => ipcRenderer.invoke('app-storage:save-sessions', params),
+  saveScheduledTasksSnapshot: (params) => ipcRenderer.invoke('app-storage:save-scheduled-tasks', params),
   sendMessage: (params) => ipcRenderer.invoke('claude:send-message', params),
   abort: (params) => ipcRenderer.invoke('claude:abort', params),
   hasActiveProcess: (params) => ipcRenderer.invoke('claude:has-active-process', params),
@@ -374,6 +397,7 @@ const claudeAPI: ClaudeAPI = {
   listDirAbs: (dirPath) => ipcRenderer.invoke('claude:list-dir-abs', { dirPath }),
   writeClaudeFile: (params) => ipcRenderer.invoke('claude:write-claude-file', params),
   writeFileAbs: (params) => ipcRenderer.invoke('claude:write-file-abs', params),
+  saveTextFile: (params) => ipcRenderer.invoke('claude:save-text-file', params),
   deletePath: (params) => ipcRenderer.invoke('claude:delete-path', params),
   syncScheduledTasks: (tasks) => ipcRenderer.invoke('scheduled-tasks:sync', { tasks }),
   runScheduledTaskNow: (params) => ipcRenderer.invoke('scheduled-tasks:run-now', params),

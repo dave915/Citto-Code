@@ -37,12 +37,23 @@ type AskAboutSelectionPayload = {
   prompt?: string
 }
 
+type SessionExportFormat = 'markdown' | 'json'
+type GitDraftAction = 'review' | 'summary' | 'commitMessage'
+type WelcomePromptChip = {
+  id: string
+  title: string
+  label: string
+  prompt: string
+}
+
 type Props = {
   session: Session
   fileConflict?: {
     paths: string[]
     sessionNames: string[]
   } | null
+  jumpToMessageId?: string | null
+  jumpToMessageToken?: number
   onSend: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
@@ -53,7 +64,6 @@ type Props = {
   sidebarShortcutLabel: string
   filesShortcutLabel: string
   sessionInfoShortcutLabel: string
-  onSelectFolder: () => void
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
@@ -71,6 +81,46 @@ const HEADER_OPEN_WITH_MIN_WIDTH = 640
 const HEADER_SESSION_ACTION_MIN_WIDTH = 700
 const HEADER_GIT_ACTION_MIN_WIDTH = 756
 const HEADER_FILE_ACTION_MIN_WIDTH = 812
+const WELCOME_CARD_STAY_MS = 4200
+const WELCOME_CARD_ENTER_MS = 760
+const WELCOME_CARD_EXIT_MS = 1180
+const WELCOME_CARD_OVERLAP_MS = 1060
+const WELCOME_PROMPT_CHIPS: WelcomePromptChip[] = [
+  {
+    id: 'explain-code',
+    title: '구조 이해',
+    label: '이 저장소의 구조와 핵심 흐름을 먼저 이해하기 쉽게 설명해줘',
+    prompt: '이 코드의 구조와 핵심 흐름을 초보자도 이해할 수 있게 설명해줘. 중요한 파일과 함수, 데이터 흐름, 수정 시 주의할 점까지 정리해줘.',
+  },
+  {
+    id: 'fix-bug',
+    title: '버그 수정',
+    label: '문제 원인을 먼저 좁히고 영향 범위를 본 뒤 최소 수정으로 바로 고쳐줘',
+    prompt: '문제 원인을 먼저 좁혀서 설명하고, 재현 경로와 영향 범위를 정리한 뒤 최소 수정으로 고쳐줘. 필요하면 테스트 포인트도 함께 제안해줘.',
+  },
+  {
+    id: 'add-tests',
+    title: '테스트 추가',
+    label: '현재 동작을 기준으로 회귀를 막을 수 있게 테스트까지 같이 추가해줘',
+    prompt: '현재 동작을 기준으로 회귀를 막는 테스트를 추가해줘. 우선순위 높은 시나리오, 경계 케이스, 실패해야 하는 케이스를 포함해줘.',
+  },
+  {
+    id: 'commit-message',
+    title: '커밋 정리',
+    label: '변경사항을 보고 어울리는 커밋 메시지 후보와 추천안을 정리해줘',
+    prompt: '이 변경사항을 바탕으로 Conventional Commit 후보 3개와 가장 적절한 추천안 1개, 상세 본문 1개를 작성해줘.',
+  },
+  {
+    id: 'release-notes',
+    title: '릴리즈 노트',
+    label: '사용자에게 보이는 변화 중심으로 릴리즈 노트 형식으로 정리해줘',
+    prompt: '이번 변경사항을 릴리즈 노트 형식으로 정리해줘. 사용자에게 보이는 변화, 개발자 관점 변경점, 주의사항을 분리해서 써줘.',
+  },
+].sort((a, b) => {
+  const labelLengthDiff = b.label.length - a.label.length
+  if (labelLengthDiff !== 0) return labelLengthDiff
+  return b.prompt.length - a.prompt.length
+})
 
 function areGitStatusEntriesEqual(a: GitStatusEntry | null, b: GitStatusEntry | null) {
   if (a === b) return true
@@ -126,13 +176,15 @@ const OPEN_WITH_ICONS: Record<string, string> = {
 }
 
 export function ChatView({
-  session, fileConflict, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
-  sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel, onSelectFolder,
+  session, fileConflict, jumpToMessageId, jumpToMessageToken, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
+  sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel,
   onPermissionModeChange, onPlanModeChange, onModelChange, permissionShortcutLabel, bypassShortcutLabel,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mainPaneRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const messageHighlightTimerRef = useRef<number | null>(null)
   const openWithMenuRef = useRef<HTMLDivElement>(null)
   const branchMenuRef = useRef<HTMLDivElement>(null)
   const branchSearchInputRef = useRef<HTMLInputElement>(null)
@@ -183,6 +235,11 @@ export function ChatView({
   const [branchQuery, setBranchQuery] = useState('')
   const [branchCreateModalOpen, setBranchCreateModalOpen] = useState(false)
   const [mainPaneWidth, setMainPaneWidth] = useState(0)
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
+  const [exportingFormat, setExportingFormat] = useState<SessionExportFormat | null>(null)
+  const [copyingFormat, setCopyingFormat] = useState<SessionExportFormat | null>(null)
+  const [sessionExportStatus, setSessionExportStatus] = useState<string | null>(null)
+  const [sessionExportError, setSessionExportError] = useState<string | null>(null)
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
   const isNewSession = session.messages.length === 0
@@ -258,6 +315,73 @@ export function ChatView({
     ].join('\n')
 
     setExternalDraft({ id: Date.now(), text: nextText })
+  }
+
+  const handleExportSession = async (format: SessionExportFormat) => {
+    const suggestedName = buildSessionExportFileName(session, format)
+    const content = format === 'markdown'
+      ? buildSessionMarkdownExport(session)
+      : buildSessionJsonExport(session)
+
+    setExportingFormat(format)
+    setSessionExportStatus(null)
+    setSessionExportError(null)
+
+    try {
+      const result = await window.claude.saveTextFile({
+        suggestedName,
+        defaultPath: buildDefaultSavePath(session.cwd, suggestedName),
+        content,
+        filters: format === 'markdown'
+          ? [{ name: 'Markdown', extensions: ['md'] }]
+          : [{ name: 'JSON', extensions: ['json'] }],
+      })
+
+      if (result.ok) {
+        setSessionExportStatus(result.path ? `저장됨: ${result.path}` : '세션을 저장했습니다.')
+        return
+      }
+
+      if (!result.canceled) {
+        setSessionExportError(result.error ?? '세션 내보내기에 실패했습니다.')
+      }
+    } catch {
+      setSessionExportError('세션 내보내기에 실패했습니다.')
+    } finally {
+      setExportingFormat(null)
+    }
+  }
+
+  const handleCopySessionExport = async (format: SessionExportFormat) => {
+    const content = format === 'markdown'
+      ? buildSessionMarkdownExport(session)
+      : buildSessionJsonExport(session)
+
+    setCopyingFormat(format)
+    setSessionExportStatus(null)
+    setSessionExportError(null)
+
+    try {
+      await navigator.clipboard.writeText(content)
+      setSessionExportStatus(`${format === 'markdown' ? 'Markdown' : 'JSON'} 내용을 클립보드에 복사했습니다.`)
+    } catch {
+      setSessionExportError('세션 내용을 클립보드에 복사하지 못했습니다.')
+    } finally {
+      setCopyingFormat(null)
+    }
+  }
+
+  const handleCreateGitDraft = (
+    action: GitDraftAction,
+    payload: {
+      entry: GitStatusEntry | null
+      commit: GitLogEntry | null
+      gitDiff: GitDiffResult | null
+    },
+  ) => {
+    const draft = buildGitDraft(action, payload)
+    if (!draft) return
+    setExternalDraft({ id: Date.now(), text: draft })
   }
 
   const handleHeaderDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -347,6 +471,38 @@ export function ChatView({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [session.messages.length, lastMsg?.text?.length, lastMsg?.thinking?.length, lastMsg?.toolCalls.length])
+
+  useEffect(() => {
+    setExportingFormat(null)
+    setCopyingFormat(null)
+    setSessionExportStatus(null)
+    setSessionExportError(null)
+  }, [session.id])
+
+  useEffect(() => {
+    if (!jumpToMessageId || !jumpToMessageToken) return
+
+    const targetNode = messageRefs.current[jumpToMessageId]
+    if (!targetNode) return
+
+    targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedMessageId(jumpToMessageId)
+
+    if (messageHighlightTimerRef.current != null) {
+      window.clearTimeout(messageHighlightTimerRef.current)
+    }
+
+    messageHighlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedMessageId((current) => (current === jumpToMessageId ? null : current))
+      messageHighlightTimerRef.current = null
+    }, 2200)
+  }, [jumpToMessageId, jumpToMessageToken, session.messages.length])
+
+  useEffect(() => () => {
+    if (messageHighlightTimerRef.current != null) {
+      window.clearTimeout(messageHighlightTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1256,23 +1412,25 @@ export function ChatView({
       <div ref={mainPaneRef} className="flex min-w-0 flex-1 flex-col">
         <div
           className="draggable-region relative z-30 flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
-          style={{ paddingLeft: sidebarCollapsed ? '76px' : '16px' }}
+          style={{ paddingLeft: !isNewSession && sidebarCollapsed ? '76px' : '16px' }}
           onDoubleClick={handleHeaderDoubleClick}
         >
           <div
             className="flex min-w-0 flex-1 items-center gap-2 overflow-visible px-2 py-1.5 text-xs text-claude-muted"
             title="현재 작업 폴더"
           >
-            <button
-              onClick={onToggleSidebar}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-              title={`${sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'} (${sidebarShortcutLabel})`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5v14" />
-              </svg>
-            </button>
+            {!isNewSession && (
+              <button
+                onClick={onToggleSidebar}
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                title={`${sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'} (${sidebarShortcutLabel})`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5v14" />
+                </svg>
+              </button>
+            )}
             <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
@@ -1612,15 +1770,30 @@ export function ChatView({
               </div>
             )}
             {isNewSession
-              ? <WelcomeScreen onSelectFolder={onSelectFolder} />
+              ? <WelcomeScreen onStartPrompt={(prompt) => onSend(prompt, [])} />
               : session.messages.map((msg) => (
-                  <MessageBubble
+                  <div
                     key={msg.id}
-                    message={msg}
-                    isStreaming={session.isStreaming && msg.id === session.currentAssistantMsgId}
-                    onAbort={session.isStreaming && msg.id === session.currentAssistantMsgId ? onAbort : undefined}
-                    onAskAboutSelection={handleAskAboutSelection}
-                  />
+                    ref={(node) => {
+                      if (node) {
+                        messageRefs.current[msg.id] = node
+                        return
+                      }
+                      delete messageRefs.current[msg.id]
+                    }}
+                    className={`-mx-2 rounded-[26px] px-2 py-1 transition-all ${
+                      highlightedMessageId === msg.id
+                        ? 'bg-amber-500/10 ring-1 ring-amber-300/35'
+                        : 'bg-transparent ring-1 ring-transparent'
+                    }`}
+                  >
+                    <MessageBubble
+                      message={msg}
+                      isStreaming={session.isStreaming && msg.id === session.currentAssistantMsgId}
+                      onAbort={session.isStreaming && msg.id === session.currentAssistantMsgId ? onAbort : undefined}
+                      onAskAboutSelection={handleAskAboutSelection}
+                    />
+                  </div>
                 ))
             }
 
@@ -1766,6 +1939,7 @@ export function ChatView({
                         commit={selectedGitCommit}
                         gitDiff={gitDiff}
                         loading={gitDiffLoading}
+                        onCreateDraft={handleCreateGitDraft}
                       />
                     </div>
 
@@ -1899,6 +2073,12 @@ export function ChatView({
               promptHistoryCount={promptHistory.length}
               contextUsagePercent={contextUsagePercent}
               onCompact={() => onSend('/compact', [])}
+              exportingFormat={exportingFormat}
+              copyingFormat={copyingFormat}
+              exportStatus={sessionExportStatus}
+              exportError={sessionExportError}
+              onExportSession={handleExportSession}
+              onCopySessionExport={handleCopySessionExport}
             />
           )}
         </aside>
@@ -1979,6 +2159,12 @@ function SessionInfoPanel({
   promptHistoryCount,
   contextUsagePercent,
   onCompact,
+  exportingFormat,
+  copyingFormat,
+  exportStatus,
+  exportError,
+  onExportSession,
+  onCopySessionExport,
 }: {
   session: Session
   userMessageCount: number
@@ -1986,13 +2172,51 @@ function SessionInfoPanel({
   promptHistoryCount: number
   contextUsagePercent: number
   onCompact: () => void
+  exportingFormat: SessionExportFormat | null
+  copyingFormat: SessionExportFormat | null
+  exportStatus: string | null
+  exportError: string | null
+  onExportSession: (format: SessionExportFormat) => void
+  onCopySessionExport: (format: SessionExportFormat) => void
 }) {
   const createdAt = session.messages[0]?.createdAt ?? null
 
   return (
     <div className="flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">세션</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">세션</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => onExportSession('markdown')}
+              disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
+              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+            >
+              {exportingFormat === 'markdown' ? '저장 중...' : 'Markdown'}
+            </button>
+            <button
+              onClick={() => onExportSession('json')}
+              disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
+              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+            >
+              {exportingFormat === 'json' ? '저장 중...' : 'JSON'}
+            </button>
+            <button
+              onClick={() => onCopySessionExport('markdown')}
+              disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
+              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+            >
+              {copyingFormat === 'markdown' ? '복사 중...' : 'MD 복사'}
+            </button>
+            <button
+              onClick={() => onCopySessionExport('json')}
+              disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
+              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+            >
+              {copyingFormat === 'json' ? '복사 중...' : 'JSON 복사'}
+            </button>
+          </div>
+        </div>
         <div className="mt-3 space-y-3">
           <InfoRow label="이름" value={session.name} />
           <InfoRow label="경로" value={session.cwd || '~'} mono />
@@ -2003,6 +2227,12 @@ function SessionInfoPanel({
           <InfoRow label="상태" value={session.isStreaming ? '응답 생성 중' : '대기 중'} />
           <InfoRow label="오류" value={session.error ?? '없음'} mono={Boolean(session.error)} />
         </div>
+        {exportStatus && (
+          <p className="mt-3 break-all text-xs text-emerald-200">{exportStatus}</p>
+        )}
+        {exportError && (
+          <p className="mt-3 text-xs text-red-300">{exportError}</p>
+        )}
       </div>
 
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
@@ -2124,6 +2354,168 @@ function formatDateTime(timestamp: number): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(timestamp))
+}
+
+function formatExportTimestamp(timestamp: number): string {
+  const date = new Date(timestamp)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${year}${month}${day}-${hour}${minute}`
+}
+
+function sanitizeFileNameSegment(value: string): string {
+  const sanitized = value
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return sanitized || 'session'
+}
+
+function buildSessionExportFileName(session: Session, format: SessionExportFormat): string {
+  const baseName = sanitizeFileNameSegment(session.name)
+  const timestamp = formatExportTimestamp(session.messages[0]?.createdAt ?? Date.now())
+  return `${baseName}-${timestamp}.${format === 'markdown' ? 'md' : 'json'}`
+}
+
+function buildDefaultSavePath(cwd: string, fileName: string): string | undefined {
+  const trimmed = cwd.trim()
+  if (!trimmed || trimmed === '~') return undefined
+  const normalized = trimmed.replace(/[\\/]+$/, '')
+  const separator = normalized.includes('\\') ? '\\' : '/'
+  return `${normalized}${separator}${fileName}`
+}
+
+function safeJsonStringify(value: unknown, space = 2): string {
+  const seen = new WeakSet<object>()
+  return JSON.stringify(
+    value,
+    (_key, currentValue) => {
+      if (typeof currentValue === 'bigint') return currentValue.toString()
+      if (typeof currentValue === 'object' && currentValue !== null) {
+        if (seen.has(currentValue)) return '[Circular]'
+        seen.add(currentValue)
+      }
+      return currentValue
+    },
+    space,
+  ) ?? 'null'
+}
+
+function buildSessionMarkdownExport(session: Session): string {
+  const lines: string[] = [
+    `# ${session.name}`,
+    '',
+    `- 내보낸 시각: ${formatDateTime(Date.now())}`,
+    `- 작업 경로: ${session.cwd || '~'}`,
+    `- 세션 ID: ${session.sessionId ?? '없음'}`,
+    `- 모델: ${session.model ?? '기본 모델'}`,
+    `- 권한: ${formatPermissionMode(session.permissionMode)}`,
+    `- 플랜 모드: ${session.planMode ? '켜짐' : '꺼짐'}`,
+    `- 마지막 비용: ${session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'}`,
+  ]
+
+  for (const message of session.messages) {
+    lines.push('', `## ${message.role === 'user' ? '사용자' : 'Claude'} · ${formatDateTime(message.createdAt)}`, '')
+    lines.push(message.text.trim() || '_내용 없음_')
+
+    if (message.attachedFiles?.length) {
+      lines.push('', '### 첨부 파일')
+      for (const file of message.attachedFiles) {
+        lines.push(`- ${file.name} (${file.path})`)
+      }
+    }
+
+    if (message.thinking?.trim()) {
+      lines.push('', '### Thinking', '```text', message.thinking.trim(), '```')
+    }
+
+    if (message.toolCalls.length) {
+      lines.push('', '### Tool Calls')
+      for (const toolCall of message.toolCalls) {
+        lines.push(`- ${toolCall.toolName} · ${toolCall.status}`)
+      }
+    }
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
+function buildSessionJsonExport(session: Session): string {
+  return `${safeJsonStringify({
+    exportedAt: new Date().toISOString(),
+    session,
+  }, 2)}\n`
+}
+
+function trimGitDraftDiff(diff: string, maxLength = 12000): { content: string; truncated: boolean } {
+  const trimmed = diff.trim()
+  if (trimmed.length <= maxLength) {
+    return { content: trimmed, truncated: false }
+  }
+  return {
+    content: `${trimmed.slice(0, maxLength)}\n...\n[diff truncated]`,
+    truncated: true,
+  }
+}
+
+function buildGitDraft(
+  action: GitDraftAction,
+  payload: {
+    entry: GitStatusEntry | null
+    commit: GitLogEntry | null
+    gitDiff: GitDiffResult | null
+  },
+): string | null {
+  const diff = payload.gitDiff?.diff ?? ''
+  if (!diff.trim()) return null
+
+  const scopeLabel = payload.commit
+    ? `커밋 ${payload.commit.shortHash} ${payload.commit.subject}`
+    : payload.entry
+      ? `파일 ${payload.entry.relativePath}`
+      : '선택된 Git diff'
+  const { content, truncated } = trimGitDraftDiff(diff)
+  const truncationNote = truncated ? '\n참고: diff가 너무 길어서 일부만 포함했어.\n' : '\n'
+
+  if (action === 'review') {
+    return [
+      `다음 ${scopeLabel}를 코드 리뷰해줘.`,
+      '우선순위 높은 버그, 리스크, 회귀 가능성을 먼저 찾고 각 항목마다 왜 문제인지와 확인할 테스트를 짧게 정리해줘.',
+      truncationNote.trim(),
+      '```diff',
+      content,
+      '```',
+    ].filter(Boolean).join('\n\n')
+  }
+
+  if (action === 'summary') {
+    return [
+      `다음 ${scopeLabel}를 요약해줘.`,
+      '1. 무엇이 바뀌었는지',
+      '2. 사용자 영향',
+      '3. 테스트 포인트',
+      '4. 릴리즈 노트용 한 단락',
+      truncationNote.trim(),
+      '```diff',
+      content,
+      '```',
+    ].filter(Boolean).join('\n\n')
+  }
+
+  return [
+    `다음 ${scopeLabel}를 바탕으로 커밋 메시지를 작성해줘.`,
+    '1. Conventional Commit 후보 3개',
+    '2. 가장 적절한 추천안 1개',
+    '3. 상세 본문 1개',
+    '응답은 한국어로 해줘.',
+    truncationNote.trim(),
+    '```diff',
+    content,
+    '```',
+  ].filter(Boolean).join('\n\n')
 }
 
 function estimateContextUsagePercent(totalCharacters: number, totalToolCalls: number, totalAttachments: number): number {
@@ -2612,14 +3004,19 @@ function safeParseGitDiff(diffText: string) {
   }
 }
 
-function parseGitDecorations(decorations: string) {
+type GitDecorationRef = {
+  label: string
+  kind: 'current' | 'local' | 'remote' | 'tag' | 'other'
+}
+
+function parseGitDecorations(decorations: string): GitDecorationRef[] {
   if (!decorations.trim()) return []
 
   return decorations
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
-    .flatMap((value) => {
+    .flatMap<GitDecorationRef>((value) => {
       if (value.startsWith('HEAD -> ')) {
         return [{
           label: value.slice('HEAD -> '.length).trim(),
@@ -2665,7 +3062,7 @@ function getGitDecorationBadgeClass(kind: 'current' | 'local' | 'remote' | 'tag'
   }
 }
 
-function isGitGraphActiveCommit(refs: Array<{ label: string; kind: 'current' | 'local' | 'remote' | 'tag' | 'other' }>) {
+function isGitGraphActiveCommit(refs: GitDecorationRef[]) {
   const currentBranchNames = refs
     .filter((ref) => ref.kind === 'current')
     .map((ref) => ref.label)
@@ -2804,6 +3201,51 @@ function IconTooltipButton({
   )
 }
 
+function GitDraftActions({
+  disabled,
+  onCreateDraft,
+  showSummary = true,
+  showCommitMessage = true,
+}: {
+  disabled: boolean
+  onCreateDraft: (action: GitDraftAction) => void
+  showSummary?: boolean
+  showCommitMessage?: boolean
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <button
+        type="button"
+        onClick={() => onCreateDraft('review')}
+        disabled={disabled}
+        className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+      >
+        리뷰
+      </button>
+      {showSummary && (
+        <button
+          type="button"
+          onClick={() => onCreateDraft('summary')}
+          disabled={disabled}
+          className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+        >
+          요약
+        </button>
+      )}
+      {showCommitMessage && (
+        <button
+          type="button"
+          onClick={() => onCreateDraft('commitMessage')}
+          disabled={disabled}
+          className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+        >
+          커밋 메시지
+        </button>
+      )}
+    </div>
+  )
+}
+
 function GitLogPanel({
   status,
   gitLog,
@@ -2881,12 +3323,14 @@ function GitLogPanel({
         ) : (
           <div className="flex flex-col pr-1">
             {historyEntries.map((entry, index) => {
-              const refs = parseGitDecorations(entry.decorations)
+              const refs: GitDecorationRef[] = parseGitDecorations(entry.decorations)
               const isSelected = selectedCommitHash === entry.hash
               const isHeadCommit = isGitGraphActiveCommit(refs)
               const previousGraph = index > 0 ? historyEntries[index - 1]?.graph ?? '' : ''
               const nextGraph = index < historyEntries.length - 1 ? historyEntries[index + 1]?.graph ?? '' : ''
-              const previousRefs = index > 0 ? parseGitDecorations(historyEntries[index - 1]?.decorations ?? '') : []
+              const previousRefs: GitDecorationRef[] = index > 0
+                ? parseGitDecorations(historyEntries[index - 1]?.decorations ?? '')
+                : []
               const previousIsHeadCommit = isGitGraphActiveCommit(previousRefs)
               return (
                 <button
@@ -3203,12 +3647,18 @@ const GitDiffPanel = memo(function GitDiffPanel({
   commit,
   gitDiff,
   loading,
+  onCreateDraft,
 }: {
   cwd: string
   entry: GitStatusEntry | null
   commit: GitLogEntry | null
   gitDiff: GitDiffResult | null
   loading: boolean
+  onCreateDraft: (action: GitDraftAction, payload: {
+    entry: GitStatusEntry | null
+    commit: GitLogEntry | null
+    gitDiff: GitDiffResult | null
+  }) => void
 }) {
   const parsedFiles = useMemo(() => {
     if (!gitDiff?.diff.trim()) return []
@@ -3342,55 +3792,74 @@ const GitDiffPanel = memo(function GitDiffPanel({
     )
   }
 
-  const commitRefs = commit ? parseGitDecorations(commit.decorations) : []
+  const commitRefs: GitDecorationRef[] = commit ? parseGitDecorations(commit.decorations) : []
+  const canCreateDraft = Boolean(gitDiff?.diff.trim())
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-claude-border bg-claude-surface px-4 py-3">
         {commit ? (
           <>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-100">
-                커밋
-              </span>
-              <p className="min-w-0 truncate text-sm font-medium text-claude-text">{commit.subject}</p>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md border border-claude-border bg-claude-panel px-1.5 py-0.5 font-mono text-[10px] text-claude-muted">
-                {commit.shortHash}
-              </span>
-              <span className="text-[11px] text-claude-muted">{commit.author}</span>
-              <span className="text-[11px] text-claude-muted">{commit.relativeDate}</span>
-              {commitRefs.map((ref) => (
-                <span
-                  key={`${commit.hash}-${ref.kind}-${ref.label}`}
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none ${getGitDecorationBadgeClass(ref.kind)}`}
-                >
-                  {ref.label}
-                </span>
-              ))}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-100">
+                    커밋
+                  </span>
+                  <p className="min-w-0 truncate text-sm font-medium text-claude-text">{commit.subject}</p>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="shrink-0 whitespace-nowrap rounded-md border border-claude-border bg-claude-panel px-1.5 py-0.5 font-mono text-[10px] text-claude-muted">
+                    {commit.shortHash}
+                  </span>
+                  <span className="text-[11px] text-claude-muted">{commit.author}</span>
+                  <span className="text-[11px] text-claude-muted">{commit.relativeDate}</span>
+                  {commitRefs.map((ref) => (
+                    <span
+                      key={`${commit.hash}-${ref.kind}-${ref.label}`}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none ${getGitDecorationBadgeClass(ref.kind)}`}
+                    >
+                      {ref.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <GitDraftActions
+                disabled={!canCreateDraft}
+                showSummary={false}
+                showCommitMessage={false}
+                onCreateDraft={(action) => onCreateDraft(action, { entry, commit, gitDiff })}
+              />
             </div>
           </>
         ) : entry ? (
           <>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getGitEntryBadgeClass(entry)}`}>
-                {getGitEntryLabel(entry)}
-              </span>
-              <p className="min-w-0 truncate text-sm font-medium text-claude-text">{entry.relativePath}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getGitEntryBadgeClass(entry)}`}>
+                    {getGitEntryLabel(entry)}
+                  </span>
+                  <p className="min-w-0 truncate text-sm font-medium text-claude-text">{entry.relativePath}</p>
+                </div>
+                {entry.originalPath && (
+                  <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">이전: {entry.originalPath}</p>
+                )}
+                {markdownPreviewAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => setMarkdownPreviewEnabled((value) => !value)}
+                    className="mt-2 inline-flex rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+                  >
+                    {markdownPreviewEnabled ? 'Diff' : 'MD'}
+                  </button>
+                )}
+              </div>
+              <GitDraftActions
+                disabled={!canCreateDraft}
+                onCreateDraft={(action) => onCreateDraft(action, { entry, commit, gitDiff })}
+              />
             </div>
-            {entry.originalPath && (
-              <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">이전: {entry.originalPath}</p>
-            )}
-            {markdownPreviewAvailable && (
-              <button
-                type="button"
-                onClick={() => setMarkdownPreviewEnabled((value) => !value)}
-                className="mt-2 inline-flex rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
-              >
-                {markdownPreviewEnabled ? 'Diff' : 'MD'}
-              </button>
-            )}
           </>
         ) : null}
       </div>
@@ -3524,9 +3993,83 @@ function isTextPreviewable(name: string): boolean {
   return /\.(txt|md|json|ya?ml|toml|xml|html|css|scss|ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|swift|rb|php|sh|zsh|env|sql|graphql|proto)$/i.test(name)
 }
 
-function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
+function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: string) => void }) {
+  const [activeCard, setActiveCard] = useState({ index: 0, key: 0 })
+  const [exitingCard, setExitingCard] = useState<{ index: number; key: number } | null>(null)
+  const activeChip = WELCOME_PROMPT_CHIPS[activeCard.index]
+  const exitingChip = exitingCard ? WELCOME_PROMPT_CHIPS[exitingCard.index] : null
+  const showActiveCard = !exitingCard || exitingCard.key !== activeCard.key
+
+  useEffect(() => {
+    const exitTimer = window.setTimeout(() => {
+      setExitingCard(activeCard)
+    }, WELCOME_CARD_STAY_MS)
+
+    const nextTimer = window.setTimeout(() => {
+      setActiveCard((current) => ({
+        index: (current.index + 1) % WELCOME_PROMPT_CHIPS.length,
+        key: current.key + 1,
+      }))
+    }, WELCOME_CARD_STAY_MS + WELCOME_CARD_OVERLAP_MS)
+
+    return () => {
+      window.clearTimeout(exitTimer)
+      window.clearTimeout(nextTimer)
+    }
+  }, [activeCard])
+
+  useEffect(() => {
+    if (!exitingCard) return
+
+    const cleanupTimer = window.setTimeout(() => {
+      setExitingCard((current) => (current?.key === exitingCard.key ? null : current))
+    }, WELCOME_CARD_EXIT_MS)
+
+    return () => {
+      window.clearTimeout(cleanupTimer)
+    }
+  }, [exitingCard])
+
   return (
     <div className="flex min-h-full w-full flex-col items-center justify-center px-8 pb-10 pt-10 text-center">
+      <style>
+        {`
+          @keyframes welcome-card-enter {
+            0% {
+              opacity: 0;
+              transform: translateY(50px) scale(0.95);
+            }
+            68% {
+              opacity: 1;
+              transform: translateY(-6px) scale(1.01);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+            }
+          }
+
+          @keyframes welcome-card-exit {
+            0% {
+              opacity: 1;
+              transform: translateY(0) translateX(0) rotate(0deg) scale(1);
+            }
+            58% {
+              opacity: 1;
+              transform: translateY(-24px) translateX(8px) rotate(1.5deg) scale(1);
+            }
+            82% {
+              opacity: 0.92;
+              transform: translateY(-70px) translateX(18px) rotate(3.9deg) scale(0.955);
+            }
+            100% {
+              opacity: 0;
+              transform: translateY(-118px) translateX(30px) rotate(6.6deg) scale(0.89);
+            }
+          }
+
+        `}
+      </style>
       <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Citto Code</h2>
       <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
         Claude Code CLI 기반 코드 어시스턴트입니다.
@@ -3545,30 +4088,44 @@ function WelcomeScreen({ onSelectFolder }: { onSelectFolder: () => void }) {
           />
         </div>
       </div>
-
-      <button
-        onClick={onSelectFolder}
-        className="mb-8 flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-5 py-3 text-sm font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
-      >
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-        </svg>
-        프로젝트 폴더 선택
-      </button>
-
-      <div className="grid w-full max-w-md grid-cols-2 gap-3 text-left">
-        {[
-          { icon: '💡', label: '코드 설명해줘', desc: '특정 코드의 동작 방식 이해' },
-          { icon: '🐛', label: '버그 찾아줘', desc: '오류 원인 파악 및 수정' },
-          { icon: '✨', label: '기능 추가해줘', desc: '새로운 기능 구현 요청' },
-          { icon: '📋', label: '먼저 계획 세워줘', desc: '플랜 모드로 안전하게 검토' },
-        ].map((item) => (
-          <div key={item.label} className="rounded-2xl border border-claude-border bg-claude-surface p-4 text-sm">
-            <div className="text-xl mb-1">{item.icon}</div>
-            <div className="font-medium text-claude-text">{item.label}</div>
-            <div className="text-xs text-claude-muted mt-0.5">{item.desc}</div>
+      <div className="mt-2 flex w-full max-w-2xl flex-col items-center">
+        <div className="relative mt-2 h-56 w-full max-w-[460px] overflow-hidden">
+          <div className="pointer-events-none absolute bottom-8 left-1/2 h-[138px] w-[min(82vw,420px)] -translate-x-1/2">
+            <div className="absolute inset-0 rounded-[18px] border border-claude-border/65 bg-claude-surface/50 opacity-45 [transform:translateY(10px)_rotate(-2.6deg)]" />
+            <div className="absolute inset-0 rounded-[18px] border border-claude-border/75 bg-claude-surface/65 opacity-70 [transform:translateY(5px)_rotate(1.6deg)]" />
           </div>
-        ))}
+          <div className="absolute bottom-10 left-1/2 z-10 h-[172px] w-[min(82vw,420px)] -translate-x-1/2">
+            {showActiveCard && (
+              <button
+                key={`active-${activeCard.key}`}
+                type="button"
+                onClick={() => onStartPrompt(activeChip.prompt)}
+                className="absolute bottom-0 left-0 z-10 w-full overflow-hidden rounded-[18px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm transition-colors hover:bg-claude-surface-2"
+                style={{ animation: `welcome-card-enter ${WELCOME_CARD_ENTER_MS}ms cubic-bezier(0.22, 1, 0.36, 1) forwards` }}
+              >
+                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{activeChip.title}</div>
+                <div className="mt-2 text-[15px] font-medium leading-6 text-claude-text">
+                  {activeChip.label}
+                </div>
+                <div className="mt-4 text-xs text-claude-muted">클릭해서 바로 시작</div>
+              </button>
+            )}
+            {exitingChip && exitingCard && (
+              <div
+                key={`exit-${exitingCard.key}`}
+                className="pointer-events-none absolute bottom-0 left-0 z-20 w-full rounded-[18px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm"
+                style={{ animation: `welcome-card-exit ${WELCOME_CARD_EXIT_MS}ms cubic-bezier(0.4, 0, 0.6, 1) forwards` }}
+              >
+                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{exitingChip.title}</div>
+                <div className="mt-2 text-[15px] font-medium leading-6 text-claude-text">
+                  {exitingChip.label}
+                </div>
+                <div className="mt-4 text-xs text-claude-muted">클릭해서 바로 시작</div>
+              </div>
+            )}
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-claude-bg via-claude-bg/75 to-transparent" />
+        </div>
       </div>
     </div>
   )

@@ -18,6 +18,7 @@ import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/short
 import { applyTheme } from './lib/theme'
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
+const SCHEDULED_TASK_WRITE_TOOL_NAMES = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
 
 function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
@@ -54,6 +55,78 @@ function resolveEnvVarsForModel(model: string | null | undefined, envVars: Recor
   }
 
   return Object.keys(resolved).length > 0 ? resolved : undefined
+}
+
+function normalizeSummaryText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function truncateSummary(value: string, maxLength = 180): string {
+  const normalized = normalizeSummaryText(value)
+  if (!normalized) return ''
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized
+}
+
+function extractScheduledTaskChangedPaths(toolCall: Session['messages'][number]['toolCalls'][number]): string[] {
+  if (!SCHEDULED_TASK_WRITE_TOOL_NAMES.has(toolCall.toolName)) return []
+  if (!toolCall.toolInput || typeof toolCall.toolInput !== 'object') return []
+
+  const input = toolCall.toolInput as {
+    file_path?: unknown
+    notebook_path?: unknown
+    path?: unknown
+  }
+
+  const candidate = input.file_path ?? input.notebook_path ?? input.path
+  return typeof candidate === 'string' && candidate.trim() ? [candidate.trim()] : []
+}
+
+function getScheduledTaskChangedPaths(session: Session): string[] {
+  const seen = new Set<string>()
+  const paths: string[] = []
+
+  for (const message of session.messages) {
+    for (const toolCall of message.toolCalls) {
+      for (const path of extractScheduledTaskChangedPaths(toolCall)) {
+        const normalized = path.replace(/\\/g, '/').toLowerCase()
+        if (seen.has(normalized)) continue
+        seen.add(normalized)
+        paths.push(path)
+      }
+    }
+  }
+
+  return paths
+}
+
+function getScheduledTaskSnapshotStatus(session: Session): 'running' | 'approval' | 'completed' | 'failed' {
+  if (session.pendingPermission || session.pendingQuestion) return 'approval'
+  if (session.isStreaming) return 'running'
+  if (session.error?.trim()) return 'failed'
+  return 'completed'
+}
+
+function getScheduledTaskSnapshotSummary(session: Session): string | null {
+  if (session.pendingPermission?.toolName) {
+    return `${session.pendingPermission.toolName} 권한 승인 대기 중입니다.`
+  }
+
+  if (session.pendingQuestion?.question) {
+    return truncateSummary(session.pendingQuestion.question)
+  }
+
+  if (session.error?.trim()) {
+    return truncateSummary(session.error) || '오류로 인해 자동 실행이 완료되지 않았습니다.'
+  }
+
+  for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+    const message = session.messages[index]
+    if (message.role !== 'assistant') continue
+    const text = truncateSummary(message.text)
+    if (text) return text
+  }
+
+  return session.isStreaming ? 'Claude가 결과를 생성하는 중입니다.' : null
 }
 
 function normalizeSelectedFolder(value: unknown): string | null {
@@ -284,6 +357,7 @@ function buildQuickPanelProjects(sessions: Session[]): RecentProject[] {
 
 export default function App() {
   const expandedSidebarWidthRef = useRef(290)
+  const messageJumpTokenRef = useRef(0)
   const {
     sessions,
     activeSessionId,
@@ -323,6 +397,11 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [messageJumpTarget, setMessageJumpTarget] = useState<{
+    sessionId: string
+    messageId: string
+    token: number
+  } | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(290)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [installationStatus, setInstallationStatus] = useState<ClaudeInstallationStatus | null>(null)
@@ -338,6 +417,7 @@ export default function App() {
   const sanitizedEnvVars = sanitizeEnvVars(envVars)
   const scheduledTasks = useScheduledTasksStore((state) => state.tasks)
   const applyScheduledTaskAdvance = useScheduledTasksStore((state) => state.applyAdvance)
+  const updateScheduledTaskRunSnapshot = useScheduledTasksStore((state) => state.updateRunRecordSnapshot)
   const scheduledTasksSyncPayload = useMemo(
     () => scheduledTasks.map((task) => ({
       id: task.id,
@@ -378,6 +458,7 @@ export default function App() {
   const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
   const abortedTabIdsRef = useRef<Set<string>>(new Set())
   const scheduledTaskSessionByRunRef = useRef<Map<string, string>>(new Map())
+  const scheduledTaskRunMetaBySessionRef = useRef<Map<string, { taskId: string; runAt: number }>>(new Map())
   const notifiedSessionEndsRef = useRef<Set<string>>(new Set())
   const streamEndTimerByTabRef = useRef<Map<string, number>>(new Map())
   const notificationModeRef = useRef(notificationMode)
@@ -405,6 +486,16 @@ export default function App() {
     document.documentElement.style.setProperty('--claude-ui-font-size', `${uiFontSize}px`)
     document.documentElement.style.setProperty('--claude-ui-zoom', `${uiZoomPercent / 100}`)
   }, [uiFontSize, uiZoomPercent])
+
+  useEffect(() => {
+    if (!messageJumpTarget) return
+
+    const timer = window.setTimeout(() => {
+      setMessageJumpTarget((current) => (current?.token === messageJumpTarget.token ? null : current))
+    }, 1600)
+
+    return () => window.clearTimeout(timer)
+  }, [messageJumpTarget])
 
   useEffect(() => {
     const cleanup = window.claude.onClaudeEvent(handleClaudeEvent)
@@ -485,6 +576,28 @@ export default function App() {
   }, [applyScheduledTaskAdvance])
 
   useEffect(() => {
+    for (const [sessionId, meta] of scheduledTaskRunMetaBySessionRef.current) {
+      const session = sessions.find((item) => item.id === sessionId)
+      if (!session) {
+        scheduledTaskRunMetaBySessionRef.current.delete(sessionId)
+        continue
+      }
+
+      const status = getScheduledTaskSnapshotStatus(session)
+      updateScheduledTaskRunSnapshot(meta.taskId, meta.runAt, {
+        status,
+        summary: getScheduledTaskSnapshotSummary(session),
+        changedPaths: getScheduledTaskChangedPaths(session),
+        cost: typeof session.lastCost === 'number' ? session.lastCost : null,
+      })
+
+      if (status === 'completed' || status === 'failed') {
+        scheduledTaskRunMetaBySessionRef.current.delete(sessionId)
+      }
+    }
+  }, [sessions, updateScheduledTaskRunSnapshot])
+
+  useEffect(() => {
     const cleanup = window.claude.onScheduledTaskFired(async (payload) => {
       setSettingsOpen(false)
       setCommandPaletteOpen(false)
@@ -497,6 +610,10 @@ export default function App() {
         : `[Schedule] ${baseSessionName}`
       const sessionId = addSession(cwd, sessionName)
       scheduledTaskSessionByRunRef.current.set(`${payload.taskId}:${payload.firedAt}`, sessionId)
+      scheduledTaskRunMetaBySessionRef.current.set(sessionId, {
+        taskId: payload.taskId,
+        runAt: payload.firedAt,
+      })
 
       await handleSendForSession(sessionId, payload.prompt, [], {
         permissionModeOverride: payload.permissionMode,
@@ -1040,6 +1157,20 @@ export default function App() {
     setSettingsOpen(false)
     setScheduleOpen(false)
     setCommandPaletteOpen(false)
+    setMessageJumpTarget(null)
+    setActiveSession(sessionId)
+  }
+
+  function handleSelectMessageResult(sessionId: string, messageId: string) {
+    messageJumpTokenRef.current += 1
+    setSettingsOpen(false)
+    setScheduleOpen(false)
+    setCommandPaletteOpen(false)
+    setMessageJumpTarget({
+      sessionId,
+      messageId,
+      token: messageJumpTokenRef.current,
+    })
     setActiveSession(sessionId)
   }
 
@@ -1119,6 +1250,8 @@ export default function App() {
               key={activeSession.id}
               session={activeSession}
               fileConflict={activeSessionConflictDetails}
+              jumpToMessageId={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.messageId : null}
+              jumpToMessageToken={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.token : 0}
               onSend={handleSend}
               onAbort={handleAbort}
               sidebarMode={sidebarMode}
@@ -1127,7 +1260,6 @@ export default function App() {
               sidebarShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleSidebar', shortcutPlatform)}
               filesShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleFiles', shortcutPlatform)}
               sessionInfoShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleSessionInfo', shortcutPlatform)}
-              onSelectFolder={() => handleSelectFolder()}
               onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSession.id, mode)}
               onPlanModeChange={(val: boolean) => setPlanMode(activeSession.id, val)}
               onModelChange={(model) => handleModelChange(activeSession.id, model)}
@@ -1154,13 +1286,16 @@ export default function App() {
         open={commandPaletteOpen}
         sessions={sessions}
         onClose={() => setCommandPaletteOpen(false)}
-        onNewSession={handleNewSession}
+        onNewSession={() => {
+          void handleNewSession()
+        }}
         onOpenSettings={() => {
           setCommandPaletteOpen(false)
           setScheduleOpen(false)
           setSettingsOpen(true)
         }}
         onSelectSession={handleSelectSession}
+        onSelectMessage={handleSelectMessageResult}
       />
     </div>
   )

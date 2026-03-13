@@ -650,30 +650,23 @@ export const useSessionsStore = create<SessionsStore>()(
     {
       name: 'claude-ui-sessions',
       storage: createJSONStorage(() => localStorage),
-      version: 4,
+      skipHydration: true,
+      version: 5,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SessionsStore> & {
           shortcutConfig?: Partial<ShortcutConfig>
         }
         const defaultProjectPath = state.defaultProjectPath?.trim() || DEFAULT_PROJECT_PATH
-
-        const sessions =
-          version < 2 && state.sessions
-            ? state.sessions.map((session) =>
-                isLegacyHomePlaceholderSession(session)
-                  ? {
-                      ...session,
-                      cwd: defaultProjectPath,
-                      name: getProjectNameFromPath(defaultProjectPath),
-                    }
-                  : session,
-              )
-            : state.sessions
+        const activeSessionId =
+          typeof state.activeSessionId === 'string' || state.activeSessionId === null
+            ? state.activeSessionId
+            : null
 
         return {
           ...state,
           defaultProjectPath,
-          sessions,
+          sessions: undefined,
+          activeSessionId,
           uiFontSize: clampUiFontSize(state.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
           uiZoomPercent: clampUiZoomPercent(state.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
           quickPanelEnabled: state.quickPanelEnabled ?? true,
@@ -684,7 +677,6 @@ export const useSessionsStore = create<SessionsStore>()(
         }
       },
       partialize: (state) => ({
-        sessions: state.sessions,
         activeSessionId: state.activeSessionId,
         defaultProjectPath: state.defaultProjectPath,
         envVars: state.envVars,
@@ -702,20 +694,10 @@ export const useSessionsStore = create<SessionsStore>()(
         const persistedState = persisted as Partial<SessionsStore> & {
           notificationsEnabled?: boolean
         }
-
-        const restoredSessions = (persistedState.sessions ?? []).map((session) => ({
-          ...session,
-          isStreaming: false,
-          currentAssistantMsgId: null,
-          pendingPermission: null,
-          pendingQuestion: null,
-          error: session.error ?? null,
-        }))
-
-        const sessions = restoredSessions.length > 0 ? restoredSessions : current.sessions
-        const activeSessionId = sessions.some((session) => session.id === persistedState.activeSessionId)
-          ? persistedState.activeSessionId ?? sessions[0]?.id ?? null
-          : sessions[0]?.id ?? null
+        const activeSessionId =
+          typeof persistedState.activeSessionId === 'string' || persistedState.activeSessionId === null
+            ? persistedState.activeSessionId
+            : current.activeSessionId
 
         return {
           ...current,
@@ -734,8 +716,8 @@ export const useSessionsStore = create<SessionsStore>()(
             ...DEFAULT_SHORTCUT_CONFIG,
             ...(persistedState.shortcutConfig ?? {}),
           },
-          sessions,
           activeSessionId,
+          sessions: current.sessions,
         }
       },
     },
@@ -749,8 +731,49 @@ export function findTabByClaudeSessionId(
   return sessions.find((session) => session.sessionId === claudeSessionId)
 }
 
+export type SessionMessageSearchResult = {
+  sessionId: string
+  sessionName: string
+  cwd: string
+  messageId: string
+  role: Message['role']
+  preview: string
+  createdAt: number
+}
+
+const MESSAGE_SEARCH_RESULTS_PER_SESSION = 3
+const MESSAGE_SEARCH_PREVIEW_RADIUS = 56
+const MESSAGE_SEARCH_PREVIEW_MAX_LENGTH = 180
+
+function normalizeSearchText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function buildSearchPreview(text: string, query: string): string {
+  const normalizedText = normalizeSearchText(text)
+  if (!normalizedText) return ''
+
+  const normalizedQuery = normalizeSearchText(query).toLowerCase()
+  const lowerText = normalizedText.toLowerCase()
+  const matchIndex = lowerText.indexOf(normalizedQuery)
+  if (matchIndex < 0) {
+    return normalizedText.length > MESSAGE_SEARCH_PREVIEW_MAX_LENGTH
+      ? `${normalizedText.slice(0, MESSAGE_SEARCH_PREVIEW_MAX_LENGTH - 1)}…`
+      : normalizedText
+  }
+
+  const start = Math.max(0, matchIndex - MESSAGE_SEARCH_PREVIEW_RADIUS)
+  const end = Math.min(
+    normalizedText.length,
+    matchIndex + normalizedQuery.length + MESSAGE_SEARCH_PREVIEW_RADIUS
+  )
+  const preview = normalizedText.slice(start, end)
+
+  return `${start > 0 ? '…' : ''}${preview}${end < normalizedText.length ? '…' : ''}`
+}
+
 export function searchSessions(sessions: Session[], query: string): Session[] {
-  const trimmed = query.trim().toLowerCase()
+  const trimmed = normalizeSearchText(query).toLowerCase()
   if (!trimmed) return sessions
 
   return sessions.filter((session) => {
@@ -758,11 +781,53 @@ export function searchSessions(sessions: Session[], query: string): Session[] {
       session.name,
       session.cwd,
       session.sessionId ?? '',
-      ...session.messages.slice(-6).map((message) => message.text),
+      ...session.messages.flatMap((message) => [message.text, message.thinking ?? '']),
     ]
       .join('\n')
+      .replace(/\s+/g, ' ')
       .toLowerCase()
 
     return haystack.includes(trimmed)
   })
+}
+
+export function searchSessionMessages(
+  sessions: Session[],
+  query: string,
+  limit = 12,
+): SessionMessageSearchResult[] {
+  const trimmed = normalizeSearchText(query).toLowerCase()
+  if (!trimmed) return []
+
+  const matches: SessionMessageSearchResult[] = []
+
+  for (const session of sessions) {
+    let collectedForSession = 0
+
+    for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+      const message = session.messages[index]
+      const normalizedText = normalizeSearchText(message.text)
+      if (!normalizedText) continue
+      if (!normalizedText.toLowerCase().includes(trimmed)) continue
+
+      matches.push({
+        sessionId: session.id,
+        sessionName: session.name,
+        cwd: session.cwd,
+        messageId: message.id,
+        role: message.role,
+        preview: buildSearchPreview(message.text, query),
+        createdAt: message.createdAt,
+      })
+      collectedForSession += 1
+
+      if (collectedForSession >= MESSAGE_SEARCH_RESULTS_PER_SESSION) {
+        break
+      }
+    }
+  }
+
+  return matches
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, limit)
 }

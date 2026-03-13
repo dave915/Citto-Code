@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { searchSessions, type Session } from '../store/sessions'
+import { searchSessionMessages, searchSessions, type Session } from '../store/sessions'
 
 type CommandPaletteItem =
   | { id: string; kind: 'action'; label: string; description: string; onSelect: () => void }
   | { id: string; kind: 'session'; label: string; description: string; sessionId: string; onSelect: () => void }
+  | {
+      id: string
+      kind: 'message'
+      label: string
+      description: string
+      sessionId: string
+      messageId: string
+      role: 'user' | 'assistant'
+      onSelect: () => void
+    }
 
 type Props = {
   open: boolean
@@ -12,6 +22,7 @@ type Props = {
   onNewSession: () => void | Promise<void>
   onOpenSettings: () => void
   onSelectSession: (sessionId: string) => void
+  onSelectMessage: (sessionId: string, messageId: string) => void
 }
 
 export function CommandPalette({
@@ -21,13 +32,39 @@ export function CommandPalette({
   onNewSession,
   onOpenSettings,
   onSelectSession,
+  onSelectMessage,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   const items = useMemo<CommandPaletteItem[]>(() => {
-    const filteredSessions = searchSessions(sessions, query).slice(0, 8)
+    const trimmedQuery = query.trim()
+    const filteredSessions = searchSessions(sessions, query).slice(0, trimmedQuery ? 5 : 8)
+    const messageMatches = trimmedQuery ? searchSessionMessages(sessions, query, 12) : []
+
+    if (trimmedQuery) {
+      return [
+        ...messageMatches.map((match) => ({
+          id: `message-${match.messageId}`,
+          kind: 'message' as const,
+          label: match.preview,
+          description: `${match.role === 'user' ? '사용자 메시지' : 'Claude 응답'} · ${match.sessionName} · ${match.cwd || '~'}`,
+          sessionId: match.sessionId,
+          messageId: match.messageId,
+          role: match.role,
+          onSelect: () => onSelectMessage(match.sessionId, match.messageId),
+        })),
+        ...filteredSessions.map((session) => ({
+          id: `session-${session.id}`,
+          kind: 'session' as const,
+          label: session.name,
+          description: `세션 · ${session.cwd || '~'}`,
+          sessionId: session.id,
+          onSelect: () => onSelectSession(session.id),
+        })),
+      ]
+    }
 
     return [
       {
@@ -55,7 +92,7 @@ export function CommandPalette({
         onSelect: () => onSelectSession(session.id),
       })),
     ]
-  }, [onNewSession, onOpenSettings, onSelectSession, query, sessions])
+  }, [onNewSession, onOpenSettings, onSelectMessage, onSelectSession, query, sessions])
 
   useEffect(() => {
     if (!open) {
@@ -131,8 +168,8 @@ export function CommandPalette({
                 handleConfirm()
               }
             }}
-            placeholder="세션 검색 또는 명령 실행"
-            className="w-full bg-transparent text-[15px] text-claude-text outline-none placeholder:text-claude-muted"
+            placeholder="세션, 대화 내용 검색 또는 명령 실행"
+            className="command-palette-input w-full bg-transparent text-[15px] text-claude-text outline-none placeholder:text-claude-muted"
             spellCheck={false}
           />
         </div>
@@ -159,6 +196,11 @@ export function CommandPalette({
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
                       </svg>
+                    ) : item.kind === 'message' ? (
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h7M7 16h5" />
+                        <rect x="4" y="4" width="16" height="16" rx="3" />
+                      </svg>
                     ) : (
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -166,7 +208,18 @@ export function CommandPalette({
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-claude-text">{item.label}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="truncate text-sm font-medium text-claude-text">{item.label}</div>
+                      {item.kind === 'message' && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          item.role === 'user'
+                            ? 'bg-sky-500/10 text-sky-200'
+                            : 'bg-emerald-500/10 text-emerald-200'
+                        }`}>
+                          {item.role === 'user' ? 'USER' : 'AI'}
+                        </span>
+                      )}
+                    </div>
                     <div className="truncate text-xs text-claude-muted">{item.description}</div>
                   </div>
                 </button>
@@ -174,7 +227,7 @@ export function CommandPalette({
             })
           ) : (
             <div className="px-4 py-8 text-center text-sm text-claude-muted">
-              검색 결과가 없습니다.
+              {query.trim() ? '일치하는 세션이나 메시지가 없습니다.' : '검색 결과가 없습니다.'}
             </div>
           )}
         </div>

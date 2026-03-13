@@ -474,6 +474,11 @@ a:focus-visible,
   box-shadow: none !important;
 }
 
+.command-palette-input:focus,
+.command-palette-input:focus-visible {
+  box-shadow: none !important;
+}
+
 .tool-diff-shell {
   --diff-background-color: rgb(var(--claude-bg));
   --diff-text-color: rgb(var(--claude-text));
