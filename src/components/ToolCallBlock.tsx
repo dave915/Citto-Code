@@ -1352,13 +1352,24 @@ export function HtmlPreview({
         <div className="min-w-0">
           <div className="text-[11px] font-medium text-claude-text/90">HTML 실행 미리보기</div>
         </div>
-        <button
-          type="button"
-          onClick={() => setFrameKey((value) => value + 1)}
-          className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
-        >
-          다시 실행
-        </button>
+        <div className="flex items-center gap-2">
+          {path ? (
+            <button
+              type="button"
+              onClick={() => { void window.claude.openInBrowser(path) }}
+              className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+            >
+              브라우저에서 열기
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setFrameKey((value) => value + 1)}
+            className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+          >
+            다시 실행
+          </button>
+        </div>
       </div>
 
       <iframe

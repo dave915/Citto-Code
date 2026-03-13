@@ -5,6 +5,7 @@ import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import { appendFileSync, existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
+import { pathToFileURL } from 'url'
 import { deflateSync } from 'zlib'
 import { AppPersistence } from './persistence'
 import type { Session as PersistedSession, ScheduledTask as PersistedScheduledTask } from './persistence-types'
@@ -2922,6 +2923,15 @@ app.whenReady().then(async () => {
   // ── 파일 외부 에디터로 열기 ──────────────────────────────────
   ipcMain.handle('claude:open-file', async (_event, filePath: string) => {
     await shell.openPath(filePath)
+  })
+
+  ipcMain.handle('claude:open-in-browser', async (_event, { filePath }: { filePath: string }) => {
+    try {
+      await shell.openExternal(pathToFileURL(filePath).toString())
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: String(error) }
+    }
   })
 
   ipcMain.handle('claude:list-open-with-apps', () => {
