@@ -457,6 +457,17 @@ export function ChatView({
   }, [gitPanelOpen, session.cwd])
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (gitPanelOpen) return
+      void refreshGitPanelPassive()
+    }, 5000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [gitPanelOpen, session.cwd])
+
+  useEffect(() => {
     let cancelled = false
     void refreshGitStatus(() => cancelled)
     void refreshGitLog(() => cancelled)
