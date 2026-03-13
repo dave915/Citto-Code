@@ -53,7 +53,7 @@ const MCP_SCOPE_OPTIONS: Array<{
 }> = [
   { value: 'user', label: '전체', description: '~/.claude.json 전체 공통 설정' },
   { value: 'local', label: '프로젝트별', description: '~/.claude.json 안에서 선택한 프로젝트별 설정' },
-  { value: 'project', label: '프로젝트 폴더', description: '선택한 프로젝트의 .mcp.json 설정' },
+  { value: 'project', label: '공유', description: '선택한 프로젝트의 .mcp.json 공유 설정' },
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,9 +73,11 @@ function normalizeProjectPath(value: string): string | null {
 export function SettingsPanel({
   onClose,
   onSidebarModeChange,
+  projectPath,
 }: {
   onClose: () => void
   onSidebarModeChange: (mode: SidebarMode) => void
+  projectPath: string | null
 }) {
   const [tab, setTab] = useState<Tab>('general')
 
@@ -128,7 +130,7 @@ export function SettingsPanel({
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {tab === 'general' && <GeneralTab onSidebarModeChange={onSidebarModeChange} />}
-          {tab === 'mcp'   && <McpTab />}
+          {tab === 'mcp'   && <McpTab projectPath={projectPath} />}
           {tab === 'skill' && <SkillTab />}
           {tab === 'agent' && <AgentTab />}
           {tab === 'env'   && <EnvTab />}
@@ -172,6 +174,7 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [themePreviewId, setThemePreviewId] = useState<ThemeId | null>(null)
   const [themeHighlightId, setThemeHighlightId] = useState<ThemeId>(themeId)
+  const [pendingZoom, setPendingZoom] = useState(uiZoomPercent)
   const [defaultProjectLoading, setDefaultProjectLoading] = useState(false)
   const [cliQuery, setCliQuery] = useState('')
   const [cliSessions, setCliSessions] = useState<CliHistoryEntry[]>([])
@@ -210,6 +213,15 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
   useEffect(() => {
     setClaudePathDraft(claudeBinaryPath)
   }, [claudeBinaryPath])
+
+  useEffect(() => {
+    setPendingZoom(uiZoomPercent)
+  }, [uiZoomPercent])
+
+  const commitPendingZoom = (value: number) => {
+    setPendingZoom(value)
+    setUiZoomPercent(value)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -485,13 +497,14 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
           <div>
             <p className="text-sm font-semibold text-claude-text">표시</p>
             <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-              글자 크기와 전체 UI 배율을 조절합니다. 변경 사항은 즉시 화면에 반영됩니다.
+              글자 크기와 전체 UI 배율을 조절합니다. 화면 배율은 슬라이더를 놓는 시점에 반영됩니다.
             </p>
           </div>
           <button
             type="button"
             onClick={() => {
               setUiFontSize(DEFAULT_UI_FONT_SIZE)
+              setPendingZoom(DEFAULT_UI_ZOOM_PERCENT)
               setUiZoomPercent(DEFAULT_UI_ZOOM_PERCENT)
             }}
             className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs text-claude-muted transition-colors hover:bg-claude-bg hover:text-claude-text"
@@ -524,15 +537,19 @@ function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: Sideb
           <div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <label className="text-xs font-medium text-claude-muted">화면 비율</label>
-              <span className="text-xs font-mono text-claude-text">{uiZoomPercent}%</span>
+              <span className="text-xs font-mono text-claude-text">{pendingZoom}%</span>
             </div>
             <input
               type="range"
               min={MIN_UI_ZOOM_PERCENT}
               max={MAX_UI_ZOOM_PERCENT}
-              step={5}
-              value={uiZoomPercent}
-              onChange={(event) => setUiZoomPercent(Number(event.target.value))}
+              step={10}
+              value={pendingZoom}
+              onChange={(event) => setPendingZoom(Number(event.target.value))}
+              onMouseUp={(event) => commitPendingZoom(Number(event.currentTarget.value))}
+              onTouchEnd={(event) => commitPendingZoom(Number(event.currentTarget.value))}
+              onBlur={(event) => commitPendingZoom(Number(event.currentTarget.value))}
+              onKeyUp={(event) => commitPendingZoom(Number((event.currentTarget as HTMLInputElement).value))}
               className="w-full accent-claude-muted"
             />
             <div className="mt-1 flex items-center justify-between text-[11px] text-claude-muted/80">
@@ -867,43 +884,40 @@ function mapMcpServers(raw: Record<string, unknown>): McpServer[] {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function McpTab() {
+function McpTab({ projectPath }: { projectPath: string | null }) {
   const sessions = useSessionsStore((state) => state.sessions)
-  const activeSessionId = useSessionsStore((state) => state.activeSessionId)
   const defaultProjectPath = useSessionsStore((state) => state.defaultProjectPath)
-  const activeSession = activeSessionId
-    ? sessions.find((session) => session.id === activeSessionId) ?? null
-    : null
   const currentProjectPath = useMemo(() => {
-    const activePath = activeSession?.cwd?.trim()
-    if (activePath && activePath !== '~') return activePath
-
-    const fallbackPath = defaultProjectPath.trim()
-    if (fallbackPath && fallbackPath !== '~') return fallbackPath
-
-    return null
-  }, [activeSession?.cwd, defaultProjectPath])
+    const activePath = normalizeProjectPath(projectPath ?? '')
+    if (activePath) return activePath
+    return normalizeProjectPath(defaultProjectPath)
+  }, [defaultProjectPath, projectPath])
+  const sessionProjectPaths = useMemo(() => (
+    Array.from(new Set(
+      sessions
+        .map((session) => normalizeProjectPath(session.cwd))
+        .filter((value): value is string => Boolean(value)),
+    )).sort((a, b) => a.localeCompare(b))
+  ), [sessions])
 
   const [scope, setScope] = useState<McpConfigScope>('user')
   const [selectedProjectPath, setSelectedProjectPath] = useState(currentProjectPath ?? '')
+  const [availableProjectPaths, setAvailableProjectPaths] = useState<string[]>([])
   const [servers, setServers] = useState<McpServer[]>([])
   const [loading, setLoading] = useState(true)
   const [rawMcp, setRawMcp] = useState<Record<string, unknown>>({})
   const [scopeInfo, setScopeInfo] = useState<McpReadResult | null>(null)
 
-  // 추가 폼
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState<McpForm>(EMPTY_MCP_FORM)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
-  // 편집
   const [editingServer, setEditingServer] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<McpForm>(EMPTY_MCP_FORM)
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
 
-  // 삭제 확인
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useEffect(() => {
@@ -912,11 +926,68 @@ function McpTab() {
     }
   }, [currentProjectPath, selectedProjectPath])
 
+  useEffect(() => {
+    let cancelled = false
+
+    window.claude.listProjectPaths()
+      .then((projectPaths) => {
+        if (cancelled) return
+        const merged = Array.from(new Set([
+          ...(currentProjectPath ? [currentProjectPath] : []),
+          ...sessionProjectPaths,
+          ...projectPaths
+            .map((value) => normalizeProjectPath(value))
+            .filter((value): value is string => Boolean(value)),
+        ])).sort((a, b) => a.localeCompare(b))
+        setAvailableProjectPaths(merged)
+      })
+      .catch(() => {
+        if (cancelled) return
+        const fallback = Array.from(new Set([
+          ...(currentProjectPath ? [currentProjectPath] : []),
+          ...sessionProjectPaths,
+        ])).sort((a, b) => a.localeCompare(b))
+        setAvailableProjectPaths(fallback)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentProjectPath, sessionProjectPaths])
+
+  useEffect(() => {
+    if (scope === 'user') return
+    if (selectedProjectPath && availableProjectPaths.includes(selectedProjectPath)) return
+    setSelectedProjectPath(currentProjectPath ?? availableProjectPaths[0] ?? '')
+  }, [availableProjectPaths, currentProjectPath, scope, selectedProjectPath])
+
   const effectiveProjectPath = normalizeProjectPath(selectedProjectPath)
 
   const loadServers = () => {
     setLoading(true)
-    window.claude.readMcpServers({ scope, cwd: effectiveProjectPath }).then((result) => {
+
+    if (scope !== 'user' && !effectiveProjectPath) {
+      setScopeInfo({
+        scope,
+        available: false,
+        targetPath: scope === 'project' ? '.mcp.json' : '~/.claude.json',
+        projectPath: null,
+        mcpServers: {},
+        message: '프로젝트를 선택해야 이 범위를 편집할 수 있습니다.',
+      })
+      setRawMcp({})
+      setServers([])
+      setLoading(false)
+      return
+    }
+
+    const request = scope === 'user'
+      ? window.claude.readMcpServers({ scope: 'user' })
+      : scope === 'local'
+        ? window.claude.readProjectMcpServers(effectiveProjectPath!)
+        : window.claude.readDotMcpServers(effectiveProjectPath!)
+
+    request.then((result) => {
       setScopeInfo(result)
       setRawMcp(result.mcpServers)
       setServers(mapMcpServers(result.mcpServers))
@@ -925,7 +996,7 @@ function McpTab() {
         scope,
         available: false,
         targetPath: scope === 'project' ? '.mcp.json' : '~/.claude.json',
-        projectPath: null,
+        projectPath: effectiveProjectPath,
         mcpServers: {},
         message: 'MCP 설정을 불러오지 못했습니다.',
       })
@@ -952,6 +1023,45 @@ function McpTab() {
   const currentProjectLabel = scopeInfo?.projectPath ?? effectiveProjectPath
   const currentProjectName = currentProjectLabel ? getProjectNameFromPath(currentProjectLabel) : null
 
+  const upsertScopedServer = async (name: string, entry: Record<string, unknown>, previousName?: string) => {
+    if (scope === 'user') {
+      const base = previousName && previousName !== name
+        ? Object.fromEntries(Object.entries(rawMcp).filter(([key]) => key !== previousName))
+        : rawMcp
+      return window.claude.writeMcpServers({ scope: 'user', mcpServers: { ...base, [name]: entry } })
+    }
+
+    if (!effectiveProjectPath) {
+      return { ok: false, error: '프로젝트를 선택해야 저장할 수 있습니다.' }
+    }
+
+    if (previousName && previousName !== name) {
+      const deleteResult = scope === 'local'
+        ? await window.claude.deleteProjectMcpServer({ projectPath: effectiveProjectPath, name: previousName })
+        : await window.claude.deleteDotMcpServer({ projectPath: effectiveProjectPath, name: previousName })
+      if (!deleteResult.ok) return deleteResult
+    }
+
+    return scope === 'local'
+      ? window.claude.writeProjectMcpServer({ projectPath: effectiveProjectPath, name, config: entry })
+      : window.claude.writeDotMcpServer({ projectPath: effectiveProjectPath, name, config: entry })
+  }
+
+  const deleteScopedServer = (name: string) => {
+    if (scope === 'user') {
+      const { [name]: _, ...rest } = rawMcp
+      return window.claude.writeMcpServers({ scope: 'user', mcpServers: rest })
+    }
+
+    if (!effectiveProjectPath) {
+      return Promise.resolve({ ok: false, error: '프로젝트를 선택해야 삭제할 수 있습니다.' })
+    }
+
+    return scope === 'local'
+      ? window.claude.deleteProjectMcpServer({ projectPath: effectiveProjectPath, name })
+      : window.claude.deleteDotMcpServer({ projectPath: effectiveProjectPath, name })
+  }
+
   const handleSave = async () => {
     if (!canManageScope) { setFormError('현재 범위를 편집할 수 없습니다.'); return }
     const name = form.name.trim()
@@ -961,8 +1071,7 @@ function McpTab() {
 
     setSaving(true)
     setFormError('')
-    const updated = { ...rawMcp, [name]: buildEntry(form) }
-    const result = await window.claude.writeMcpServers({ scope, cwd: effectiveProjectPath, mcpServers: updated })
+    const result = await upsertScopedServer(name, buildEntry(form))
     setSaving(false)
     if (!result.ok) { setFormError(result.error ?? '저장 실패'); return }
 
@@ -990,10 +1099,7 @@ function McpTab() {
 
     setEditSaving(true)
     setEditError('')
-    // 이름이 바뀐 경우 기존 항목 삭제 후 새 이름으로 추가
-    const { [editingServer]: _, ...rest } = rawMcp
-    const updated = { ...rest, [newName]: buildEntry({ ...editForm, name: newName }) }
-    const result = await window.claude.writeMcpServers({ scope, cwd: effectiveProjectPath, mcpServers: updated })
+    const result = await upsertScopedServer(newName, buildEntry({ ...editForm, name: newName }), editingServer)
     setEditSaving(false)
     if (!result.ok) { setEditError(result.error ?? '저장 실패'); return }
 
@@ -1003,22 +1109,11 @@ function McpTab() {
 
   const handleDelete = async (name: string) => {
     if (!canManageScope) return
-    const { [name]: _, ...rest } = rawMcp
-    const result = await window.claude.writeMcpServers({ scope, cwd: effectiveProjectPath, mcpServers: rest })
+    const result = await deleteScopedServer(name)
     if (!result.ok) return
     setConfirmDelete(null)
     if (editingServer === name) setEditingServer(null)
     loadServers()
-  }
-
-  const handlePickProject = async () => {
-    const folder = await window.claude.selectFolder({
-      defaultPath: effectiveProjectPath ?? currentProjectPath ?? defaultProjectPath,
-      title: 'MCP 대상 프로젝트 선택',
-    })
-    if (folder) {
-      setSelectedProjectPath(folder)
-    }
   }
 
   const inputCls = "w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
@@ -1050,21 +1145,29 @@ function McpTab() {
           <p className="text-xs text-claude-muted">{selectedScope.description}</p>
           {scope !== 'user' && (
             <div className="space-y-2 pt-1">
-              <p className="text-xs text-claude-muted">대상 프로젝트를 직접 선택해서 이 범위에 저장합니다.</p>
-              <div className="flex gap-2">
-                <input
+              <p className="text-xs text-claude-muted">대상 프로젝트를 선택해서 이 범위에 저장합니다.</p>
+              <div className="relative">
+                <select
                   value={selectedProjectPath}
                   onChange={(event) => setSelectedProjectPath(event.target.value)}
-                  placeholder={currentProjectPath ?? defaultProjectPath}
-                  className="w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
-                  spellCheck={false}
-                />
-                <button
-                  onClick={handlePickProject}
-                  className="shrink-0 rounded-lg border border-claude-border px-3 py-2 text-xs text-claude-muted hover:bg-claude-panel hover:text-claude-text transition-colors"
+                  className="w-full appearance-none rounded-xl border border-claude-border bg-claude-panel px-3 py-2 pr-10 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
                 >
-                  폴더 선택
-                </button>
+                  {availableProjectPaths.length === 0 && (
+                    <option value="">선택 가능한 프로젝트가 없습니다</option>
+                  )}
+                  {availableProjectPaths.map((path) => (
+                    <option key={path} value={path}>{path}</option>
+                  ))}
+                </select>
+                <svg
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-claude-muted"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 7.5 10 12.5 15 7.5" />
+                </svg>
               </div>
               {currentProjectLabel && (
                 <p className="text-xs text-claude-muted">
@@ -1072,6 +1175,9 @@ function McpTab() {
                   <span className="ml-1 font-mono text-claude-text">{currentProjectLabel}</span>
                   {currentProjectName && <span className="ml-2 text-claude-muted/70">({currentProjectName})</span>}
                 </p>
+              )}
+              {availableProjectPaths.length === 0 && (
+                <p className="text-xs text-amber-400">사이드바 세션이나 Claude 설정에서 프로젝트 경로를 찾지 못했습니다.</p>
               )}
             </div>
           )}
@@ -1093,7 +1199,7 @@ function McpTab() {
 
       <div className="flex items-center justify-between mb-1">
         <p className="text-xs text-claude-muted">
-          {scope === 'user' ? '공통 MCP 서버 목록' : scope === 'local' ? '선택한 프로젝트 전용 MCP 서버 목록' : '선택한 프로젝트의 .mcp.json MCP 서버 목록'}
+          {scope === 'user' ? '공통 MCP 서버 목록' : scope === 'local' ? '선택한 프로젝트 전용 MCP 서버 목록' : '선택한 프로젝트의 공유 MCP 서버 목록'}
         </p>
         <button
           onClick={() => { setShowAdd(true); setForm(EMPTY_MCP_FORM); setFormError('') }}

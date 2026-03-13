@@ -177,8 +177,8 @@ export const DEFAULT_UI_FONT_SIZE = 16
 export const MIN_UI_FONT_SIZE = 13
 export const MAX_UI_FONT_SIZE = 20
 export const DEFAULT_UI_ZOOM_PERCENT = 100
-export const MIN_UI_ZOOM_PERCENT = 80
-export const MAX_UI_ZOOM_PERCENT = 130
+export const MIN_UI_ZOOM_PERCENT = 50
+export const MAX_UI_ZOOM_PERCENT = 200
 const GENERIC_CLAUDE_ERROR = 'Claude Code 요청이 실패했습니다.'
 
 export function clampUiFontSize(value: number): number {
@@ -186,7 +186,7 @@ export function clampUiFontSize(value: number): number {
 }
 
 export function clampUiZoomPercent(value: number): number {
-  const rounded = Math.round(value / 5) * 5
+  const rounded = Math.round(value / 10) * 10
   return clampNumber(rounded, MIN_UI_ZOOM_PERCENT, MAX_UI_ZOOM_PERCENT)
 }
 

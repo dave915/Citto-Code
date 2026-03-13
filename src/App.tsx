@@ -1021,7 +1021,11 @@ export default function App() {
 
       <main className="flex-1 overflow-hidden">
         {settingsOpen ? (
-          <SettingsPanel onClose={() => setSettingsOpen(false)} onSidebarModeChange={setSidebarMode} />
+          <SettingsPanel
+            onClose={() => setSettingsOpen(false)}
+            onSidebarModeChange={setSidebarMode}
+            projectPath={activeSession?.cwd ?? null}
+          />
         ) : (
           activeSession ? (
             <ChatView

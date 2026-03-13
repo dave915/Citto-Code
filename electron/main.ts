@@ -244,6 +244,10 @@ function sanitizeMcpServers(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {}
 }
 
+function sanitizeMcpServerConfig(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {}
+}
+
 function normalizeMcpProjectPath(cwd?: string | null): string | null {
   if (typeof cwd !== 'string') return null
   const trimmed = cwd.trim()
@@ -256,6 +260,16 @@ function normalizeMcpProjectPath(cwd?: string | null): string | null {
 
 function getClaudeJsonPath() {
   return join(process.env.HOME ?? '', '.claude.json')
+}
+
+function listProjectPaths() {
+  const root = readJsonObject(getClaudeJsonPath())
+  const projects = isRecord(root.projects) ? root.projects : {}
+  return Array.from(new Set(
+    Object.keys(projects)
+      .map((value) => normalizeMcpProjectPath(value) ?? value)
+      .filter(Boolean),
+  )).sort((a, b) => a.localeCompare(b))
 }
 
 function readMcpServersForScope(scope: McpConfigScope, cwd?: string | null): McpReadResult {
@@ -335,6 +349,93 @@ function writeMcpServersForScope(scope: McpConfigScope, cwd: string | null | und
   const projectConfigPath = join(projectPath, '.mcp.json')
   const root = readJsonObject(projectConfigPath)
   writeJsonObject(projectConfigPath, { ...root, mcpServers: servers })
+  return { ok: true }
+}
+
+function readProjectMcpServers(projectPath: string): McpReadResult {
+  return readMcpServersForScope('local', projectPath)
+}
+
+function writeProjectMcpServer(projectPath: string, name: string, config: unknown) {
+  const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
+  if (!normalizedProjectPath) {
+    return { ok: false, error: '현재 프로젝트 경로가 없어 저장할 수 없습니다.' }
+  }
+
+  const claudeJsonPath = getClaudeJsonPath()
+  const root = readJsonObject(claudeJsonPath)
+  const projects = isRecord(root.projects) ? { ...root.projects } : {}
+  const currentProject = isRecord(projects[normalizedProjectPath]) ? { ...projects[normalizedProjectPath] } : {}
+  const currentServers = sanitizeMcpServers(currentProject.mcpServers)
+
+  projects[normalizedProjectPath] = {
+    ...currentProject,
+    mcpServers: {
+      ...currentServers,
+      [name]: sanitizeMcpServerConfig(config),
+    },
+  }
+
+  writeJsonObject(claudeJsonPath, { ...root, projects })
+  return { ok: true }
+}
+
+function deleteProjectMcpServer(projectPath: string, name: string) {
+  const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
+  if (!normalizedProjectPath) {
+    return { ok: false, error: '현재 프로젝트 경로가 없어 삭제할 수 없습니다.' }
+  }
+
+  const claudeJsonPath = getClaudeJsonPath()
+  const root = readJsonObject(claudeJsonPath)
+  const projects = isRecord(root.projects) ? { ...root.projects } : {}
+  const currentProject = isRecord(projects[normalizedProjectPath]) ? { ...projects[normalizedProjectPath] } : {}
+  const currentServers = sanitizeMcpServers(currentProject.mcpServers)
+  const { [name]: _, ...rest } = currentServers
+
+  projects[normalizedProjectPath] = {
+    ...currentProject,
+    mcpServers: rest,
+  }
+
+  writeJsonObject(claudeJsonPath, { ...root, projects })
+  return { ok: true }
+}
+
+function readDotMcpServers(projectPath: string): McpReadResult {
+  return readMcpServersForScope('project', projectPath)
+}
+
+function writeDotMcpServer(projectPath: string, name: string, config: unknown) {
+  const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
+  if (!normalizedProjectPath) {
+    return { ok: false, error: '현재 프로젝트 경로가 없어 저장할 수 없습니다.' }
+  }
+
+  const projectConfigPath = join(normalizedProjectPath, '.mcp.json')
+  const root = readJsonObject(projectConfigPath)
+  const currentServers = sanitizeMcpServers(root.mcpServers)
+  writeJsonObject(projectConfigPath, {
+    ...root,
+    mcpServers: {
+      ...currentServers,
+      [name]: sanitizeMcpServerConfig(config),
+    },
+  })
+  return { ok: true }
+}
+
+function deleteDotMcpServer(projectPath: string, name: string) {
+  const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
+  if (!normalizedProjectPath) {
+    return { ok: false, error: '현재 프로젝트 경로가 없어 삭제할 수 없습니다.' }
+  }
+
+  const projectConfigPath = join(normalizedProjectPath, '.mcp.json')
+  const root = readJsonObject(projectConfigPath)
+  const currentServers = sanitizeMcpServers(root.mcpServers)
+  const { [name]: _, ...rest } = currentServers
+  writeJsonObject(projectConfigPath, { ...root, mcpServers: rest })
   return { ok: true }
 }
 
@@ -1799,6 +1900,10 @@ function createWindow(): BrowserWindow {
 function showMainWindow() {
   const window = mainWindow ?? createWindow()
   mainWindow = window
+  if (process.platform === 'darwin') {
+    app.show()
+    app.focus({ steal: true })
+  }
   focusWindow(window)
   return window
 }
@@ -2660,6 +2765,76 @@ app.whenReady().then(() => {
       }
     },
   )
+
+  ipcMain.handle('claude:list-project-paths', () => {
+    try {
+      return listProjectPaths()
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('claude:read-project-mcp-servers', (_event, payload: { projectPath: string }) => {
+    try {
+      return readProjectMcpServers(payload.projectPath)
+    } catch {
+      return {
+        scope: 'local',
+        available: false,
+        targetPath: getClaudeJsonPath(),
+        projectPath: normalizeMcpProjectPath(payload.projectPath),
+        mcpServers: {},
+        message: '프로젝트별 MCP 설정을 읽는 중 오류가 발생했습니다.',
+      } satisfies McpReadResult
+    }
+  })
+
+  ipcMain.handle('claude:write-project-mcp-server', (_event, payload: { projectPath: string; name: string; config: unknown }) => {
+    try {
+      return writeProjectMcpServer(payload.projectPath, payload.name, payload.config)
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  })
+
+  ipcMain.handle('claude:delete-project-mcp-server', (_event, payload: { projectPath: string; name: string }) => {
+    try {
+      return deleteProjectMcpServer(payload.projectPath, payload.name)
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  })
+
+  ipcMain.handle('claude:read-dotmcp-servers', (_event, payload: { projectPath: string }) => {
+    try {
+      return readDotMcpServers(payload.projectPath)
+    } catch {
+      return {
+        scope: 'project',
+        available: false,
+        targetPath: '.mcp.json',
+        projectPath: normalizeMcpProjectPath(payload.projectPath),
+        mcpServers: {},
+        message: '공유 MCP 설정을 읽는 중 오류가 발생했습니다.',
+      } satisfies McpReadResult
+    }
+  })
+
+  ipcMain.handle('claude:write-dotmcp-server', (_event, payload: { projectPath: string; name: string; config: unknown }) => {
+    try {
+      return writeDotMcpServer(payload.projectPath, payload.name, payload.config)
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  })
+
+  ipcMain.handle('claude:delete-dotmcp-server', (_event, payload: { projectPath: string; name: string }) => {
+    try {
+      return deleteDotMcpServer(payload.projectPath, payload.name)
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  })
 
   // ── Claude 설정 파일 쓰기 ─────────────────────────────────────
   ipcMain.handle('claude:write-settings', (_event, { settings }: { settings: unknown }) => {

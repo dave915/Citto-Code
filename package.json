@@ -44,6 +44,7 @@
   "build": {
     "appId": "com.company.claude-ui",
     "productName": "Citto Code",
+    "afterPack": "scripts/afterPack.cjs",
     "directories": {
       "buildResources": "build"
     },
