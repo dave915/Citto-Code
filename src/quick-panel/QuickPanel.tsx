@@ -240,18 +240,22 @@ export function QuickPanel() {
 
             {dropdownOpen && (
               <div className="quick-panel-dropdown">
-                {projects.map((project, index) => (
-                  <button
-                    key={project.path}
-                    type="button"
-                    className={`quick-panel-dropdown-item ${focusedIndex === index ? 'active' : ''}`}
-                    onMouseEnter={() => setFocusedIndex(index)}
-                    onClick={() => handleSelectProject(project)}
-                  >
-                    <span className="quick-panel-dropdown-name">{project.name}</span>
-                    <span className="quick-panel-dropdown-path">{getShortPath(project.path)}</span>
-                  </button>
-                ))}
+                {projects.length > 0 && (
+                  <div className="quick-panel-dropdown-list">
+                    {projects.map((project, index) => (
+                      <button
+                        key={project.path}
+                        type="button"
+                        className={`quick-panel-dropdown-item ${focusedIndex === index ? 'active' : ''}`}
+                        onMouseEnter={() => setFocusedIndex(index)}
+                        onClick={() => handleSelectProject(project)}
+                      >
+                        <span className="quick-panel-dropdown-name">{project.name}</span>
+                        <span className="quick-panel-dropdown-path">{getShortPath(project.path)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {projects.length > 0 && <div className="quick-panel-dropdown-divider" />}
 

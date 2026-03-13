@@ -86,6 +86,8 @@ const SHELL_IMPORTED_ENV_KEYS = new Set([
   'NODE_EXTRA_CA_CERTS',
 ])
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
+const QUICK_PANEL_WIDTH = 780
+const QUICK_PANEL_HEIGHT = 520
 
 function readEnvVar(envVars: Record<string, string> | undefined, key: string): string {
   const value = envVars?.[key]
@@ -2094,8 +2096,8 @@ function createQuickPanelWindow(): BrowserWindow {
   }
 
   quickPanelWindow = new BrowserWindow({
-    width: 780,
-    height: 220,
+    width: QUICK_PANEL_WIDTH,
+    height: QUICK_PANEL_HEIGHT,
     frame: false,
     show: false,
     transparent: true,
@@ -2131,8 +2133,8 @@ function createQuickPanelWindow(): BrowserWindow {
 function positionQuickPanel(window: BrowserWindow) {
   const activeDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const bounds = activeDisplay.workArea
-  const width = 780
-  const height = 220
+  const width = QUICK_PANEL_WIDTH
+  const height = QUICK_PANEL_HEIGHT
   const x = Math.round(bounds.x + Math.max((bounds.width - width) / 2, 0))
   const y = Math.round(bounds.y + Math.max(bounds.height - height - 40, 24))
   window.setBounds({ x, y, width, height })
@@ -2266,6 +2268,10 @@ function createTray() {
   tray.setToolTip('Citto Code')
 
   tray.on('click', () => {
+    if (quickPanelEnabled) {
+      toggleQuickPanel()
+      return
+    }
     showMainWindow()
   })
 

@@ -139,8 +139,6 @@ body {
   margin-bottom: 4px;
   min-width: 320px;
   width: min(480px, calc(100vw - 40px));
-  max-height: 280px;
-  overflow-y: auto;
   border: 1px solid var(--qp-border-strong);
   border-radius: 10px;
   background: rgba(43, 43, 46, 0.98);
@@ -149,6 +147,12 @@ body {
   -webkit-backdrop-filter: blur(24px);
   padding: 8px;
   z-index: 100;
+}
+
+.quick-panel-dropdown-list {
+  max-height: 156px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .quick-panel-dropdown-item {
