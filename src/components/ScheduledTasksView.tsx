@@ -392,9 +392,17 @@ export function ScheduledTasksView({
                 {sortedTasks.map((task) => {
                   const selected = task.id === selectedTaskId
                   return (
-                    <button
+                    <div
                       key={task.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedTaskId(task.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setSelectedTaskId(task.id)
+                        }
+                      }}
                       className={`w-full rounded-[22px] border px-3.5 py-3 text-left transition-colors ${
                         selected
                           ? 'border-claude-border bg-claude-surface'
@@ -427,7 +435,7 @@ export function ScheduledTasksView({
                           삭제
                         </button>
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
