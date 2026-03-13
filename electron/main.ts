@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification, Tray, Menu, globalShortcut, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification, Tray, Menu, globalShortcut, powerMonitor, screen } from 'electron'
 import { join, dirname, extname, relative, posix } from 'path'
 import { tmpdir, userInfo } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
@@ -197,6 +197,34 @@ type RecentProject = {
   lastUsedAt: number
 }
 
+type PluginSkill = {
+  name: string
+  path: string
+  dir: string
+  pluginName: string
+  pluginPath: string
+}
+
+type ScheduledTaskFrequency = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly'
+type ScheduledTaskDay = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
+
+type ScheduledTaskSyncItem = {
+  id: string
+  name: string
+  prompt: string
+  projectPath: string
+  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
+  frequency: ScheduledTaskFrequency
+  enabled: boolean
+  hour: number
+  minute: number
+  weeklyDay: ScheduledTaskDay
+  skipDays: ScheduledTaskDay[]
+  quietHoursStart: string | null
+  quietHoursEnd: string | null
+  nextRunAt: number | null
+}
+
 type McpConfigScope = 'user' | 'local' | 'project'
 
 type McpReadResult = {
@@ -209,6 +237,13 @@ type McpReadResult = {
 }
 
 let quickPanelProjects: RecentProject[] = []
+let scheduledTasks: ScheduledTaskSyncItem[] = []
+let scheduledTaskInterval: NodeJS.Timeout | null = null
+let nextScheduledTaskTimeout: NodeJS.Timeout | null = null
+
+const SCHEDULE_POLL_INTERVAL = 60 * 1000
+const MISSED_RUN_LIMIT = 7 * 24 * 60 * 60 * 1000
+const CATCHUP_THRESHOLD = 5 * 60 * 1000
 
 const FALLBACK_MODELS: ModelInfo[] = [
   { id: 'claude-opus-4-6',    displayName: 'Opus 4.6',    family: 'opus' },
@@ -2535,6 +2570,236 @@ function normalizeQuickPanelProjects(projects: RecentProject[]): RecentProject[]
   return normalized
 }
 
+function isDirectoryPath(targetPath: string): boolean {
+  try {
+    return statSync(targetPath).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+function findSkillFile(dir: string): string | null {
+  const skillMd = join(dir, 'SKILL.md')
+  if (existsSync(skillMd)) return skillMd
+
+  try {
+    const markdown = readdirSync(dir).find((entry) => entry.endsWith('.md'))
+    return markdown ? join(dir, markdown) : null
+  } catch {
+    return null
+  }
+}
+
+function listPluginSkills(): PluginSkill[] {
+  const pluginRoots: string[] = []
+  const results: PluginSkill[] = []
+  const seen = new Set<string>()
+  const pluginsDir = join(getUserHomePath(), '.claude', 'plugins')
+
+  try {
+    const marketplacesDir = join(pluginsDir, 'marketplaces')
+    if (existsSync(marketplacesDir)) {
+      for (const marketplace of readdirSync(marketplacesDir, { withFileTypes: true })) {
+        if (!marketplace.isDirectory()) continue
+        const marketplacePath = join(marketplacesDir, marketplace.name)
+        pluginRoots.push(join(marketplacePath, 'plugins'))
+        pluginRoots.push(join(marketplacePath, 'external_plugins'))
+      }
+    }
+  } catch {
+    // ignore plugin discovery failures
+  }
+
+  pluginRoots.push(join(pluginsDir, 'repos'))
+
+  for (const root of pluginRoots) {
+    if (!existsSync(root)) continue
+
+    try {
+      for (const pluginEntry of readdirSync(root, { withFileTypes: true })) {
+        const pluginPath = join(root, pluginEntry.name)
+        if (!(pluginEntry.isDirectory() || (pluginEntry.isSymbolicLink() && isDirectoryPath(pluginPath)))) continue
+
+        const manifestPath = join(pluginPath, '.claude-plugin', 'plugin.json')
+        if (!existsSync(manifestPath)) continue
+
+        const manifest = readJsonObject(manifestPath)
+        const pluginName = typeof manifest.name === 'string' && manifest.name.trim()
+          ? manifest.name.trim()
+          : pluginEntry.name
+        const skillsDir = join(pluginPath, 'skills')
+        if (!existsSync(skillsDir)) continue
+
+        for (const skillEntry of readdirSync(skillsDir, { withFileTypes: true })) {
+          const skillDir = join(skillsDir, skillEntry.name)
+          if (!(skillEntry.isDirectory() || (skillEntry.isSymbolicLink() && isDirectoryPath(skillDir)))) continue
+          const skillFile = findSkillFile(skillDir)
+          if (!skillFile || seen.has(skillFile)) continue
+          seen.add(skillFile)
+          results.push({
+            name: skillEntry.name,
+            path: skillFile,
+            dir: skillDir,
+            pluginName,
+            pluginPath,
+          })
+        }
+      }
+    } catch {
+      // ignore plugin discovery failures
+    }
+  }
+
+  return results.sort((a, b) => {
+    if (a.pluginName === b.pluginName) return a.name.localeCompare(b.name)
+    return a.pluginName.localeCompare(b.pluginName)
+  })
+}
+
+function normalizeScheduledTasks(tasks: ScheduledTaskSyncItem[]): ScheduledTaskSyncItem[] {
+  const seen = new Set<string>()
+  const normalized: ScheduledTaskSyncItem[] = []
+
+  for (const task of tasks) {
+    if (!task || typeof task !== 'object') continue
+    if (typeof task.id !== 'string' || !task.id.trim() || seen.has(task.id)) continue
+    seen.add(task.id)
+    normalized.push({
+      id: task.id,
+      name: typeof task.name === 'string' ? task.name.trim() : '',
+      prompt: typeof task.prompt === 'string' ? task.prompt : '',
+      projectPath: typeof task.projectPath === 'string' ? task.projectPath : '',
+      permissionMode: task.permissionMode === 'acceptEdits' || task.permissionMode === 'bypassPermissions'
+        ? task.permissionMode
+        : 'default',
+      frequency: ['manual', 'hourly', 'daily', 'weekdays', 'weekly'].includes(task.frequency)
+        ? task.frequency
+        : 'manual',
+      enabled: Boolean(task.enabled),
+      hour: Number.isFinite(task.hour) ? Math.max(0, Math.min(23, Math.floor(task.hour))) : 0,
+      minute: Number.isFinite(task.minute) ? Math.max(0, Math.min(59, Math.floor(task.minute))) : 0,
+      weeklyDay: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].includes(task.weeklyDay)
+        ? task.weeklyDay
+        : 'mon',
+      skipDays: Array.isArray(task.skipDays)
+        ? task.skipDays.filter((value): value is ScheduledTaskDay => ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].includes(value))
+        : [],
+      quietHoursStart: typeof task.quietHoursStart === 'string' ? task.quietHoursStart : null,
+      quietHoursEnd: typeof task.quietHoursEnd === 'string' ? task.quietHoursEnd : null,
+      nextRunAt: typeof task.nextRunAt === 'number' && Number.isFinite(task.nextRunAt) ? task.nextRunAt : null,
+    })
+  }
+
+  return normalized
+}
+
+function getScheduledTaskWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  return showMainWindow()
+}
+
+function clearScheduledTaskTimeout() {
+  if (!nextScheduledTaskTimeout) return
+  clearTimeout(nextScheduledTaskTimeout)
+  nextScheduledTaskTimeout = null
+}
+
+function scheduleNextTaskCheck() {
+  clearScheduledTaskTimeout()
+
+  const now = Date.now()
+  const nextTask = scheduledTasks
+    .filter((task) => task.enabled && task.frequency !== 'manual' && typeof task.nextRunAt === 'number' && task.nextRunAt > now)
+    .sort((a, b) => (a.nextRunAt ?? Number.POSITIVE_INFINITY) - (b.nextRunAt ?? Number.POSITIVE_INFINITY))[0]
+
+  if (!nextTask?.nextRunAt) return
+
+  const delay = Math.max(0, nextTask.nextRunAt - now)
+  nextScheduledTaskTimeout = setTimeout(() => {
+    nextScheduledTaskTimeout = null
+    void checkMissedRuns()
+  }, delay)
+}
+
+function emitScheduledTaskAdvance(payload: {
+  taskId: string
+  firedAt: number
+  skipped?: boolean
+  reason?: string
+  catchUp?: boolean
+  manual?: boolean
+}) {
+  const window = getScheduledTaskWindow()
+  sendWhenRendererReady(window, 'scheduled-tasks:advance', payload)
+}
+
+function holdScheduledTaskUntilSync(taskId: string) {
+  scheduledTasks = scheduledTasks.map((task) => (
+    task.id === taskId ? { ...task, nextRunAt: null } : task
+  ))
+}
+
+function fireScheduledTask(task: ScheduledTaskSyncItem, options?: { catchUp?: boolean; manual?: boolean }) {
+  const firedAt = Date.now()
+  const lateness = typeof task.nextRunAt === 'number' ? firedAt - task.nextRunAt : 0
+  const catchUp = Boolean(options?.catchUp) || (!options?.manual && lateness > CATCHUP_THRESHOLD)
+  const manual = Boolean(options?.manual)
+  const window = getScheduledTaskWindow()
+
+  sendWhenRendererReady(window, 'scheduled-tasks:fired', {
+    taskId: task.id,
+    name: task.name || getProjectNameFromPath(task.projectPath),
+    prompt: task.prompt,
+    cwd: task.projectPath,
+    permissionMode: task.permissionMode,
+    firedAt,
+    catchUp,
+    manual,
+  })
+
+  emitScheduledTaskAdvance({
+    taskId: task.id,
+    firedAt,
+    catchUp,
+    manual,
+  })
+  holdScheduledTaskUntilSync(task.id)
+}
+
+async function checkMissedRuns() {
+  const now = Date.now()
+
+  for (const task of scheduledTasks) {
+    if (!task.enabled || task.frequency === 'manual' || task.nextRunAt == null || task.nextRunAt > now) continue
+
+    const lateness = now - task.nextRunAt
+    if (lateness > MISSED_RUN_LIMIT) {
+      emitScheduledTaskAdvance({
+        taskId: task.id,
+        firedAt: now,
+        skipped: true,
+        reason: '7일을 초과해 놓친 실행은 건너뛰고 다음 예약으로 이동합니다.',
+        catchUp: true,
+      })
+      holdScheduledTaskUntilSync(task.id)
+      continue
+    }
+
+    fireScheduledTask(task, { catchUp: lateness > CATCHUP_THRESHOLD })
+  }
+
+  scheduleNextTaskCheck()
+}
+
+function startScheduledTaskScheduler() {
+  if (!scheduledTaskInterval) {
+    scheduledTaskInterval = setInterval(() => {
+      void checkMissedRuns()
+    }, SCHEDULE_POLL_INTERVAL)
+  }
+  scheduleNextTaskCheck()
+}
+
 app.whenReady().then(() => {
   importShellEnvironmentVars()
   installDevLogForwarding()
@@ -2549,6 +2814,15 @@ app.whenReady().then(() => {
   createTray()
   registerQuickPanelShortcut()
   showMainWindow()
+  startScheduledTaskScheduler()
+  void checkMissedRuns()
+
+  powerMonitor.on('resume', () => {
+    void checkMissedRuns()
+  })
+  powerMonitor.on('unlock-screen', () => {
+    void checkMissedRuns()
+  })
 
   // ── 모델 목록 ────────────────────────────────────────────────
   ipcMain.handle('claude:get-models', async (_event, { envVars }: { envVars?: Record<string, string> } = {}) => {
@@ -2863,6 +3137,10 @@ app.whenReady().then(() => {
     return results
   })
 
+  ipcMain.handle('claude:list-plugin-skills', () => {
+    return listPluginSkills()
+  })
+
   // ── 스킬 디렉토리 파일 목록 (절대경로) ───────────────────────────
   ipcMain.handle('claude:list-dir-abs', (_event, { dirPath }: { dirPath: string }) => {
     try {
@@ -3076,6 +3354,24 @@ app.whenReady().then(() => {
 
   ipcMain.handle('quick-panel:hide', () => {
     hideQuickPanel()
+  })
+
+  ipcMain.handle('scheduled-tasks:sync', (_event, { tasks }: { tasks: ScheduledTaskSyncItem[] }) => {
+    scheduledTasks = normalizeScheduledTasks(Array.isArray(tasks) ? tasks : [])
+    scheduleNextTaskCheck()
+    void checkMissedRuns()
+    return { ok: true }
+  })
+
+  ipcMain.handle('scheduled-tasks:run-now', (_event, { taskId }: { taskId: string }) => {
+    const task = scheduledTasks.find((item) => item.id === taskId)
+    if (!task) {
+      return { ok: false, error: '작업을 찾을 수 없습니다.' }
+    }
+
+    fireScheduledTask(task, { manual: true })
+    scheduleNextTaskCheck()
+    return { ok: true }
   })
 
   ipcMain.handle('claude:check-installation', (_event, { claudePath }: { claudePath?: string }) => {
@@ -3294,6 +3590,11 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
+  if (scheduledTaskInterval) {
+    clearInterval(scheduledTaskInterval)
+    scheduledTaskInterval = null
+  }
+  clearScheduledTaskTimeout()
   globalShortcut.unregisterAll()
 })
 

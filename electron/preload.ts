@@ -171,6 +171,54 @@ export type RecentProject = {
   lastUsedAt: number
 }
 
+export type PluginSkill = {
+  name: string
+  path: string
+  dir: string
+  pluginName: string
+  pluginPath: string
+}
+
+export type ScheduledTaskFrequency = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly'
+export type ScheduledTaskDay = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
+
+export type ScheduledTaskSyncItem = {
+  id: string
+  name: string
+  prompt: string
+  projectPath: string
+  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
+  frequency: ScheduledTaskFrequency
+  enabled: boolean
+  hour: number
+  minute: number
+  weeklyDay: ScheduledTaskDay
+  skipDays: ScheduledTaskDay[]
+  quietHoursStart: string | null
+  quietHoursEnd: string | null
+  nextRunAt: number | null
+}
+
+export type ScheduledTaskFiredEvent = {
+  taskId: string
+  name: string
+  prompt: string
+  cwd: string
+  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
+  firedAt: number
+  catchUp: boolean
+  manual: boolean
+}
+
+export type ScheduledTaskAdvanceEvent = {
+  taskId: string
+  firedAt: number
+  skipped?: boolean
+  reason?: string
+  catchUp?: boolean
+  manual?: boolean
+}
+
 export type McpConfigScope = 'user' | 'local' | 'project'
 
 export type McpReadResult = {
@@ -242,10 +290,13 @@ export type ClaudeAPI = {
   deleteDotMcpServer: (params: { projectPath: string; name: string }) => Promise<{ ok: boolean; error?: string }>
   listClaudeDir: (subdir: string) => Promise<{ name: string; path: string }[]>
   listSkills: () => Promise<{ name: string; path: string; dir: string; legacy: boolean }[]>
+  listPluginSkills: () => Promise<PluginSkill[]>
   listDirAbs: (dirPath: string) => Promise<{ name: string; path: string }[]>
   writeClaudeFile: (params: { subdir: string; name: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   writeFileAbs: (params: { filePath: string; content: string }) => Promise<{ ok: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
+  syncScheduledTasks: (tasks: ScheduledTaskSyncItem[]) => Promise<{ ok: boolean; error?: string }>
+  runScheduledTaskNow: (params: { taskId: string }) => Promise<{ ok: boolean; error?: string }>
   getPathForFile: (file: File) => string
   checkInstallation: (claudePath?: string) => Promise<ClaudeInstallationStatus>
   notify: (params: { title: string; body: string }) => Promise<void>
@@ -260,6 +311,8 @@ export type ClaudeAPI = {
   onClaudeEvent: (handler: (event: ClaudeStreamEvent) => void) => () => void
   onQuickPanelMessage: (handler: (payload: { text: string; cwd: string }) => void) => () => void
   onTrayNewSession: (handler: () => void) => () => void
+  onScheduledTaskFired: (handler: (event: ScheduledTaskFiredEvent) => void) => () => void
+  onScheduledTaskAdvance: (handler: (event: ScheduledTaskAdvanceEvent) => void) => () => void
 }
 
 const quickPanelAPI: QuickPanelAPI = {
@@ -317,10 +370,13 @@ const claudeAPI: ClaudeAPI = {
   deleteDotMcpServer: (params) => ipcRenderer.invoke('claude:delete-dotmcp-server', params),
   listClaudeDir: (subdir) => ipcRenderer.invoke('claude:list-claude-dir', { subdir }),
   listSkills: () => ipcRenderer.invoke('claude:list-skills'),
+  listPluginSkills: () => ipcRenderer.invoke('claude:list-plugin-skills'),
   listDirAbs: (dirPath) => ipcRenderer.invoke('claude:list-dir-abs', { dirPath }),
   writeClaudeFile: (params) => ipcRenderer.invoke('claude:write-claude-file', params),
   writeFileAbs: (params) => ipcRenderer.invoke('claude:write-file-abs', params),
   deletePath: (params) => ipcRenderer.invoke('claude:delete-path', params),
+  syncScheduledTasks: (tasks) => ipcRenderer.invoke('scheduled-tasks:sync', { tasks }),
+  runScheduledTaskNow: (params) => ipcRenderer.invoke('scheduled-tasks:run-now', params),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   checkInstallation: (claudePath) => ipcRenderer.invoke('claude:check-installation', { claudePath }),
   notify: (params) => ipcRenderer.invoke('app:notify', params),
@@ -371,6 +427,18 @@ const claudeAPI: ClaudeAPI = {
     const listener = () => handler()
     ipcRenderer.on('tray:new-session', listener)
     return () => ipcRenderer.removeListener('tray:new-session', listener)
+  },
+
+  onScheduledTaskFired: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: ScheduledTaskFiredEvent) => handler(payload)
+    ipcRenderer.on('scheduled-tasks:fired', listener)
+    return () => ipcRenderer.removeListener('scheduled-tasks:fired', listener)
+  },
+
+  onScheduledTaskAdvance: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: ScheduledTaskAdvanceEvent) => handler(payload)
+    ipcRenderer.on('scheduled-tasks:advance', listener)
+    return () => ipcRenderer.removeListener('scheduled-tasks:advance', listener)
   },
 }
 

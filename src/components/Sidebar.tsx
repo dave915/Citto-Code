@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { getProjectNameFromPath, type Session, type SidebarMode } from '../store/sessions'
+import { useScheduledTasksStore } from '../store/scheduledTasks'
 
 type SessionLockState = {
   isLocked: boolean
@@ -20,7 +21,9 @@ type Props = {
   onNewSession: (cwd?: string) => void
   onRemoveSession: (id: string) => void
   onSelectFolder: (sessionId: string) => void
+  onOpenSchedule: () => void
   onOpenSettings: () => void
+  scheduleOpen: boolean
 }
 
 type SessionGroup = {
@@ -112,6 +115,14 @@ function SessionRow({
       ? 'gap-1.5 px-2 py-1.5 rounded-xl'
       : 'gap-2 px-2.5 py-2.5 rounded-2xl'
   const buttonGapCls = compact ? 'gap-1.5 rounded-lg' : dense ? 'gap-1.5 rounded-xl' : 'gap-2 rounded-xl'
+  const rowAlignCls = compact ? 'items-center' : 'items-start'
+  const buttonAlignCls = compact ? 'items-center' : 'items-start'
+  const indicatorCls = compact
+    ? 'flex-shrink-0 w-2 h-2 rounded-full bg-claude-orange animate-pulse'
+    : 'mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-claude-orange animate-pulse'
+  const iconCls = compact
+    ? 'w-4 h-4 flex-shrink-0 opacity-60'
+    : 'w-4 h-4 mt-0.5 flex-shrink-0 opacity-60'
 
   const startRename = () => {
     setEditingSessionId(session.id)
@@ -132,21 +143,21 @@ function SessionRow({
   }
 
   return (
-    <div className={`group flex items-start transition-colors ${rowSpacingCls} ${itemCls}`}>
+    <div className={`group flex transition-colors ${rowAlignCls} ${rowSpacingCls} ${itemCls}`}>
       <button
         onClick={() => onSelectSession(session.id)}
         onDoubleClick={startRename}
-        className={`min-w-0 flex-1 flex items-start text-left outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${buttonGapCls}`}
+        className={`min-w-0 flex-1 flex text-left outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${buttonAlignCls} ${buttonGapCls}`}
       >
         {session.isStreaming ? (
-          <span className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-claude-orange animate-pulse" />
+          <span className={indicatorCls} />
         ) : (
-          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg className={iconCls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
         )}
 
-        <div className="min-w-0 flex-1">
+        <div className={`min-w-0 flex-1 ${compact ? 'flex items-center' : ''}`}>
           {isEditing ? (
             <input
               ref={inputRef}
@@ -167,7 +178,7 @@ function SessionRow({
               className="w-full rounded-xl border border-claude-border bg-claude-surface px-2.5 py-1.5 text-sm font-medium text-claude-text outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
             />
           ) : (
-            <p className="truncate text-[15px] font-medium">{getSessionDisplayName(session)}</p>
+            <p className={`truncate text-[15px] font-medium ${compact ? 'leading-5' : ''}`}>{getSessionDisplayName(session)}</p>
           )}
           {showProjectLabel && session.cwd && session.cwd !== '~' && (
             <p className="mt-0.5 truncate pr-1 font-mono text-[11px] opacity-50">
@@ -244,7 +255,9 @@ export function Sidebar({
   onNewSession,
   onRemoveSession,
   onSelectFolder,
+  onOpenSchedule,
   onOpenSettings,
+  scheduleOpen,
 }: Props) {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -254,6 +267,9 @@ export function Sidebar({
   const favoriteSessions = sortSessions(sessions.filter((session) => session.favorite))
   const nonFavoriteSessions = sessions.filter((session) => !session.favorite)
   const projectGroups = groupSessionsByProject(nonFavoriteSessions)
+  const activeScheduledTaskCount = useScheduledTasksStore((state) => (
+    state.tasks.filter((task) => task.enabled && task.frequency !== 'manual').length
+  ))
 
   useEffect(() => {
     if (!editingSessionId) return
@@ -417,7 +433,33 @@ export function Sidebar({
         )}
       </nav>
 
-      <div className="px-3 py-3">
+      <div className="px-3 py-3 space-y-1.5">
+        <button
+          onClick={onOpenSchedule}
+          className={`flex w-full items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+            scheduleOpen
+              ? 'bg-claude-surface text-claude-text'
+              : 'text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
+          }`}
+          title="예약된 작업"
+        >
+          <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="8" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3" />
+          </svg>
+          <span className="min-w-0 flex items-baseline gap-1 text-left">
+            <span className="truncate">Schedule</span>
+            <span className="text-[11px] font-medium lowercase tracking-[0.04em] text-amber-200/90">
+              beta
+            </span>
+          </span>
+          {activeScheduledTaskCount > 0 && (
+            <span className="ml-auto rounded-full border border-claude-border bg-claude-panel px-2 py-0.5 text-[11px] text-claude-muted">
+              {activeScheduledTaskCount}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={onOpenSettings}
           className="flex w-full items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm text-claude-text outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-claude-sidebar-hover hover:text-claude-text"

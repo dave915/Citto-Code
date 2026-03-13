@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import type { SelectedFile, ModelInfo, FileEntry } from '../../electron/preload'
+import type { SelectedFile, ModelInfo, FileEntry, PluginSkill } from '../../electron/preload'
 import { useSessionsStore, type PendingPermissionRequest, type PendingQuestionRequest, type PermissionMode } from '../store/sessions'
 import { matchShortcut } from '../lib/shortcuts'
 
@@ -10,7 +10,8 @@ type SlashCommand = {
   dir: string
   legacy: boolean
   description?: string
-  kind?: 'builtin' | 'custom'
+  pluginName?: string
+  kind?: 'builtin' | 'custom' | 'plugin'
 }
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
@@ -348,10 +349,23 @@ export function InputArea({
 
     setModelsLoading(true)
     window.claude.getModels(modelEnvVars).then(setModels).catch(() => setModels([])).finally(() => setModelsLoading(false))
-    window.claude.listSkills()
-      .then((commands) => {
+
+    Promise.all([
+      window.claude.listSkills().catch(() => []),
+      window.claude.listPluginSkills().catch(() => []),
+    ])
+      .then(([commands, pluginSkills]) => {
         const customCommands = commands.map((command) => ({ ...command, kind: 'custom' as const }))
-        setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...customCommands])
+        const pluginCommands = pluginSkills.map((skill: PluginSkill) => ({
+          name: skill.name,
+          path: skill.path,
+          dir: skill.dir,
+          legacy: false,
+          pluginName: skill.pluginName,
+          kind: 'plugin' as const,
+          description: `${skill.pluginName} plugin`,
+        }))
+        setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...customCommands, ...pluginCommands])
       })
       .catch(() => setSlashCommands(BUILTIN_SLASH_COMMANDS))
   }, [sanitizedEnvVars])
@@ -1188,7 +1202,7 @@ export function InputArea({
               {slashResults.length > 0 ? (
                 slashResults.map((command, i) => (
                   <button
-                    key={command.path}
+                    key={`${command.kind ?? 'custom'}-${command.name}-${command.path}`}
                     ref={(el) => { slashItemRefs.current[i] = el }}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSlashSelect(command)}
@@ -1203,6 +1217,8 @@ export function InputArea({
                     <span className="text-xs text-claude-muted truncate ml-auto max-w-[40%]">
                       {command.kind === 'builtin'
                         ? (command.description ?? '내장 명령어')
+                        : command.kind === 'plugin'
+                          ? `${command.pluginName ?? 'plugin'}`
                         : command.legacy
                           ? `commands/${command.name}`
                           : `skills/${command.name}`}

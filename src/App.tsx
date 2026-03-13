@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { SettingsPanel } from './components/SettingsPanel'
 import { CommandPalette } from './components/CommandPalette'
+import { ScheduledTasksView } from './components/ScheduledTasksView'
 import type { ClaudeInstallationStatus, ClaudeStreamEvent, RecentProject, SelectedFile } from '../electron/preload'
 import type {
   NotificationMode,
@@ -12,6 +13,7 @@ import type {
   PendingQuestionRequest,
   Session,
 } from './store/sessions'
+import { useScheduledTasksStore } from './store/scheduledTasks'
 import { getCurrentPlatform, getShortcutLabel, matchShortcut } from './lib/shortcuts'
 import { applyTheme } from './lib/theme'
 
@@ -319,6 +321,7 @@ export default function App() {
   } = useSessionsStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(290)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -333,6 +336,27 @@ export default function App() {
   )
   const shortcutPlatform = getCurrentPlatform()
   const sanitizedEnvVars = sanitizeEnvVars(envVars)
+  const scheduledTasks = useScheduledTasksStore((state) => state.tasks)
+  const applyScheduledTaskAdvance = useScheduledTasksStore((state) => state.applyAdvance)
+  const scheduledTasksSyncPayload = useMemo(
+    () => scheduledTasks.map((task) => ({
+      id: task.id,
+      name: task.name,
+      prompt: task.prompt,
+      projectPath: task.projectPath,
+      permissionMode: task.permissionMode,
+      frequency: task.frequency,
+      enabled: task.enabled,
+      hour: task.hour,
+      minute: task.minute,
+      weeklyDay: task.weeklyDay,
+      skipDays: task.skipDays,
+      quietHoursStart: task.quietHoursStart,
+      quietHoursEnd: task.quietHoursEnd,
+      nextRunAt: task.nextRunAt,
+    })),
+    [scheduledTasks],
+  )
   const hasUnsafeReloadState = useMemo(
     () => sessions.some((session) => session.isStreaming || Boolean(session.pendingPermission) || Boolean(session.pendingQuestion)),
     [sessions]
@@ -353,6 +377,7 @@ export default function App() {
   const currentAsstMsgRef = useRef<Map<string, string>>(new Map())
   const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
   const abortedTabIdsRef = useRef<Set<string>>(new Set())
+  const scheduledTaskSessionByRunRef = useRef<Map<string, string>>(new Map())
   const notifiedSessionEndsRef = useRef<Set<string>>(new Set())
   const streamEndTimerByTabRef = useRef<Map<string, number>>(new Map())
   const notificationModeRef = useRef(notificationMode)
@@ -417,6 +442,10 @@ export default function App() {
   }, [quickPanelProjects, quickPanelProjectsSignature])
 
   useEffect(() => {
+    void window.claude.syncScheduledTasks(scheduledTasksSyncPayload).catch(() => undefined)
+  }, [scheduledTasksSyncPayload])
+
+  useEffect(() => {
     void window.claude.updateQuickPanelShortcut({
       accelerator: shortcutConfig.toggleQuickPanel[shortcutPlatform],
       enabled: quickPanelEnabled,
@@ -434,12 +463,52 @@ export default function App() {
     const cleanup = window.claude.onQuickPanelMessage(async (payload) => {
       const sessionId = await handleNewSession(payload.cwd)
       setSettingsOpen(false)
+      setScheduleOpen(false)
       if (payload.text.trim()) {
         await handleSendForSession(sessionId, payload.text, [])
       }
     })
     return cleanup
   }, [defaultProjectPath])
+
+  useEffect(() => {
+    const cleanup = window.claude.onScheduledTaskAdvance((payload) => {
+      const runKey = `${payload.taskId}:${payload.firedAt}`
+      const sessionTabId = scheduledTaskSessionByRunRef.current.get(runKey) ?? null
+      scheduledTaskSessionByRunRef.current.delete(runKey)
+      applyScheduledTaskAdvance({
+        ...payload,
+        sessionTabId,
+      })
+    })
+    return cleanup
+  }, [applyScheduledTaskAdvance])
+
+  useEffect(() => {
+    const cleanup = window.claude.onScheduledTaskFired(async (payload) => {
+      setSettingsOpen(false)
+      setCommandPaletteOpen(false)
+      setScheduleOpen(false)
+
+      const cwd = payload.cwd?.trim() || defaultProjectPath
+      const baseSessionName = payload.name?.trim() || getProjectNameFromPath(cwd)
+      const sessionName = baseSessionName.startsWith('[Schedule] ')
+        ? baseSessionName
+        : `[Schedule] ${baseSessionName}`
+      const sessionId = addSession(cwd, sessionName)
+      scheduledTaskSessionByRunRef.current.set(`${payload.taskId}:${payload.firedAt}`, sessionId)
+
+      await handleSendForSession(sessionId, payload.prompt, [], {
+        permissionModeOverride: payload.permissionMode,
+        visibleTextOverride: payload.manual
+          ? `${sessionName} 지금 실행`
+          : payload.catchUp
+            ? `${sessionName} 따라잡기 실행`
+            : sessionName,
+      })
+    })
+    return cleanup
+  }, [addSession, defaultProjectPath, claudeBinaryPath, sanitizedEnvVars])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -452,6 +521,7 @@ export default function App() {
       if (matchShortcut(event, shortcutConfig.openSettings[shortcutPlatform])) {
         event.preventDefault()
         setCommandPaletteOpen(false)
+        setScheduleOpen(false)
         setSettingsOpen(true)
         return
       }
@@ -953,6 +1023,7 @@ export default function App() {
 
   async function handleNewSession(cwdOverride?: string): Promise<string> {
     setSettingsOpen(false)
+    setScheduleOpen(false)
     setCommandPaletteOpen(false)
     const fallbackPath = defaultProjectPath.trim() || DEFAULT_PROJECT_PATH
     const folder = normalizeSelectedFolder(cwdOverride)
@@ -967,6 +1038,7 @@ export default function App() {
 
   function handleSelectSession(sessionId: string) {
     setSettingsOpen(false)
+    setScheduleOpen(false)
     setCommandPaletteOpen(false)
     setActiveSession(sessionId)
   }
@@ -1008,7 +1080,16 @@ export default function App() {
           onNewSession={handleNewSession}
           onRemoveSession={removeSession}
           onSelectFolder={(sid) => handleSelectFolder(sid)}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSchedule={() => {
+            setSettingsOpen(false)
+            setCommandPaletteOpen(false)
+            setScheduleOpen(true)
+          }}
+          onOpenSettings={() => {
+            setScheduleOpen(false)
+            setSettingsOpen(true)
+          }}
+          scheduleOpen={scheduleOpen}
           newSessionShortcutLabel={getShortcutLabel(shortcutConfig, 'newSession', shortcutPlatform)}
           settingsShortcutLabel={getShortcutLabel(shortcutConfig, 'openSettings', shortcutPlatform)}
         />
@@ -1020,7 +1101,13 @@ export default function App() {
       )}
 
       <main className="flex-1 overflow-hidden">
-        {settingsOpen ? (
+        {scheduleOpen ? (
+          <ScheduledTasksView
+            defaultProjectPath={activeSession?.cwd ?? defaultProjectPath}
+            onClose={() => setScheduleOpen(false)}
+            onSelectSession={handleSelectSession}
+          />
+        ) : settingsOpen ? (
           <SettingsPanel
             onClose={() => setSettingsOpen(false)}
             onSidebarModeChange={setSidebarMode}
@@ -1070,6 +1157,7 @@ export default function App() {
         onNewSession={handleNewSession}
         onOpenSettings={() => {
           setCommandPaletteOpen(false)
+          setScheduleOpen(false)
           setSettingsOpen(true)
         }}
         onSelectSession={handleSelectSession}
