@@ -1053,7 +1053,7 @@ export function InputArea({
   }, [showPermissionPrompt, showQuestionPrompt, questionInputMode, permissionSelectedIndex])
 
   return (
-    <div className="bg-claude-bg/95 px-6 pt-4 pb-5">
+    <div className="bg-claude-chat-bg px-6 pt-4 pb-5">
       <div className="mx-auto w-full max-w-[860px]">
       {/* 첨부파일 칩 */}
       {attachedFiles.length > 0 && (

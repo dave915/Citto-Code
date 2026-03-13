@@ -221,7 +221,7 @@ export function MessageBubble({ message, isStreaming, onAbort, onAskAboutSelecti
 
           {message.text && (
             <div className="relative">
-              <div className="rounded-[18px] rounded-tr-md border border-claude-border bg-claude-surface px-3 py-1.5">
+              <div className="rounded-[18px] rounded-tr-md border border-claude-user-bubble-border bg-claude-user-bubble px-3 py-1.5">
                 <div className="prose max-w-none overflow-x-auto break-words text-left text-[14px] leading-6 [overflow-wrap:anywhere]" onCopy={handleMarkdownCopy}>
                   <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={userMarkdownComponents}>
                     {message.text}

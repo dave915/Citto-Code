@@ -721,6 +721,16 @@ function createMacMascotTrayPixels(size: number, color: [number, number, number,
 
 function createTrayImage() {
   const size = process.platform === 'darwin' ? 18 : 16
+  if (process.platform === 'win32') {
+    const appIconPath = resolveAppIconPath()
+    if (appIconPath) {
+      const appIcon = nativeImage.createFromPath(appIconPath).resize({ width: size, height: size })
+      if (!appIcon.isEmpty()) {
+        return appIcon
+      }
+    }
+  }
+
   if (process.platform === 'darwin') {
     const templatePath = resolveMacTrayTemplatePath()
     if (templatePath) {
@@ -1143,12 +1153,16 @@ function importShellEnvironmentVars() {
 }
 
 function resolveTargetPath(targetPath: string): string {
-  const homePath = process.env.HOME ?? app.getPath('home')
+  const homePath = getUserHomePath()
   if (targetPath === '~') return homePath
   if (targetPath.startsWith('~/') || targetPath.startsWith('~\\')) {
     return join(homePath, targetPath.slice(2))
   }
   return targetPath
+}
+
+function getUserHomePath(env: NodeJS.ProcessEnv = process.env): string {
+  return env.HOME ?? env.USERPROFILE ?? app.getPath('home')
 }
 
 function getProjectNameFromPath(path: string): string {
@@ -1520,7 +1534,7 @@ function getGitCommitDiff(cwd: string, commitHash: string): { ok: boolean; diff:
   }
 }
 
-function getGitCommitFileContent(cwd: string, commitHash: string, filePath: string): GitFileContentResult {
+function getGitFileContent(cwd: string, commitHash: string, filePath: string): GitFileContentResult {
   const repoRoot = resolveGitRepoRoot(cwd)
   if (!repoRoot) {
     return { ok: false, content: '', error: 'Git 저장소가 아닙니다.' }
@@ -1556,6 +1570,10 @@ function getGitCommitFileContent(cwd: string, commitHash: string, filePath: stri
   } catch (error) {
     return { ok: false, content: '', error: String(error) }
   }
+}
+
+function getGitCommitFileContent(cwd: string, commitHash: string, filePath: string): GitFileContentResult {
+  return getGitFileContent(cwd, commitHash, filePath)
 }
 
 function setGitStaged(cwd: string, filePath: string, staged: boolean): { ok: boolean; error?: string } {
@@ -2708,6 +2726,18 @@ app.whenReady().then(() => {
     return getGitCommitDiff(cwd, commitHash)
   })
 
+  ipcMain.handle('claude:get-git-file-content', (_event, {
+    cwd,
+    commitHash,
+    filePath,
+  }: {
+    cwd: string
+    commitHash: string
+    filePath: string
+  }) => {
+    return getGitFileContent(cwd, commitHash, filePath)
+  })
+
   ipcMain.handle('claude:get-git-commit-file-content', (_event, {
     cwd,
     commitHash,
@@ -3075,7 +3105,7 @@ app.whenReady().then(() => {
         activeProcesses.delete(sessionId)
       }
 
-      const expandedPath = claudePath?.replace(/^~/, process.env.HOME ?? '')
+      const expandedPath = claudePath?.replace(/^~/, getUserHomePath())
       const claudeBin = expandedPath && existsSync(expandedPath)
         ? expandedPath
         : resolveClaude()
@@ -3091,14 +3121,28 @@ app.whenReady().then(() => {
       args.push('-p')
 
       const { CLAUDECODE: _, ...cleanEnv } = process.env
-      const resolvedCwd = cwd ? resolveTargetPath(cwd) : (cleanEnv.HOME ?? '/tmp')
-      const userShell = cleanEnv.SHELL || '/bin/bash'
+      const homePath = getUserHomePath(cleanEnv)
+      const resolvedCwd = cwd ? resolveTargetPath(cwd) : homePath
+      const procEnv = {
+        ...cleanEnv,
+        HOME: cleanEnv.HOME ?? homePath,
+        USERPROFILE: cleanEnv.USERPROFILE ?? homePath,
+        ...(envVars ?? {}),
+      }
+      const userShell = procEnv.SHELL || '/bin/bash'
 
-      const proc = spawn(userShell, ['-l', '-c', '"$0" "$@"', claudeBin, ...args], {
-        cwd: resolvedCwd,
-        env: { ...cleanEnv, ...(envVars ?? {}) },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
+      const proc = process.platform === 'win32'
+        ? spawn(claudeBin, args, {
+            cwd: resolvedCwd,
+            env: procEnv,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            shell: true,
+          })
+        : spawn(userShell, ['-l', '-c', '"$0" "$@"', claudeBin, ...args], {
+            cwd: resolvedCwd,
+            env: procEnv,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          })
 
       // Write the prompt through stdin so large attachments do not hit OS ARG_MAX limits.
       proc.stdin?.write(prompt)
@@ -3240,14 +3284,7 @@ app.whenReady().then(() => {
   })
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createWindow()
-      return
-    }
-
-    if (mainWindow) {
-      showMainWindow()
-    }
+    showMainWindow()
   })
 })
 
@@ -3261,17 +3298,29 @@ app.on('will-quit', () => {
 })
 
 function detectClaudeInstallation(overridePath?: string): { installed: boolean; path: string | null; version: string | null } {
+  const homePath = getUserHomePath()
   const userShell = process.env.SHELL || '/bin/bash'
-  const expandedOverride = overridePath?.replace(/^~/, process.env.HOME ?? '')
+  const expandedOverride = overridePath?.replace(/^~/, homePath)
   if (expandedOverride && !existsSync(expandedOverride)) {
     return { installed: false, path: null, version: null }
   }
   const commandPath = expandedOverride ?? resolveClaude()
-  const result = spawnSync(userShell, ['-l', '-c', '"$0" --version', commandPath], {
-    encoding: 'utf-8',
-    timeout: 3000,
-    env: process.env,
-  })
+  const result = process.platform === 'win32'
+    ? spawnSync(commandPath, ['--version'], {
+        encoding: 'utf-8',
+        timeout: 3000,
+        env: {
+          ...process.env,
+          HOME: process.env.HOME ?? homePath,
+          USERPROFILE: process.env.USERPROFILE ?? homePath,
+        },
+        shell: true,
+      })
+    : spawnSync(userShell, ['-l', '-c', '"$0" --version', commandPath], {
+        encoding: 'utf-8',
+        timeout: 3000,
+        env: process.env,
+      })
 
   if (result.error || result.status !== 0) {
     return {
@@ -3293,13 +3342,34 @@ function detectClaudeInstallation(overridePath?: string): { installed: boolean; 
 }
 
 function resolveClaude(): string {
+  if (process.platform === 'win32') {
+    const homePath = getUserHomePath()
+    const appDataPath = process.env.APPDATA ?? join(homePath, 'AppData', 'Roaming')
+    const candidates = [
+      join(appDataPath, 'npm', 'claude.cmd'),
+      join(appDataPath, 'npm', 'claude.exe'),
+      join(appDataPath, 'npm', 'claude.bat'),
+    ]
+    const pathDirs = (process.env.PATH ?? '').split(';').filter(Boolean)
+    for (const dir of pathDirs) {
+      candidates.push(join(dir, 'claude.cmd'))
+      candidates.push(join(dir, 'claude.exe'))
+      candidates.push(join(dir, 'claude.bat'))
+      candidates.push(join(dir, 'claude'))
+    }
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) return candidate
+    }
+    return 'claude'
+  }
+
   const candidates = [
     '/usr/local/bin/claude',
     '/usr/bin/claude',
-    join(process.env.HOME ?? '', '.local/bin/claude'),
-    join(process.env.HOME ?? '', '.npm-global/bin/claude'),
+    join(getUserHomePath(), '.local/bin/claude'),
+    join(getUserHomePath(), '.npm-global/bin/claude'),
     '/opt/homebrew/bin/claude',
-    join(process.env.HOME ?? '', '.volta/bin/claude'),
+    join(getUserHomePath(), '.volta/bin/claude'),
   ]
   const pathDirs = (process.env.PATH ?? '').split(':')
   for (const dir of pathDirs) candidates.push(join(dir, 'claude'))

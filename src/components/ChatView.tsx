@@ -62,9 +62,15 @@ type Props = {
 }
 
 const INITIAL_RIGHT_PANEL_WIDTH = 290
+const INITIAL_SESSION_PANEL_WIDTH = 290
 const INITIAL_EXPLORER_WIDTH = 290
 const INITIAL_GIT_LOG_PANEL_HEIGHT = 260
 const INITIAL_GIT_COMMIT_PANEL_HEIGHT = 116
+const RIGHT_PANEL_MAX_WIDTH_RATIO = 0.85
+const HEADER_OPEN_WITH_MIN_WIDTH = 640
+const HEADER_SESSION_ACTION_MIN_WIDTH = 700
+const HEADER_GIT_ACTION_MIN_WIDTH = 756
+const HEADER_FILE_ACTION_MIN_WIDTH = 812
 
 function areGitStatusEntriesEqual(a: GitStatusEntry | null, b: GitStatusEntry | null) {
   if (a === b) return true
@@ -125,6 +131,7 @@ export function ChatView({
   onPermissionModeChange, onPlanModeChange, onModelChange, permissionShortcutLabel, bypassShortcutLabel,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const mainPaneRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const openWithMenuRef = useRef<HTMLDivElement>(null)
   const branchMenuRef = useRef<HTMLDivElement>(null)
@@ -138,6 +145,9 @@ export function ChatView({
   const gitPanelLastRefreshAtRef = useRef(0)
   const prevFilePanelOpenRef = useRef(false)
   const prevShowPreviewPaneRef = useRef(false)
+  const prevShowGitPreviewPaneRef = useRef(false)
+  const filePanelWidthBeforePreviewRef = useRef<number | null>(null)
+  const gitPanelWidthBeforePreviewRef = useRef<number | null>(null)
   const lastMsg = session.messages[session.messages.length - 1]
   const [rightPanel, setRightPanel] = useState<'none' | 'files' | 'session' | 'git'>('none')
   const [rootEntries, setRootEntries] = useState<DirEntry[]>([])
@@ -172,6 +182,7 @@ export function ChatView({
   const [branchMenuOpen, setBranchMenuOpen] = useState(false)
   const [branchQuery, setBranchQuery] = useState('')
   const [branchCreateModalOpen, setBranchCreateModalOpen] = useState(false)
+  const [mainPaneWidth, setMainPaneWidth] = useState(0)
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
   const isNewSession = session.messages.length === 0
@@ -180,6 +191,7 @@ export function ChatView({
   const sessionPanelOpen = rightPanel === 'session'
   const gitPanelOpen = rightPanel === 'git'
   const openTargetPath = session.cwd || '~'
+  const effectiveMainPaneWidth = mainPaneWidth || Number.POSITIVE_INFINITY
   const promptHistory = session.messages
     .filter((message) => message.role === 'user' && message.text.trim().length > 0)
     .map((message) => message.text)
@@ -199,6 +211,10 @@ export function ChatView({
   const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null
   const showGitPreviewPane = selectedGitEntry !== null || selectedGitCommit !== null
   const gitAvailable = gitStatus?.gitAvailable ?? true
+  const showHeaderOpenWithAction = openWithMenuOpen || effectiveMainPaneWidth >= HEADER_OPEN_WITH_MIN_WIDTH
+  const showHeaderSessionAction = sessionPanelOpen || effectiveMainPaneWidth >= HEADER_SESSION_ACTION_MIN_WIDTH
+  const showHeaderGitAction = gitPanelOpen || effectiveMainPaneWidth >= HEADER_GIT_ACTION_MIN_WIDTH
+  const showHeaderFileAction = filePanelOpen || effectiveMainPaneWidth >= HEADER_FILE_ACTION_MIN_WIDTH
   const stagedGitEntryCount = gitStatus?.entries.filter((entry) => entry.staged).length ?? 0
   const fileConflictLabel = useMemo(() => {
     if (!fileConflict || fileConflict.paths.length === 0) return null
@@ -249,6 +265,29 @@ export function ChatView({
     void window.claude.toggleWindowMaximize()
   }
 
+  const getRightPanelMaxWidth = () => {
+    const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth
+    return Math.max(INITIAL_SESSION_PANEL_WIDTH, Math.floor(containerWidth * RIGHT_PANEL_MAX_WIDTH_RATIO))
+  }
+
+  const toggleFilePanel = () => {
+    if (filePanelOpen) {
+      setRightPanel('none')
+      return
+    }
+
+    setRightPanel('files')
+  }
+
+  const toggleGitPanel = () => {
+    if (gitPanelOpen) {
+      setRightPanel('none')
+      return
+    }
+
+    setRightPanel('git')
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -274,6 +313,31 @@ export function ChatView({
   }, [preferredOpenWithAppId, setPreferredOpenWithAppId])
 
   useEffect(() => {
+    const node = mainPaneRef.current
+    if (!node) return
+
+    const updateWidth = () => {
+      setMainPaneWidth(node.clientWidth)
+    }
+
+    updateWidth()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth)
+      return () => window.removeEventListener('resize', updateWidth)
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateWidth()
+    })
+    observer.observe(node)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
     const textarea = gitCommitTextareaRef.current
     if (!textarea) return
     textarea.style.height = 'auto'
@@ -288,7 +352,7 @@ export function ChatView({
     const onKeyDown = (event: KeyboardEvent) => {
       if (matchShortcut(event, filesShortcutLabel)) {
         event.preventDefault()
-        setRightPanel((open) => open === 'files' ? 'none' : 'files')
+        toggleFilePanel()
         return
       }
 
@@ -300,7 +364,7 @@ export function ChatView({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [filesShortcutLabel, sessionInfoShortcutLabel])
+  }, [filePanelOpen, filesShortcutLabel, sessionInfoShortcutLabel])
 
   useEffect(() => {
     const wasFilePanelOpen = prevFilePanelOpenRef.current
@@ -308,10 +372,17 @@ export function ChatView({
     prevFilePanelOpenRef.current = filePanelOpen
     prevShowPreviewPaneRef.current = showPreviewPane
 
-    if (!filePanelOpen) return
+    if (!filePanelOpen) {
+      prevShowPreviewPaneRef.current = false
+      filePanelWidthBeforePreviewRef.current = null
+      return
+    }
 
     if (!showPreviewPane) {
-      setFilePanelWidth(explorerWidth)
+      if (wasFilePanelOpen && wasShowingPreview && filePanelWidthBeforePreviewRef.current !== null) {
+        setFilePanelWidth(Math.min(filePanelWidthBeforePreviewRef.current, getRightPanelMaxWidth()))
+        filePanelWidthBeforePreviewRef.current = null
+      }
       return
     }
 
@@ -319,26 +390,49 @@ export function ChatView({
       return
     }
 
+    filePanelWidthBeforePreviewRef.current = filePanelWidth
     const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth
-    const targetWidth = Math.min(1100, Math.max(explorerWidth + 260, Math.floor(containerWidth / 2)))
+    const targetWidth = Math.min(
+      Math.floor(containerWidth * RIGHT_PANEL_MAX_WIDTH_RATIO),
+      Math.max(explorerWidth + 260, Math.floor(containerWidth / 2))
+    )
     setFilePanelWidth(targetWidth)
-  }, [explorerWidth, filePanelOpen, showPreviewPane])
+  }, [explorerWidth, filePanelOpen, filePanelWidth, showPreviewPane])
 
   useEffect(() => {
-    if (!gitPanelOpen) return
-    if (!showGitPreviewPane) {
-      setFilePanelWidth(explorerWidth)
+    const wasShowingGitPreview = prevShowGitPreviewPaneRef.current
+    prevShowGitPreviewPaneRef.current = showGitPreviewPane
+
+    if (!gitPanelOpen) {
+      prevShowGitPreviewPaneRef.current = false
+      gitPanelWidthBeforePreviewRef.current = null
       return
     }
 
+    if (!showGitPreviewPane) {
+      if (wasShowingGitPreview && gitPanelWidthBeforePreviewRef.current !== null) {
+        setFilePanelWidth(Math.min(gitPanelWidthBeforePreviewRef.current, getRightPanelMaxWidth()))
+        gitPanelWidthBeforePreviewRef.current = null
+      }
+      return
+    }
+
+    if (wasShowingGitPreview) {
+      return
+    }
+
+    gitPanelWidthBeforePreviewRef.current = filePanelWidth
     const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth
-    const targetWidth = Math.min(1100, Math.max(explorerWidth + 180, Math.floor(containerWidth / 2)))
+    const targetWidth = Math.min(
+      Math.floor(containerWidth * RIGHT_PANEL_MAX_WIDTH_RATIO),
+      Math.max(explorerWidth + 180, Math.floor(containerWidth / 2))
+    )
     setFilePanelWidth((current) => Math.max(current, targetWidth))
-  }, [explorerWidth, gitPanelOpen, showGitPreviewPane])
+  }, [explorerWidth, filePanelWidth, gitPanelOpen, showGitPreviewPane])
 
   useEffect(() => {
     if (!sessionPanelOpen) return
-    setFilePanelWidth(INITIAL_EXPLORER_WIDTH)
+    setFilePanelWidth(INITIAL_SESSION_PANEL_WIDTH)
   }, [sessionPanelOpen])
 
   useEffect(() => {
@@ -1057,9 +1151,10 @@ export function ChatView({
     const startX = event.clientX
     const startWidth = filePanelWidth
     const minimumWidth = showPreviewPane || showGitPreviewPane ? Math.max(320, explorerWidth + 140) : explorerWidth
+    const maximumWidth = getRightPanelMaxWidth()
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const nextWidth = Math.min(1100, Math.max(minimumWidth, startWidth - (moveEvent.clientX - startX)))
+      const nextWidth = Math.min(maximumWidth, Math.max(minimumWidth, startWidth - (moveEvent.clientX - startX)))
       setFilePanelWidth(nextWidth)
     }
 
@@ -1158,7 +1253,7 @@ export function ChatView({
 
   return (
     <div ref={containerRef} className="flex h-full bg-claude-bg">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div ref={mainPaneRef} className="flex min-w-0 flex-1 flex-col">
         <div
           className="draggable-region relative z-30 flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
           style={{ paddingLeft: sidebarCollapsed ? '76px' : '16px' }}
@@ -1376,119 +1471,125 @@ export function ChatView({
           </div>
 
           <div className="no-drag flex flex-shrink-0 items-center gap-2" data-no-drag="true">
-            <div ref={openWithMenuRef} className="relative" data-no-drag="true">
-              <div className="flex overflow-hidden rounded-lg border border-claude-border bg-claude-surface">
-                <button
-                  onClick={() => void handleDefaultOpen()}
-                  disabled={openWithApps.length === 0}
-                  className="inline-flex items-center gap-1.5 bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface"
-                  title={defaultOpenWithApp ? `${defaultOpenWithApp.label}에서 열기` : '기본 앱으로 열기'}
-                >
-                  <OpenWithAppIcon app={defaultOpenWithApp} />
-                  <span>열기</span>
-                </button>
-                <button
-                  onClick={() => setOpenWithMenuOpen((open) => !open)}
-                  disabled={openWithApps.length === 0}
-                  className={`border-l border-claude-border px-2 py-1 text-claude-text transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface ${
-                    openWithMenuOpen ? 'bg-claude-surface-2' : 'bg-claude-surface hover:bg-claude-surface-2'
-                  }`}
-                  title="다음에서 열기"
-                >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-              </div>
-
-              {openWithMenuOpen && (
-                <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-3xl border border-claude-border bg-claude-panel p-2">
-                  <p className="px-3 pb-2 pt-1 text-xs font-semibold text-claude-muted">다음에서 열기</p>
-                  {openWithLoading ? (
-                    <div className="flex items-center justify-center px-3 py-8 text-claude-muted">
-                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-                      </svg>
-                    </div>
-                  ) : openWithApps.length === 0 ? (
-                    <div className="px-3 py-6 text-sm text-claude-muted">표시할 앱이 없습니다.</div>
-                  ) : (
-                    <div className="space-y-1">
-                      {openWithApps.map((app) => (
-                        <button
-                          key={app.id}
-                          onClick={() => void handleOpenWith(app.id)}
-                          className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-surface"
-                        >
-                          <OpenWithAppIcon app={app} className="h-8 w-8" />
-                          <span className="flex-1">{app.label}</span>
-                          {preferredOpenWithAppId === app.id && (
-                            <svg className="h-4 w-4 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+            {showHeaderOpenWithAction && (
+              <div ref={openWithMenuRef} className="relative" data-no-drag="true">
+                <div className="flex overflow-hidden rounded-lg border border-claude-border bg-claude-surface">
+                  <button
+                    onClick={() => void handleDefaultOpen()}
+                    disabled={openWithApps.length === 0}
+                    className="inline-flex items-center gap-1.5 bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface"
+                    title={defaultOpenWithApp ? `${defaultOpenWithApp.label}에서 열기` : '기본 앱으로 열기'}
+                  >
+                    <OpenWithAppIcon app={defaultOpenWithApp} />
+                    <span>열기</span>
+                  </button>
+                  <button
+                    onClick={() => setOpenWithMenuOpen((open) => !open)}
+                    disabled={openWithApps.length === 0}
+                    className={`border-l border-claude-border px-2 py-1 text-claude-text transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-claude-surface ${
+                      openWithMenuOpen ? 'bg-claude-surface-2' : 'bg-claude-surface hover:bg-claude-surface-2'
+                    }`}
+                    title="다음에서 열기"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
                 </div>
-              )}
-            </div>
-            <button
-            onClick={() => setRightPanel((open) => open === 'session' ? 'none' : 'session')}
-            className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
-              sessionPanelOpen
-                ? 'bg-claude-surface text-claude-text'
-                : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
-            }`}
-            title={`현재 세션 정보 보기 (${sessionInfoShortcutLabel})`}
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="9" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
-            </svg>
-          </button>
-          {gitAvailable && (
-            <button
-              onClick={() => setRightPanel((open) => open === 'git' ? 'none' : 'git')}
-              className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
-                gitPanelOpen
-                  ? 'bg-claude-surface text-claude-text'
-                  : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
-              }`}
-              title="git diff 보기"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <rect x="4.5" y="4.5" width="15" height="15" rx="3.5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 15h8" />
-              </svg>
-            </button>
-          )}
-          <button
-            onClick={() => setRightPanel((open) => open === 'files' ? 'none' : 'files')}
-            className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
-              filePanelOpen
-                ? 'bg-claude-surface text-claude-text'
-                : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
-            }`}
-            title={`현재 디렉토리 파일 보기 (${filesShortcutLabel})`}
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 18h10" />
-            </svg>
-          </button>
+
+                {openWithMenuOpen && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-3xl border border-claude-border bg-claude-panel p-2">
+                    <p className="px-3 pb-2 pt-1 text-xs font-semibold text-claude-muted">다음에서 열기</p>
+                    {openWithLoading ? (
+                      <div className="flex items-center justify-center px-3 py-8 text-claude-muted">
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                        </svg>
+                      </div>
+                    ) : openWithApps.length === 0 ? (
+                      <div className="px-3 py-6 text-sm text-claude-muted">표시할 앱이 없습니다.</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {openWithApps.map((app) => (
+                          <button
+                            key={app.id}
+                            onClick={() => void handleOpenWith(app.id)}
+                            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-surface"
+                          >
+                            <OpenWithAppIcon app={app} className="h-8 w-8" />
+                            <span className="flex-1">{app.label}</span>
+                            {preferredOpenWithAppId === app.id && (
+                              <svg className="h-4 w-4 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {showHeaderSessionAction && (
+              <button
+                onClick={() => setRightPanel((open) => open === 'session' ? 'none' : 'session')}
+                className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
+                  sessionPanelOpen
+                    ? 'bg-claude-surface text-claude-text'
+                    : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
+                }`}
+                title={`현재 세션 정보 보기 (${sessionInfoShortcutLabel})`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="12" cy="12" r="9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
+                </svg>
+              </button>
+            )}
+            {gitAvailable && showHeaderGitAction && (
+              <button
+                onClick={toggleGitPanel}
+                className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
+                  gitPanelOpen
+                    ? 'bg-claude-surface text-claude-text'
+                    : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
+                }`}
+                title="git diff 보기"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="4.5" y="4.5" width="15" height="15" rx="3.5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 15h8" />
+                </svg>
+              </button>
+            )}
+            {showHeaderFileAction && (
+              <button
+                onClick={toggleFilePanel}
+                className={`flex items-center justify-center rounded-xl px-2.5 py-2 text-xs transition-colors ${
+                  filePanelOpen
+                    ? 'bg-claude-surface text-claude-text'
+                    : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
+                }`}
+                title={`현재 디렉토리 파일 보기 (${filesShortcutLabel})`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 18h10" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
         {/* 메시지 영역 */}
         <div
           className="relative z-0 min-w-0 flex-1 overflow-y-auto px-6 py-7"
-          style={{ background: 'linear-gradient(180deg, rgb(var(--claude-panel)) 0%, rgb(var(--claude-bg)) 100%)' }}
+          style={{ background: 'linear-gradient(180deg, rgb(var(--claude-chat-bg) / 0.985) 0%, rgb(var(--claude-chat-bg)) 100%)' }}
         >
           <div className={`mx-auto w-full max-w-[860px] ${isNewSession ? 'min-h-full' : ''}`}>
             {fileConflict && fileConflictLabel && (
@@ -1579,7 +1680,7 @@ export function ChatView({
         <aside
           onMouseDown={handleGitPanelPointerDown}
           className="flex min-w-0 flex-shrink-0 flex-col border-l border-claude-border bg-claude-panel"
-          style={{ width: `${filePanelWidth}px` }}
+          style={{ width: `${filePanelWidth}px`, maxWidth: '85vw' }}
         >
           <div className="flex h-12 items-center justify-between border-b border-claude-border px-4">
             <p className="text-sm font-semibold text-claude-text">
@@ -3191,7 +3292,7 @@ const GitDiffPanel = memo(function GitDiffPanel({
     }))
 
     try {
-      const result = await window.claude.getGitCommitFileContent({
+      const result = await window.claude.getGitFileContent({
         cwd,
         commitHash: requestCommitHash,
         filePath,
@@ -3222,7 +3323,7 @@ const GitDiffPanel = memo(function GitDiffPanel({
         [fileKey]: {
           state: 'error',
           content: '',
-          error: message.includes('getGitCommitFileContent')
+          error: message.includes('getGitFileContent') || message.includes('getGitCommitFileContent')
             ? '앱을 다시 시작한 뒤 다시 시도해 주세요.'
             : '마크다운 미리보기를 불러오지 못했습니다.',
         },
@@ -3287,7 +3388,7 @@ const GitDiffPanel = memo(function GitDiffPanel({
                 onClick={() => setMarkdownPreviewEnabled((value) => !value)}
                 className="mt-2 inline-flex rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
               >
-                {markdownPreviewEnabled ? 'diff' : '미리보기'}
+                {markdownPreviewEnabled ? 'Diff' : 'MD'}
               </button>
             )}
           </>
@@ -3363,7 +3464,7 @@ const GitDiffPanel = memo(function GitDiffPanel({
                         }}
                         className="inline-flex shrink-0 rounded-lg border border-claude-border px-2 py-0.5 text-[10px] font-medium text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
                       >
-                        {markdownPreviewOpenForFile ? 'diff' : '미리보기'}
+                        {markdownPreviewOpenForFile ? 'Diff' : 'MD'}
                       </button>
                     )}
                   </div>

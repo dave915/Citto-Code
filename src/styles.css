@@ -19,6 +19,11 @@
   --claude-border: 62 62 68;
   --claude-text: 242 238 232;
   --claude-muted: 167 161 154;
+  --claude-chat-bg: var(--claude-bg);
+  --claude-user-bubble: var(--claude-surface);
+  --claude-user-bubble-border: var(--claude-border);
+  --claude-assistant-bubble: 0 0 0;
+  --claude-assistant-bubble-border: 0 0 0;
 
   --claude-body-top: 42 42 45;
   --claude-body-bottom: 34 34 36;
@@ -253,6 +258,172 @@
   --claude-diff-code-delete-bg: 205 168 168 / 1;
   --claude-diff-code-insert-edit-bg: 149 176 154 / 0.96;
   --claude-diff-code-delete-edit-bg: 216 156 156 / 0.96;
+}
+
+:root[data-theme='aurora'] {
+  --claude-orange: 119 154 222;
+  --claude-bg: 22 27 46;
+  --claude-panel: 30 37 64;
+  --claude-surface: 38 46 77;
+  --claude-surface-2: 51 61 99;
+  --claude-sidebar: 18 23 39;
+  --claude-sidebar-hover: 30 37 61;
+  --claude-sidebar-active: 39 48 78;
+  --claude-border: 75 89 129;
+  --claude-text: 238 243 250;
+  --claude-muted: 159 172 193;
+  --claude-chat-bg: 29 35 60;
+  --claude-user-bubble: 67 93 150;
+  --claude-user-bubble-border: 91 119 182;
+  --claude-assistant-bubble: 0 0 0;
+  --claude-assistant-bubble-border: 0 0 0;
+
+  --claude-body-top: 28 33 56;
+  --claude-body-bottom: 18 22 39;
+  --claude-body-radial: 171 196 255;
+  --claude-scrollbar: 136 153 188;
+  --claude-code-bg: 24 29 49;
+  --claude-code-header: 19 24 40;
+  --claude-code-border: 61 73 110;
+  --claude-code-header-border: 54 65 99;
+  --claude-code-title: 213 224 240;
+  --claude-prose: 228 235 245;
+  --claude-prose-quote-border: 86 101 145;
+  --claude-prose-quote-text: 173 185 208;
+  --claude-prose-table-border: 63 76 114;
+  --claude-prose-table-header: 35 42 71;
+  --claude-prose-link: 217 230 247;
+  --claude-prose-link-decoration: 96 113 157;
+  --claude-prose-strong: 247 250 252;
+}
+
+:root[data-theme='sakura'] {
+  --claude-orange: 176 132 147;
+  --claude-bg: 250 240 242;
+  --claude-panel: 242 226 230;
+  --claude-surface: 252 246 248;
+  --claude-surface-2: 235 220 226;
+  --claude-sidebar: 246 235 238;
+  --claude-sidebar-hover: 239 225 229;
+  --claude-sidebar-active: 231 214 220;
+  --claude-border: 216 191 198;
+  --claude-text: 82 60 68;
+  --claude-muted: 135 111 119;
+  --claude-chat-bg: 255 248 250;
+  --claude-user-bubble: 247 210 221;
+  --claude-user-bubble-border: 231 174 193;
+  --claude-assistant-bubble: 0 0 0;
+  --claude-assistant-bubble-border: 0 0 0;
+
+  --claude-body-top: 251 244 246;
+  --claude-body-bottom: 245 236 239;
+  --claude-body-radial: 255 255 255;
+  --claude-scrollbar: 176 151 160;
+  --claude-code-bg: 248 241 244;
+  --claude-code-header: 239 229 234;
+  --claude-code-border: 216 191 198;
+  --claude-code-header-border: 207 181 190;
+  --claude-code-title: 96 74 82;
+  --claude-prose: 92 68 77;
+  --claude-prose-quote-border: 205 177 187;
+  --claude-prose-quote-text: 140 115 123;
+  --claude-prose-table-border: 216 191 198;
+  --claude-prose-table-header: 242 226 230;
+  --claude-prose-link: 110 82 94;
+  --claude-prose-link-decoration: 187 159 170;
+  --claude-prose-strong: 64 46 53;
+  --claude-diff-gutter-insert-bg: 183 214 198 / 1;
+  --claude-diff-gutter-delete-bg: 229 189 199 / 1;
+  --claude-diff-code-insert-bg: 171 203 186 / 1;
+  --claude-diff-code-delete-bg: 219 177 189 / 1;
+  --claude-diff-code-insert-edit-bg: 152 188 169 / 0.96;
+  --claude-diff-code-delete-edit-bg: 227 161 177 / 0.96;
+}
+
+:root[data-theme='mint'] {
+  --claude-orange: 108 151 133;
+  --claude-bg: 238 247 244;
+  --claude-panel: 224 240 234;
+  --claude-surface: 247 252 250;
+  --claude-surface-2: 214 232 224;
+  --claude-sidebar: 233 244 239;
+  --claude-sidebar-hover: 223 236 230;
+  --claude-sidebar-active: 212 227 220;
+  --claude-border: 182 207 196;
+  --claude-text: 47 79 68;
+  --claude-muted: 98 129 118;
+  --claude-chat-bg: 249 253 251;
+  --claude-user-bubble: 201 235 222;
+  --claude-user-bubble-border: 156 205 185;
+  --claude-assistant-bubble: 0 0 0;
+  --claude-assistant-bubble-border: 0 0 0;
+
+  --claude-body-top: 243 250 247;
+  --claude-body-bottom: 234 243 239;
+  --claude-body-radial: 255 255 255;
+  --claude-scrollbar: 143 171 160;
+  --claude-code-bg: 240 248 245;
+  --claude-code-header: 227 238 233;
+  --claude-code-border: 182 207 196;
+  --claude-code-header-border: 171 197 185;
+  --claude-code-title: 66 97 86;
+  --claude-prose: 59 90 79;
+  --claude-prose-quote-border: 169 194 183;
+  --claude-prose-quote-text: 105 136 125;
+  --claude-prose-table-border: 182 207 196;
+  --claude-prose-table-header: 224 240 234;
+  --claude-prose-link: 63 98 85;
+  --claude-prose-link-decoration: 155 183 171;
+  --claude-prose-strong: 37 64 55;
+  --claude-diff-gutter-insert-bg: 176 212 195 / 1;
+  --claude-diff-gutter-delete-bg: 227 191 191 / 1;
+  --claude-diff-code-insert-bg: 163 199 181 / 1;
+  --claude-diff-code-delete-bg: 215 178 178 / 1;
+  --claude-diff-code-insert-edit-bg: 145 185 167 / 0.96;
+  --claude-diff-code-delete-edit-bg: 224 164 164 / 0.96;
+}
+
+:root[data-theme='lavender'] {
+  --claude-orange: 142 124 183;
+  --claude-bg: 243 238 248;
+  --claude-panel: 233 225 242;
+  --claude-surface: 250 247 252;
+  --claude-surface-2: 223 214 236;
+  --claude-sidebar: 238 233 245;
+  --claude-sidebar-hover: 228 222 239;
+  --claude-sidebar-active: 218 211 232;
+  --claude-border: 193 181 214;
+  --claude-text: 69 59 89;
+  --claude-muted: 120 109 146;
+  --claude-chat-bg: 250 247 253;
+  --claude-user-bubble: 222 211 243;
+  --claude-user-bubble-border: 181 163 222;
+  --claude-assistant-bubble: 0 0 0;
+  --claude-assistant-bubble-border: 0 0 0;
+
+  --claude-body-top: 246 242 250;
+  --claude-body-bottom: 238 232 246;
+  --claude-body-radial: 255 255 255;
+  --claude-scrollbar: 154 141 181;
+  --claude-code-bg: 244 241 249;
+  --claude-code-header: 232 225 242;
+  --claude-code-border: 193 181 214;
+  --claude-code-header-border: 183 171 205;
+  --claude-code-title: 87 76 112;
+  --claude-prose: 77 66 100;
+  --claude-prose-quote-border: 180 168 202;
+  --claude-prose-quote-text: 126 114 151;
+  --claude-prose-table-border: 193 181 214;
+  --claude-prose-table-header: 233 225 242;
+  --claude-prose-link: 86 73 118;
+  --claude-prose-link-decoration: 168 156 196;
+  --claude-prose-strong: 52 44 69;
+  --claude-diff-gutter-insert-bg: 181 209 193 / 1;
+  --claude-diff-gutter-delete-bg: 225 189 197 / 1;
+  --claude-diff-code-insert-bg: 169 197 181 / 1;
+  --claude-diff-code-delete-bg: 214 176 186 / 1;
+  --claude-diff-code-insert-edit-bg: 150 183 166 / 0.96;
+  --claude-diff-code-delete-edit-bg: 223 162 175 / 0.96;
 }
 
 * {

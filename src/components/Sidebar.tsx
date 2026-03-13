@@ -74,6 +74,8 @@ type SessionRowProps = {
   editingName: string
   inputRef: RefObject<HTMLInputElement>
   showProjectLabel: boolean
+  compact?: boolean
+  dense?: boolean
   onSelectSession: (id: string) => void
   onRenameSession: (id: string, name: string) => void
   onToggleFavorite: (id: string) => void
@@ -90,6 +92,8 @@ function SessionRow({
   editingName,
   inputRef,
   showProjectLabel,
+  compact = false,
+  dense = false,
   onSelectSession,
   onRenameSession,
   onToggleFavorite,
@@ -102,6 +106,12 @@ function SessionRow({
   const itemCls = isActive
     ? 'bg-claude-sidebar-active text-claude-text'
     : 'text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
+  const rowSpacingCls = compact
+    ? 'gap-0.5 px-1 py-0.5 rounded-lg'
+    : dense
+      ? 'gap-1.5 px-2 py-1.5 rounded-xl'
+      : 'gap-2 px-2.5 py-2.5 rounded-2xl'
+  const buttonGapCls = compact ? 'gap-1.5 rounded-lg' : dense ? 'gap-1.5 rounded-xl' : 'gap-2 rounded-xl'
 
   const startRename = () => {
     setEditingSessionId(session.id)
@@ -122,11 +132,11 @@ function SessionRow({
   }
 
   return (
-    <div className={`group flex items-start gap-2 rounded-2xl px-2.5 py-2.5 transition-colors ${itemCls}`}>
+    <div className={`group flex items-start transition-colors ${rowSpacingCls} ${itemCls}`}>
       <button
         onClick={() => onSelectSession(session.id)}
         onDoubleClick={startRename}
-        className="min-w-0 flex-1 flex items-start gap-2 rounded-xl text-left outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+        className={`min-w-0 flex-1 flex items-start text-left outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${buttonGapCls}`}
       >
         {session.isStreaming ? (
           <span className="mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-claude-orange animate-pulse" />
@@ -157,7 +167,7 @@ function SessionRow({
               className="w-full rounded-xl border border-claude-border bg-claude-surface px-2.5 py-1.5 text-sm font-medium text-claude-text outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
             />
           ) : (
-            <p className="truncate text-[14px] font-medium">{getSessionDisplayName(session)}</p>
+            <p className="truncate text-[15px] font-medium">{getSessionDisplayName(session)}</p>
           )}
           {showProjectLabel && session.cwd && session.cwd !== '~' && (
             <p className="mt-0.5 truncate pr-1 font-mono text-[11px] opacity-50">
@@ -293,7 +303,7 @@ export function Sidebar({
       </div>
 
       {favoriteSessions.length > 0 && (
-        <div className="mb-3 px-3">
+        <div className="mb-0 px-3">
           <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-claude-muted/60">
             즐겨찾기
           </div>
@@ -307,6 +317,7 @@ export function Sidebar({
                 editingName={editingName}
                 inputRef={inputRef}
                 showProjectLabel
+                dense={sidebarMode === 'session'}
                 lockState={sessionLockState[session.id]}
                 onSelectSession={onSelectSession}
                 onRenameSession={onRenameSession}
@@ -320,10 +331,10 @@ export function Sidebar({
         </div>
       )}
 
-      <nav className="flex-1 space-y-4 overflow-y-auto px-3">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
         {sidebarMode === 'project' ? (
           projectGroups.map((group) => (
-            <section key={group.cwd} className="space-y-1">
+            <section key={group.cwd} className="space-y-0.5">
               <div className="flex items-center gap-1 px-1">
                 <button
                   onClick={() => setCollapsedProjects((prev) => ({ ...prev, [group.cwd]: !prev[group.cwd] }))}
@@ -341,7 +352,7 @@ export function Sidebar({
                   <svg className="w-4 h-4 flex-shrink-0 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
-                  <span className="truncate text-sm font-semibold">{group.label}</span>
+                  <span className="truncate text-[16px] font-semibold">{group.label}</span>
                 </button>
                 <button
                   onClick={() => {
@@ -357,7 +368,7 @@ export function Sidebar({
                 </button>
               </div>
               {!collapsedProjects[group.cwd] && (
-                <div className="ml-3 space-y-1 border-l border-white/5 pl-3">
+                <div className="ml-3 space-y-0.5 border-l border-white/5 pl-3">
                   {sortSessions(group.sessions).map((session) => (
                     <SessionRow
                       key={session.id}
@@ -367,6 +378,7 @@ export function Sidebar({
                       editingName={editingName}
                       inputRef={inputRef}
                       showProjectLabel={false}
+                      compact
                       lockState={sessionLockState[session.id]}
                       onSelectSession={onSelectSession}
                       onRenameSession={onRenameSession}
@@ -391,6 +403,7 @@ export function Sidebar({
                 editingName={editingName}
                 inputRef={inputRef}
                 showProjectLabel
+                dense
                 lockState={sessionLockState[session.id]}
                 onSelectSession={onSelectSession}
                 onRenameSession={onRenameSession}

@@ -403,7 +403,7 @@ function inferLanguageFromPath(path: string | null | undefined): string {
 function getShikiTheme(): string {
   if (typeof document === 'undefined') return 'github-dark'
   const themeId = document.documentElement.dataset.theme ?? 'current'
-  return ['paper', 'mist', 'stone'].includes(themeId) ? 'github-light' : 'github-dark'
+  return ['paper', 'mist', 'stone', 'sakura', 'mint', 'lavender'].includes(themeId) ? 'github-light' : 'github-dark'
 }
 
 function buildUnifiedDiffText(path: string, diffHunks: DiffHunk[], editedFileContent: string | null) {
