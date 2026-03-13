@@ -2553,6 +2553,23 @@ function getGitDecorationBadgeClass(kind: 'current' | 'local' | 'remote' | 'tag'
   }
 }
 
+function isGitGraphActiveCommit(refs: Array<{ label: string; kind: 'current' | 'local' | 'remote' | 'tag' | 'other' }>) {
+  const currentBranchNames = refs
+    .filter((ref) => ref.kind === 'current')
+    .map((ref) => ref.label)
+    .filter((label) => label !== 'HEAD')
+
+  if (currentBranchNames.length === 0) {
+    return refs.some((ref) => ref.kind === 'current')
+  }
+
+  const hasMatchingRemote = currentBranchNames.some((branchName) => (
+    refs.some((ref) => ref.kind === 'remote' && ref.label.endsWith(`/${branchName}`))
+  ))
+
+  return !hasMatchingRemote
+}
+
 function getGitGraphLane(graph: string) {
   const starIndex = graph.indexOf('*')
   if (starIndex >= 0) return starIndex
@@ -2754,11 +2771,11 @@ function GitLogPanel({
             {historyEntries.map((entry, index) => {
               const refs = parseGitDecorations(entry.decorations)
               const isSelected = selectedCommitHash === entry.hash
-              const isHeadCommit = refs.some((ref) => ref.kind === 'current')
+              const isHeadCommit = isGitGraphActiveCommit(refs)
               const previousGraph = index > 0 ? historyEntries[index - 1]?.graph ?? '' : ''
               const nextGraph = index < historyEntries.length - 1 ? historyEntries[index + 1]?.graph ?? '' : ''
               const previousRefs = index > 0 ? parseGitDecorations(historyEntries[index - 1]?.decorations ?? '') : []
-              const previousIsHeadCommit = previousRefs.some((ref) => ref.kind === 'current')
+              const previousIsHeadCommit = isGitGraphActiveCommit(previousRefs)
               return (
                 <button
                   key={entry.hash}
