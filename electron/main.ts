@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, Notification, Tray, Menu, globalShortcut, screen } from 'electron'
-import { join, dirname, extname, relative } from 'path'
+import { join, dirname, extname, relative, posix } from 'path'
 import { tmpdir, userInfo } from 'os'
 import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import { appendFileSync, existsSync, readFile as fsReadFile, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync, unlinkSync, rmSync } from 'fs'
@@ -130,6 +130,28 @@ type GitRepoStatus = {
 type GitBranchInfo = {
   name: string
   current: boolean
+}
+
+type GitLogEntry = {
+  hash: string
+  shortHash: string
+  subject: string
+  author: string
+  relativeDate: string
+  decorations: string
+  graph: string
+}
+
+type GitLogResult = {
+  ok: boolean
+  entries: GitLogEntry[]
+  error?: string
+}
+
+type GitFileContentResult = {
+  ok: boolean
+  content: string
+  error?: string
 }
 
 type CliHistoryEntry = {
@@ -1431,6 +1453,111 @@ function getGitBranches(cwd: string): { ok: boolean; branches: GitBranchInfo[]; 
   return { ok: true, branches }
 }
 
+function getGitLog(cwd: string, limit?: number): GitLogResult {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) {
+    return { ok: false, entries: [], error: 'Git 저장소가 아닙니다.' }
+  }
+
+  const format = '%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cr%x1f%D'
+  const args = [
+    'log',
+    '--graph',
+    '--decorate=short',
+    '--date-order',
+    `--pretty=format:${format}`,
+  ]
+  if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+    args.splice(4, 0, `--max-count=${Math.max(1, Math.round(limit))}`)
+  }
+  const result = runGit(args, repoRoot)
+
+  if (result.status !== 0) {
+    return { ok: false, entries: [], error: result.stderr.trim() || 'Git 로그를 불러오지 못했습니다.' }
+  }
+
+  const entries = result.stdout
+    .split('\n')
+    .flatMap((line) => {
+      const parts = line.split('\x1f')
+      if (parts.length < 7) return []
+      const [graph, hash, shortHash, subject, author, relativeDate, decorations] = parts
+      return [{
+        hash: hash.trim(),
+        shortHash: shortHash.trim(),
+        subject: subject.trim(),
+        author: author.trim(),
+        relativeDate: relativeDate.trim(),
+        decorations: decorations.trim(),
+        graph: graph.replace(/\s+$/, ''),
+      } satisfies GitLogEntry]
+    })
+
+  return { ok: true, entries }
+}
+
+function getGitCommitDiff(cwd: string, commitHash: string): { ok: boolean; diff: string; error?: string } {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) {
+    return { ok: false, diff: '', error: 'Git 저장소가 아닙니다.' }
+  }
+
+  const trimmedCommitHash = commitHash.trim()
+  if (!trimmedCommitHash) {
+    return { ok: false, diff: '', error: '커밋 해시가 필요합니다.' }
+  }
+
+  try {
+    const result = runGit(['show', '--no-color', '--find-renames', '--format=', trimmedCommitHash], repoRoot)
+    const diff = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+    if (result.status !== 0 && !diff) {
+      return { ok: false, diff: '', error: result.stderr.trim() || '커밋 diff를 불러오지 못했습니다.' }
+    }
+
+    return { ok: true, diff }
+  } catch (error) {
+    return { ok: false, diff: '', error: String(error) }
+  }
+}
+
+function getGitCommitFileContent(cwd: string, commitHash: string, filePath: string): GitFileContentResult {
+  const repoRoot = resolveGitRepoRoot(cwd)
+  if (!repoRoot) {
+    return { ok: false, content: '', error: 'Git 저장소가 아닙니다.' }
+  }
+
+  const trimmedCommitHash = commitHash.trim()
+  if (!trimmedCommitHash) {
+    return { ok: false, content: '', error: '커밋 해시가 필요합니다.' }
+  }
+
+  const trimmedFilePath = filePath.trim()
+  if (!trimmedFilePath) {
+    return { ok: false, content: '', error: '파일 경로가 필요합니다.' }
+  }
+
+  const relativePath = posix.normalize(
+    (trimmedFilePath.startsWith(repoRoot) ? relative(repoRoot, trimmedFilePath) : trimmedFilePath)
+      .replace(/\\/g, '/')
+      .replace(/^\.\//, '')
+  )
+
+  if (!relativePath || relativePath === '.' || relativePath.startsWith('../')) {
+    return { ok: false, content: '', error: '유효한 저장소 내부 파일 경로가 아닙니다.' }
+  }
+
+  try {
+    const result = runGit(['show', `${trimmedCommitHash}:${relativePath}`], repoRoot)
+    if (result.status !== 0) {
+      return { ok: false, content: '', error: result.stderr.trim() || '커밋 파일 내용을 불러오지 못했습니다.' }
+    }
+
+    return { ok: true, content: result.stdout ?? '' }
+  } catch (error) {
+    return { ok: false, content: '', error: String(error) }
+  }
+}
+
 function setGitStaged(cwd: string, filePath: string, staged: boolean): { ok: boolean; error?: string } {
   const repoRoot = resolveGitRepoRoot(cwd)
   if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
@@ -2571,6 +2698,26 @@ app.whenReady().then(() => {
 
   ipcMain.handle('claude:get-git-diff', (_event, { cwd, filePath }: { cwd: string; filePath: string }) => {
     return getGitDiff(cwd, filePath)
+  })
+
+  ipcMain.handle('claude:get-git-log', (_event, { cwd, limit }: { cwd: string; limit?: number }) => {
+    return getGitLog(cwd, limit)
+  })
+
+  ipcMain.handle('claude:get-git-commit-diff', (_event, { cwd, commitHash }: { cwd: string; commitHash: string }) => {
+    return getGitCommitDiff(cwd, commitHash)
+  })
+
+  ipcMain.handle('claude:get-git-commit-file-content', (_event, {
+    cwd,
+    commitHash,
+    filePath,
+  }: {
+    cwd: string
+    commitHash: string
+    filePath: string
+  }) => {
+    return getGitCommitFileContent(cwd, commitHash, filePath)
   })
 
   ipcMain.handle('claude:get-git-branches', (_event, { cwd }: { cwd: string }) => {

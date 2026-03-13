@@ -16,7 +16,7 @@ import type { Session, PermissionMode, SidebarMode } from '../store/sessions'
 import { useSessionsStore } from '../store/sessions'
 import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
-import type { DirEntry, GitBranchInfo, GitDiffResult, GitRepoStatus, GitStatusEntry, OpenWithApp, SelectedFile } from '../../electron/preload'
+import type { DirEntry, GitBranchInfo, GitDiffResult, GitLogEntry, GitRepoStatus, GitStatusEntry, OpenWithApp, SelectedFile } from '../../electron/preload'
 import { matchShortcut } from '../lib/shortcuts'
 import vscodeIcon from '../assets/open-with/vscode.png'
 import finderIcon from '../assets/open-with/finder.png'
@@ -63,6 +63,8 @@ type Props = {
 
 const INITIAL_RIGHT_PANEL_WIDTH = 290
 const INITIAL_EXPLORER_WIDTH = 290
+const INITIAL_GIT_LOG_PANEL_HEIGHT = 260
+const INITIAL_GIT_COMMIT_PANEL_HEIGHT = 116
 
 function areGitStatusEntriesEqual(a: GitStatusEntry | null, b: GitStatusEntry | null) {
   if (a === b) return true
@@ -92,6 +94,20 @@ function areGitDiffResultsEqual(a: GitDiffResult | null, b: GitDiffResult | null
   return a.ok === b.ok && a.diff === b.diff && (a.error ?? null) === (b.error ?? null)
 }
 
+function areGitLogEntriesEqual(a: GitLogEntry | null, b: GitLogEntry | null) {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.hash === b.hash &&
+    a.shortHash === b.shortHash &&
+    a.subject === b.subject &&
+    a.author === b.author &&
+    a.relativeDate === b.relativeDate &&
+    a.decorations === b.decorations &&
+    a.graph === b.graph
+  )
+}
+
 const OPEN_WITH_ICONS: Record<string, string> = {
   vscode: vscodeIcon,
   finder: finderIcon,
@@ -115,7 +131,9 @@ export function ChatView({
   const branchSearchInputRef = useRef<HTMLInputElement>(null)
   const branchCreateInputRef = useRef<HTMLInputElement>(null)
   const gitCommitTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const gitSidebarRef = useRef<HTMLDivElement>(null)
   const selectedGitEntryPathRef = useRef<string | null>(null)
+  const selectedGitCommitHashRef = useRef<string | null>(null)
   const gitPanelRefreshInFlightRef = useRef(false)
   const gitPanelLastRefreshAtRef = useRef(0)
   const prevFilePanelOpenRef = useRef(false)
@@ -131,6 +149,8 @@ export function ChatView({
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'ready' | 'unsupported'>('idle')
   const [filePanelWidth, setFilePanelWidth] = useState(INITIAL_RIGHT_PANEL_WIDTH)
   const [explorerWidth, setExplorerWidth] = useState(INITIAL_EXPLORER_WIDTH)
+  const [gitLogPanelHeight, setGitLogPanelHeight] = useState(INITIAL_GIT_LOG_PANEL_HEIGHT)
+  const [gitCommitPanelHeight, setGitCommitPanelHeight] = useState(INITIAL_GIT_COMMIT_PANEL_HEIGHT)
   const [markdownPreviewEnabled, setMarkdownPreviewEnabled] = useState(true)
   const [openWithMenuOpen, setOpenWithMenuOpen] = useState(false)
   const [openWithApps, setOpenWithApps] = useState<OpenWithApp[]>([])
@@ -138,9 +158,12 @@ export function ChatView({
   const [externalDraft, setExternalDraft] = useState<{ id: number; text: string } | null>(null)
   const [gitStatus, setGitStatus] = useState<GitRepoStatus | null>(null)
   const [gitLoading, setGitLoading] = useState(false)
+  const [gitLog, setGitLog] = useState<GitLogEntry[]>([])
+  const [gitLogLoading, setGitLogLoading] = useState(false)
   const [gitBranches, setGitBranches] = useState<GitBranchInfo[]>([])
   const [gitBranchesLoading, setGitBranchesLoading] = useState(false)
   const [selectedGitEntry, setSelectedGitEntry] = useState<GitStatusEntry | null>(null)
+  const [selectedGitCommit, setSelectedGitCommit] = useState<GitLogEntry | null>(null)
   const [gitDiff, setGitDiff] = useState<GitDiffResult | null>(null)
   const [gitDiffLoading, setGitDiffLoading] = useState(false)
   const [gitActionLoading, setGitActionLoading] = useState(false)
@@ -174,7 +197,7 @@ export function ChatView({
   const contextUsagePercent = estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
   const preferredOpenWithApp = openWithApps.find((app) => app.id === preferredOpenWithAppId) ?? null
   const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null
-  const showGitPreviewPane = selectedGitEntry !== null
+  const showGitPreviewPane = selectedGitEntry !== null || selectedGitCommit !== null
   const gitAvailable = gitStatus?.gitAvailable ?? true
   const stagedGitEntryCount = gitStatus?.entries.filter((entry) => entry.staged).length ?? 0
   const fileConflictLabel = useMemo(() => {
@@ -422,7 +445,7 @@ export function ChatView({
   useEffect(() => {
     if (!gitPanelOpen) return
 
-    void refreshGitPanelPassive()
+    void refreshGitPanel()
 
     const intervalId = window.setInterval(() => {
       void refreshGitPanelPassive()
@@ -436,6 +459,7 @@ export function ChatView({
   useEffect(() => {
     let cancelled = false
     void refreshGitStatus(() => cancelled)
+    void refreshGitLog(() => cancelled)
     void refreshGitBranches(() => cancelled)
     return () => {
       cancelled = true
@@ -448,6 +472,8 @@ export function ChatView({
     setPreviewState('idle')
     setMarkdownPreviewEnabled(true)
     setSelectedGitEntry(null)
+    setSelectedGitCommit(null)
+    setGitLog([])
     setGitDiff(null)
     setGitCommitMessage('')
     setGitNewBranchName('')
@@ -455,6 +481,7 @@ export function ChatView({
     setBranchQuery('')
     setBranchCreateModalOpen(false)
     selectedGitEntryPathRef.current = null
+    selectedGitCommitHashRef.current = null
   }, [session.cwd])
 
   const toggleDirectory = async (entry: DirEntry) => {
@@ -574,7 +601,7 @@ export function ChatView({
         : null
       setSelectedGitEntry((prev) => (areGitStatusEntriesEqual(prev, nextSelectedEntry) ? prev : nextSelectedEntry))
       selectedGitEntryPathRef.current = nextSelectedEntry?.path ?? null
-      if (!nextSelectedEntry) {
+      if (!nextSelectedEntry && !selectedGitCommitHashRef.current) {
         setGitDiff(null)
       }
       return nextStatus
@@ -593,10 +620,46 @@ export function ChatView({
       setGitStatus(fallbackStatus)
       setSelectedGitEntry(null)
       selectedGitEntryPathRef.current = null
-      setGitDiff(null)
+      if (!selectedGitCommitHashRef.current) {
+        setGitDiff(null)
+      }
       return fallbackStatus
     } finally {
       if (!isCancelled?.() && (!silent || !gitStatus)) setGitLoading(false)
+    }
+  }
+
+  const refreshGitLog = async (isCancelled?: () => boolean, options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false
+    if (!silent || gitLog.length === 0) {
+      setGitLogLoading(true)
+    }
+    try {
+      const result = await window.claude.getGitLog({ cwd: session.cwd || '~' })
+      if (isCancelled?.()) return
+      const nextEntries = result.ok ? result.entries : []
+      setGitLog(nextEntries)
+      const selectedHash = selectedGitCommitHashRef.current
+      const nextSelectedCommit = selectedHash
+        ? nextEntries.find((entry) => entry.hash === selectedHash) ?? null
+        : null
+      setSelectedGitCommit((prev) => (areGitLogEntriesEqual(prev, nextSelectedCommit) ? prev : nextSelectedCommit))
+      selectedGitCommitHashRef.current = nextSelectedCommit?.hash ?? null
+      if (!nextSelectedCommit && !selectedGitEntryPathRef.current) {
+        setGitDiff(null)
+      }
+      return nextEntries
+    } catch {
+      if (isCancelled?.()) return
+      setGitLog([])
+      setSelectedGitCommit(null)
+      selectedGitCommitHashRef.current = null
+      if (!selectedGitEntryPathRef.current) {
+        setGitDiff(null)
+      }
+      return []
+    } finally {
+      if (!isCancelled?.() && (!silent || gitLog.length === 0)) setGitLogLoading(false)
     }
   }
 
@@ -626,7 +689,9 @@ export function ChatView({
     }
 
     selectedGitEntryPathRef.current = entry.path
+    selectedGitCommitHashRef.current = null
     setSelectedGitEntry(entry)
+    setSelectedGitCommit(null)
     setGitDiffLoading(true)
     try {
       const nextDiff = await window.claude.getGitDiff({ cwd: session.cwd || '~', filePath: entry.path })
@@ -638,14 +703,39 @@ export function ChatView({
     }
   }
 
+  const handleSelectGitCommit = async (entry: GitLogEntry) => {
+    if (selectedGitCommit?.hash === entry.hash) {
+      setSelectedGitCommit(null)
+      selectedGitCommitHashRef.current = null
+      setGitDiff(null)
+      return
+    }
+
+    selectedGitCommitHashRef.current = entry.hash
+    selectedGitEntryPathRef.current = null
+    setSelectedGitCommit(entry)
+    setSelectedGitEntry(null)
+    setGitDiffLoading(true)
+    try {
+      const nextDiff = await window.claude.getGitCommitDiff({ cwd: session.cwd || '~', commitHash: entry.hash })
+      setGitDiff(nextDiff)
+    } catch {
+      setGitDiff({ ok: false, diff: '', error: '커밋 diff를 불러오지 못했습니다.' })
+    } finally {
+      setGitDiffLoading(false)
+    }
+  }
+
   const refreshGitPanel = async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
-    const [nextStatus] = await Promise.all([
+    const [nextStatus, nextLogEntries] = await Promise.all([
       refreshGitStatus(undefined, { silent }),
+      refreshGitLog(undefined, { silent }),
       refreshGitBranches(undefined, { silent }),
     ])
     if (!nextStatus) return
     const selectedPath = selectedGitEntryPathRef.current
+    const selectedCommitHash = selectedGitCommitHashRef.current
     if (selectedPath) {
       const nextEntry = nextStatus.isRepo
         ? nextStatus.entries.find((entry) => entry.path === selectedPath) ?? null
@@ -674,6 +764,33 @@ export function ChatView({
       } else {
         setGitDiff(null)
       }
+      return
+    }
+
+    if (selectedCommitHash) {
+      const nextCommit = nextLogEntries?.find((entry) => entry.hash === selectedCommitHash) ?? null
+      setSelectedGitCommit((prev) => (areGitLogEntriesEqual(prev, nextCommit) ? prev : nextCommit))
+      selectedGitCommitHashRef.current = nextCommit?.hash ?? null
+      if (!nextCommit) {
+        setGitDiff(null)
+        return
+      }
+      if (!silent) {
+        if (!gitDiff) {
+          setGitDiffLoading(true)
+        }
+        try {
+          const nextDiff = await window.claude.getGitCommitDiff({ cwd: session.cwd || '~', commitHash: nextCommit.hash })
+          setGitDiff((prev) => (areGitDiffResultsEqual(prev, nextDiff) ? prev : nextDiff))
+        } catch {
+          const nextDiff = { ok: false as const, diff: '', error: '커밋 diff를 불러오지 못했습니다.' }
+          setGitDiff((prev) => (areGitDiffResultsEqual(prev, nextDiff) ? prev : nextDiff))
+        } finally {
+          if (!gitDiff) {
+            setGitDiffLoading(false)
+          }
+        }
+      }
     }
   }
 
@@ -685,7 +802,10 @@ export function ChatView({
     gitPanelRefreshInFlightRef.current = true
     gitPanelLastRefreshAtRef.current = now
     try {
-      await refreshGitPanel({ silent: true })
+      await Promise.all([
+        refreshGitStatus(undefined, { silent: true }),
+        refreshGitBranches(undefined, { silent: true }),
+      ])
     } finally {
       gitPanelRefreshInFlightRef.current = false
     }
@@ -694,7 +814,7 @@ export function ChatView({
   const handleGitPanelPointerDown = (event: ReactMouseEvent<HTMLElement>) => {
     if (!gitPanelOpen) return
     if (!(event.target instanceof HTMLElement)) return
-    if (event.target.closest('button, input, textarea, select, option, label, a')) return
+    if (event.target.closest('button, input, textarea, select, option, label, a, [data-git-resize="true"]')) return
     void refreshGitPanelPassive(350)
   }
 
@@ -960,6 +1080,48 @@ export function ChatView({
     window.addEventListener('mouseup', onMouseUp)
   }
 
+  const handleGitLogResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startY = event.clientY
+    const startHeight = gitLogPanelHeight
+    const sidebarHeight = gitSidebarRef.current?.clientHeight ?? 0
+    const maxHeight = Math.max(120, sidebarHeight - gitCommitPanelHeight - 180)
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const nextHeight = Math.min(maxHeight, Math.max(96, startHeight + (moveEvent.clientY - startY)))
+      setGitLogPanelHeight(nextHeight)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
+
+  const handleGitCommitResizeStart = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startY = event.clientY
+    const startHeight = gitCommitPanelHeight
+    const sidebarHeight = gitSidebarRef.current?.clientHeight ?? 0
+    const maxHeight = Math.max(108, sidebarHeight - gitLogPanelHeight - 180)
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const nextHeight = Math.min(maxHeight, Math.max(92, startHeight - (moveEvent.clientY - startY)))
+      setGitCommitPanelHeight(nextHeight)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
+
   const handleOpenWith = async (appId: string, persistPreference = true) => {
     const result = await window.claude.openPathWithApp({ targetPath: openTargetPath, appId })
     if (result.ok && persistPreference) {
@@ -987,12 +1149,12 @@ export function ChatView({
     <div ref={containerRef} className="flex h-full bg-claude-bg">
       <div className="flex min-w-0 flex-1 flex-col">
         <div
-          className="draggable-region flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
+          className="draggable-region relative z-30 flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
           style={{ paddingLeft: sidebarCollapsed ? '76px' : '16px' }}
           onDoubleClick={handleHeaderDoubleClick}
         >
           <div
-            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2 py-1.5 text-xs text-claude-muted"
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-visible px-2 py-1.5 text-xs text-claude-muted"
             title="현재 작업 폴더"
           >
             <button
@@ -1012,7 +1174,7 @@ export function ChatView({
               {session.cwd || '~'}
             </span>
             {gitStatus?.isRepo && gitStatus.branch ? (
-              <div ref={branchMenuRef} className="relative no-drag" data-no-drag="true">
+              <div ref={branchMenuRef} className="relative z-40 no-drag" data-no-drag="true">
                 <button
                   type="button"
                   onClick={() => {
@@ -1041,7 +1203,7 @@ export function ChatView({
                 </button>
 
                 {branchMenuOpen && (
-                  <div className="absolute left-0 top-full z-30 mt-2 w-[268px] rounded-[18px] border border-claude-border bg-claude-panel p-2">
+                  <div className="absolute left-0 top-full z-50 mt-2 w-[268px] rounded-[18px] border border-claude-border bg-claude-panel p-2 shadow-2xl">
                     <div className="flex items-center gap-1.5">
                       <div className="relative min-w-0 flex-1">
                         <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -1061,7 +1223,7 @@ export function ChatView({
                           type="button"
                           onClick={() => void handlePullGit()}
                           disabled={gitActionLoading || gitLoading}
-                          tooltip="Pull"
+                          tooltip={gitStatus.behind > 0 ? `Pull(${gitStatus.behind})` : 'Pull'}
                           tooltipAlign="right"
                           className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
                         >
@@ -1075,7 +1237,7 @@ export function ChatView({
                           type="button"
                           onClick={() => void handlePushGit()}
                           disabled={gitActionLoading || gitLoading}
-                          tooltip="Push"
+                          tooltip={gitStatus.ahead > 0 ? `Push(${gitStatus.ahead})` : 'Push'}
                           tooltipAlign="right"
                           className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
                         >
@@ -1314,7 +1476,7 @@ export function ChatView({
 
         {/* 메시지 영역 */}
         <div
-          className="min-w-0 flex-1 overflow-y-auto px-6 py-7"
+          className="relative z-0 min-w-0 flex-1 overflow-y-auto px-6 py-7"
           style={{ background: 'linear-gradient(180deg, rgb(var(--claude-panel)) 0%, rgb(var(--claude-bg)) 100%)' }}
         >
           <div className={`mx-auto w-full max-w-[860px] ${isNewSession ? 'min-h-full' : ''}`}>
@@ -1410,7 +1572,7 @@ export function ChatView({
         >
           <div className="flex h-12 items-center justify-between border-b border-claude-border px-4">
             <p className="text-sm font-semibold text-claude-text">
-              {filePanelOpen ? '파일 탐색기' : gitPanelOpen ? 'git diff' : '세션 정보'}
+              {filePanelOpen ? '파일 탐색기' : gitPanelOpen ? 'Git' : '세션 정보'}
             </p>
             {(filePanelOpen || gitPanelOpen) && (
               <button
@@ -1487,7 +1649,9 @@ export function ChatView({
                   <>
                     <div className="min-w-0 flex-1 overflow-y-auto bg-claude-bg">
                       <GitDiffPanel
+                        cwd={gitStatus?.rootPath ?? session.cwd ?? '~'}
                         entry={selectedGitEntry}
+                        commit={selectedGitCommit}
                         gitDiff={gitDiff}
                         loading={gitDiffLoading}
                       />
@@ -1501,69 +1665,119 @@ export function ChatView({
                 )}
 
                 <div
-                  className={`min-w-0 overflow-y-auto px-2 py-3 ${showGitPreviewPane ? 'border-l border-claude-border bg-claude-panel' : 'flex-1 bg-claude-panel'}`}
+                  ref={gitSidebarRef}
+                  className={`min-w-0 flex h-full min-h-0 flex-col ${showGitPreviewPane ? 'border-l border-claude-border bg-claude-panel' : 'flex-1 bg-claude-panel'}`}
                   style={showGitPreviewPane ? { width: `${explorerWidth}px` } : undefined}
                 >
-                  <GitStatusPanel
-                    status={gitStatus}
-                    loading={gitLoading}
-                    selectedPath={selectedGitEntry?.path ?? null}
-                    actionLoading={gitActionLoading}
-                    onSelectEntry={handleSelectGitEntry}
-                    onToggleStage={handleToggleGitStage}
-                    onRestoreEntry={handleRestoreGitEntry}
-                    onRestoreEntries={handleRestoreGitEntries}
-                    onStageEntries={handleStageGitEntries}
-                    onUnstageEntries={handleUnstageGitEntries}
-                  />
+                  {gitStatus?.isRepo ? (
+                    <div className="flex h-full min-h-0 flex-col">
+                      <div className="min-h-0 shrink-0 px-3 pt-3" style={{ height: `${gitLogPanelHeight}px` }}>
+                        <GitLogPanel
+                          status={gitStatus}
+                          gitLog={gitLog}
+                          loading={gitLogLoading}
+                          actionLoading={gitActionLoading || gitLoading}
+                          selectedCommitHash={selectedGitCommit?.hash ?? null}
+                          onSelectCommit={handleSelectGitCommit}
+                          onPull={handlePullGit}
+                          onPush={handlePushGit}
+                        />
+                      </div>
+
+                      <div
+                        onMouseDown={handleGitLogResizeStart}
+                        data-git-resize="true"
+                        className="h-1.5 shrink-0 cursor-row-resize bg-transparent hover:bg-claude-border/80 transition-colors"
+                      />
+
+                      <div className="min-h-0 flex-1 overflow-y-auto border-t border-claude-border px-2 py-3">
+                        <GitStatusPanel
+                          status={gitStatus}
+                          loading={gitLoading}
+                          selectedPath={selectedGitEntry?.path ?? null}
+                          actionLoading={gitActionLoading}
+                          onSelectEntry={handleSelectGitEntry}
+                          onToggleStage={handleToggleGitStage}
+                          onRestoreEntry={handleRestoreGitEntry}
+                          onRestoreEntries={handleRestoreGitEntries}
+                          onStageEntries={handleStageGitEntries}
+                          onUnstageEntries={handleUnstageGitEntries}
+                        />
+                      </div>
+
+                      <div
+                        onMouseDown={handleGitCommitResizeStart}
+                        data-git-resize="true"
+                        className="h-1.5 shrink-0 cursor-row-resize bg-transparent hover:bg-claude-border/80 transition-colors"
+                      />
+
+                      <div
+                        className="shrink-0 border-t border-claude-border bg-claude-panel px-3 py-3"
+                        style={{ height: `${gitCommitPanelHeight}px` }}
+                      >
+                        <div className="flex h-full min-h-0 flex-col">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-[11px] text-claude-muted">
+                              <span>스테이징됨</span>
+                              <span className="inline-flex h-[17px] min-w-[20px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-surface px-1.5 text-[10px] font-semibold leading-none text-claude-text">
+                                {stagedGitEntryCount}
+                              </span>
+                            </div>
+                            {stagedGitEntryCount === 0 && (
+                              <span className="text-[11px] text-claude-muted">커밋할 파일을 먼저 스테이징하세요</span>
+                            )}
+                          </div>
+
+                          <div className="flex min-h-0 flex-1 items-end gap-2">
+                            <textarea
+                              ref={gitCommitTextareaRef}
+                              value={gitCommitMessage}
+                              onChange={(event) => setGitCommitMessage(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                  event.preventDefault()
+                                  void handleCommitGit()
+                                }
+                              }}
+                              rows={1}
+                              disabled={gitActionLoading || stagedGitEntryCount === 0}
+                              placeholder={stagedGitEntryCount > 0 ? '커밋 메시지 입력' : '스테이징된 파일이 없습니다'}
+                              className="max-h-40 min-h-[36px] flex-1 resize-none overflow-hidden rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted disabled:cursor-not-allowed disabled:opacity-60"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleCommitGit()}
+                              disabled={gitActionLoading || stagedGitEntryCount === 0 || gitCommitMessage.trim().length === 0}
+                              title="커밋"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-claude-border bg-claude-surface text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M1.75 8h3.1m6.3 0h3.1" />
+                                <circle cx="8" cy="8" r="3.15" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+                      <GitStatusPanel
+                        status={gitStatus}
+                        loading={gitLoading}
+                        selectedPath={selectedGitEntry?.path ?? null}
+                        actionLoading={gitActionLoading}
+                        onSelectEntry={handleSelectGitEntry}
+                        onToggleStage={handleToggleGitStage}
+                        onRestoreEntry={handleRestoreGitEntry}
+                        onRestoreEntries={handleRestoreGitEntries}
+                        onStageEntries={handleStageGitEntries}
+                        onUnstageEntries={handleUnstageGitEntries}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {gitStatus?.isRepo && (
-                <div className="border-t border-claude-border bg-claude-panel px-3 py-3">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-[11px] text-claude-muted">
-                      <span>스테이징됨</span>
-                      <span className="inline-flex h-[17px] min-w-[20px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-surface px-1.5 text-[10px] font-semibold leading-none text-claude-text">
-                        {stagedGitEntryCount}
-                      </span>
-                    </div>
-                    {stagedGitEntryCount === 0 && (
-                      <span className="text-[11px] text-claude-muted">커밋할 파일을 먼저 스테이징하세요</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-end gap-2">
-                    <textarea
-                      ref={gitCommitTextareaRef}
-                      value={gitCommitMessage}
-                      onChange={(event) => setGitCommitMessage(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault()
-                          void handleCommitGit()
-                        }
-                      }}
-                      rows={1}
-                      disabled={gitActionLoading || stagedGitEntryCount === 0}
-                      placeholder={stagedGitEntryCount > 0 ? '커밋 메시지 입력' : '스테이징된 파일이 없습니다'}
-                      className="max-h-40 min-h-[36px] flex-1 resize-none overflow-hidden rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleCommitGit()}
-                      disabled={gitActionLoading || stagedGitEntryCount === 0 || gitCommitMessage.trim().length === 0}
-                      title="커밋"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-claude-border bg-claude-surface text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M1.75 8h3.1m6.3 0h3.1" />
-                        <circle cx="8" cy="8" r="3.15" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <SessionInfoPanel
@@ -1958,6 +2172,15 @@ function toFileUrl(filePath: string): string {
   return normalized.startsWith('/') ? `file://${encodedPath}` : `file:///${encodedPath}`
 }
 
+function joinPreviewPath(basePath: string, relativePath: string): string {
+  if (!relativePath) return basePath
+  if (/^[A-Za-z]:[\\/]/.test(relativePath) || relativePath.startsWith('/')) return relativePath
+
+  const normalizedBase = basePath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const normalizedRelative = relativePath.replace(/\\/g, '/').replace(/^\.?\//, '')
+  return `${normalizedBase}/${normalizedRelative}`
+}
+
 function resolveMarkdownPreviewUrl(baseFilePath: string, url: string): string {
   const trimmed = url.trim()
   if (!trimmed) return trimmed
@@ -2025,27 +2248,13 @@ function extractMarkdownImageUrls(markdown: string): string[] {
   return [...urls]
 }
 
-function PreviewPane({
-  entry,
-  previewContent,
-  previewState,
-  markdownPreviewEnabled,
-  onToggleMarkdownPreview,
-}: {
-  entry: DirEntry | null
-  previewContent: string
-  previewState: 'idle' | 'loading' | 'ready' | 'unsupported'
-  markdownPreviewEnabled: boolean
-  onToggleMarkdownPreview: () => void
-}) {
+function MarkdownPreviewBody({ filePath, content }: { filePath: string; content: string }) {
   const [markdownImageDataUrls, setMarkdownImageDataUrls] = useState<Record<string, string>>({})
-  const markdownImageSources = useMemo(() => {
-    if (!entry || previewState !== 'ready' || !isMarkdownFile(entry.name) || !markdownPreviewEnabled) return []
-
-    return extractMarkdownImageUrls(previewContent)
-      .map((url) => resolveMarkdownPreviewUrl(entry.path, url))
+  const markdownImageSources = useMemo(() => (
+    extractMarkdownImageUrls(content)
+      .map((url) => resolveMarkdownPreviewUrl(filePath, url))
       .filter((url, index, all) => url.startsWith('file://') && all.indexOf(url) === index)
-  }, [entry, previewContent, previewState, markdownPreviewEnabled])
+  ), [content, filePath])
 
   useEffect(() => {
     let cancelled = false
@@ -2058,9 +2267,9 @@ function PreviewPane({
     void (async () => {
       const pairs = await Promise.all(
         markdownImageSources.map(async (sourceUrl) => {
-          const filePath = fileUrlToPath(sourceUrl)
-          if (!filePath) return null
-          const dataUrl = await window.claude.readFileDataUrl(filePath)
+          const resolvedPath = fileUrlToPath(sourceUrl)
+          if (!resolvedPath) return null
+          const dataUrl = await window.claude.readFileDataUrl(resolvedPath)
           return dataUrl ? [sourceUrl, dataUrl] as const : null
         })
       )
@@ -2077,6 +2286,73 @@ function PreviewPane({
     }
   }, [markdownImageSources])
 
+  return (
+    <div className="prose prose-sm max-w-none">
+      <ReactMarkdown
+        rehypePlugins={[rehypeRaw]}
+        remarkPlugins={[remarkGfm]}
+        urlTransform={(url) => resolveMarkdownPreviewUrl(filePath, url)}
+        components={{
+          code({ className, children, ...props }) {
+            const isInline = !className
+            if (isInline) {
+              return (
+                <code
+                  className="rounded-md border border-claude-border bg-claude-surface-2 px-1.5 py-0.5 text-xs font-mono text-claude-text"
+                  {...props}
+                >
+                  {children}
+                </code>
+              )
+            }
+            return (
+              <code className={`hljs ${className ?? ''}`} {...props}>
+                {children}
+              </code>
+            )
+          },
+          img({ src = '', alt = '', ...props }) {
+            const resolvedSrc = resolveMarkdownPreviewUrl(filePath, src)
+            const imageSrc = resolvedSrc.startsWith('file://')
+              ? markdownImageDataUrls[resolvedSrc] ?? undefined
+              : resolvedSrc
+
+            return (
+              <img
+                {...props}
+                src={imageSrc}
+                alt={alt}
+              />
+            )
+          },
+          pre({ children, ...props }) {
+            return (
+              <pre {...props} className="!bg-transparent !p-0 overflow-x-auto">
+                {children}
+              </pre>
+            )
+          }
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
+function PreviewPane({
+  entry,
+  previewContent,
+  previewState,
+  markdownPreviewEnabled,
+  onToggleMarkdownPreview,
+}: {
+  entry: DirEntry | null
+  previewContent: string
+  previewState: 'idle' | 'loading' | 'ready' | 'unsupported'
+  markdownPreviewEnabled: boolean
+  onToggleMarkdownPreview: () => void
+}) {
   if (!entry) {
     return (
       <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
@@ -2119,56 +2395,7 @@ function PreviewPane({
           </button>
         </div>
         <div className="flex-1 overflow-auto px-5 py-4">
-          <div className="prose prose-sm max-w-none">
-            <ReactMarkdown
-              rehypePlugins={[rehypeRaw]}
-              remarkPlugins={[remarkGfm]}
-              urlTransform={(url) => resolveMarkdownPreviewUrl(entry.path, url)}
-              components={{
-                code({ className, children, ...props }) {
-                  const isInline = !className
-                  if (isInline) {
-                    return (
-                      <code
-                        className="rounded-md border border-claude-border bg-claude-surface-2 px-1.5 py-0.5 text-xs font-mono text-claude-text"
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    )
-                  }
-                  return (
-                    <code className={`hljs ${className ?? ''}`} {...props}>
-                      {children}
-                    </code>
-                  )
-                },
-                img({ src = '', alt = '', ...props }) {
-                  const resolvedSrc = resolveMarkdownPreviewUrl(entry.path, src)
-                  const imageSrc = resolvedSrc.startsWith('file://')
-                    ? markdownImageDataUrls[resolvedSrc] ?? undefined
-                    : resolvedSrc
-
-                  return (
-                    <img
-                      {...props}
-                      src={imageSrc}
-                      alt={alt}
-                    />
-                  )
-                },
-                pre({ children, ...props }) {
-                  return (
-                    <pre {...props} className="!bg-transparent !p-0 overflow-x-auto">
-                      {children}
-                    </pre>
-                  )
-                }
-              }}
-            >
-              {previewContent}
-            </ReactMarkdown>
-          </div>
+          <MarkdownPreviewBody filePath={entry.path} content={previewContent} />
         </div>
       </div>
     )
@@ -2273,6 +2500,142 @@ function safeParseGitDiff(diffText: string) {
   }
 }
 
+function parseGitDecorations(decorations: string) {
+  if (!decorations.trim()) return []
+
+  return decorations
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .flatMap((value) => {
+      if (value.startsWith('HEAD -> ')) {
+        return [{
+          label: value.slice('HEAD -> '.length).trim(),
+          kind: 'current' as const,
+        }]
+      }
+
+      if (value === 'HEAD') {
+        return [{ label: 'HEAD', kind: 'current' as const }]
+      }
+
+      if (value.startsWith('tag: ')) {
+        return [{
+          label: value.slice('tag: '.length).trim(),
+          kind: 'tag' as const,
+        }]
+      }
+
+      if (value.startsWith('origin/')) {
+        return [{ label: value, kind: 'remote' as const }]
+      }
+
+      if (value.includes('/')) {
+        return [{ label: value, kind: 'other' as const }]
+      }
+
+      return [{ label: value, kind: 'local' as const }]
+    })
+}
+
+function getGitDecorationBadgeClass(kind: 'current' | 'local' | 'remote' | 'tag' | 'other') {
+  switch (kind) {
+    case 'current':
+      return 'border-sky-500/40 bg-sky-500/12 text-sky-200'
+    case 'local':
+      return 'border-indigo-500/35 bg-indigo-500/12 text-indigo-200'
+    case 'remote':
+      return 'border-fuchsia-500/35 bg-fuchsia-500/12 text-fuchsia-200'
+    case 'tag':
+      return 'border-amber-500/35 bg-amber-500/12 text-amber-100'
+    default:
+      return 'border-claude-border bg-claude-surface text-claude-text'
+  }
+}
+
+function getGitGraphLane(graph: string) {
+  const starIndex = graph.indexOf('*')
+  if (starIndex >= 0) return starIndex
+  const branchIndex = graph.search(/[|\\/]/)
+  return branchIndex >= 0 ? branchIndex : 0
+}
+
+const GIT_GRAPH_LANE_WIDTH = 12
+const GIT_GRAPH_MARKER_CENTER_Y = 12
+const GIT_GRAPH_ACTIVE_MARKER_SIZE = 10
+const GIT_GRAPH_DEFAULT_MARKER_SIZE = 8
+
+function renderGitGraph(
+  graph: string,
+  previousGraph: string,
+  nextGraph: string,
+  active: boolean,
+  previousActive: boolean,
+) {
+  const lane = getGitGraphLane(graph)
+  const previousLane = previousGraph ? getGitGraphLane(previousGraph) : -1
+  const nextLane = nextGraph ? getGitGraphLane(nextGraph) : -1
+  const width = Math.max(
+    28,
+    Math.max(graph.length, previousGraph.length, nextGraph.length, lane + 1) * GIT_GRAPH_LANE_WIDTH + 8,
+  )
+  const markerLeft = lane * GIT_GRAPH_LANE_WIDTH + 8
+  const markerSize = active ? GIT_GRAPH_ACTIVE_MARKER_SIZE : GIT_GRAPH_DEFAULT_MARKER_SIZE
+  const markerRadius = markerSize / 2
+  const markerTop = GIT_GRAPH_MARKER_CENTER_Y - markerRadius
+  const lineColor = active ? 'rgba(105, 202, 255, 0.95)' : 'rgba(223, 157, 255, 0.88)'
+  const previousLineColor = previousActive ? 'rgba(105, 202, 255, 0.95)' : 'rgba(223, 157, 255, 0.88)'
+  const markerStyle = active
+    ? {
+        backgroundColor: 'rgb(31 34 46)',
+        borderColor: lineColor,
+        borderWidth: '2px',
+      }
+    : {
+        backgroundColor: lineColor,
+        borderColor: lineColor,
+        borderWidth: '0px',
+      }
+
+  return (
+    <span className="relative block h-full min-h-[24px]" style={{ width: `${width}px` }}>
+      {previousLane === lane && (
+        <span
+          className="absolute w-[2px] rounded-full"
+          style={{
+            left: `${markerLeft}px`,
+            top: 0,
+            height: `${Math.max(0, GIT_GRAPH_MARKER_CENTER_Y - markerRadius)}px`,
+            transform: 'translateX(-50%)',
+            backgroundColor: previousLineColor,
+          }}
+        />
+      )}
+      {nextLane === lane && (
+        <span
+          className="absolute bottom-0 w-[2px] rounded-full"
+          style={{
+            left: `${markerLeft}px`,
+            top: `${GIT_GRAPH_MARKER_CENTER_Y + markerRadius}px`,
+            transform: 'translateX(-50%)',
+            backgroundColor: lineColor,
+          }}
+        />
+      )}
+      <span
+        className="absolute -translate-x-1/2 rounded-full border shadow-[0_0_0_1px_rgba(18,20,27,0.18)]"
+        style={{
+          left: `${markerLeft}px`,
+          top: `${markerTop}px`,
+          width: `${markerSize}px`,
+          height: `${markerSize}px`,
+          ...markerStyle,
+        }}
+      />
+    </span>
+  )
+}
+
 function IconTooltipButton({
   tooltip,
   tooltipAlign = 'center',
@@ -2307,6 +2670,133 @@ function IconTooltipButton({
       </button>
       <div className={`pointer-events-none absolute z-20 whitespace-nowrap rounded-md border border-claude-border bg-claude-panel px-2 py-1 text-[10px] font-medium text-claude-text opacity-0 transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 ${tooltipPositionClass} ${tooltipSideClass}`}>
         {tooltip}
+      </div>
+    </div>
+  )
+}
+
+function GitLogPanel({
+  status,
+  gitLog,
+  loading,
+  actionLoading,
+  selectedCommitHash,
+  onSelectCommit,
+  onPull,
+  onPush,
+}: {
+  status: GitRepoStatus | null
+  gitLog: GitLogEntry[]
+  loading: boolean
+  actionLoading: boolean
+  selectedCommitHash: string | null
+  onSelectCommit: (entry: GitLogEntry) => void
+  onPull: () => Promise<void>
+  onPush: () => Promise<void>
+}) {
+  const historyEntries = gitLog
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-2 px-1 pb-2">
+        <div className="flex items-center gap-2">
+          <p className="text-[12px] font-semibold text-claude-text">최근 커밋</p>
+          {status?.branch && (
+            <span className="rounded-full border border-sky-500/35 bg-sky-500/12 px-2 py-0.5 font-mono text-[10px] font-medium text-sky-200">
+              {status.branch}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <IconTooltipButton
+            type="button"
+            onClick={() => void onPull()}
+            disabled={actionLoading}
+            tooltip={status && status.behind > 0 ? `Pull(${status.behind})` : 'Pull'}
+            tooltipAlign="right"
+            className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+          >
+            <svg className={`h-3.5 w-3.5 ${status && status.behind > 0 ? 'text-amber-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m7 11 5 5 5-5" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14" />
+            </svg>
+          </IconTooltipButton>
+          <IconTooltipButton
+            type="button"
+            onClick={() => void onPush()}
+            disabled={actionLoading}
+            tooltip={status && status.ahead > 0 ? `Push(${status.ahead})` : 'Push'}
+            tooltipAlign="right"
+            className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+          >
+            <svg className={`h-3.5 w-3.5 ${status && status.ahead > 0 ? 'text-blue-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V8" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m7 13 5-5 5 5" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h14" />
+            </svg>
+          </IconTooltipButton>
+          {loading && (
+            <svg className="ml-1 h-3.5 w-3.5 animate-spin text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+            </svg>
+          )}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {historyEntries.length === 0 ? (
+          <div className="px-2 py-6 text-center text-[12px] text-claude-muted">
+            {loading ? '로그를 불러오는 중입니다.' : '표시할 커밋 로그가 없습니다.'}
+          </div>
+        ) : (
+          <div className="flex flex-col pr-1">
+            {historyEntries.map((entry, index) => {
+              const refs = parseGitDecorations(entry.decorations)
+              const isSelected = selectedCommitHash === entry.hash
+              const isHeadCommit = refs.some((ref) => ref.kind === 'current')
+              const previousGraph = index > 0 ? historyEntries[index - 1]?.graph ?? '' : ''
+              const nextGraph = index < historyEntries.length - 1 ? historyEntries[index + 1]?.graph ?? '' : ''
+              const previousRefs = index > 0 ? parseGitDecorations(historyEntries[index - 1]?.decorations ?? '') : []
+              const previousIsHeadCommit = previousRefs.some((ref) => ref.kind === 'current')
+              return (
+                <button
+                  key={entry.hash}
+                  type="button"
+                  onClick={() => void onSelectCommit(entry)}
+                  className={`block w-full rounded-md px-2 text-left transition-colors ${
+                    isSelected
+                      ? 'bg-claude-surface-2'
+                      : 'hover:bg-claude-panel'
+                  }`}
+                  title={`${entry.shortHash} ${entry.subject}`}
+                >
+                  <div className="flex items-stretch gap-1">
+                    <div className="flex min-h-[24px] shrink-0 self-stretch items-stretch justify-center">
+                      {renderGitGraph(entry.graph, previousGraph, nextGraph, isHeadCommit, previousIsHeadCommit)}
+                    </div>
+                    <div className="min-w-0 flex-1 py-0">
+                      <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+                        <p className={`min-w-0 truncate text-[13px] leading-[15px] ${isSelected ? 'font-semibold text-claude-text' : 'font-medium text-claude-text'}`}>
+                          {entry.subject}
+                        </p>
+                        <span className="shrink-0 text-[11px] text-claude-muted">{entry.author}</span>
+                        {refs.map((ref) => (
+                          <span
+                            key={`${entry.hash}-${ref.kind}-${ref.label}`}
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none ${getGitDecorationBadgeClass(ref.kind)}`}
+                          >
+                            {ref.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2579,11 +3069,15 @@ function GitStatusPanel({
 }
 
 const GitDiffPanel = memo(function GitDiffPanel({
+  cwd,
   entry,
+  commit,
   gitDiff,
   loading,
 }: {
+  cwd: string
   entry: GitStatusEntry | null
+  commit: GitLogEntry | null
   gitDiff: GitDiffResult | null
   loading: boolean
 }) {
@@ -2591,34 +3085,203 @@ const GitDiffPanel = memo(function GitDiffPanel({
     if (!gitDiff?.diff.trim()) return []
     return safeParseGitDiff(gitDiff.diff)
   }, [gitDiff?.diff])
+  const [collapsedFiles, setCollapsedFiles] = useState<Record<string, boolean>>({})
+  const [markdownPreviewEnabled, setMarkdownPreviewEnabled] = useState(false)
+  const [markdownPreviewState, setMarkdownPreviewState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [markdownPreviewContent, setMarkdownPreviewContent] = useState('')
+  const [markdownPreviewError, setMarkdownPreviewError] = useState('')
+  const commitHashRef = useRef<string | null>(commit?.hash ?? null)
+  const [commitMarkdownPreviewOpen, setCommitMarkdownPreviewOpen] = useState<Record<string, boolean>>({})
+  const [commitMarkdownPreviewCache, setCommitMarkdownPreviewCache] = useState<Record<string, {
+    state: 'loading' | 'ready' | 'error'
+    content: string
+    error: string
+  }>>({})
+  const markdownPreviewAvailable = Boolean(entry && !entry.deleted && isMarkdownFile(entry.relativePath))
 
-  if (!entry) {
+  useEffect(() => {
+    commitHashRef.current = commit?.hash ?? null
+  }, [commit?.hash])
+
+  useEffect(() => {
+    setCollapsedFiles({})
+    setCommitMarkdownPreviewOpen({})
+    setCommitMarkdownPreviewCache({})
+  }, [gitDiff?.diff, entry?.path, commit?.hash])
+
+  useEffect(() => {
+    setMarkdownPreviewEnabled(false)
+    setMarkdownPreviewState('idle')
+    setMarkdownPreviewContent('')
+    setMarkdownPreviewError('')
+  }, [entry?.path, commit?.hash])
+
+  useEffect(() => {
+    if (!markdownPreviewEnabled || !entry || !markdownPreviewAvailable) return
+
+    let cancelled = false
+    setMarkdownPreviewState('loading')
+    setMarkdownPreviewError('')
+
+    void (async () => {
+      const result = await window.claude.readFile(entry.path)
+      if (cancelled) return
+
+      if (!result || result.fileType !== 'text') {
+        setMarkdownPreviewState('error')
+        setMarkdownPreviewContent('')
+        setMarkdownPreviewError('마크다운 미리보기를 불러오지 못했습니다.')
+        return
+      }
+
+      setMarkdownPreviewState('ready')
+      setMarkdownPreviewContent(result.content)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [entry?.path, markdownPreviewAvailable, markdownPreviewEnabled])
+
+  const handleToggleCommitMarkdownPreview = async (fileKey: string, filePath: string) => {
+    const nextOpen = !(commitMarkdownPreviewOpen[fileKey] ?? false)
+    setCommitMarkdownPreviewOpen((current) => ({ ...current, [fileKey]: nextOpen }))
+
+    if (!nextOpen || !commit?.hash) return
+
+    const cached = commitMarkdownPreviewCache[fileKey]
+    if (cached?.state === 'ready' || cached?.state === 'loading') return
+
+    const requestCommitHash = commit.hash
+    setCommitMarkdownPreviewCache((current) => ({
+      ...current,
+      [fileKey]: {
+        state: 'loading',
+        content: '',
+        error: '',
+      },
+    }))
+
+    try {
+      const result = await window.claude.getGitCommitFileContent({
+        cwd,
+        commitHash: requestCommitHash,
+        filePath,
+      })
+
+      if (commitHashRef.current !== requestCommitHash) return
+
+      setCommitMarkdownPreviewCache((current) => ({
+        ...current,
+        [fileKey]: result.ok
+          ? {
+              state: 'ready',
+              content: result.content,
+              error: '',
+            }
+          : {
+              state: 'error',
+              content: '',
+              error: result.error || '마크다운 미리보기를 불러오지 못했습니다.',
+            },
+      }))
+    } catch (error) {
+      if (commitHashRef.current !== requestCommitHash) return
+
+      const message = error instanceof Error ? error.message : String(error)
+      setCommitMarkdownPreviewCache((current) => ({
+        ...current,
+        [fileKey]: {
+          state: 'error',
+          content: '',
+          error: message.includes('getGitCommitFileContent')
+            ? '앱을 다시 시작한 뒤 다시 시도해 주세요.'
+            : '마크다운 미리보기를 불러오지 못했습니다.',
+        },
+      }))
+    }
+  }
+
+  if (!entry && !commit) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center">
         <div>
-          <p className="text-sm font-medium text-claude-text">변경 파일을 선택하세요.</p>
-          <p className="mt-2 text-xs leading-6 text-claude-muted">오른쪽 목록에서 파일을 선택하면 Git diff를 여기에서 보여줍니다.</p>
+          <p className="text-sm font-medium text-claude-text">파일이나 커밋을 선택하세요.</p>
+          <p className="mt-2 text-xs leading-6 text-claude-muted">오른쪽 목록에서 변경 파일이나 커밋 로그를 선택하면 diff를 여기에서 보여줍니다.</p>
         </div>
       </div>
     )
   }
 
+  const commitRefs = commit ? parseGitDecorations(commit.decorations) : []
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-claude-border bg-claude-surface px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getGitEntryBadgeClass(entry)}`}>
-            {getGitEntryLabel(entry)}
-          </span>
-          <p className="min-w-0 truncate text-sm font-medium text-claude-text">{entry.relativePath}</p>
-        </div>
-        {entry.originalPath && (
-          <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">이전: {entry.originalPath}</p>
-        )}
+        {commit ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-100">
+                커밋
+              </span>
+              <p className="min-w-0 truncate text-sm font-medium text-claude-text">{commit.subject}</p>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="rounded-md border border-claude-border bg-claude-panel px-1.5 py-0.5 font-mono text-[10px] text-claude-muted">
+                {commit.shortHash}
+              </span>
+              <span className="text-[11px] text-claude-muted">{commit.author}</span>
+              <span className="text-[11px] text-claude-muted">{commit.relativeDate}</span>
+              {commitRefs.map((ref) => (
+                <span
+                  key={`${commit.hash}-${ref.kind}-${ref.label}`}
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none ${getGitDecorationBadgeClass(ref.kind)}`}
+                >
+                  {ref.label}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : entry ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getGitEntryBadgeClass(entry)}`}>
+                {getGitEntryLabel(entry)}
+              </span>
+              <p className="min-w-0 truncate text-sm font-medium text-claude-text">{entry.relativePath}</p>
+            </div>
+            {entry.originalPath && (
+              <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">이전: {entry.originalPath}</p>
+            )}
+            {markdownPreviewAvailable && (
+              <button
+                type="button"
+                onClick={() => setMarkdownPreviewEnabled((value) => !value)}
+                className="mt-2 inline-flex rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+              >
+                {markdownPreviewEnabled ? 'diff' : '미리보기'}
+              </button>
+            )}
+          </>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto bg-claude-bg p-4">
-        {loading ? (
+        {markdownPreviewEnabled && markdownPreviewAvailable ? (
+          markdownPreviewState === 'ready' ? (
+            <div className="rounded-2xl border border-claude-border bg-claude-surface px-5 py-4">
+              <MarkdownPreviewBody filePath={entry!.path} content={markdownPreviewContent} />
+            </div>
+          ) : markdownPreviewState === 'error' ? (
+            <div className="rounded-2xl border border-red-900/40 bg-red-950/20 px-4 py-8 text-center text-sm text-red-100">
+              {markdownPreviewError}
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-claude-muted">
+              <p className="text-sm">미리보기를 불러오는 중입니다.</p>
+            </div>
+          )
+        ) : loading ? (
           <div className="flex h-full items-center justify-center text-claude-muted">
             <p className="text-sm">diff를 불러오는 중입니다.</p>
           </div>
@@ -2636,20 +3299,77 @@ const GitDiffPanel = memo(function GitDiffPanel({
           </div>
         ) : parsedFiles.length > 0 ? (
           <div className="space-y-4">
-            {parsedFiles.map((file, index) => (
-              <div key={`${file.oldPath}-${file.newPath}-${index}`} className="overflow-hidden rounded-2xl border border-claude-border/70 bg-claude-surface">
-                <div className="border-b border-claude-border/70 bg-claude-panel px-3 py-2 text-[11px] font-mono text-claude-muted">
-                  {file.oldPath === file.newPath ? file.newPath : `${file.oldPath} → ${file.newPath}`}
+            {parsedFiles.map((file, index) => {
+              const fileKey = `${file.oldPath}-${file.newPath}-${index}`
+              const isCollapsed = collapsedFiles[fileKey] ?? false
+              const label = file.oldPath === file.newPath ? file.newPath : `${file.oldPath} → ${file.newPath}`
+              const markdownFilePath = commit && file.newPath !== '/dev/null' ? file.newPath : null
+              const markdownPreviewAvailableForFile = Boolean(markdownFilePath && isMarkdownFile(markdownFilePath))
+              const markdownPreviewOpenForFile = commitMarkdownPreviewOpen[fileKey] ?? false
+              const markdownPreviewDataForFile = commitMarkdownPreviewCache[fileKey]
+
+              return (
+                <div key={fileKey} className="overflow-hidden rounded-2xl border border-claude-border/70 bg-claude-surface">
+                  <div className={`flex items-center gap-2 bg-claude-panel px-3 py-2 text-[11px] font-mono text-claude-muted ${isCollapsed ? '' : 'border-b border-claude-border/70'}`}>
+                    <button
+                      type="button"
+                      onClick={() => setCollapsedFiles((current) => ({ ...current, [fileKey]: !isCollapsed }))}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-claude-text"
+                    >
+                      <svg
+                        className={`h-3.5 w-3.5 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 7.5 10 12.5 15 7.5" />
+                      </svg>
+                      <span className="truncate">{label}</span>
+                    </button>
+                    {markdownPreviewAvailableForFile && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleToggleCommitMarkdownPreview(fileKey, markdownFilePath!)
+                        }}
+                        className="inline-flex shrink-0 rounded-lg border border-claude-border px-2 py-0.5 text-[10px] font-medium text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+                      >
+                        {markdownPreviewOpenForFile ? 'diff' : '미리보기'}
+                      </button>
+                    )}
+                  </div>
+                  {!isCollapsed && (
+                    markdownPreviewOpenForFile && markdownPreviewAvailableForFile ? (
+                      markdownPreviewDataForFile?.state === 'ready' ? (
+                        <div className="px-5 py-4">
+                          <MarkdownPreviewBody
+                            filePath={joinPreviewPath(cwd, markdownFilePath!)}
+                            content={markdownPreviewDataForFile.content}
+                          />
+                        </div>
+                      ) : markdownPreviewDataForFile?.state === 'error' ? (
+                        <div className="px-4 py-8 text-center text-sm text-red-100">
+                          {markdownPreviewDataForFile.error}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-8 text-center text-sm text-claude-muted">
+                          미리보기를 불러오는 중입니다.
+                        </div>
+                      )
+                    ) : (
+                      <div className="tool-diff-shell">
+                        <Diff viewType="unified" diffType={file.type} hunks={file.hunks} className="tool-diff-view">
+                          {(hunks) => hunks.map((hunk, hunkIndex) => (
+                            <Hunk key={`${file.newPath}-${hunkIndex}-${hunk.content}`} hunk={hunk} />
+                          ))}
+                        </Diff>
+                      </div>
+                    )
+                  )}
                 </div>
-                <div className="tool-diff-shell">
-                  <Diff viewType="unified" diffType={file.type} hunks={file.hunks} className="tool-diff-view">
-                    {(hunks) => hunks.map((hunk, hunkIndex) => (
-                      <Hunk key={`${file.newPath}-${hunkIndex}-${hunk.content}`} hunk={hunk} />
-                    ))}
-                  </Diff>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <pre className="m-0 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-claude-border bg-claude-surface p-4 text-xs font-mono text-claude-text">
@@ -2660,8 +3380,10 @@ const GitDiffPanel = memo(function GitDiffPanel({
     </div>
   )
 }, (prevProps, nextProps) => (
+  prevProps.cwd === nextProps.cwd &&
   prevProps.loading === nextProps.loading &&
   areGitStatusEntriesEqual(prevProps.entry, nextProps.entry) &&
+  areGitLogEntriesEqual(prevProps.commit, nextProps.commit) &&
   areGitDiffResultsEqual(prevProps.gitDiff, nextProps.gitDiff)
 ))
 

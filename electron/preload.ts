@@ -101,9 +101,31 @@ export type GitDiffResult = {
   error?: string
 }
 
+export type GitFileContentResult = {
+  ok: boolean
+  content: string
+  error?: string
+}
+
 export type GitBranchInfo = {
   name: string
   current: boolean
+}
+
+export type GitLogEntry = {
+  hash: string
+  shortHash: string
+  subject: string
+  author: string
+  relativeDate: string
+  decorations: string
+  graph: string
+}
+
+export type GitLogResult = {
+  ok: boolean
+  entries: GitLogEntry[]
+  error?: string
 }
 
 export type CliHistoryEntry = {
@@ -193,6 +215,9 @@ export type ClaudeAPI = {
   readFileDataUrl: (filePath: string) => Promise<string | null>
   getGitStatus: (cwd: string) => Promise<GitRepoStatus>
   getGitDiff: (params: { cwd: string; filePath: string }) => Promise<GitDiffResult>
+  getGitLog: (params: { cwd: string; limit?: number }) => Promise<GitLogResult>
+  getGitCommitDiff: (params: { cwd: string; commitHash: string }) => Promise<GitDiffResult>
+  getGitCommitFileContent: (params: { cwd: string; commitHash: string; filePath: string }) => Promise<GitFileContentResult>
   getGitBranches: (cwd: string) => Promise<{ ok: boolean; branches: GitBranchInfo[]; error?: string }>
   setGitStaged: (params: { cwd: string; filePath: string; staged: boolean }) => Promise<{ ok: boolean; error?: string }>
   restoreGitFile: (params: { cwd: string; filePath: string }) => Promise<{ ok: boolean; error?: string }>
@@ -264,6 +289,9 @@ const claudeAPI: ClaudeAPI = {
   readFileDataUrl: (filePath) => ipcRenderer.invoke('claude:read-file-data-url', { filePath }),
   getGitStatus: (cwd) => ipcRenderer.invoke('claude:get-git-status', { cwd }),
   getGitDiff: (params) => ipcRenderer.invoke('claude:get-git-diff', params),
+  getGitLog: (params) => ipcRenderer.invoke('claude:get-git-log', params),
+  getGitCommitDiff: (params) => ipcRenderer.invoke('claude:get-git-commit-diff', params),
+  getGitCommitFileContent: (params) => ipcRenderer.invoke('claude:get-git-commit-file-content', params),
   getGitBranches: (cwd) => ipcRenderer.invoke('claude:get-git-branches', { cwd }),
   setGitStaged: (params) => ipcRenderer.invoke('claude:set-git-staged', params),
   restoreGitFile: (params) => ipcRenderer.invoke('claude:restore-git-file', params),
