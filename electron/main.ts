@@ -2065,7 +2065,7 @@ function createWindow(): BrowserWindow {
     icon: appIconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -2119,7 +2119,7 @@ function createQuickPanelWindow(): BrowserWindow {
     hasShadow: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
     },
