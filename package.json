@@ -34,7 +34,6 @@
     "react-diff-view": "^3.3.2",
     "react-dom": "^18.3.0",
     "react-markdown": "^9.0.0",
-    "rehype-highlight": "^7.0.0",
     "rehype-raw": "^7.0.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.0",

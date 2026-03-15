@@ -36,6 +36,16 @@ export type SelectedFile = {
   dataUrl?: string
 }
 
+export type SkippedFile = {
+  name: string
+  reason: string
+}
+
+export type SelectFilesResult = {
+  files: SelectedFile[]
+  skipped: SkippedFile[]
+}
+
 export type FileEntry = {
   name: string
   path: string
@@ -266,7 +276,7 @@ export type ClaudeAPI = {
   abort: (params: { sessionId: string }) => Promise<void>
   hasActiveProcess: (params: { sessionId: string }) => Promise<boolean>
   selectFolder: (options?: { defaultPath?: string; title?: string }) => Promise<string | null>
-  selectFiles: () => Promise<SelectedFile[]>
+  selectFiles: () => Promise<SelectFilesResult>
   openFile: (filePath: string) => Promise<void>
   openInBrowser: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   listOpenWithApps: () => Promise<OpenWithApp[]>
@@ -364,7 +374,10 @@ const claudeAPI: ClaudeAPI = {
   getModels: (envVars) => ipcRenderer.invoke('claude:get-models', { envVars }),
   listFiles: (cwd, query) => ipcRenderer.invoke('claude:list-files', { cwd, query }),
   listCurrentDir: (path) => ipcRenderer.invoke('claude:list-current-dir', { path }),
-  readFile: (filePath) => ipcRenderer.invoke('claude:read-file', { filePath }),
+  readFile: async (filePath) => {
+    const outcome = await ipcRenderer.invoke('claude:read-file', { filePath })
+    return outcome?.ok ? outcome.file : null
+  },
   readFileDataUrl: (filePath) => ipcRenderer.invoke('claude:read-file-data-url', { filePath }),
   getGitStatus: (cwd) => ipcRenderer.invoke('claude:get-git-status', { cwd }),
   getGitDiff: (params) => ipcRenderer.invoke('claude:get-git-diff', params),

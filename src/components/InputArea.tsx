@@ -317,6 +317,7 @@ export function InputArea({
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<SelectedFile[]>([])
   const [isAttaching, setIsAttaching] = useState(false)
+  const [skippedFiles, setSkippedFiles] = useState<{ name: string; reason: string }[]>([])
   const [models, setModels] = useState<ModelInfo[]>([])
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -834,12 +835,16 @@ export function InputArea({
     if (isAttaching || isStreaming) return
     setIsAttaching(true)
     try {
-      const files = await window.claude.selectFiles()
-      if (files?.length > 0) {
+      const result = await window.claude.selectFiles()
+      if (result?.files?.length > 0) {
         setAttachedFiles((prev) => {
           const existing = new Set(prev.map((f) => f.path))
-          return [...prev, ...files.filter((f) => !existing.has(f.path))]
+          return [...prev, ...result.files.filter((f) => !existing.has(f.path))]
         })
+      }
+      if (result?.skipped?.length > 0) {
+        setSkippedFiles(result.skipped)
+        setTimeout(() => setSkippedFiles([]), 5000)
       }
     } finally {
       setIsAttaching(false)
@@ -1089,6 +1094,21 @@ export function InputArea({
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 스킵된 파일 알림 */}
+      {skippedFiles.length > 0 && (
+        <div className="mb-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
+          <span className="font-medium">첨부 불가 파일 ({skippedFiles.length}개):</span>
+          <ul className="mt-1 space-y-0.5">
+            {skippedFiles.map((f) => (
+              <li key={f.name} className="flex gap-1.5">
+                <span className="font-medium truncate max-w-[180px]">{f.name}</span>
+                <span className="text-yellow-600/70 dark:text-yellow-500/70">— {f.reason}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

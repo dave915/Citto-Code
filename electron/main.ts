@@ -1048,37 +1048,41 @@ function isImageFilePath(filePath: string): boolean {
   return extname(filePath).toLowerCase() in MIME_TYPES_BY_EXTENSION
 }
 
-function readSelectedFile(filePath: string): Promise<SelectedFileResult | null> {
+const FILE_SIZE_LIMIT = 10 * 1024 * 1024 // 10MB
+
+type ReadFileOutcome =
+  | { ok: true; file: SelectedFileResult }
+  | { ok: false; name: string; reason: string }
+
+function readSelectedFile(filePath: string): Promise<ReadFileOutcome> {
+  const name = filePath.split('/').pop() ?? filePath
   return new Promise((resolve) => {
     if (isImageFilePath(filePath)) {
       fsReadFile(filePath, (err, data) => {
-        if (err) {
-          resolve(null)
+        if (err) { resolve({ ok: false, name, reason: '읽기 실패' }); return }
+        if (data.length > FILE_SIZE_LIMIT) {
+          resolve({ ok: false, name, reason: `파일 크기 초과 (${(data.length / 1024 / 1024).toFixed(1)}MB > 10MB)` })
           return
         }
-        resolve({
-          name: filePath.split('/').pop() ?? filePath,
-          path: filePath,
-          content: '',
-          size: data.length,
-          fileType: 'image',
-        })
+        resolve({ ok: true, file: { name, path: filePath, content: '', size: data.length, fileType: 'image' } })
       })
       return
     }
 
-    fsReadFile(filePath, 'utf-8', (err, data) => {
-      if (err) {
-        resolve(null)
+    fsReadFile(filePath, (err, data) => {
+      if (err) { resolve({ ok: false, name, reason: '읽기 실패' }); return }
+      if (data.length > FILE_SIZE_LIMIT) {
+        resolve({ ok: false, name, reason: `파일 크기 초과 (${(data.length / 1024 / 1024).toFixed(1)}MB > 10MB)` })
         return
       }
-      resolve({
-        name: filePath.split('/').pop() ?? filePath,
-        path: filePath,
-        content: data,
-        size: Buffer.byteLength(data),
-        fileType: 'text',
-      })
+      // Binary detection: check for null bytes in first 8KB
+      const sample = data.slice(0, 8192)
+      if (sample.indexOf(0) !== -1) {
+        resolve({ ok: false, name, reason: '바이너리 파일은 첨부할 수 없습니다' })
+        return
+      }
+      const text = data.toString('utf-8')
+      resolve({ ok: true, file: { name, path: filePath, content: text, size: data.length, fileType: 'text' } })
     })
   })
 }
@@ -2914,10 +2918,12 @@ app.whenReady().then(async () => {
         { name: '모든 파일', extensions: ['*'] },
       ],
     })
-    if (result.canceled || result.filePaths.length === 0) return []
+    if (result.canceled || result.filePaths.length === 0) return { files: [], skipped: [] }
 
-    const files = await Promise.all(result.filePaths.map((filePath) => readSelectedFile(filePath)))
-    return files.filter(Boolean)
+    const outcomes = await Promise.all(result.filePaths.map((filePath) => readSelectedFile(filePath)))
+    const files = outcomes.filter((o): o is Extract<ReadFileOutcome, { ok: true }> => o.ok).map((o) => o.file)
+    const skipped = outcomes.filter((o): o is Extract<ReadFileOutcome, { ok: false }> => !o.ok).map((o) => ({ name: o.name, reason: o.reason }))
+    return { files, skipped }
   })
 
   // ── 파일 외부 에디터로 열기 ──────────────────────────────────
@@ -3606,7 +3612,7 @@ app.whenReady().then(async () => {
             })
             handleClaudeEvent(event.sender, eventData, resolvedSessionId, (sid) => {
               resolvedSessionId = sid
-              if (sid && !sessionId) {
+              if (sid) {
                 activeProcesses.set(sid, proc)
                 if (activeProcesses.get(tempKey) === proc) {
                   activeProcesses.delete(tempKey)
@@ -3637,9 +3643,6 @@ app.whenReady().then(async () => {
           sessionId: resolvedSessionId,
           text,
         })
-        if (text.toLowerCase().includes('error') || text.toLowerCase().includes('fatal')) {
-          event.sender.send('claude:error', { sessionId: resolvedSessionId, error: text })
-        }
       })
 
       proc.on('close', (code) => {
