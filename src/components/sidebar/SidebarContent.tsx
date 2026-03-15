@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 import type { Session } from '../../store/sessions'
 import { SessionRow } from './SessionRow'
 import { sortSessions, type SessionGroup, type SessionLockState } from './sidebarUtils'
@@ -44,12 +45,13 @@ export function SidebarContent({
   setEditingSessionId,
   setEditingName,
 }: Props) {
+  const { t } = useI18n()
   return (
     <>
       {favoriteSessions.length > 0 && (
         <div className="mb-0 px-3">
           <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-claude-muted/60">
-            즐겨찾기
+            {t('sidebar.favorites')}
           </div>
           <div className="space-y-0.5">
             {favoriteSessions.map((session) => (
@@ -104,7 +106,7 @@ export function SidebarContent({
                     onNewSession(group.cwd)
                   }}
                   className="flex-shrink-0 rounded-lg p-1.5 text-claude-muted/60 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 hover:text-claude-text"
-                  title="이 프로젝트에 새 세션 추가"
+                  title={t('sidebar.addSessionToProject')}
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />

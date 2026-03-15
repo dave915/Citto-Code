@@ -1,15 +1,22 @@
 import type { Session, PermissionMode } from '../store/sessions'
+import type { AppLanguage } from './i18n'
 
 export type SessionExportFormat = 'markdown' | 'json'
 
-export function formatPermissionMode(mode: PermissionMode): string {
+export function formatPermissionMode(mode: PermissionMode, language: AppLanguage = 'ko'): string {
+  if (language === 'en') {
+    if (mode === 'acceptEdits') return 'Auto approve'
+    if (mode === 'bypassPermissions') return 'Bypass permissions'
+    return 'Default'
+  }
+
   if (mode === 'acceptEdits') return '자동승인'
   if (mode === 'bypassPermissions') return '전체허용'
   return '기본'
 }
 
-export function formatDateTime(timestamp: number): string {
-  return new Intl.DateTimeFormat('ko-KR', {
+export function formatDateTime(timestamp: number, language: AppLanguage = 'ko'): string {
+  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -66,25 +73,26 @@ export function safeJsonStringify(value: unknown, space = 2): string {
   ) ?? 'null'
 }
 
-export function buildSessionMarkdownExport(session: Session): string {
+export function buildSessionMarkdownExport(session: Session, language: AppLanguage = 'ko'): string {
+  const isEnglish = language === 'en'
   const lines: string[] = [
     `# ${session.name}`,
     '',
-    `- 내보낸 시각: ${formatDateTime(Date.now())}`,
-    `- 작업 경로: ${session.cwd || '~'}`,
-    `- 세션 ID: ${session.sessionId ?? '없음'}`,
-    `- 모델: ${session.model ?? '기본 모델'}`,
-    `- 권한: ${formatPermissionMode(session.permissionMode)}`,
-    `- 플랜 모드: ${session.planMode ? '켜짐' : '꺼짐'}`,
-    `- 마지막 비용: ${session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'}`,
+    `- ${isEnglish ? 'Exported at' : '내보낸 시각'}: ${formatDateTime(Date.now(), language)}`,
+    `- ${isEnglish ? 'Working path' : '작업 경로'}: ${session.cwd || '~'}`,
+    `- ${isEnglish ? 'Session ID' : '세션 ID'}: ${session.sessionId ?? (isEnglish ? 'None' : '없음')}`,
+    `- ${isEnglish ? 'Model' : '모델'}: ${session.model ?? (isEnglish ? 'Default model' : '기본 모델')}`,
+    `- ${isEnglish ? 'Permission' : '권한'}: ${formatPermissionMode(session.permissionMode, language)}`,
+    `- ${isEnglish ? 'Plan mode' : '플랜 모드'}: ${session.planMode ? (isEnglish ? 'On' : '켜짐') : (isEnglish ? 'Off' : '꺼짐')}`,
+    `- ${isEnglish ? 'Last cost' : '마지막 비용'}: ${session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'}`,
   ]
 
   for (const message of session.messages) {
-    lines.push('', `## ${message.role === 'user' ? '사용자' : 'Claude'} · ${formatDateTime(message.createdAt)}`, '')
-    lines.push(message.text.trim() || '_내용 없음_')
+    lines.push('', `## ${message.role === 'user' ? (isEnglish ? 'User' : '사용자') : 'Claude'} · ${formatDateTime(message.createdAt, language)}`, '')
+    lines.push(message.text.trim() || (isEnglish ? '_No content_' : '_내용 없음_'))
 
     if (message.attachedFiles?.length) {
-      lines.push('', '### 첨부 파일')
+      lines.push('', `### ${isEnglish ? 'Attachments' : '첨부 파일'}`)
       for (const file of message.attachedFiles) {
         lines.push(`- ${file.name} (${file.path})`)
       }
@@ -118,10 +126,17 @@ export function estimateContextUsagePercent(totalCharacters: number, totalToolCa
   return Math.min(100, Math.max(0, Math.round((weightedSize / maxContextEstimate) * 100)))
 }
 
-export function lastMessageSummary(session: Session): string {
+export function lastMessageSummary(session: Session, language: AppLanguage = 'ko'): string {
   const message = session.messages[session.messages.length - 1]
-  if (!message) return '메시지 없음'
-  const prefix = message.role === 'user' ? '사용자' : 'Claude'
-  const body = message.text.trim() || (message.attachedFiles?.length ? `파일 ${message.attachedFiles.length}개 첨부` : '내용 없음')
+  if (!message) return language === 'en' ? 'No messages' : '메시지 없음'
+  const prefix = message.role === 'user' ? (language === 'en' ? 'User' : '사용자') : 'Claude'
+  const body = message.text.trim()
+    || (message.attachedFiles?.length
+      ? language === 'en'
+        ? `${message.attachedFiles.length} attached files`
+        : `파일 ${message.attachedFiles.length}개 첨부`
+      : language === 'en'
+        ? 'No content'
+        : '내용 없음')
   return `${prefix} · ${body.slice(0, 80)}${body.length > 80 ? '…' : ''}`
 }

@@ -1,10 +1,12 @@
 import type { ComponentProps, RefObject } from 'react'
+import type { AppLanguage } from '../../lib/i18n'
 import { InputPromptOverlay } from './InputPromptOverlay'
 import { InputToolbar } from './InputToolbar'
 import { MentionMenu } from './MentionMenu'
 
 type Props = {
   textareaRef: RefObject<HTMLTextAreaElement>
+  language: AppLanguage
   text: string
   attachedFileCount: number
   isStreaming: boolean
@@ -29,6 +31,7 @@ type Props = {
 
 export function InputComposer({
   textareaRef,
+  language,
   text,
   attachedFileCount,
   isStreaming,
@@ -81,9 +84,13 @@ export function InputComposer({
             onCompositionStart={onCompositionStart}
             onCompositionEnd={onCompositionEnd}
             placeholder={
-              isStreaming ? '응답을 기다리는 중...'
-              : attachedFileCount > 0 ? '파일에 대해 질문하거나 지시사항을 입력하세요...'
-              : '@로 파일참조 · /로 명령어 · Shift+Enter: 줄바꿈 · Enter: 전송'
+              isStreaming
+                ? (language === 'en' ? 'Waiting for a response...' : '응답을 기다리는 중...')
+                : attachedFileCount > 0
+                  ? (language === 'en' ? 'Ask about the files or enter instructions...' : '파일에 대해 질문하거나 지시사항을 입력하세요...')
+                  : (language === 'en'
+                      ? '@ for file references · / for commands · Shift+Enter: newline · Enter: send'
+                      : '@로 파일참조 · /로 명령어 · Shift+Enter: 줄바꿈 · Enter: 전송')
             }
             rows={1}
             disabled={isStreaming || disabled}

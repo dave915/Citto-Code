@@ -1,5 +1,6 @@
 import type { MutableRefObject } from 'react'
 import type { GitBranchInfo, GitRepoStatus } from '../../../../electron/preload'
+import { useI18n } from '../../../hooks/useI18n'
 import { IconTooltipButton } from '../git/GitShared'
 
 type Props = {
@@ -41,6 +42,7 @@ export function BranchMenu({
   onPullGit,
   onPushGit,
 }: Props) {
+  const { t } = useI18n()
   if (gitStatus?.isRepo && gitStatus.branch) {
     return (
       <div ref={branchMenuRef} className="relative z-40 no-drag" data-no-drag="true">
@@ -48,7 +50,7 @@ export function BranchMenu({
           type="button"
           onClick={onToggleBranchMenu}
           className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
-          title="브랜치 선택"
+          title={t('branch.select')}
         >
           <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
@@ -73,7 +75,7 @@ export function BranchMenu({
                   ref={branchSearchInputRef}
                   value={branchQuery}
                   onChange={(event) => onBranchQueryChange(event.target.value)}
-                  placeholder="브랜치 검색"
+                  placeholder={t('branch.searchPlaceholder')}
                   className="w-full rounded-xl border border-claude-border bg-claude-surface py-1.5 pl-9 pr-3 text-[11px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
                 />
               </div>
@@ -110,7 +112,7 @@ export function BranchMenu({
             </div>
 
             <div className="mt-2.5">
-              <p className="px-2 text-[11px] font-semibold tracking-wide text-claude-muted">브랜치</p>
+              <p className="px-2 text-[11px] font-semibold tracking-wide text-claude-muted">{t('branch.sectionTitle')}</p>
               <div className="mt-1.5 h-[144px] overflow-y-auto">
                 {gitBranchesLoading ? (
                   <div className="flex items-center justify-center px-3 py-10 text-claude-muted">
@@ -120,7 +122,7 @@ export function BranchMenu({
                   </div>
                 ) : filteredGitBranches.length === 0 ? (
                   <div className="px-3 py-8 text-sm text-claude-muted">
-                    {branchQuery.trim() ? '검색 결과가 없습니다.' : '표시할 브랜치가 없습니다.'}
+                    {branchQuery.trim() ? t('branch.noResults') : t('branch.none')}
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -143,9 +145,9 @@ export function BranchMenu({
                             <p className="mt-1 text-[10px] text-claude-muted">
                               {branch.current
                                 ? gitStatus.clean
-                                  ? '커밋하지 않음: 변경 없음'
-                                  : `커밋하지 않음: ${gitStatus.entries.length}개의 파일`
-                                : '로컬 브랜치'}
+                                  ? t('branch.uncommittedNoChanges')
+                                  : t('branch.uncommittedFiles', { count: gitStatus.entries.length })
+                                : t('branch.localBranch')}
                             </p>
                           </div>
                           {branch.current && (
@@ -164,7 +166,7 @@ export function BranchMenu({
                             }}
                             disabled={gitActionLoading}
                             className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
-                            title="브랜치 삭제"
+                            title={t('branch.delete')}
                           >
                             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18" />
@@ -191,7 +193,7 @@ export function BranchMenu({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
                 </svg>
-                새 브랜치 생성 및 체크아웃...
+                {t('branch.createAndCheckout')}
               </button>
             </div>
           </div>
@@ -204,7 +206,7 @@ export function BranchMenu({
     return (
       <div
         className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-muted opacity-65"
-        title="Git을 설치하세요"
+        title={t('branch.installGit')}
       >
         <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
@@ -221,7 +223,7 @@ export function BranchMenu({
         onClick={() => void onInitGitRepo()}
         disabled={gitActionLoading}
         className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
-        title="현재 폴더에서 Git 초기화"
+        title={t('branch.initGit')}
       >
         <span className="min-w-0 truncate">Git init</span>
       </button>

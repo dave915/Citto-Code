@@ -1,5 +1,6 @@
 import type { SelectedFile } from '../../../electron/preload'
 import type { PendingPermissionRequest, PermissionMode } from '../../store/sessions'
+import type { AppLanguage } from '../../lib/i18n'
 
 export type SlashCommand = {
   name: string
@@ -18,43 +19,116 @@ export type PermissionAction = {
   badge: string
 }
 
-export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
-  { name: 'add-dir', path: '', dir: '', legacy: false, kind: 'builtin', description: '작업 디렉토리 추가' },
-  { name: 'agents', path: '', dir: '', legacy: false, kind: 'builtin', description: '에이전트 관리' },
-  { name: 'bug', path: '', dir: '', legacy: false, kind: 'builtin', description: '버그 리포트 전송' },
-  { name: 'clear', path: '', dir: '', legacy: false, kind: 'builtin', description: '대화 기록 지우기' },
-  { name: 'compact', path: '', dir: '', legacy: false, kind: 'builtin', description: '대화 압축' },
-  { name: 'config', path: '', dir: '', legacy: false, kind: 'builtin', description: '설정 보기/수정' },
-  { name: 'cost', path: '', dir: '', legacy: false, kind: 'builtin', description: '토큰 사용량 보기' },
-  { name: 'doctor', path: '', dir: '', legacy: false, kind: 'builtin', description: '설치 상태 점검' },
-  { name: 'help', path: '', dir: '', legacy: false, kind: 'builtin', description: '도움말' },
-  { name: 'init', path: '', dir: '', legacy: false, kind: 'builtin', description: 'CLAUDE.md 초기화' },
-  { name: 'login', path: '', dir: '', legacy: false, kind: 'builtin', description: '계정 전환' },
-  { name: 'logout', path: '', dir: '', legacy: false, kind: 'builtin', description: '로그아웃' },
-  { name: 'mcp', path: '', dir: '', legacy: false, kind: 'builtin', description: 'MCP 연결 관리' },
-  { name: 'memory', path: '', dir: '', legacy: false, kind: 'builtin', description: 'CLAUDE.md 메모리 편집' },
-  { name: 'model', path: '', dir: '', legacy: false, kind: 'builtin', description: '모델 선택/변경' },
-  { name: 'permissions', path: '', dir: '', legacy: false, kind: 'builtin', description: '권한 보기/수정' },
-  { name: 'pr_comments', path: '', dir: '', legacy: false, kind: 'builtin', description: 'PR 댓글 보기' },
-  { name: 'review', path: '', dir: '', legacy: false, kind: 'builtin', description: '코드 리뷰 요청' },
-  { name: 'status', path: '', dir: '', legacy: false, kind: 'builtin', description: '상태 보기' },
-  { name: 'terminal-setup', path: '', dir: '', legacy: false, kind: 'builtin', description: 'Shift+Enter 줄바꿈 설정' },
-  { name: 'vim', path: '', dir: '', legacy: false, kind: 'builtin', description: 'vim 모드 전환' },
-]
+export function getBuiltinSlashCommands(language: AppLanguage = 'ko'): SlashCommand[] {
+  const descriptions = language === 'en'
+    ? {
+        'add-dir': 'Add working directory',
+        agents: 'Manage agents',
+        bug: 'Send bug report',
+        clear: 'Clear conversation history',
+        compact: 'Compact conversation',
+        config: 'View or edit config',
+        cost: 'Show token usage',
+        doctor: 'Check installation status',
+        help: 'Help',
+        init: 'Initialize CLAUDE.md',
+        login: 'Switch account',
+        logout: 'Log out',
+        mcp: 'Manage MCP connections',
+        memory: 'Edit CLAUDE.md memory',
+        model: 'Select or change model',
+        permissions: 'View or edit permissions',
+        pr_comments: 'Show PR comments',
+        review: 'Request code review',
+        status: 'Show status',
+        'terminal-setup': 'Configure Shift+Enter newline',
+        vim: 'Toggle vim mode',
+      }
+    : {
+        'add-dir': '작업 디렉토리 추가',
+        agents: '에이전트 관리',
+        bug: '버그 리포트 전송',
+        clear: '대화 기록 지우기',
+        compact: '대화 압축',
+        config: '설정 보기/수정',
+        cost: '토큰 사용량 보기',
+        doctor: '설치 상태 점검',
+        help: '도움말',
+        init: 'CLAUDE.md 초기화',
+        login: '계정 전환',
+        logout: '로그아웃',
+        mcp: 'MCP 연결 관리',
+        memory: 'CLAUDE.md 메모리 편집',
+        model: '모델 선택/변경',
+        permissions: '권한 보기/수정',
+        pr_comments: 'PR 댓글 보기',
+        review: '코드 리뷰 요청',
+        status: '상태 보기',
+        'terminal-setup': 'Shift+Enter 줄바꿈 설정',
+        vim: 'vim 모드 전환',
+      }
+
+  return [
+    'add-dir',
+    'agents',
+    'bug',
+    'clear',
+    'compact',
+    'config',
+    'cost',
+    'doctor',
+    'help',
+    'init',
+    'login',
+    'logout',
+    'mcp',
+    'memory',
+    'model',
+    'permissions',
+    'pr_comments',
+    'review',
+    'status',
+    'terminal-setup',
+    'vim',
+  ].map((name) => ({
+    name,
+    path: '',
+    dir: '',
+    legacy: false,
+    kind: 'builtin' as const,
+    description: descriptions[name as keyof typeof descriptions],
+  }))
+}
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico', 'heic', 'heif'])
 
-export const PERMISSION_OPTIONS: { value: PermissionMode; label: string; title: string }[] = [
-  { value: 'default',           label: '🔒 기본',    title: '파일 수정 전 확인 요청' },
-  { value: 'acceptEdits',       label: '✅ 자동승인', title: '파일 편집 자동 수락' },
-  { value: 'bypassPermissions', label: '⚡ 전체허용', title: '모든 권한 확인 건너뜀' },
-]
+export function getPermissionOptions(language: AppLanguage = 'ko'): { value: PermissionMode; label: string; title: string }[] {
+  return language === 'en'
+    ? [
+        { value: 'default', label: '🔒 Default', title: 'Ask before editing files' },
+        { value: 'acceptEdits', label: '✅ Auto-approve', title: 'Automatically accept file edits' },
+        { value: 'bypassPermissions', label: '⚡ Bypass', title: 'Skip all permission confirmations' },
+      ]
+    : [
+        { value: 'default', label: '🔒 기본', title: '파일 수정 전 확인 요청' },
+        { value: 'acceptEdits', label: '✅ 자동승인', title: '파일 편집 자동 수락' },
+        { value: 'bypassPermissions', label: '⚡ 전체허용', title: '모든 권한 확인 건너뜀' },
+      ]
+}
 
-export const PERMISSION_ACTIONS: PermissionAction[] = [
-  { action: 'once', title: '이번만 허용 후 계속', description: '현재 요청만 승인하고 작업 이어서 진행', badge: '1회' },
-  { action: 'always', title: '이 세션에서 계속 허용', description: '현재 세션 권한을 올리고 중단된 작업 계속', badge: '세션' },
-  { action: 'deny', title: '권한 요청 닫기', description: '승인하지 않고 현재 요청 종료', badge: '취소' },
-]
+export function getPermissionActions(language: AppLanguage = 'ko'): PermissionAction[] {
+  return language === 'en'
+    ? [
+        { action: 'once', title: 'Allow once and continue', description: 'Approve only this request and resume the task', badge: '1x' },
+        { action: 'always', title: 'Always allow in this session', description: 'Raise session permissions and resume the interrupted task', badge: 'Session' },
+        { action: 'deny', title: 'Close permission request', description: 'Stop this request without approving it', badge: 'Cancel' },
+      ]
+    : [
+        { action: 'once', title: '이번만 허용 후 계속', description: '현재 요청만 승인하고 작업 이어서 진행', badge: '1회' },
+        { action: 'always', title: '이 세션에서 계속 허용', description: '현재 세션 권한을 올리고 중단된 작업 계속', badge: '세션' },
+        { action: 'deny', title: '권한 요청 닫기', description: '승인하지 않고 현재 요청 종료', badge: '취소' },
+      ]
+}
 
 export function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
@@ -148,7 +222,7 @@ export function cycleClaudeCodeMode(
   onPlanModeChange(false)
 }
 
-export function formatPermissionPreview(request: PendingPermissionRequest | null): string {
+export function formatPermissionPreview(request: PendingPermissionRequest | null, language: AppLanguage = 'ko'): string {
   if (!request) return ''
 
   const input = request.toolInput
@@ -165,5 +239,5 @@ export function formatPermissionPreview(request: PendingPermissionRequest | null
     }
   }
 
-  return '권한 요청'
+  return language === 'en' ? 'Permission request' : '권한 요청'
 }

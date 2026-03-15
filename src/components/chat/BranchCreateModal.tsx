@@ -1,4 +1,5 @@
 import type { MutableRefObject } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 
 export function BranchCreateModal({
   open,
@@ -17,6 +18,7 @@ export function BranchCreateModal({
   onNameChange: (value: string) => void
   onCreate: () => void | Promise<void>
 }) {
+  const { language } = useI18n()
   if (!open) return null
 
   return (
@@ -31,14 +33,14 @@ export function BranchCreateModal({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-[12px] font-semibold text-claude-text">새 브랜치 생성 및 체크아웃</h3>
-            <p className="mt-1 text-[10px] leading-4.5 text-claude-muted">브랜치 이름을 입력하면 자동으로 체크아웃합니다.</p>
+            <h3 className="text-[12px] font-semibold text-claude-text">{language === 'en' ? 'Create and checkout a new branch' : '새 브랜치 생성 및 체크아웃'}</h3>
+            <p className="mt-1 text-[10px] leading-4.5 text-claude-muted">{language === 'en' ? 'Enter a branch name to check it out automatically.' : '브랜치 이름을 입력하면 자동으로 체크아웃합니다.'}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="rounded-xl p-2 text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-            title="닫기"
+            title={language === 'en' ? 'Close' : '닫기'}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6 6 18" />
@@ -47,7 +49,7 @@ export function BranchCreateModal({
         </div>
 
         <div className="mt-4">
-          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-claude-muted">브랜치 이름</label>
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-claude-muted">{language === 'en' ? 'Branch name' : '브랜치 이름'}</label>
           <input
             ref={branchCreateInputRef}
             value={gitNewBranchName}
@@ -58,7 +60,7 @@ export function BranchCreateModal({
                 void onCreate()
               }
             }}
-            placeholder="예: feature/header-branch-menu"
+            placeholder={language === 'en' ? 'For example: feature/header-branch-menu' : '예: feature/header-branch-menu'}
             className="w-full rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
           />
         </div>
@@ -69,7 +71,7 @@ export function BranchCreateModal({
             onClick={onClose}
             className="rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
           >
-            취소
+            {language === 'en' ? 'Cancel' : '취소'}
           </button>
           <button
             type="button"
@@ -77,7 +79,7 @@ export function BranchCreateModal({
             disabled={gitActionLoading || !gitNewBranchName.trim()}
             className="rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-[11px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
           >
-            생성 후 전환
+            {language === 'en' ? 'Create and switch' : '생성 후 전환'}
           </button>
         </div>
       </div>

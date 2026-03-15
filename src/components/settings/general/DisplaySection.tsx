@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useI18n } from '../../../hooks/useI18n'
 import {
   DEFAULT_UI_FONT_SIZE,
   DEFAULT_UI_ZOOM_PERCENT,
@@ -21,6 +22,7 @@ export function DisplaySection({
   onFontSizeChange,
   onZoomChange,
 }: Props) {
+  const { t } = useI18n()
   const [pendingZoom, setPendingZoom] = useState(uiZoomPercent)
 
   useEffect(() => {
@@ -36,9 +38,9 @@ export function DisplaySection({
     <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-claude-text">표시</p>
+          <p className="text-sm font-semibold text-claude-text">{t('settings.general.display.title')}</p>
           <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-            글자 크기와 전체 UI 배율을 조절합니다. 화면 배율은 슬라이더를 놓는 시점에 반영됩니다.
+            {t('settings.general.display.description')}
           </p>
         </div>
         <button
@@ -50,14 +52,14 @@ export function DisplaySection({
           }}
           className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs text-claude-muted transition-colors hover:bg-claude-bg hover:text-claude-text"
         >
-          기본값 복원
+          {t('settings.general.display.restoreDefaults')}
         </button>
       </div>
 
       <div className="mt-4 space-y-4 rounded-xl border border-claude-border bg-claude-panel p-3">
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
-            <label className="text-xs font-medium text-claude-muted">폰트 크기</label>
+            <label className="text-xs font-medium text-claude-muted">{t('settings.general.display.fontSize')}</label>
             <span className="text-xs font-mono text-claude-text">{uiFontSize}px</span>
           </div>
           <input
@@ -77,7 +79,7 @@ export function DisplaySection({
 
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
-            <label className="text-xs font-medium text-claude-muted">화면 비율</label>
+            <label className="text-xs font-medium text-claude-muted">{t('settings.general.display.uiScale')}</label>
             <span className="text-xs font-mono text-claude-text">{pendingZoom}%</span>
           </div>
           <input

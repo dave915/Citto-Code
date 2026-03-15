@@ -1,4 +1,5 @@
 import type { MutableRefObject } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 import type { Message, Session } from '../../store/sessions'
 import { MessageBubble } from '../MessageBubble'
 import { WelcomeScreen } from './WelcomeScreen'
@@ -90,6 +91,7 @@ export function ChatMessagePane({
   onAbort,
   onAskAboutSelection,
 }: Props) {
+  const { language } = useI18n()
   return (
     <div
       className="relative z-0 min-w-0 flex-1 overflow-y-auto px-6 py-7"
@@ -107,7 +109,7 @@ export function ChatMessagePane({
                 </svg>
               </span>
               <div className="min-w-0">
-                <p className="font-medium text-red-100">같은 파일을 다른 세션에서도 수정 중입니다.</p>
+                <p className="font-medium text-red-100">{language === 'en' ? 'The same file is being edited in another session.' : '같은 파일을 다른 세션에서도 수정 중입니다.'}</p>
                 <p className="mt-1 text-[13px] leading-5 text-red-100/75">
                   {fileConflictLabel} · {conflictSessionLabel}
                 </p>
@@ -142,7 +144,7 @@ export function ChatMessagePane({
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
-                  오류 발생
+                  {language === 'en' ? 'Error' : '오류 발생'}
                 </div>
                 <p className="whitespace-pre-wrap font-mono text-xs text-red-100">{session.error}</p>
               </div>

@@ -1,14 +1,17 @@
 import type { SelectedFile } from '../../../electron/preload'
 
+import type { AppLanguage } from '../../lib/i18n'
 import { formatBytes } from './inputUtils'
 
 export function AttachmentList({
   attachedFiles,
   skippedFiles,
+  language,
   onRemoveFile,
 }: {
   attachedFiles: SelectedFile[]
   skippedFiles: Array<{ name: string; reason: string }>
+  language: AppLanguage
   onRemoveFile: (path: string) => void
 }) {
   return (
@@ -37,7 +40,11 @@ export function AttachmentList({
 
       {skippedFiles.length > 0 && (
         <div className="mb-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
-          <span className="font-medium">첨부 불가 파일 ({skippedFiles.length}개):</span>
+          <span className="font-medium">
+            {language === 'en'
+              ? `Files that cannot be attached (${skippedFiles.length}):`
+              : `첨부 불가 파일 (${skippedFiles.length}개):`}
+          </span>
           <ul className="mt-1 space-y-0.5">
             {skippedFiles.map((file) => (
               <li key={file.name} className="flex gap-1.5">

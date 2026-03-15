@@ -1,5 +1,6 @@
 import type { McpConfigScope, McpReadResult } from '../../../electron/preload'
-import { formatDisplayPath, MCP_SCOPE_OPTIONS } from './shared'
+import { useI18n } from '../../hooks/useI18n'
+import { formatDisplayPath, getMcpScopeOptions } from './shared'
 
 export function McpScopePanel({
   scope,
@@ -22,13 +23,15 @@ export function McpScopePanel({
   onScopeChange: (scope: McpConfigScope) => void
   onSelectedProjectPathChange: (projectPath: string) => void
 }) {
-  const selectedScope = MCP_SCOPE_OPTIONS.find((option) => option.value === scope) ?? MCP_SCOPE_OPTIONS[0]
+  const { language } = useI18n()
+  const scopeOptions = getMcpScopeOptions(language)
+  const selectedScope = scopeOptions.find((option) => option.value === scope) ?? scopeOptions[0]
   const currentProjectLabel = scopeInfo?.projectPath ?? effectiveProjectPath
 
   return (
     <div className="space-y-3 rounded-xl border border-claude-border bg-claude-surface p-4">
       <div className="flex flex-wrap gap-2">
-        {MCP_SCOPE_OPTIONS.map((option) => (
+        {scopeOptions.map((option) => (
           <button
             key={option.value}
             onClick={() => onScopeChange(option.value)}
@@ -47,7 +50,11 @@ export function McpScopePanel({
         <p className="text-xs text-claude-muted">{selectedScope.description}</p>
         {scope !== 'user' && (
           <div className="space-y-2 pt-1">
-            <p className="text-xs text-claude-muted">대상 프로젝트를 선택해서 이 범위에 저장합니다.</p>
+            <p className="text-xs text-claude-muted">
+              {language === 'en'
+                ? 'Select the target project to store settings in this scope.'
+                : '대상 프로젝트를 선택해서 이 범위에 저장합니다.'}
+            </p>
             <div className="relative">
               <select
                 value={selectedProjectPath}
@@ -55,7 +62,7 @@ export function McpScopePanel({
                 className="w-full appearance-none rounded-xl border border-claude-border bg-claude-panel px-3 py-2 pr-10 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
               >
                 {availableProjectPaths.length === 0 && (
-                  <option value="">선택 가능한 프로젝트가 없습니다</option>
+                  <option value="">{language === 'en' ? 'No projects are available' : '선택 가능한 프로젝트가 없습니다'}</option>
                 )}
                 {availableProjectPaths.map((path) => (
                   <option key={path} value={path}>{path}</option>
@@ -73,28 +80,36 @@ export function McpScopePanel({
             </div>
             {currentProjectLabel && (
               <p className="text-xs text-claude-muted">
-                선택된 프로젝트:
+                {language === 'en' ? 'Selected project:' : '선택된 프로젝트:'}
                 <span className="ml-1 font-mono text-claude-text">{currentProjectLabel}</span>
                 {currentProjectName && <span className="ml-2 text-claude-muted/70">({currentProjectName})</span>}
               </p>
             )}
             {availableProjectPaths.length === 0 && (
-              <p className="text-xs text-amber-400">사이드바 세션이나 Claude 설정에서 프로젝트 경로를 찾지 못했습니다.</p>
+              <p className="text-xs text-amber-400">
+                {language === 'en'
+                  ? 'No project path could be found from sidebar sessions or Claude settings.'
+                  : '사이드바 세션이나 Claude 설정에서 프로젝트 경로를 찾지 못했습니다.'}
+              </p>
             )}
           </div>
         )}
         <p className="text-xs text-claude-muted">
-          저장 파일:
+          {language === 'en' ? 'Stored file:' : '저장 파일:'}
           <span className="ml-1 font-mono text-claude-text">{formatDisplayPath(scopeInfo?.targetPath ?? '')}</span>
         </p>
         {scope === 'local' && scopeInfo?.projectPath && (
           <p className="text-xs text-claude-muted">
-            저장 키:
+            {language === 'en' ? 'Stored key:' : '저장 키:'}
             <span className="ml-1 break-all font-mono text-claude-text">{`projects["${scopeInfo.projectPath}"].mcpServers`}</span>
           </p>
         )}
         {!canManageScope && (
-          <p className="text-xs text-amber-400">{scopeInfo?.message ?? '대상 프로젝트 경로를 선택해야 이 범위를 편집할 수 있습니다.'}</p>
+          <p className="text-xs text-amber-400">
+            {scopeInfo?.message ?? (language === 'en'
+              ? 'Choose a target project path before editing this scope.'
+              : '대상 프로젝트 경로를 선택해야 이 범위를 편집할 수 있습니다.')}
+          </p>
         )}
       </div>
     </div>

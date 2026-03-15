@@ -13,6 +13,8 @@ import {
 import type { ClaudeStreamRuntimeRefs } from './types'
 
 export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
+  const isEnglish = typeof document !== 'undefined' && document.documentElement.lang.startsWith('en')
+
   function resolveTabId(claudeSessionId: string | null | undefined): string | null {
     if (!claudeSessionId) return null
     const mappedTabId = runtime.claudeSessionToTabRef.current.get(claudeSessionId)
@@ -200,7 +202,9 @@ export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
           const lastAssistantMessage = [...(session?.messages ?? [])]
             .reverse()
             .find((message) => message.role === 'assistant')
-          const title = session?.error ? 'Claude 작업 실패' : 'Claude 작업 완료'
+          const title = session?.error
+            ? (isEnglish ? 'Claude task failed' : 'Claude 작업 실패')
+            : (isEnglish ? 'Claude task completed' : 'Claude 작업 완료')
           const body = summarizeNotificationBody(session?.error ?? lastAssistantMessage?.text)
           if (shouldDeliverNotification(runtime.notificationModeRef.current)) {
             void window.claude.notify({

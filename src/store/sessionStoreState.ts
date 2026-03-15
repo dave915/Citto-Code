@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand'
 import { CURRENT_THEME_ID } from '../lib/theme'
+import { DEFAULT_APP_LANGUAGE } from '../lib/i18n'
 import {
   DEFAULT_PROJECT_PATH,
   DEFAULT_SHORTCUT_CONFIG,
@@ -28,6 +29,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
   return {
     sessions: [firstSession],
     activeSessionId: firstSession.id,
+    appLanguage: DEFAULT_APP_LANGUAGE,
     defaultProjectPath: DEFAULT_PROJECT_PATH,
     envVars: {},
     sidebarMode: 'session',
@@ -86,6 +88,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     },
 
     setDefaultProjectPath: (defaultProjectPath) => set({ defaultProjectPath }),
+    setAppLanguage: (appLanguage) => set({ appLanguage }),
     setSidebarMode: (sidebarMode) => set({ sidebarMode }),
     setClaudeBinaryPath: (claudeBinaryPath) => set({ claudeBinaryPath }),
     setPreferredOpenWithAppId: (preferredOpenWithAppId) => set({ preferredOpenWithAppId }),

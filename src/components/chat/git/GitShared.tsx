@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
+import { useI18n } from '../../../hooks/useI18n'
 import type { GitDraftAction } from '../../../lib/gitUtils'
 
 export function IconTooltipButton({
@@ -52,6 +53,7 @@ export function GitDraftActions({
   showSummary?: boolean
   showCommitMessage?: boolean
 }) {
+  const { language } = useI18n()
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
       <button
@@ -60,7 +62,7 @@ export function GitDraftActions({
         disabled={disabled}
         className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
       >
-        리뷰
+        {language === 'en' ? 'Review' : '리뷰'}
       </button>
       {showSummary && (
         <button
@@ -69,7 +71,7 @@ export function GitDraftActions({
           disabled={disabled}
           className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
         >
-          요약
+          {language === 'en' ? 'Summary' : '요약'}
         </button>
       )}
       {showCommitMessage && (
@@ -79,7 +81,7 @@ export function GitDraftActions({
           disabled={disabled}
           className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
         >
-          커밋 메시지
+          {language === 'en' ? 'Commit message' : '커밋 메시지'}
         </button>
       )}
     </div>

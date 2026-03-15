@@ -1,5 +1,6 @@
 import type { MouseEvent as ReactMouseEvent, MutableRefObject } from 'react'
 import type { GitBranchInfo, GitRepoStatus, OpenWithApp } from '../../../electron/preload'
+import { useI18n } from '../../hooks/useI18n'
 import { BranchMenu } from './header/BranchMenu'
 import { HeaderToggleButton } from './header/HeaderToggleButton'
 import { OpenWithMenu } from './header/OpenWithMenu'
@@ -97,6 +98,7 @@ export function ChatHeader({
   onToggleFilePanel: () => void
   onHeaderDoubleClick: (event: ReactMouseEvent<HTMLDivElement>) => void
 }) {
+  const { t } = useI18n()
   return (
     <div
       className="draggable-region relative z-30 flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
@@ -105,13 +107,13 @@ export function ChatHeader({
     >
       <div
         className="flex min-w-0 flex-1 items-center gap-2 overflow-visible px-2 py-1.5 text-xs text-claude-muted"
-        title="현재 작업 폴더"
+        title={t('header.currentWorktree')}
       >
         {!isNewSession && (
           <button
             onClick={onToggleSidebar}
             className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-            title={`${sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'} (${sidebarShortcutLabel})`}
+            title={`${sidebarCollapsed ? t('header.openSidebar') : t('header.closeSidebar')} (${sidebarShortcutLabel})`}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -165,7 +167,7 @@ export function ChatHeader({
         {showHeaderSessionAction && (
           <HeaderToggleButton
             active={sessionPanelOpen}
-            title={`현재 세션 정보 보기 (${sessionInfoShortcutLabel})`}
+            title={`${t('header.sessionInfo')} (${sessionInfoShortcutLabel})`}
             onClick={onToggleSessionPanel}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -177,7 +179,7 @@ export function ChatHeader({
         )}
 
         {gitAvailable && showHeaderGitAction && (
-          <HeaderToggleButton active={gitPanelOpen} title="git diff 보기" onClick={onToggleGitPanel}>
+          <HeaderToggleButton active={gitPanelOpen} title={t('header.gitDiff')} onClick={onToggleGitPanel}>
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <rect x="4.5" y="4.5" width="15" height="15" rx="3.5" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8" />
@@ -190,7 +192,7 @@ export function ChatHeader({
         {showHeaderFileAction && (
           <HeaderToggleButton
             active={filePanelOpen}
-            title={`현재 디렉토리 파일 보기 (${filesShortcutLabel})`}
+            title={`${t('header.fileExplorer')} (${filesShortcutLabel})`}
             onClick={onToggleFilePanel}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

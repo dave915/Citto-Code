@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useI18n } from '../../../hooks/useI18n'
 import { DEFAULT_PROJECT_PATH } from '../../../store/sessions'
 
 type Props = {
@@ -7,6 +8,7 @@ type Props = {
 }
 
 export function DefaultProjectSection({ defaultProjectPath, onChange }: Props) {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
 
   const handleSelectDefaultProject = async () => {
@@ -14,7 +16,7 @@ export function DefaultProjectSection({ defaultProjectPath, onChange }: Props) {
     try {
       const folder = await window.claude.selectFolder({
         defaultPath: defaultProjectPath,
-        title: '기본 프로젝트 폴더 선택',
+        title: t('settings.general.defaultProject.dialogTitle'),
       })
       if (folder) onChange(folder)
     } finally {
@@ -24,13 +26,13 @@ export function DefaultProjectSection({ defaultProjectPath, onChange }: Props) {
 
   return (
     <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-      <p className="text-sm font-semibold text-claude-text">기본 프로젝트 폴더</p>
+      <p className="text-sm font-semibold text-claude-text">{t('settings.general.defaultProject.title')}</p>
       <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-        새 세션이나 폴더 선택 창이 처음 열릴 위치입니다. 기본값은 Desktop이며, 언제든 다른 폴더로 바꿀 수 있습니다.
+        {t('settings.general.defaultProject.description')}
       </p>
 
       <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel p-3">
-        <label className="mb-2 block text-xs font-medium text-claude-muted">현재 경로</label>
+        <label className="mb-2 block text-xs font-medium text-claude-muted">{t('settings.general.defaultProject.currentPath')}</label>
         <input
           value={defaultProjectPath}
           readOnly
@@ -44,14 +46,14 @@ export function DefaultProjectSection({ defaultProjectPath, onChange }: Props) {
             disabled={loading}
             className="rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-wait disabled:opacity-60"
           >
-            {loading ? '폴더 여는 중...' : '폴더 선택'}
+            {loading ? t('settings.general.defaultProject.opening') : t('settings.general.defaultProject.select')}
           </button>
           <button
             type="button"
             onClick={() => onChange(DEFAULT_PROJECT_PATH)}
             className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-bg hover:text-claude-text"
           >
-            Desktop으로 복원
+            {t('settings.general.defaultProject.reset')}
           </button>
         </div>
       </div>

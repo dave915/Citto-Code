@@ -1,4 +1,5 @@
 import { type McpForm } from './shared'
+import { useI18n } from '../../hooks/useI18n'
 
 const INPUT_CLASS_NAME = 'w-full rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10'
 
@@ -23,6 +24,7 @@ export function McpServerForm({
   onCancel: () => void
   autoFocusName?: boolean
 }) {
+  const { language } = useI18n()
   const updateField = <K extends keyof McpForm>(key: K, value: McpForm[K]) => {
     onChange({ ...form, [key]: value })
   }
@@ -32,7 +34,7 @@ export function McpServerForm({
       <p className="text-xs font-semibold text-claude-text">{title}</p>
 
       <div>
-        <label className="mb-1 block text-xs text-claude-muted">서버 이름 *</label>
+        <label className="mb-1 block text-xs text-claude-muted">{language === 'en' ? 'Server name *' : '서버 이름 *'}</label>
         <input
           value={form.name}
           onChange={(event) => updateField('name', event.target.value)}
@@ -44,8 +46,8 @@ export function McpServerForm({
 
       <div className="flex flex-wrap gap-4">
         {([
-          { value: 'http', label: 'HTTP', badge: '권장' },
-          { value: 'stdio', label: 'stdio', badge: '로컬' },
+          { value: 'http', label: 'HTTP', badge: language === 'en' ? 'Recommended' : '권장' },
+          { value: 'stdio', label: 'stdio', badge: language === 'en' ? 'Local' : '로컬' },
         ] as const).map(({ value, label, badge }) => (
           <label key={value} className="flex cursor-pointer items-center gap-1.5">
             <input
@@ -77,7 +79,7 @@ export function McpServerForm({
           </div>
           <div>
             <label className="mb-1 block text-xs text-claude-muted">
-              Headers <span className="text-claude-muted/60">(선택 · Key: Value 형식, 줄 구분)</span>
+              Headers <span className="text-claude-muted/60">{language === 'en' ? '(optional · Key: Value, one per line)' : '(선택 · Key: Value 형식, 줄 구분)'}</span>
             </label>
             <textarea
               value={form.headers}
@@ -103,7 +105,7 @@ export function McpServerForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-claude-muted">Args <span className="text-claude-muted/60">(여러 줄 또는 공백 구분)</span></label>
+            <label className="mb-1 block text-xs text-claude-muted">Args <span className="text-claude-muted/60">{language === 'en' ? '(separate by spaces or new lines)' : '(여러 줄 또는 공백 구분)'}</span></label>
             <textarea
               value={form.args}
               onChange={(event) => updateField('args', event.target.value)}
@@ -115,7 +117,7 @@ export function McpServerForm({
           </div>
           <div>
             <label className="mb-1 block text-xs text-claude-muted">
-              Env vars <span className="text-claude-muted/60">(선택 · KEY=VALUE 형식, 줄 구분)</span>
+              Env vars <span className="text-claude-muted/60">{language === 'en' ? '(optional · KEY=VALUE, one per line)' : '(선택 · KEY=VALUE 형식, 줄 구분)'}</span>
             </label>
             <textarea
               value={form.env}
@@ -137,13 +139,13 @@ export function McpServerForm({
           disabled={saving}
           className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a] disabled:opacity-50"
         >
-          {saving ? '저장 중...' : submitLabel}
+          {saving ? (language === 'en' ? 'Saving...' : '저장 중...') : submitLabel}
         </button>
         <button
           onClick={onCancel}
           className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
         >
-          취소
+          {language === 'en' ? 'Cancel' : '취소'}
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import type { SidebarMode } from '../../store/sessions'
+import { useI18n } from '../../hooks/useI18n'
 
 export function EmptyMainState({
   sidebarMode,
@@ -7,12 +8,13 @@ export function EmptyMainState({
   sidebarMode: SidebarMode
   onNewSession: () => void
 }) {
+  const { t } = useI18n()
   const isProjectMode = sidebarMode === 'project'
-  const title = isProjectMode ? '열린 프로젝트가 없습니다' : '열린 세션이 없습니다'
-  const actionLabel = isProjectMode ? '새 프로젝트 열기' : '새 세션'
+  const title = isProjectMode ? t('emptyMain.noProjects') : t('emptyMain.noSessions')
+  const actionLabel = isProjectMode ? t('emptyMain.openNewProject') : t('emptyMain.newSession')
   const description = isProjectMode
-    ? '새 프로젝트 열기를 누르면 프로젝트 폴더를 고를 수 있습니다. 선택하지 않으면 설정한 기본 프로젝트 폴더로 바로 시작합니다.'
-    : '새 세션을 누르면 프로젝트 폴더를 고를 수 있습니다. 선택하지 않으면 설정한 기본 프로젝트 폴더로 바로 시작합니다.'
+    ? t('emptyMain.noProjectsDescription')
+    : t('emptyMain.noSessionsDescription')
 
   return (
     <div className="flex h-full items-center justify-center bg-claude-bg px-8">

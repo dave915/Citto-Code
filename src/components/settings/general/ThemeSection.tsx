@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../../../hooks/useI18n'
 import { THEME_PRESETS, applyTheme, type ThemeId } from '../../../lib/theme'
 
 type ThemeOption = {
@@ -16,6 +17,7 @@ type Props = {
 const themeOptions = Object.values(THEME_PRESETS) as ThemeOption[]
 
 export function ThemeSection({ themeId, onChange }: Props) {
+  const { language, t } = useI18n()
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [themePreviewId, setThemePreviewId] = useState<ThemeId | null>(null)
   const [themeHighlightId, setThemeHighlightId] = useState<ThemeId>(themeId)
@@ -79,13 +81,13 @@ export function ThemeSection({ themeId, onChange }: Props) {
 
   return (
     <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-      <p className="text-sm font-semibold text-claude-text">테마</p>
+      <p className="text-sm font-semibold text-claude-text">{t('settings.general.theme.title')}</p>
       <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-        기본 테마는 Default입니다. 아래 프리셋 중에서 바로 바꿔서 사용할 수 있습니다.
+        {t('settings.general.theme.description')}
       </p>
 
       <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel p-3">
-        <label className="mb-2 block text-xs font-medium text-claude-muted">프리셋</label>
+        <label className="mb-2 block text-xs font-medium text-claude-muted">{t('settings.general.theme.preset')}</label>
         <div ref={themeMenuContainerRef} className="relative flex items-center gap-3">
           <div className="relative flex-1">
             <button
@@ -167,7 +169,7 @@ export function ThemeSection({ themeId, onChange }: Props) {
                       <div className="min-w-0">
                         <div className="text-sm font-medium">{theme.label}</div>
                         <div className="mt-0.5 text-xs leading-relaxed text-claude-muted">
-                          {theme.description}
+                          {language === 'en' ? THEME_PRESETS[theme.id].descriptionEn : theme.description}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -196,7 +198,7 @@ export function ThemeSection({ themeId, onChange }: Props) {
           </div>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-claude-muted">
-          {THEME_PRESETS[activeThemeId].description}
+          {language === 'en' ? THEME_PRESETS[activeThemeId].descriptionEn : THEME_PRESETS[activeThemeId].description}
         </p>
       </div>
     </div>

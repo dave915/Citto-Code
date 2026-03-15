@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import welcomeTypingGif from '../../assets/mascot/welcome-typing-transparent.gif'
+import { useI18n } from '../../hooks/useI18n'
 
 type WelcomePromptChip = {
   id: string
@@ -51,10 +52,54 @@ const WELCOME_PROMPT_CHIPS: WelcomePromptChip[] = [
 })
 
 export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: string) => void }) {
+  const { language } = useI18n()
   const [activeCard, setActiveCard] = useState({ index: 0, key: 0 })
   const [exitingCard, setExitingCard] = useState<{ index: number; key: number } | null>(null)
   const activeChip = WELCOME_PROMPT_CHIPS[activeCard.index]
   const exitingChip = exitingCard ? WELCOME_PROMPT_CHIPS[exitingCard.index] : null
+  const localizeChip = (chip: WelcomePromptChip | null) => {
+    if (!chip || language !== 'en') return chip
+    if (chip.id === 'explain-code') {
+      return {
+        ...chip,
+        title: 'Understand structure',
+        label: 'Explain this repository structure and the main flow before editing',
+        prompt: 'Explain this codebase structure and main flow so that even a beginner can understand it. Include important files, functions, data flow, and what to watch out for when modifying it.',
+      }
+    }
+    if (chip.id === 'fix-bug') {
+      return {
+        ...chip,
+        title: 'Fix a bug',
+        label: 'Narrow down the root cause, check impact, then fix it with the smallest change',
+        prompt: 'First narrow down and explain the root cause, summarize the reproduction path and impact, then fix it with the smallest change possible. Include test points if needed.',
+      }
+    }
+    if (chip.id === 'add-tests') {
+      return {
+        ...chip,
+        title: 'Add tests',
+        label: 'Add tests too so the current behavior is protected from regressions',
+        prompt: 'Add tests that protect the current behavior from regressions. Include high-priority scenarios, edge cases, and cases that should fail.',
+      }
+    }
+    if (chip.id === 'commit-message') {
+      return {
+        ...chip,
+        title: 'Commit message',
+        label: 'Review the changes and suggest commit messages with one recommendation',
+        prompt: 'Based on these changes, write three Conventional Commit candidates, one recommended option, and one detailed body.',
+      }
+    }
+    return {
+      ...chip,
+      title: 'Release notes',
+      label: 'Summarize the changes as release notes focused on user-visible impact',
+      prompt: 'Summarize these changes in release note format. Separate user-visible changes, developer-facing changes, and cautions.',
+    }
+  }
+  const displayActiveChip = localizeChip(activeChip)!
+  const displayExitingChip = localizeChip(exitingChip)
   const showActiveCard = !exitingCard || exitingCard.key !== activeCard.key
 
   useEffect(() => {
@@ -129,14 +174,14 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
       </style>
       <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Citto Code</h2>
       <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
-        Claude Code CLI 기반 코드 어시스턴트입니다.
+        {language === 'en' ? 'A code assistant built on top of Claude Code CLI.' : 'Claude Code CLI 기반 코드 어시스턴트입니다.'}
       </p>
 
       <div className="pointer-events-none mb-10 select-none">
         <div className="relative h-12 w-20 sm:h-14 sm:w-24">
           <img
             src={welcomeTypingGif}
-            alt="노트북으로 작업 중인 캐릭터"
+            alt={language === 'en' ? 'Character working on a laptop' : '노트북으로 작업 중인 캐릭터'}
             className="relative h-full w-full object-contain"
             draggable={false}
             style={{
@@ -156,28 +201,28 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
               <button
                 key={`active-${activeCard.key}`}
                 type="button"
-                onClick={() => onStartPrompt(activeChip.prompt)}
+                onClick={() => onStartPrompt(displayActiveChip.prompt)}
                 className="absolute bottom-0 left-0 z-10 w-full overflow-hidden rounded-[18px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm transition-colors hover:bg-claude-surface-2"
                 style={{ animation: `welcome-card-enter ${WELCOME_CARD_ENTER_MS}ms cubic-bezier(0.22, 1, 0.36, 1) forwards` }}
               >
-                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{activeChip.title}</div>
+                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{displayActiveChip.title}</div>
                 <div className="mt-2 text-[15px] font-medium leading-6 text-claude-text">
-                  {activeChip.label}
+                  {displayActiveChip.label}
                 </div>
-                <div className="mt-4 text-xs text-claude-muted">클릭해서 바로 시작</div>
+                <div className="mt-4 text-xs text-claude-muted">{language === 'en' ? 'Click to start immediately' : '클릭해서 바로 시작'}</div>
               </button>
             )}
-            {exitingChip && exitingCard && (
+            {displayExitingChip && exitingCard && (
               <div
                 key={`exit-${exitingCard.key}`}
                 className="pointer-events-none absolute bottom-0 left-0 z-20 w-full rounded-[18px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm"
                 style={{ animation: `welcome-card-exit ${WELCOME_CARD_EXIT_MS}ms cubic-bezier(0.4, 0, 0.6, 1) forwards` }}
               >
-                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{exitingChip.title}</div>
+                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{displayExitingChip.title}</div>
                 <div className="mt-2 text-[15px] font-medium leading-6 text-claude-text">
-                  {exitingChip.label}
+                  {displayExitingChip.label}
                 </div>
-                <div className="mt-4 text-xs text-claude-muted">클릭해서 바로 시작</div>
+                <div className="mt-4 text-xs text-claude-muted">{language === 'en' ? 'Click to start immediately' : '클릭해서 바로 시작'}</div>
               </div>
             )}
           </div>

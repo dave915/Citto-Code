@@ -4,6 +4,7 @@ import {
   getCurrentPlatform,
   shortcutFromKeyboardEvent,
 } from '../../../lib/shortcuts'
+import { useI18n } from '../../../hooks/useI18n'
 import type {
   ShortcutAction,
   ShortcutConfig,
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export function ShortcutSection({ shortcutConfig, onShortcutChange }: Props) {
+  const { language, t } = useI18n()
   const currentPlatform = getCurrentPlatform()
   const platformLabel = currentPlatform === 'mac' ? 'macOS' : 'Windows'
   const [recordingAction, setRecordingAction] = useState<ShortcutAction | null>(null)
@@ -24,10 +26,9 @@ export function ShortcutSection({ shortcutConfig, onShortcutChange }: Props) {
     <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-claude-text">단축키</p>
+          <p className="text-sm font-semibold text-claude-text">{t('settings.general.shortcuts.title')}</p>
           <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-            현재 사용 중인 플랫폼인 <span className="font-medium text-claude-text">{platformLabel}</span> 단축키만 표시합니다.
-            입력칸을 선택한 뒤 원하는 키 조합을 직접 누르세요. 권한 모드 변경은 기본값을 Claude Code와 동일한 <span className="font-medium text-claude-text">Shift+Tab</span>으로 맞췄습니다.
+            {t('settings.general.shortcuts.description', { platform: platformLabel })}
           </p>
         </div>
       </div>
@@ -36,14 +37,14 @@ export function ShortcutSection({ shortcutConfig, onShortcutChange }: Props) {
         <table className="w-full border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-claude-muted">동작</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-claude-muted">{t('settings.general.shortcuts.actionHeader')}</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-claude-muted">{platformLabel}</th>
             </tr>
           </thead>
           <tbody>
-            {(Object.keys(SHORTCUT_ACTION_LABELS) as ShortcutAction[]).map((action) => (
+            {(Object.keys(SHORTCUT_ACTION_LABELS[language]) as ShortcutAction[]).map((action) => (
               <tr key={action} className={recordingAction === action ? 'bg-[#34363c]' : ''}>
-                <td className="px-3 py-2 text-sm text-claude-text">{SHORTCUT_ACTION_LABELS[action]}</td>
+                <td className="px-3 py-2 text-sm text-claude-text">{SHORTCUT_ACTION_LABELS[language][action]}</td>
                 <td className="px-3 py-2">
                   <div className="relative">
                     <input
@@ -75,7 +76,7 @@ export function ShortcutSection({ shortcutConfig, onShortcutChange }: Props) {
                           : 'bg-claude-panel text-claude-muted'
                       }`}
                     >
-                      {recordingAction === action ? '입력 중' : '클릭 후 입력'}
+                      {recordingAction === action ? t('settings.general.shortcuts.recording') : t('settings.general.shortcuts.clickToRecord')}
                     </span>
                   </div>
                 </td>

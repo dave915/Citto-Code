@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 import { EmptyState, LoadingPlaceholder } from './shared'
 
 export function AgentTab() {
+  const { language } = useI18n()
   const [files, setFiles] = useState<{ name: string; path: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -58,7 +60,7 @@ export function AgentTab() {
     const result = await window.claude.writeFileAbs({ filePath: editingFile.path, content: editContent })
     setSaving(false)
     if (!result.ok) {
-      setSaveError(result.error ?? '저장 실패')
+      setSaveError(result.error ?? (language === 'en' ? 'Save failed' : '저장 실패'))
       return
     }
     setEditingFile(null)
@@ -75,19 +77,21 @@ export function AgentTab() {
   const handleCreate = async () => {
     const name = newName.trim()
     if (!name) {
-      setFormError('이름을 입력하세요.')
+      setFormError(language === 'en' ? 'Enter a name.' : '이름을 입력하세요.')
       return
     }
     const fileName = name.endsWith('.md') ? name : `${name}.md`
     const agentName = fileName.replace(/\.md$/, '')
-    const content = `---\nname: ${agentName}\ndescription: 이 에이전트에 대한 설명을 입력하세요.\n---\n\n# ${agentName}\n\n이 에이전트의 역할과 지침을 여기에 작성하세요.\n\n## 역할\n\n특화된 역할 설명...\n\n## 지침\n\n- 지침 1\n- 지침 2\n`
+    const content = language === 'en'
+      ? `---\nname: ${agentName}\ndescription: Describe this agent and when to use it.\n---\n\n# ${agentName}\n\nWrite the role and instructions for this agent here.\n\n## Role\n\nDescribe the specialized role...\n\n## Instructions\n\n- Instruction 1\n- Instruction 2\n`
+      : `---\nname: ${agentName}\ndescription: 이 에이전트에 대한 설명을 입력하세요.\n---\n\n# ${agentName}\n\n이 에이전트의 역할과 지침을 여기에 작성하세요.\n\n## 역할\n\n특화된 역할 설명...\n\n## 지침\n\n- 지침 1\n- 지침 2\n`
 
     setCreating(true)
     setFormError('')
     const result = await window.claude.writeClaudeFile({ subdir: 'agents', name: fileName, content })
     setCreating(false)
     if (!result.ok) {
-      setFormError(result.error ?? '생성 실패')
+      setFormError(result.error ?? (language === 'en' ? 'Create failed' : '생성 실패'))
       return
     }
 
@@ -104,15 +108,16 @@ export function AgentTab() {
   return (
     <div className="p-4">
       <div className="mb-4 rounded-xl border border-claude-border bg-claude-surface p-4">
-        <p className="mb-1 text-xs font-semibold text-claude-text">Agent란?</p>
+        <p className="mb-1 text-xs font-semibold text-claude-text">{language === 'en' ? 'What is an Agent?' : 'Agent란?'}</p>
         <p className="text-xs leading-relaxed text-claude-muted">
-          ~/.claude/agents/ 폴더에 .md 파일로 정의하는 서브 에이전트입니다.
-          특정 역할과 도구 제한을 가진 전문화된 에이전트를 만들 수 있습니다.
+          {language === 'en'
+            ? 'This is a sub-agent defined as a .md file in ~/.claude/agents/. You can create specialized agents with focused roles and tool restrictions.'
+            : '~/.claude/agents/ 폴더에 .md 파일로 정의하는 서브 에이전트입니다. 특정 역할과 도구 제한을 가진 전문화된 에이전트를 만들 수 있습니다.'}
         </p>
       </div>
 
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs text-claude-muted">~/.claude/agents/ 에 등록된 Agent</p>
+        <p className="text-xs text-claude-muted">{language === 'en' ? 'Agents registered in ~/.claude/agents/' : '~/.claude/agents/ 에 등록된 Agent'}</p>
         <button
           onClick={() => {
             setShowAdd(true)
@@ -125,19 +130,19 @@ export function AgentTab() {
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          추가
+          {language === 'en' ? 'Add' : '추가'}
         </button>
       </div>
 
       {showAdd && (
         <div className="mb-3 space-y-2 rounded-xl border border-claude-border bg-claude-surface p-3">
-          <p className="text-xs font-semibold text-claude-text">새 Agent 추가</p>
+          <p className="text-xs font-semibold text-claude-text">{language === 'en' ? 'Add new agent' : '새 Agent 추가'}</p>
           <input
             ref={nameRef}
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && void handleCreate()}
-            placeholder="agent-name (.md 자동 추가)"
+            placeholder={language === 'en' ? 'agent-name (.md added automatically)' : 'agent-name (.md 자동 추가)'}
             className="w-full rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono focus:border-claude-border focus:outline-none focus:ring-1 focus:ring-white/10"
           />
           {formError && <p className="text-xs text-red-500">{formError}</p>}
@@ -147,13 +152,13 @@ export function AgentTab() {
               disabled={creating}
               className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a] disabled:opacity-50"
             >
-              {creating ? '생성 중...' : '생성'}
+              {creating ? (language === 'en' ? 'Creating...' : '생성 중...') : (language === 'en' ? 'Create' : '생성')}
             </button>
             <button
               onClick={() => setShowAdd(false)}
               className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
             >
-              취소
+              {language === 'en' ? 'Cancel' : '취소'}
             </button>
           </div>
         </div>
@@ -162,8 +167,8 @@ export function AgentTab() {
       {files.length === 0 ? (
         <EmptyState
           icon="🤖"
-          title="정의된 Agent 없음"
-          desc={<>추가 버튼으로 커스텀 에이전트를 정의할 수 있습니다.</>}
+          title={language === 'en' ? 'No agents defined' : '정의된 Agent 없음'}
+          desc={<>{language === 'en' ? 'Use the add button to define a custom agent.' : '추가 버튼으로 커스텀 에이전트를 정의할 수 있습니다.'}</>}
         />
       ) : (
         <div className="space-y-2">
@@ -180,18 +185,18 @@ export function AgentTab() {
                   <div className="flex flex-shrink-0 items-center gap-1">
                     {confirmDelete === file.path ? (
                       <>
-                        <span className="mr-1 text-xs text-red-500">삭제?</span>
+                        <span className="mr-1 text-xs text-red-500">{language === 'en' ? 'Delete?' : '삭제?'}</span>
                         <button
                           onClick={() => void handleDelete(file)}
                           className="rounded-lg bg-red-500 px-2 py-1 text-xs text-white transition-colors hover:bg-red-600"
                         >
-                          확인
+                          {language === 'en' ? 'Confirm' : '확인'}
                         </button>
                         <button
                           onClick={() => setConfirmDelete(null)}
                           className="rounded-lg border border-claude-border px-2 py-1 text-xs text-claude-muted transition-colors hover:text-claude-text"
                         >
-                          취소
+                          {language === 'en' ? 'Cancel' : '취소'}
                         </button>
                       </>
                     ) : (
@@ -199,7 +204,7 @@ export function AgentTab() {
                         <button
                           onClick={() => setConfirmDelete(file.path)}
                           className="rounded p-1.5 text-claude-muted transition-colors hover:bg-claude-panel hover:text-red-500"
-                          title="삭제"
+                          title={language === 'en' ? 'Delete' : '삭제'}
                         >
                           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -210,7 +215,7 @@ export function AgentTab() {
                           className={`rounded p-1.5 transition-colors ${
                             isEditing ? 'bg-claude-panel text-claude-text' : 'text-claude-muted hover:bg-claude-panel hover:text-claude-text'
                           }`}
-                          title="앱에서 편집"
+                          title={language === 'en' ? 'Edit in app' : '앱에서 편집'}
                         >
                           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -219,7 +224,7 @@ export function AgentTab() {
                         <button
                           onClick={() => window.claude.openFile(file.path)}
                           className="rounded p-1.5 text-claude-muted transition-colors hover:bg-claude-panel hover:text-claude-text"
-                          title="외부 에디터로 열기"
+                          title={language === 'en' ? 'Open in external editor' : '외부 에디터로 열기'}
                         >
                           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -235,7 +240,7 @@ export function AgentTab() {
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs font-mono font-semibold text-claude-text">{file.name}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-claude-muted">⌘S 저장</span>
+                        <span className="text-xs text-claude-muted">⌘S {language === 'en' ? 'save' : '저장'}</span>
                         <button
                           onClick={() => setEditingFile(null)}
                           className="rounded p-0.5 text-claude-muted transition-colors hover:text-claude-text"
@@ -273,13 +278,13 @@ export function AgentTab() {
                         disabled={saving || loadingEdit}
                         className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a] disabled:opacity-50"
                       >
-                        {saving ? '저장 중...' : '저장'}
+                        {saving ? (language === 'en' ? 'Saving...' : '저장 중...') : (language === 'en' ? 'Save' : '저장')}
                       </button>
                       <button
                         onClick={() => setEditingFile(null)}
                         className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
                       >
-                        취소
+                        {language === 'en' ? 'Cancel' : '취소'}
                       </button>
                     </div>
                   </div>

@@ -1,9 +1,11 @@
-import { DAY_OPTIONS, type ScheduledTaskDay, type ScheduledTaskFrequency } from '../../store/scheduledTasks'
+import { getDayOptions, type ScheduledTaskDay, type ScheduledTaskFrequency } from '../../store/scheduledTasks'
+import type { AppLanguage } from '../../lib/i18n'
 import { ScheduledTaskSelect } from './ScheduledTaskSelect'
 import { HOUR_OPTIONS, MINUTE_OPTIONS, formatHour, formatMinute } from './utils'
 
 type Props = {
   frequency: ScheduledTaskFrequency
+  language: AppLanguage
   permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
   enabled: boolean
   hour: number
@@ -25,6 +27,7 @@ type Props = {
 
 export function TaskScheduleSection({
   frequency,
+  language,
   permissionMode,
   enabled,
   hour,
@@ -43,6 +46,7 @@ export function TaskScheduleSection({
   onQuietHoursEndChange,
   onMinuteManualChange,
 }: Props) {
+  const dayOptions = getDayOptions(language)
   const requiresTime = frequency !== 'manual'
   const requiresHour = frequency === 'daily' || frequency === 'weekdays' || frequency === 'weekly'
   const quietHoursEnabled = Boolean(quietHoursStart || quietHoursEnd)
@@ -51,7 +55,9 @@ export function TaskScheduleSection({
     <>
       {permissionMode === 'bypassPermissions' && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-200">
-          Bypass는 파일 수정과 외부 명령 실행까지 자동 승인합니다. 작업 프롬프트를 반드시 검토한 뒤 사용하세요.
+          {language === 'en'
+            ? 'Bypass automatically approves file edits and external commands. Review the task prompt carefully before using it.'
+            : 'Bypass는 파일 수정과 외부 명령 실행까지 자동 승인합니다. 작업 프롬프트를 반드시 검토한 뒤 사용하세요.'}
         </div>
       )}
 
@@ -59,17 +65,17 @@ export function TaskScheduleSection({
         <div className="grid gap-4 md:grid-cols-3">
           {requiresHour && (
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-claude-muted">시각</span>
+              <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Hour' : '시각'}</span>
               <ScheduledTaskSelect value={String(hour)} onChange={(value) => onHourChange(Number(value))}>
                 {HOUR_OPTIONS.map((value) => (
-                  <option key={value} value={value}>{formatHour(value)}</option>
+                  <option key={value} value={value}>{formatHour(value, language)}</option>
                 ))}
               </ScheduledTaskSelect>
             </div>
           )}
 
           <div>
-            <span className="mb-1.5 block text-xs font-medium text-claude-muted">분</span>
+            <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Minute' : '분'}</span>
             {minuteManual ? (
               <div className="flex gap-2">
                 <input
@@ -84,21 +90,21 @@ export function TaskScheduleSection({
                   onClick={() => onMinuteManualChange(false)}
                   className="rounded-xl border border-claude-border px-3 text-xs text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
                 >
-                  목록
+                  {language === 'en' ? 'List' : '목록'}
                 </button>
               </div>
             ) : (
               <div className="flex gap-2">
                 <ScheduledTaskSelect value={String(minute)} onChange={(value) => onMinuteChange(Number(value))} className="w-full">
                   {MINUTE_OPTIONS.map((value) => (
-                    <option key={value} value={value}>{formatMinute(value)}</option>
+                    <option key={value} value={value}>{formatMinute(value, language)}</option>
                   ))}
                 </ScheduledTaskSelect>
                 <button
                   onClick={() => onMinuteManualChange(true)}
                   className="rounded-xl border border-claude-border px-3 text-xs text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
                 >
-                  직접입력
+                  {language === 'en' ? 'Custom' : '직접입력'}
                 </button>
               </div>
             )}
@@ -106,9 +112,9 @@ export function TaskScheduleSection({
 
           {frequency === 'weekly' && (
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-claude-muted">요일</span>
+              <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Day' : '요일'}</span>
               <ScheduledTaskSelect value={weeklyDay} onChange={(value) => onWeeklyDayChange(value as ScheduledTaskDay)}>
-                {DAY_OPTIONS.map((option) => (
+                {dayOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </ScheduledTaskSelect>
@@ -119,9 +125,9 @@ export function TaskScheduleSection({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <span className="mb-1.5 block text-xs font-medium text-claude-muted">실행 안 할 요일</span>
+          <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Skip days' : '실행 안 할 요일'}</span>
           <div className="flex flex-wrap gap-2">
-            {DAY_OPTIONS.map((option) => {
+            {dayOptions.map((option) => {
               const selected = skipDays.includes(option.value)
               return (
                 <button
@@ -141,7 +147,7 @@ export function TaskScheduleSection({
         </div>
 
         <div>
-          <span className="mb-1.5 block text-xs font-medium text-claude-muted">조용한 시간대</span>
+          <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Quiet hours' : '조용한 시간대'}</span>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <input
               type="time"
@@ -158,7 +164,9 @@ export function TaskScheduleSection({
             />
           </div>
           <p className="mt-1.5 text-xs text-claude-muted">
-            {quietHoursEnabled ? '자정을 넘는 구간도 지원합니다. 예: 22:00 ~ 08:00' : '비워두면 항상 실행합니다.'}
+            {quietHoursEnabled
+              ? (language === 'en' ? 'Crossing midnight is supported. Example: 22:00 - 08:00' : '자정을 넘는 구간도 지원합니다. 예: 22:00 ~ 08:00')
+              : (language === 'en' ? 'Leave empty to allow runs at all times.' : '비워두면 항상 실행합니다.')}
           </p>
         </div>
       </div>
@@ -171,8 +179,8 @@ export function TaskScheduleSection({
           className="h-4 w-4 rounded border-claude-border bg-claude-panel text-claude-text"
         />
         <div className="min-w-0">
-          <p className="text-sm font-medium text-claude-text">활성화</p>
-          <p className="text-xs text-claude-muted">비활성화하면 스케줄러에서 제외됩니다.</p>
+          <p className="text-sm font-medium text-claude-text">{language === 'en' ? 'Enabled' : '활성화'}</p>
+          <p className="text-xs text-claude-muted">{language === 'en' ? 'Disabled tasks are excluded from the scheduler.' : '비활성화하면 스케줄러에서 제외됩니다.'}</p>
         </div>
       </label>
     </>

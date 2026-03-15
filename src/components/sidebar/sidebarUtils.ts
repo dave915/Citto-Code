@@ -1,5 +1,6 @@
 import type { Session } from '../../store/sessions'
 import { getProjectNameFromPath } from '../../store/sessions'
+import type { AppLanguage } from '../../lib/i18n'
 
 export type SessionLockState = {
   isLocked: boolean
@@ -17,10 +18,16 @@ export function getDirName(path: string): string {
   return getProjectNameFromPath(path)
 }
 
-export function getSessionDisplayName(session: Session): string {
-  if (session.name !== '새 세션') return session.name
+const DEFAULT_SESSION_NAMES = new Set(['새 세션', 'New session'])
+
+export function isDefaultSessionName(name: string): boolean {
+  return DEFAULT_SESSION_NAMES.has(name)
+}
+
+export function getSessionDisplayName(session: Session, language: AppLanguage = 'ko'): string {
+  if (!isDefaultSessionName(session.name)) return session.name
   if (session.cwd && session.cwd !== '~') return getDirName(session.cwd)
-  return '새 세션'
+  return language === 'en' ? 'New session' : '새 세션'
 }
 
 export function groupSessionsByProject(sessions: Session[]): SessionGroup[] {

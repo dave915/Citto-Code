@@ -6,9 +6,10 @@ import {
   type ScheduledTaskFrequency,
   type ScheduledTaskInput,
 } from '../store/scheduledTasks'
+import { useI18n } from '../hooks/useI18n'
 import { TaskBasicsSection } from './scheduledTaskForm/TaskBasicsSection'
 import { TaskScheduleSection } from './scheduledTaskForm/TaskScheduleSection'
-import { FREQUENCY_OPTIONS, MINUTE_OPTIONS, normalizeSelectedFolder } from './scheduledTaskForm/utils'
+import { getFrequencyOptions, MINUTE_OPTIONS, normalizeSelectedFolder } from './scheduledTaskForm/utils'
 
 type Props = {
   initialTask?: ScheduledTask | null
@@ -23,6 +24,7 @@ export function ScheduledTaskForm({
   onCancel,
   onSubmit,
 }: Props) {
+  const { language } = useI18n()
   const [name, setName] = useState(initialTask?.name ?? '')
   const [prompt, setPrompt] = useState(initialTask?.prompt ?? '')
   const [projectPath, setProjectPath] = useState(initialTask?.projectPath ?? defaultProjectPath)
@@ -38,16 +40,18 @@ export function ScheduledTaskForm({
   const [minuteManual, setMinuteManual] = useState(initialTask ? !MINUTE_OPTIONS.includes(initialTask.minute) : false)
   const [error, setError] = useState('')
 
-  const title = initialTask ? '예약 작업 수정' : '예약 작업 추가'
+  const title = initialTask
+    ? (language === 'en' ? 'Edit scheduled task' : '예약 작업 수정')
+    : (language === 'en' ? 'Add scheduled task' : '예약 작업 추가')
   const selectedFrequency = useMemo(
-    () => FREQUENCY_OPTIONS.find((option) => option.value === frequency),
-    [frequency],
+    () => getFrequencyOptions(language).find((option) => option.value === frequency),
+    [frequency, language],
   )
 
   const handleSelectFolder = async () => {
     const selected = normalizeSelectedFolder(await window.claude.selectFolder({
       defaultPath: projectPath || defaultProjectPath,
-      title: '작업 폴더 선택',
+      title: language === 'en' ? 'Select task folder' : '작업 폴더 선택',
     }))
     if (!selected) return
     setProjectPath(selected)
@@ -63,23 +67,23 @@ export function ScheduledTaskForm({
 
   const submit = () => {
     if (!name.trim()) {
-      setError('작업 이름을 입력하세요.')
+      setError(language === 'en' ? 'Enter a task name.' : '작업 이름을 입력하세요.')
       return
     }
     if (!prompt.trim()) {
-      setError('프롬프트를 입력하세요.')
+      setError(language === 'en' ? 'Enter a prompt.' : '프롬프트를 입력하세요.')
       return
     }
     if (!projectPath.trim()) {
-      setError('작업 폴더를 선택하세요.')
+      setError(language === 'en' ? 'Select a task folder.' : '작업 폴더를 선택하세요.')
       return
     }
     if (minute < 0 || minute > 59) {
-      setError('분은 0~59 사이여야 합니다.')
+      setError(language === 'en' ? 'Minute must be between 0 and 59.' : '분은 0~59 사이여야 합니다.')
       return
     }
     if ((quietHoursStart && !quietHoursEnd) || (!quietHoursStart && quietHoursEnd)) {
-      setError('조용한 시간대는 시작과 종료를 모두 지정하세요.')
+      setError(language === 'en' ? 'Set both the start and end of quiet hours.' : '조용한 시간대는 시작과 종료를 모두 지정하세요.')
       return
     }
 
@@ -106,13 +110,13 @@ export function ScheduledTaskForm({
         <div>
           <h3 className="text-base font-semibold text-claude-text">{title}</h3>
           <p className="mt-1 text-sm text-claude-muted">
-            지정한 시각에 새 Claude 세션을 자동 실행합니다.
+            {language === 'en' ? 'Automatically starts a new Claude session at the selected time.' : '지정한 시각에 새 Claude 세션을 자동 실행합니다.'}
           </p>
         </div>
         <button
           onClick={onCancel}
           className="rounded-xl p-1.5 text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-          title="닫기"
+          title={language === 'en' ? 'Close' : '닫기'}
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -124,6 +128,7 @@ export function ScheduledTaskForm({
         <div className="space-y-4">
           <TaskBasicsSection
             name={name}
+            language={language}
             prompt={prompt}
             projectPath={projectPath}
             defaultProjectPath={defaultProjectPath}
@@ -140,6 +145,7 @@ export function ScheduledTaskForm({
 
           <TaskScheduleSection
             frequency={frequency}
+            language={language}
             permissionMode={permissionMode}
             enabled={enabled}
             hour={hour}
@@ -168,13 +174,15 @@ export function ScheduledTaskForm({
           onClick={onCancel}
           className="rounded-xl border border-claude-border px-3.5 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
         >
-          취소
+          {language === 'en' ? 'Cancel' : '취소'}
         </button>
         <button
           onClick={submit}
           className="rounded-xl bg-claude-surface-2 px-3.5 py-2 text-sm font-medium text-claude-text transition-colors hover:brightness-110"
         >
-          {initialTask ? '변경 저장' : '작업 추가'}
+          {initialTask
+            ? (language === 'en' ? 'Save changes' : '변경 저장')
+            : (language === 'en' ? 'Add task' : '작업 추가')}
         </button>
       </div>
     </div>

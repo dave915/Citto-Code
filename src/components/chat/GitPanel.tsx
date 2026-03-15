@@ -1,6 +1,7 @@
 import type { MouseEvent as ReactMouseEvent, MutableRefObject } from 'react'
 
 import type { GitDiffResult, GitLogEntry, GitRepoStatus, GitStatusEntry } from '../../../electron/preload'
+import { useI18n } from '../../hooks/useI18n'
 import type { GitDraftAction } from '../../lib/gitUtils'
 import { GitDiffPanel, GitLogPanel, GitStatusPanel } from './GitPanels'
 
@@ -80,6 +81,8 @@ export function GitPanel({
   gitCommitTextareaRef: MutableRefObject<HTMLTextAreaElement | null>
   onCommitGit: () => void | Promise<void>
 }) {
+  const { language } = useI18n()
+
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       <div className="flex min-h-0 flex-1">
@@ -157,13 +160,15 @@ export function GitPanel({
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[11px] text-claude-muted">
-                      <span>스테이징됨</span>
+                      <span>{language === 'en' ? 'Staged' : '스테이징됨'}</span>
                       <span className="inline-flex h-[17px] min-w-[20px] items-center justify-center rounded-full border border-claude-border/70 bg-claude-surface px-1.5 text-[10px] font-semibold leading-none text-claude-text">
                         {stagedGitEntryCount}
                       </span>
                     </div>
                     {stagedGitEntryCount === 0 && (
-                      <span className="text-[11px] text-claude-muted">커밋할 파일을 먼저 스테이징하세요</span>
+                      <span className="text-[11px] text-claude-muted">
+                        {language === 'en' ? 'Stage files before committing.' : '커밋할 파일을 먼저 스테이징하세요'}
+                      </span>
                     )}
                   </div>
 
@@ -180,14 +185,18 @@ export function GitPanel({
                       }}
                       rows={1}
                       disabled={gitActionLoading || stagedGitEntryCount === 0}
-                      placeholder={stagedGitEntryCount > 0 ? '커밋 메시지 입력' : '스테이징된 파일이 없습니다'}
+                      placeholder={
+                        stagedGitEntryCount > 0
+                          ? (language === 'en' ? 'Enter commit message' : '커밋 메시지 입력')
+                          : (language === 'en' ? 'No staged files' : '스테이징된 파일이 없습니다')
+                      }
                       className="max-h-40 min-h-[36px] flex-1 resize-none overflow-hidden rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <button
                       type="button"
                       onClick={() => void onCommitGit()}
                       disabled={gitActionLoading || stagedGitEntryCount === 0 || gitCommitMessage.trim().length === 0}
-                      title="커밋"
+                      title={language === 'en' ? 'Commit' : '커밋'}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-claude-border bg-claude-surface text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">

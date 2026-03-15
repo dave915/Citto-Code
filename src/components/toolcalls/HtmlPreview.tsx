@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 
 function normalizeNewlines(value: string): string {
   return value.replace(/\r\n?/g, '\n')
@@ -206,6 +207,7 @@ export function HtmlPreview({
   html: string
   path?: string | null
 }) {
+  const { language } = useI18n()
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previewIdRef = useRef(`html-preview-${Math.random().toString(36).slice(2)}`)
   const [frameKey, setFrameKey] = useState(0)
@@ -261,7 +263,7 @@ export function HtmlPreview({
     <div className="overflow-hidden rounded-lg border border-claude-border/70 bg-claude-bg">
       <div className="flex items-center justify-between gap-3 border-b border-claude-border/70 bg-claude-panel px-3 py-2">
         <div className="min-w-0">
-          <div className="text-[11px] font-medium text-claude-text/90">HTML 실행 미리보기</div>
+          <div className="text-[11px] font-medium text-claude-text/90">{language === 'en' ? 'Live HTML preview' : 'HTML 실행 미리보기'}</div>
         </div>
         <div className="flex items-center gap-2">
           {path ? (
@@ -270,7 +272,7 @@ export function HtmlPreview({
               onClick={() => { void window.claude.openInBrowser(path) }}
               className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
             >
-              브라우저에서 열기
+              {language === 'en' ? 'Open in browser' : '브라우저에서 열기'}
             </button>
           ) : null}
           <button
@@ -278,7 +280,7 @@ export function HtmlPreview({
             onClick={() => setFrameKey((value) => value + 1)}
             className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
           >
-            다시 실행
+            {language === 'en' ? 'Run again' : '다시 실행'}
           </button>
         </div>
       </div>

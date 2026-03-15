@@ -1,4 +1,5 @@
 import type { Session } from '../../store/sessions'
+import { useI18n } from '../../hooks/useI18n'
 import {
   formatDateTime,
   formatPermissionMode,
@@ -35,53 +36,54 @@ export function SessionInfoPanel({
   onExportSession,
   onCopySessionExport,
 }: SessionInfoPanelProps) {
+  const { language, t } = useI18n()
   const createdAt = session.messages[0]?.createdAt ?? null
 
   return (
     <div className="flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">세션</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{t('sessionInfo.section')}</p>
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => onExportSession('markdown')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
               className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
             >
-              {exportingFormat === 'markdown' ? '저장 중...' : 'Markdown'}
+              {exportingFormat === 'markdown' ? t('sessionInfo.saving') : 'Markdown'}
             </button>
             <button
               onClick={() => onExportSession('json')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
               className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
             >
-              {exportingFormat === 'json' ? '저장 중...' : 'JSON'}
+              {exportingFormat === 'json' ? t('sessionInfo.saving') : 'JSON'}
             </button>
             <button
               onClick={() => onCopySessionExport('markdown')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
               className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
             >
-              {copyingFormat === 'markdown' ? '복사 중...' : 'MD 복사'}
+              {copyingFormat === 'markdown' ? t('sessionInfo.copying') : t('sessionInfo.copyMd')}
             </button>
             <button
               onClick={() => onCopySessionExport('json')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
               className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
             >
-              {copyingFormat === 'json' ? '복사 중...' : 'JSON 복사'}
+              {copyingFormat === 'json' ? t('sessionInfo.copying') : t('sessionInfo.copyJson')}
             </button>
           </div>
         </div>
         <div className="mt-3 space-y-3">
-          <InfoRow label="이름" value={session.name} />
-          <InfoRow label="경로" value={session.cwd || '~'} mono />
-          <InfoRow label="세션 ID" value={session.sessionId ?? '아직 없음'} mono />
-          <InfoRow label="모델" value={session.model ?? '기본 모델'} />
-          <InfoRow label="권한" value={formatPermissionMode(session.permissionMode)} />
-          <InfoRow label="플랜 모드" value={session.planMode ? '켜짐' : '꺼짐'} />
-          <InfoRow label="상태" value={session.isStreaming ? '응답 생성 중' : '대기 중'} />
-          <InfoRow label="오류" value={session.error ?? '없음'} mono={Boolean(session.error)} />
+          <InfoRow label={t('sessionInfo.name')} value={session.name} />
+          <InfoRow label={t('sessionInfo.path')} value={session.cwd || '~'} mono />
+          <InfoRow label={t('sessionInfo.sessionId')} value={session.sessionId ?? t('sessionInfo.noneYet')} mono />
+          <InfoRow label={t('sessionInfo.model')} value={session.model ?? t('sessionInfo.defaultModel')} />
+          <InfoRow label={t('sessionInfo.permission')} value={formatPermissionMode(session.permissionMode, language)} />
+          <InfoRow label={t('sessionInfo.planMode')} value={session.planMode ? t('sessionInfo.on') : t('sessionInfo.off')} />
+          <InfoRow label={t('sessionInfo.status')} value={session.isStreaming ? t('sessionInfo.generating') : t('sessionInfo.idle')} />
+          <InfoRow label={t('sessionInfo.error')} value={session.error ?? t('sessionInfo.none')} mono={Boolean(session.error)} />
         </div>
         {exportStatus && (
           <p className="mt-3 break-all text-xs text-emerald-200">{exportStatus}</p>
@@ -93,19 +95,19 @@ export function SessionInfoPanel({
 
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">현재 컨텍스트</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{t('sessionInfo.context')}</p>
           <button
             onClick={onCompact}
             disabled={session.isStreaming}
             className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
           >
-            압축하기
+            {t('sessionInfo.compact')}
           </button>
         </div>
         <div className="mt-4">
           <div className="flex items-end justify-between gap-3">
             <p className="text-2xl font-semibold text-claude-text">{contextUsagePercent}%</p>
-            <p className="text-xs text-claude-muted">추정치</p>
+            <p className="text-xs text-claude-muted">{t('sessionInfo.estimated')}</p>
           </div>
           <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-claude-bg">
             <div
@@ -117,17 +119,17 @@ export function SessionInfoPanel({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <InfoStat label="사용자 메시지" value={String(userMessageCount)} />
-        <InfoStat label="응답 메시지" value={String(assistantMessageCount)} />
-        <InfoStat label="프롬프트 기록" value={String(promptHistoryCount)} />
-        <InfoStat label="마지막 비용" value={session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'} />
+        <InfoStat label={t('sessionInfo.userMessages')} value={String(userMessageCount)} />
+        <InfoStat label={t('sessionInfo.responseMessages')} value={String(assistantMessageCount)} />
+        <InfoStat label={t('sessionInfo.promptHistory')} value={String(promptHistoryCount)} />
+        <InfoStat label={t('sessionInfo.lastCost')} value={session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'} />
       </div>
 
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">타임라인</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{t('sessionInfo.timeline')}</p>
         <div className="mt-3 space-y-3">
-          <InfoRow label="시작 시각" value={createdAt ? formatDateTime(createdAt) : '메시지 없음'} />
-          <InfoRow label="마지막 메시지" value={lastMessageSummary(session)} />
+          <InfoRow label={t('sessionInfo.startedAt')} value={createdAt ? formatDateTime(createdAt, language) : t('sessionInfo.noMessages')} />
+          <InfoRow label={t('sessionInfo.lastMessage')} value={lastMessageSummary(session, language)} />
         </div>
       </div>
     </div>

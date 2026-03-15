@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 import type { Session } from '../../store/sessions'
-import { getDirName, getSessionDisplayName, type SessionLockState } from './sidebarUtils'
+import { getDirName, getSessionDisplayName, isDefaultSessionName, type SessionLockState } from './sidebarUtils'
 
 type Props = {
   session: Session
@@ -37,6 +38,7 @@ export function SessionRow({
   setEditingSessionId,
   setEditingName,
 }: Props) {
+  const { language, t } = useI18n()
   const isActive = session.id === activeSessionId
   const isEditing = editingSessionId === session.id
   const itemCls = isActive
@@ -59,7 +61,7 @@ export function SessionRow({
 
   const startRename = () => {
     setEditingSessionId(session.id)
-    setEditingName(getSessionDisplayName(session))
+    setEditingName(getSessionDisplayName(session, language))
   }
 
   const cancelRename = () => {
@@ -69,7 +71,9 @@ export function SessionRow({
 
   const commitRename = () => {
     const nextName = editingName.trim()
-    if (nextName && nextName !== session.name) {
+    const displayName = getSessionDisplayName(session, language)
+    const matchesLocalizedDefault = isDefaultSessionName(session.name) && nextName === displayName
+    if (nextName && nextName !== session.name && !matchesLocalizedDefault) {
       onRenameSession(session.id, nextName)
     }
     cancelRename()
@@ -111,7 +115,7 @@ export function SessionRow({
               className="w-full rounded-xl border border-claude-border bg-claude-surface px-2.5 py-1.5 text-sm font-medium text-claude-text outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
             />
           ) : (
-            <p className={`truncate text-[15px] font-medium ${compact ? 'leading-5' : ''}`}>{getSessionDisplayName(session)}</p>
+            <p className={`truncate text-[15px] font-medium ${compact ? 'leading-5' : ''}`}>{getSessionDisplayName(session, language)}</p>
           )}
           {showProjectLabel && session.cwd && session.cwd !== '~' && (
             <p className="mt-0.5 truncate pr-1 font-mono text-[11px] opacity-50">
@@ -127,8 +131,8 @@ export function SessionRow({
             <span
               className="flex h-7 w-7 items-center justify-center rounded-lg text-red-200/80"
               title={lockState.conflictingPaths.length > 0
-                ? `같은 파일을 다른 세션에서도 수정 중: ${lockState.conflictingPaths.join(', ')}`
-                : '같은 파일을 다른 세션에서도 수정 중'}
+                ? t('sidebar.conflictEditing', { paths: lockState.conflictingPaths.join(', ') })
+                : t('sidebar.conflictEditingShort')}
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4" />
@@ -139,7 +143,7 @@ export function SessionRow({
           ) : lockState?.isLocked ? (
             <span
               className="flex h-7 w-7 items-center justify-center rounded-lg text-claude-muted/70"
-              title="파일 수정 작업 진행 중"
+              title={t('sidebar.locked')}
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -150,11 +154,11 @@ export function SessionRow({
           <button
             onClick={(event) => {
               event.stopPropagation()
-              onToggleFavorite(session.id)
-            }}
-            className={`rounded-lg p-1.5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 ${session.favorite ? 'text-claude-text hover:text-claude-text' : 'text-claude-muted/60 hover:text-claude-text'}`}
-            title={session.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-          >
+            onToggleFavorite(session.id)
+          }}
+          className={`rounded-lg p-1.5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 ${session.favorite ? 'text-claude-text hover:text-claude-text' : 'text-claude-muted/60 hover:text-claude-text'}`}
+          title={session.favorite ? t('sidebar.removeFavorite') : t('sidebar.addFavorite')}
+        >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={session.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="m12 3.5 2.626 5.322 5.874.854-4.25 4.142 1.003 5.852L12 16.908 6.747 19.67l1.003-5.852L3.5 9.676l5.874-.854L12 3.5z" />
             </svg>
@@ -163,11 +167,11 @@ export function SessionRow({
           <button
             onClick={(event) => {
               event.stopPropagation()
-              onRemoveSession(session.id)
-            }}
-            className="rounded-lg p-1.5 text-claude-muted/60 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 hover:text-claude-text"
-            title="세션 삭제"
-          >
+            onRemoveSession(session.id)
+          }}
+          className="rounded-lg p-1.5 text-claude-muted/60 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 hover:text-claude-text"
+          title={t('sidebar.deleteSession')}
+        >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4h8v2" />

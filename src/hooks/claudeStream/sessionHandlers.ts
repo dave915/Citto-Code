@@ -15,6 +15,10 @@ import type {
   HandleSendOptions,
 } from './types'
 
+function isEnglishUi() {
+  return typeof document !== 'undefined' && document.documentElement.lang.startsWith('en')
+}
+
 async function cleanupSessionAutoPreviewDirectories(session: Session, remainingSessions: Session[]) {
   const previewDirectories = getSessionAutoPreviewDirectories(session)
   if (previewDirectories.length === 0) return
@@ -65,7 +69,7 @@ export function createClaudeSessionHandlers({
       const fileSections = files
         .map((file) => {
           if (file.fileType === 'image') {
-            return `<file path="${file.path}" type="image">\n[이미지 파일: ${file.name} (${file.size} bytes) - 경로에서 직접 확인하세요]\n</file>`
+            return `<file path="${file.path}" type="image">\n[${isEnglishUi() ? 'Image file' : '이미지 파일'}: ${file.name} (${file.size} bytes) - ${isEnglishUi() ? 'check it directly from the path' : '경로에서 직접 확인하세요'}]\n</file>`
           }
           return `<file path="${file.path}">\n${file.content}\n</file>`
         })
@@ -92,7 +96,7 @@ export function createClaudeSessionHandlers({
 
     runtime.storeRef.current.addUserMessage(
       sessionId,
-      options?.visibleTextOverride ?? (text || `(파일 ${files.length}개 첨부)`),
+      options?.visibleTextOverride ?? (text || (isEnglishUi() ? `(${files.length} attached files)` : `(파일 ${files.length}개 첨부)`)),
       visibleFiles.length > 0 ? visibleFiles : undefined,
     )
 
@@ -220,11 +224,15 @@ export function createClaudeSessionHandlers({
 
     await handleSendForSession(
       activeSessionId,
-      '방금 요청한 권한을 승인합니다. 중단된 작업을 이어서 계속 진행하세요.',
+      isEnglishUi()
+        ? 'Approve the permission request you just made and continue the interrupted task.'
+        : '방금 요청한 권한을 승인합니다. 중단된 작업을 이어서 계속 진행하세요.',
       [],
       {
         permissionModeOverride: nextPermissionMode,
-        visibleTextOverride: action === 'always' ? '권한 승인 후 계속' : '이번만 권한 승인 후 계속',
+        visibleTextOverride: action === 'always'
+          ? (isEnglishUi() ? 'Continue after permission approval' : '권한 승인 후 계속')
+          : (isEnglishUi() ? 'Continue after one-time permission approval' : '이번만 권한 승인 후 계속'),
       },
     )
   }
@@ -248,7 +256,7 @@ export function createClaudeSessionHandlers({
     const session = sessions.find((item) => item.id === targetSessionId)
     const folder = normalizeSelectedFolder(await window.claude.selectFolder({
       defaultPath: session?.cwd || defaultProjectPath,
-      title: '프로젝트 폴더 선택',
+      title: isEnglishUi() ? 'Select project folder' : '프로젝트 폴더 선택',
     }))
     if (!folder) return
 

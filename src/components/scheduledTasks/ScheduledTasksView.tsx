@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ScheduledTaskForm } from '../ScheduledTaskForm'
+import { useI18n } from '../../hooks/useI18n'
 import { useSessionsStore } from '../../store/sessions'
 import {
   useScheduledTasksStore,
@@ -23,6 +24,7 @@ export function ScheduledTasksView({
   onClose,
   onSelectSession,
 }: Props) {
+  const { language } = useI18n()
   const tasks = useScheduledTasksStore((state) => state.tasks)
   const sessions = useSessionsStore((state) => state.sessions)
   const addTask = useScheduledTasksStore((state) => state.addTask)
@@ -84,12 +86,12 @@ export function ScheduledTasksView({
     () => tasks
       .flatMap((task) =>
         task.runHistory.map((record) =>
-          buildInboxItem(task, record, record.sessionTabId ? sessionById.get(record.sessionTabId) ?? null : null),
+          buildInboxItem(task, record, record.sessionTabId ? sessionById.get(record.sessionTabId) ?? null : null, language),
         ),
       )
       .sort((a, b) => b.record.runAt - a.record.runAt)
       .slice(0, 8),
-    [sessionById, tasks],
+    [language, sessionById, tasks],
   )
   const inboxCounts = useMemo(
     () => ({

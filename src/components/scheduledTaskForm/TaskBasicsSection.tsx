@@ -1,10 +1,12 @@
 import type { PermissionMode } from '../../store/sessions'
 import type { ScheduledTaskFrequency } from '../../store/scheduledTasks'
+import type { AppLanguage } from '../../lib/i18n'
 import { ScheduledTaskSelect } from './ScheduledTaskSelect'
-import { FREQUENCY_OPTIONS, PERMISSION_OPTIONS } from './utils'
+import { getFrequencyOptions, getPermissionOptions } from './utils'
 
 type Props = {
   name: string
+  language: AppLanguage
   prompt: string
   projectPath: string
   defaultProjectPath: string
@@ -21,6 +23,7 @@ type Props = {
 
 export function TaskBasicsSection({
   name,
+  language,
   prompt,
   projectPath,
   defaultProjectPath,
@@ -34,31 +37,34 @@ export function TaskBasicsSection({
   onFrequencyChange,
   onPermissionModeChange,
 }: Props) {
+  const frequencyOptions = getFrequencyOptions(language)
+  const permissionOptions = getPermissionOptions(language)
+
   return (
     <>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-medium text-claude-muted">작업 이름</span>
+        <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Task name' : '작업 이름'}</span>
         <input
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
-          placeholder="예: 아침 점검"
+          placeholder={language === 'en' ? 'For example: Morning check' : '예: 아침 점검'}
           className="h-10 w-full rounded-xl border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
         />
       </label>
 
       <label className="block">
-        <span className="mb-1.5 block text-xs font-medium text-claude-muted">프롬프트</span>
+        <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Prompt' : '프롬프트'}</span>
         <textarea
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
           rows={5}
-          placeholder="매일 아침 에러 로그를 요약해줘"
+          placeholder={language === 'en' ? 'Summarize the error logs every morning' : '매일 아침 에러 로그를 요약해줘'}
           className="w-full rounded-2xl border border-claude-border bg-claude-panel px-3 py-2.5 text-sm leading-relaxed text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
         />
       </label>
 
       <label className="block">
-        <span className="mb-1.5 block text-xs font-medium text-claude-muted">작업 폴더</span>
+        <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Task folder' : '작업 폴더'}</span>
         <div className="relative">
           <input
             value={projectPath}
@@ -69,7 +75,7 @@ export function TaskBasicsSection({
           <button
             onClick={() => void onSelectFolder()}
             className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-            title="폴더 선택"
+            title={language === 'en' ? 'Choose folder' : '폴더 선택'}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z" />
@@ -80,9 +86,9 @@ export function TaskBasicsSection({
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <div>
-          <span className="mb-1.5 block text-xs font-medium text-claude-muted">빈도</span>
+          <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Frequency' : '빈도'}</span>
           <ScheduledTaskSelect value={frequency} onChange={(value) => onFrequencyChange(value as ScheduledTaskFrequency)}>
-            {FREQUENCY_OPTIONS.map((option) => (
+            {frequencyOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </ScheduledTaskSelect>
@@ -90,9 +96,9 @@ export function TaskBasicsSection({
         </div>
 
         <div>
-          <span className="mb-1.5 block text-xs font-medium text-claude-muted">권한 모드</span>
+          <span className="mb-1.5 block text-xs font-medium text-claude-muted">{language === 'en' ? 'Permission mode' : '권한 모드'}</span>
           <ScheduledTaskSelect value={permissionMode} onChange={(value) => onPermissionModeChange(value as PermissionMode)}>
-            {PERMISSION_OPTIONS.map((option) => (
+            {permissionOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </ScheduledTaskSelect>

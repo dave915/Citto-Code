@@ -7,6 +7,7 @@ import type { HandleSendForSession, ScheduledTaskRunMeta } from './claudeStream/
 import { getProjectNameFromPath, type PermissionMode, type Session, type ShortcutConfig, type ShortcutPlatform } from '../store/sessions'
 import type { ScheduledTaskAdvancePayload, ScheduledTaskRunSnapshotStatus } from '../store/scheduledTasks'
 import { cycleClaudeCodeMode } from '../components/input/inputUtils'
+import { useI18n } from './useI18n'
 
 type Params = {
   themeId: string
@@ -74,6 +75,7 @@ export function useAppDesktopEffects({
   scheduledTaskSessionByRunRef,
   closeOverlayPanels,
 }: Params) {
+  const { language } = useI18n()
   const syncedQuickPanelProjectsSignatureRef = useRef('')
 
   useEffect(() => {
@@ -156,7 +158,7 @@ export function useAppDesktopEffects({
       const status = getScheduledTaskSnapshotStatus(session)
       updateScheduledTaskRunSnapshot(meta.taskId, meta.runAt, {
         status,
-        summary: getScheduledTaskSnapshotSummary(session),
+        summary: getScheduledTaskSnapshotSummary(session, language),
         changedPaths: getScheduledTaskChangedPaths(session),
         cost: typeof session.lastCost === 'number' ? session.lastCost : null,
       })
@@ -165,7 +167,7 @@ export function useAppDesktopEffects({
         scheduledTaskRunMetaBySessionRef.current.delete(sessionId)
       }
     }
-  }, [sessions, scheduledTaskRunMetaBySessionRef, updateScheduledTaskRunSnapshot])
+  }, [language, sessions, scheduledTaskRunMetaBySessionRef, updateScheduledTaskRunSnapshot])
 
   useEffect(() => {
     const cleanup = window.claude.onScheduledTaskFired(async (payload) => {
@@ -186,14 +188,14 @@ export function useAppDesktopEffects({
       await handleSendForSession(sessionId, payload.prompt, [], {
         permissionModeOverride: payload.permissionMode,
         visibleTextOverride: payload.manual
-          ? `${sessionName} 지금 실행`
+          ? (language === 'en' ? `${sessionName} run now` : `${sessionName} 지금 실행`)
           : payload.catchUp
-            ? `${sessionName} 따라잡기 실행`
+            ? (language === 'en' ? `${sessionName} catch-up run` : `${sessionName} 따라잡기 실행`)
             : sessionName,
       })
     })
     return cleanup
-  }, [addSession, closeOverlayPanels, defaultProjectPath, handleSendForSession, scheduledTaskRunMetaBySessionRef, scheduledTaskSessionByRunRef])
+  }, [addSession, closeOverlayPanels, defaultProjectPath, handleSendForSession, language, scheduledTaskRunMetaBySessionRef, scheduledTaskSessionByRunRef])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

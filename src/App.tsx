@@ -6,6 +6,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { Sidebar } from './components/Sidebar'
 import { ClaudeInstallModal } from './components/app/ClaudeInstallModal'
 import { EmptyMainState } from './components/app/EmptyMainState'
+import { useI18n } from './hooks/useI18n'
 import { useClaudeStream } from './hooks/useClaudeStream'
 import { useAppDesktopEffects } from './hooks/useAppDesktopEffects'
 import { useInstallationCheck } from './hooks/useInstallationCheck'
@@ -17,6 +18,7 @@ import { useScheduledTasksStore } from './store/scheduledTasks'
 import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode } from './store/sessions'
 
 export default function App() {
+  const { language, t } = useI18n()
   const messageJumpTokenRef = useRef(0)
   const {
     sessions,
@@ -104,7 +106,7 @@ export default function App() {
     ? {
         paths: activeSessionConflict.conflictingPaths,
         sessionNames: activeSessionConflict.conflictingSessionIds
-          .map((sessionId) => sessions.find((session) => session.id === sessionId)?.name ?? '다른 세션')
+          .map((sessionId) => sessions.find((session) => session.id === sessionId)?.name ?? t('app.anotherSession'))
           .filter((value, index, array) => array.indexOf(value) === index),
       }
     : null
@@ -154,6 +156,10 @@ export default function App() {
   })
 
   useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
+
+  useEffect(() => {
     if (!messageJumpTarget) return
 
     const timer = window.setTimeout(() => {
@@ -187,7 +193,7 @@ export default function App() {
     const folder = normalizeSelectedFolder(cwdOverride)
       ?? normalizeSelectedFolder(await window.claude.selectFolder({
         defaultPath: fallbackPath,
-        title: '프로젝트 폴더 선택',
+        title: t('app.selectProjectFolderTitle'),
       }))
     const cwd = folder || fallbackPath
     const name = getProjectNameFromPath(cwd)

@@ -1,4 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 
 import type { DirEntry } from '../../../electron/preload'
 import { ExplorerNode } from './FileExplorerTree'
@@ -37,6 +38,7 @@ export function FilePanel({
   onToggleDirectory: (entry: DirEntry) => void | Promise<void>
   onSelectEntry: (entry: DirEntry) => void | Promise<void>
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-1 min-h-0">
       {showPreviewPane && (
@@ -70,7 +72,7 @@ export function FilePanel({
           </div>
         ) : rootEntries.length === 0 ? (
           <div className="py-12 text-center text-claude-muted">
-            <p className="text-sm">표시할 파일이 없습니다.</p>
+            <p className="text-sm">{t('filePanel.none')}</p>
           </div>
         ) : (
           <div className="pl-2">

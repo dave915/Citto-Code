@@ -1,15 +1,18 @@
 import type { ReactNode } from 'react'
 import type { McpConfigScope } from '../../../electron/preload'
+import { translate, type AppLanguage } from '../../lib/i18n'
 
 export type SettingsTab = 'general' | 'mcp' | 'skill' | 'agent' | 'env'
 
-export const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
-  { id: 'general', label: '일반' },
-  { id: 'mcp', label: 'MCP' },
-  { id: 'skill', label: 'Skill' },
-  { id: 'agent', label: 'Agent' },
-  { id: 'env', label: '환경변수' },
-]
+export function getSettingsTabs(language: AppLanguage): Array<{ id: SettingsTab; label: string }> {
+  return [
+    { id: 'general', label: translate(language, 'settings.tab.general') },
+    { id: 'mcp', label: translate(language, 'settings.tab.mcp') },
+    { id: 'skill', label: translate(language, 'settings.tab.skill') },
+    { id: 'agent', label: translate(language, 'settings.tab.agent') },
+    { id: 'env', label: translate(language, 'settings.tab.env') },
+  ]
+}
 
 export type McpServer = {
   name: string
@@ -50,6 +53,16 @@ export const MCP_SCOPE_OPTIONS: Array<{
   { value: 'local', label: '프로젝트별', description: '~/.claude.json 안에서 선택한 프로젝트별 설정' },
   { value: 'project', label: '공유', description: '선택한 프로젝트의 .mcp.json 공유 설정' },
 ]
+
+export function getMcpScopeOptions(language: AppLanguage) {
+  return language === 'en'
+    ? [
+        { value: 'user' as const, label: 'Global', description: 'Shared settings in ~/.claude.json' },
+        { value: 'local' as const, label: 'Project local', description: 'Project-specific settings stored in ~/.claude.json' },
+        { value: 'project' as const, label: 'Shared project', description: 'Shared settings in the selected project .mcp.json' },
+      ]
+    : MCP_SCOPE_OPTIONS
+}
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

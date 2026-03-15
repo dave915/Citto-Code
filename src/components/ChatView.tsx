@@ -9,6 +9,7 @@ import type { Session, PermissionMode, SidebarMode } from '../store/sessions'
 import { useSessionsStore } from '../store/sessions'
 import { useFileExplorer } from '../hooks/useFileExplorer'
 import { useGitPanel } from '../hooks/useGitPanel'
+import { useI18n } from '../hooks/useI18n'
 import { InputArea } from './InputArea'
 import { BranchCreateModal } from './chat/BranchCreateModal'
 import { ChatHeader } from './chat/ChatHeader'
@@ -80,6 +81,7 @@ export function ChatView({
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel,
   onPermissionModeChange, onPlanModeChange, onModelChange, permissionShortcutLabel, bypassShortcutLabel,
 }: Props) {
+  const { language, t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const mainPaneRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -142,13 +144,17 @@ export function ChatView({
     const labels = fileConflict.paths.map((path) => path.split('/').filter(Boolean).pop() || path)
     if (labels.length === 1) return labels[0]
     if (labels.length === 2) return `${labels[0]}, ${labels[1]}`
-    return `${labels[0]}, ${labels[1]} 외 ${labels.length - 2}개`
-  }, [fileConflict])
+    return language === 'en'
+      ? `${labels[0]}, ${labels[1]}, ${t('chatView.otherSessions', { count: labels.length - 2 })}`
+      : `${labels[0]}, ${labels[1]} 외 ${labels.length - 2}개`
+  }, [fileConflict, language, t])
   const conflictSessionLabel = useMemo(() => {
-    if (!fileConflict || fileConflict.sessionNames.length === 0) return '다른 세션'
+    if (!fileConflict || fileConflict.sessionNames.length === 0) return t('app.anotherSession')
     if (fileConflict.sessionNames.length === 1) return fileConflict.sessionNames[0]
-    return `${fileConflict.sessionNames[0]} 외 ${fileConflict.sessionNames.length - 1}개 세션`
-  }, [fileConflict])
+    return language === 'en'
+      ? `${fileConflict.sessionNames[0]}, ${t('chatView.otherSessionCount', { count: fileConflict.sessionNames.length - 1 })}`
+      : `${fileConflict.sessionNames[0]} 외 ${fileConflict.sessionNames.length - 1}개 세션`
+  }, [fileConflict, language, t])
   const {
     openWithMenuOpen,
     openWithApps,
@@ -175,18 +181,18 @@ export function ChatView({
     const nextText = [
       prompt?.trim()
         ? kind === 'diff'
-          ? '다음 변경 코드 줄을 기준으로 아래 요청을 처리해줘.'
-          : '다음 코드 줄을 기준으로 아래 요청을 처리해줘.'
+          ? t('chatView.askAboutDiffWithPrompt')
+          : t('chatView.askAboutCodeWithPrompt')
         : kind === 'diff'
-          ? '다음 변경 코드 줄을 기준으로 다시 설명해줘.'
-          : '다음 코드 줄을 기준으로 다시 설명해줘.',
+          ? t('chatView.askAboutDiff')
+          : t('chatView.askAboutCode'),
       '',
-      `파일: ${path}`,
-      `줄: ${lineLabel}`,
+      `${t('chatView.file')}: ${path}`,
+      `${t('chatView.line')}: ${lineLabel}`,
       '```',
       code,
       '```',
-      ...(prompt?.trim() ? ['', `요청: ${prompt.trim()}`] : []),
+      ...(prompt?.trim() ? ['', `${t('chatView.request')}: ${prompt.trim()}`] : []),
     ].join('\n')
 
     setExternalDraft({ id: Date.now(), text: nextText })
@@ -195,7 +201,7 @@ export function ChatView({
   const handleExportSession = async (format: SessionExportFormat) => {
     const suggestedName = buildSessionExportFileName(session, format)
     const content = format === 'markdown'
-      ? buildSessionMarkdownExport(session)
+      ? buildSessionMarkdownExport(session, language)
       : buildSessionJsonExport(session)
 
     setExportingFormat(format)
@@ -213,15 +219,15 @@ export function ChatView({
       })
 
       if (result.ok) {
-        setSessionExportStatus(result.path ? `저장됨: ${result.path}` : '세션을 저장했습니다.')
+        setSessionExportStatus(result.path ? t('chatView.savedPath', { path: result.path }) : t('chatView.sessionSaved'))
         return
       }
 
       if (!result.canceled) {
-        setSessionExportError(result.error ?? '세션 내보내기에 실패했습니다.')
+        setSessionExportError(result.error ?? t('chatView.exportFailed'))
       }
     } catch {
-      setSessionExportError('세션 내보내기에 실패했습니다.')
+      setSessionExportError(t('chatView.exportFailed'))
     } finally {
       setExportingFormat(null)
     }
@@ -229,7 +235,7 @@ export function ChatView({
 
   const handleCopySessionExport = async (format: SessionExportFormat) => {
     const content = format === 'markdown'
-      ? buildSessionMarkdownExport(session)
+      ? buildSessionMarkdownExport(session, language)
       : buildSessionJsonExport(session)
 
     setCopyingFormat(format)
@@ -238,9 +244,9 @@ export function ChatView({
 
     try {
       await navigator.clipboard.writeText(content)
-      setSessionExportStatus(`${format === 'markdown' ? 'Markdown' : 'JSON'} 내용을 클립보드에 복사했습니다.`)
+      setSessionExportStatus(t('chatView.clipboardCopied', { format: format === 'markdown' ? 'Markdown' : 'JSON' }))
     } catch {
-      setSessionExportError('세션 내용을 클립보드에 복사하지 못했습니다.')
+      setSessionExportError(t('chatView.clipboardFailed'))
     } finally {
       setCopyingFormat(null)
     }
@@ -254,7 +260,7 @@ export function ChatView({
       gitDiff: GitDiffResult | null
     },
   ) => {
-    const draft = buildGitDraft(action, payload)
+    const draft = buildGitDraft(action, payload, language)
     if (!draft) return
     setExternalDraft({ id: Date.now(), text: draft })
   }
@@ -623,7 +629,7 @@ export function ChatView({
 
       <ChatSidePanel
         visible={rightPanel !== 'none'}
-        title={filePanelOpen ? '파일 탐색기' : gitPanelOpen ? 'Git' : '세션 정보'}
+        title={filePanelOpen ? t('sidePanel.fileExplorer') : gitPanelOpen ? 'Git' : t('sidePanel.sessionInfo')}
         filePanelOpen={filePanelOpen}
         gitPanelOpen={gitPanelOpen}
         showPreviewPane={showPreviewPane}

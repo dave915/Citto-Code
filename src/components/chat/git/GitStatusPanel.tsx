@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { GitRepoStatus, GitStatusEntry } from '../../../../electron/preload'
+import { useI18n } from '../../../hooks/useI18n'
 import {
   formatGitChangeCount,
   formatGitDeletionCount,
@@ -36,13 +37,14 @@ export function GitStatusPanel({
   onStageEntries: (entries: GitStatusEntry[]) => void
   onUnstageEntries: (entries: GitStatusEntry[]) => void
 }) {
+  const { language } = useI18n()
   const [filterOpen, setFilterOpen] = useState(false)
   const [filter, setFilter] = useState<GitStatusFilter>('unstaged')
 
   if (loading && !status) {
     return (
       <div className="flex h-full items-center justify-center text-claude-muted">
-        <p className="text-sm">Git 상태를 불러오는 중입니다.</p>
+        <p className="text-sm">{language === 'en' ? 'Loading Git status...' : 'Git 상태를 불러오는 중입니다.'}</p>
       </div>
     )
   }
@@ -51,8 +53,8 @@ export function GitStatusPanel({
     return (
       <div className="flex h-full items-center justify-center px-5 text-center">
         <div>
-          <p className="text-sm font-medium text-claude-text">Git 저장소가 아닙니다.</p>
-          <p className="mt-2 text-xs leading-6 text-claude-muted">현재 세션 폴더에서 `git status`를 사용할 수 없습니다.</p>
+          <p className="text-sm font-medium text-claude-text">{language === 'en' ? 'Not a Git repository' : 'Git 저장소가 아닙니다.'}</p>
+          <p className="mt-2 text-xs leading-6 text-claude-muted">{language === 'en' ? 'The current session folder cannot run `git status`.' : '현재 세션 폴더에서 `git status`를 사용할 수 없습니다.'}</p>
         </div>
       </div>
     )
@@ -69,10 +71,10 @@ export function GitStatusPanel({
       : unstagedEntries
 
   const currentFilterLabel = filter === 'staged'
-    ? '스테이징됨'
+    ? (language === 'en' ? 'Staged' : '스테이징됨')
     : filter === 'all'
-      ? '모든 변경 사항'
-      : '스테이징되지 않음'
+      ? (language === 'en' ? 'All changes' : '모든 변경 사항')
+      : (language === 'en' ? 'Unstaged' : '스테이징되지 않음')
   const currentFilterCount = filteredEntries.length
   const showRestoreAll = filter === 'unstaged' || filter === 'staged' || filter === 'all'
   const showStageAll = filter === 'unstaged'
@@ -101,9 +103,9 @@ export function GitStatusPanel({
           {filterOpen && (
             <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-[20px] border border-claude-border bg-claude-panel p-1.5">
               {[
-                { key: 'unstaged' as const, label: '스테이징되지 않음', count: unstagedEntries.length },
-                { key: 'staged' as const, label: '스테이징됨', count: stagedEntries.length },
-                { key: 'all' as const, label: '모든 변경 사항', count: allEntries.length },
+                { key: 'unstaged' as const, label: language === 'en' ? 'Unstaged' : '스테이징되지 않음', count: unstagedEntries.length },
+                { key: 'staged' as const, label: language === 'en' ? 'Staged' : '스테이징됨', count: stagedEntries.length },
+                { key: 'all' as const, label: language === 'en' ? 'All changes' : '모든 변경 사항', count: allEntries.length },
               ].map((option) => {
                 const active = filter === option.key
 
@@ -142,7 +144,7 @@ export function GitStatusPanel({
                 type="button"
                 onClick={() => void onRestoreEntries(filteredEntries)}
                 disabled={actionLoading || filteredEntries.length === 0}
-                tooltip="모두 되돌리기"
+                tooltip={language === 'en' ? 'Restore all' : '모두 되돌리기'}
                 tooltipAlign="right"
                 tooltipSide="bottom"
                 className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -158,7 +160,7 @@ export function GitStatusPanel({
                 type="button"
                 onClick={() => void onStageEntries(filteredEntries)}
                 disabled={actionLoading || filteredEntries.length === 0}
-                tooltip="모두 스테이징"
+                tooltip={language === 'en' ? 'Stage all' : '모두 스테이징'}
                 tooltipAlign="right"
                 tooltipSide="bottom"
                 className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -171,7 +173,7 @@ export function GitStatusPanel({
                 type="button"
                 onClick={() => void onUnstageEntries(filteredEntries)}
                 disabled={actionLoading || filteredEntries.length === 0}
-                tooltip="모두 언스테이징"
+                tooltip={language === 'en' ? 'Unstage all' : '모두 언스테이징'}
                 tooltipAlign="right"
                 tooltipSide="bottom"
                 className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-[14px] font-semibold text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -193,7 +195,7 @@ export function GitStatusPanel({
 
       {!loading && status.clean && (
         <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
-          작업 트리가 깨끗합니다.
+          {language === 'en' ? 'Working tree is clean.' : '작업 트리가 깨끗합니다.'}
         </div>
       )}
 
@@ -201,14 +203,14 @@ export function GitStatusPanel({
         <div className="space-y-1">
           {filteredEntries.length === 0 && (
             <div className="rounded-xl border border-claude-border bg-claude-surface px-3 py-6 text-center text-[12px] text-claude-muted">
-              표시할 파일이 없습니다.
+              {language === 'en' ? 'No files to display.' : '표시할 파일이 없습니다.'}
             </div>
           )}
           {filteredEntries.map((entry) => {
             const isSelected = selectedPath === entry.path
             const counts = getGitEntryCounts(entry, filter)
             const statusDotClass = getGitEntryStatusDotClass(entry)
-            const stageActionLabel = getGitStageActionLabelForFilter(entry, filter)
+            const stageActionLabel = getGitStageActionLabelForFilter(entry, filter, language)
             const shouldStageAction = shouldStageGitEntryForFilter(entry, filter)
 
             return (
@@ -235,7 +237,7 @@ export function GitStatusPanel({
                     </div>
                   </div>
                   {entry.originalPath && (
-                    <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">이전: {entry.originalPath}</p>
+                    <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">{language === 'en' ? 'Previous:' : '이전:'} {entry.originalPath}</p>
                   )}
                 </button>
 
@@ -248,7 +250,7 @@ export function GitStatusPanel({
                       void onRestoreEntry(entry)
                     }}
                     disabled={actionLoading}
-                    tooltip="파일 되돌리기"
+                    tooltip={language === 'en' ? 'Restore file' : '파일 되돌리기'}
                     tooltipAlign="right"
                     className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-lg bg-transparent text-claude-text transition-colors hover:bg-claude-surface/70 disabled:cursor-not-allowed disabled:opacity-50"
                   >

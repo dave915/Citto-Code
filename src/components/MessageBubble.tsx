@@ -3,6 +3,7 @@ import type { ClipboardEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
+import { useI18n } from '../hooks/useI18n'
 import type { Message } from '../store/sessions'
 import { HtmlPreview, ToolTimeline, extractHtmlPreviewCandidate } from './ToolCallBlock'
 
@@ -140,6 +141,7 @@ export function MessageBubble({
   onAbort,
   onAskAboutSelection,
 }: Props) {
+  const { language } = useI18n()
   const [copied, setCopied] = useState(false)
   const [thinkingOpen, setThinkingOpen] = useState(false)
   const [htmlPreviewContent, setHtmlPreviewContent] = useState<string | null>(null)
@@ -243,8 +245,8 @@ export function MessageBubble({
       type="button"
       onClick={handleCopyMessage}
       className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted opacity-0 transition-all hover:bg-claude-surface-2 hover:text-claude-text group-hover/message:opacity-100 focus:outline-none focus-visible:opacity-100"
-      title={copied ? '복사됨' : '복사'}
-      aria-label={copied ? '복사됨' : '복사'}
+      title={copied ? (language === 'en' ? 'Copied' : '복사됨') : (language === 'en' ? 'Copy' : '복사')}
+      aria-label={copied ? (language === 'en' ? 'Copied' : '복사됨') : (language === 'en' ? 'Copy' : '복사')}
     >
       {copied ? (
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -317,7 +319,7 @@ export function MessageBubble({
               <HtmlPreview html={htmlPreviewContent} path={htmlPreviewCandidate!.path} />
             ) : htmlPreviewLoading ? (
               <div className="rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-3 text-[11px] text-claude-muted">
-                HTML 미리보기를 불러오는 중...
+                {language === 'en' ? 'Loading HTML preview...' : 'HTML 미리보기를 불러오는 중...'}
               </div>
             ) : null}
           </div>

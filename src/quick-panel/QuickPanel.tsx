@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RecentProject } from '../../electron/preload'
+import { useI18n } from '../hooks/useI18n'
+import { useSessionsStore } from '../store/sessions'
 
 const MAX_INPUT_HEIGHT = 120
 
@@ -28,6 +30,7 @@ function getShortPath(path: string) {
 }
 
 export function QuickPanel() {
+  const { language, t } = useI18n()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const selectedProjectRef = useRef<RecentProject | null>(null)
@@ -69,6 +72,11 @@ export function QuickPanel() {
       setSelectedProject((current) => current)
     }
   }
+
+  useEffect(() => {
+    void useSessionsStore.persist.rehydrate()
+    document.documentElement.lang = language
+  }, [language])
 
   useEffect(() => {
     const resetPanel = () => {
@@ -126,7 +134,7 @@ export function QuickPanel() {
     try {
       const folder = await window.quickPanel.selectFolder({
         defaultPath: selectedProject?.path || projects[0]?.path || '~/Desktop',
-        title: '프로젝트 폴더 선택',
+        title: t('quickPanel.chooseProjectFolderTitle'),
       })
       if (!folder) return
 
@@ -205,7 +213,7 @@ export function QuickPanel() {
             <button
               type="button"
               className={`quick-panel-project-button ${dropdownOpen ? 'open' : ''}`}
-              title={selectedProject?.path || '프로젝트 선택'}
+              title={selectedProject?.path || t('quickPanel.projectSelectTitle')}
               onClick={() => {
                 setDropdownOpen((open) => {
                   const next = !open
@@ -227,9 +235,9 @@ export function QuickPanel() {
               </svg>
 
               <span className="quick-panel-project-copy">
-                <span className="quick-panel-project-name">{selectedProject?.name ?? '새 대화'}</span>
+                <span className="quick-panel-project-name">{selectedProject?.name ?? t('quickPanel.newChat')}</span>
                 <span className="quick-panel-project-path">
-                  {selectedProject ? getShortPath(selectedProject.path) : '프로젝트를 선택하거나 바로 입력하세요'}
+                  {selectedProject ? getShortPath(selectedProject.path) : t('quickPanel.selectProjectOrType')}
                 </span>
               </span>
 
@@ -265,8 +273,8 @@ export function QuickPanel() {
                   onMouseEnter={() => setFocusedIndex(projects.length)}
                   onClick={() => void handlePickFolder()}
                 >
-                  <span className="quick-panel-dropdown-name">폴더 선택...</span>
-                  <span className="quick-panel-dropdown-path">직접 프로젝트 경로를 고릅니다.</span>
+                  <span className="quick-panel-dropdown-name">{t('quickPanel.chooseFolder')}</span>
+                  <span className="quick-panel-dropdown-path">{t('quickPanel.choosePathDirectly')}</span>
                 </button>
               </div>
             )}
@@ -287,7 +295,7 @@ export function QuickPanel() {
             value={value}
             rows={1}
             autoFocus
-            placeholder="오늘 무엇을 도와드릴까요?"
+            placeholder={t('quickPanel.placeholder')}
             className="quick-panel-input"
             onChange={(event) => {
               setValue(event.target.value)
@@ -312,7 +320,7 @@ export function QuickPanel() {
             className="quick-panel-submit"
             onClick={() => void handleSubmit()}
             disabled={value.trim().length === 0}
-            aria-label="전송"
+            aria-label={t('quickPanel.send')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h11" />

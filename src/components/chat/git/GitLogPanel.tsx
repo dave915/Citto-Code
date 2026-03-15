@@ -1,5 +1,6 @@
 import type { GitLogEntry, GitRepoStatus } from '../../../../electron/preload'
 
+import { useI18n } from '../../../hooks/useI18n'
 import {
   getGitDecorationBadgeClass,
   isGitGraphActiveCommit,
@@ -28,13 +29,14 @@ export function GitLogPanel({
   onPull: () => Promise<void>
   onPush: () => Promise<void>
 }) {
+  const { language } = useI18n()
   const historyEntries = gitLog
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 px-1 pb-2">
         <div className="flex items-center gap-2">
-          <p className="text-[12px] font-semibold text-claude-text">최근 커밋</p>
+          <p className="text-[12px] font-semibold text-claude-text">{language === 'en' ? 'Recent commits' : '최근 커밋'}</p>
           {status?.branch && (
             <span className="rounded-full border border-sky-500/35 bg-sky-500/12 px-2 py-0.5 font-mono text-[10px] font-medium text-sky-200">
               {status.branch}
@@ -81,7 +83,9 @@ export function GitLogPanel({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {historyEntries.length === 0 ? (
           <div className="px-2 py-6 text-center text-[12px] text-claude-muted">
-            {loading ? '로그를 불러오는 중입니다.' : '표시할 커밋 로그가 없습니다.'}
+            {loading
+              ? (language === 'en' ? 'Loading commit history...' : '로그를 불러오는 중입니다.')
+              : (language === 'en' ? 'No commit history to display.' : '표시할 커밋 로그가 없습니다.')}
           </div>
         ) : (
           <div className="flex flex-col pr-1">

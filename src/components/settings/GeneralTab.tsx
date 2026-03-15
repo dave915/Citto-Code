@@ -4,6 +4,7 @@ import { ClaudeBinaryPathSection } from './general/ClaudeBinaryPathSection'
 import { CliImportSection } from './general/CliImportSection'
 import { DefaultProjectSection } from './general/DefaultProjectSection'
 import { DisplaySection } from './general/DisplaySection'
+import { LanguageSection } from './general/LanguageSection'
 import { NotificationSection } from './general/NotificationSection'
 import { QuickPanelSection } from './general/QuickPanelSection'
 import { ShortcutSection } from './general/ShortcutSection'
@@ -12,6 +13,7 @@ import { ThemeSection } from './general/ThemeSection'
 
 export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
   const {
+    appLanguage,
     sidebarMode,
     defaultProjectPath,
     themeId,
@@ -22,6 +24,7 @@ export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode
     shortcutConfig,
     claudeBinaryPath,
     setDefaultProjectPath,
+    setAppLanguage,
     setThemeId,
     setNotificationMode,
     setUiFontSize,
@@ -34,6 +37,7 @@ export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode
 
   return (
     <div className="space-y-4 p-4">
+      <LanguageSection appLanguage={appLanguage} onChange={setAppLanguage} />
       <ThemeSection themeId={themeId} onChange={setThemeId} />
       <DefaultProjectSection
         defaultProjectPath={defaultProjectPath}

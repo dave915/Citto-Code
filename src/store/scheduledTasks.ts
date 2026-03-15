@@ -30,5 +30,6 @@ export {
   DAY_OPTIONS,
   advancePastExceptions,
   computeNextRunAt,
+  getDayOptions,
   getDayKey,
 } from './scheduledTaskUtils'

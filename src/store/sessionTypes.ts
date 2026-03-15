@@ -1,4 +1,5 @@
 import type { ThemeId } from '../lib/theme'
+import type { AppLanguage } from '../lib/i18n'
 
 export type ToolCallStatus = 'running' | 'done' | 'error'
 
@@ -119,6 +120,7 @@ export type ImportedSessionData = {
 export type SessionsStore = {
   sessions: Session[]
   activeSessionId: string | null
+  appLanguage: AppLanguage
   defaultProjectPath: string
   envVars: Record<string, string>
   sidebarMode: SidebarMode
@@ -135,6 +137,7 @@ export type SessionsStore = {
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   setDefaultProjectPath: (path: string) => void
+  setAppLanguage: (language: AppLanguage) => void
   setSidebarMode: (mode: SidebarMode) => void
   setClaudeBinaryPath: (path: string) => void
   setPreferredOpenWithAppId: (appId: string) => void

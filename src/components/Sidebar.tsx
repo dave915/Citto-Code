@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../hooks/useI18n'
 import type { Session, SidebarMode } from '../store/sessions'
 import { useScheduledTasksStore } from '../store/scheduledTasks'
 import { SidebarContent } from './sidebar/SidebarContent'
@@ -40,11 +41,12 @@ export function Sidebar({
   onOpenSettings,
   scheduleOpen,
 }: Props) {
+  const { t } = useI18n()
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({})
   const inputRef = useRef<HTMLInputElement>(null)
-  const primaryActionLabel = sidebarMode === 'project' ? '새 프로젝트 열기' : '새 세션'
+  const primaryActionLabel = sidebarMode === 'project' ? t('sidebar.newProject') : t('sidebar.newSession')
   const favoriteSessions = sortSessions(sessions.filter((session) => session.favorite))
   const nonFavoriteSessions = sessions.filter((session) => !session.favorite)
   const projectGroups = groupSessionsByProject(nonFavoriteSessions)

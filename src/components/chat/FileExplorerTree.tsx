@@ -1,4 +1,5 @@
 import type { DirEntry } from '../../../electron/preload'
+import { useI18n } from '../../hooks/useI18n'
 
 type ExplorerNodeProps = {
   entry: DirEntry
@@ -21,6 +22,7 @@ export function ExplorerNode({
   onToggleDirectory,
   onSelectEntry,
 }: ExplorerNodeProps) {
+  const { language } = useI18n()
   const isDirectory = entry.type === 'directory'
   const isExpanded = expandedDirs[entry.path]
   const children = childEntries[entry.path] ?? []
@@ -75,7 +77,7 @@ export function ExplorerNode({
         <div>
           {isLoading ? (
             <div className="px-2 py-2 text-xs text-claude-muted" style={{ paddingLeft: `${depth * 16 + 32}px` }}>
-              불러오는 중...
+              {language === 'en' ? 'Loading...' : '불러오는 중...'}
             </div>
           ) : (
             children.map((child) => (

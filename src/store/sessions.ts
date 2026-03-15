@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { CURRENT_THEME_ID } from '../lib/theme'
+import { DEFAULT_APP_LANGUAGE } from '../lib/i18n'
 import {
   DEFAULT_PROJECT_PATH,
   DEFAULT_SHORTCUT_CONFIG,
@@ -27,7 +28,7 @@ export const useSessionsStore = create<SessionsStore>()(
       name: 'claude-ui-sessions',
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 5,
+      version: 6,
       migrate: (persistedState, _version) => {
         const state = persistedState as Partial<SessionsStore> & {
           shortcutConfig?: Partial<ShortcutConfig>
@@ -43,6 +44,7 @@ export const useSessionsStore = create<SessionsStore>()(
           defaultProjectPath,
           sessions: undefined,
           activeSessionId,
+          appLanguage: state.appLanguage ?? DEFAULT_APP_LANGUAGE,
           uiFontSize: clampUiFontSize(state.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
           uiZoomPercent: clampUiZoomPercent(state.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
           quickPanelEnabled: state.quickPanelEnabled ?? true,
@@ -55,6 +57,7 @@ export const useSessionsStore = create<SessionsStore>()(
       partialize: (state) => ({
         activeSessionId: state.activeSessionId,
         defaultProjectPath: state.defaultProjectPath,
+        appLanguage: state.appLanguage,
         envVars: state.envVars,
         sidebarMode: state.sidebarMode,
         claudeBinaryPath: state.claudeBinaryPath,
@@ -78,6 +81,7 @@ export const useSessionsStore = create<SessionsStore>()(
         return {
           ...current,
           ...persistedState,
+          appLanguage: persistedState.appLanguage ?? DEFAULT_APP_LANGUAGE,
           defaultProjectPath: persistedState.defaultProjectPath ?? DEFAULT_PROJECT_PATH,
           claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
           preferredOpenWithAppId: persistedState.preferredOpenWithAppId ?? '',
@@ -107,6 +111,7 @@ export type {
   ImportedToolCall,
   Message,
   NotificationMode,
+  AppLanguage,
   PendingPermissionRequest,
   PendingQuestionOption,
   PendingQuestionRequest,

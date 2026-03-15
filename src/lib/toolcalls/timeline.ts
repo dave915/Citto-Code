@@ -1,4 +1,5 @@
 import type { ToolCallBlock as ToolCallBlockType } from '../../store/sessions'
+import type { AppLanguage } from '../i18n'
 import {
   countDisplayLines,
   formatToolInput,
@@ -9,20 +10,20 @@ import {
 import { getDiffStats, getEditDiffHunks } from './diff'
 import type { TimelineEntry } from './types'
 
-export function buildSummary(entries: TimelineEntry[]) {
+export function buildSummary(entries: TimelineEntry[], language: AppLanguage = 'ko') {
   const parts: string[] = []
   const fileEdits = entries.filter((entry) => entry.kind === 'file' && (entry.added > 0 || entry.removed > 0)).length
   const todos = entries.filter((entry) => entry.kind === 'todo').length
   const reads = entries.filter((entry) => entry.label === 'Read').length
 
-  if (fileEdits > 0) parts.push(`${fileEdits}개 파일 수정됨`)
-  if (todos > 0) parts.push('할 일 목록 업데이트됨')
-  if (reads > 0) parts.push('파일 읽음')
+  if (fileEdits > 0) parts.push(language === 'en' ? `${fileEdits} files edited` : `${fileEdits}개 파일 수정됨`)
+  if (todos > 0) parts.push(language === 'en' ? 'Todo list updated' : '할 일 목록 업데이트됨')
+  if (reads > 0) parts.push(language === 'en' ? 'Files read' : '파일 읽음')
 
-  return parts.length > 0 ? parts.join(', ') : `${entries.length}개 작업`
+  return parts.length > 0 ? parts.join(', ') : (language === 'en' ? `${entries.length} tasks` : `${entries.length}개 작업`)
 }
 
-export function buildTimelineEntries(toolCalls: ToolCallBlockType[]): TimelineEntry[] {
+export function buildTimelineEntries(toolCalls: ToolCallBlockType[], language: AppLanguage = 'ko'): TimelineEntry[] {
   const grouped = new Map<string, TimelineEntry>()
 
   for (const toolCall of toolCalls) {
@@ -44,7 +45,9 @@ export function buildTimelineEntries(toolCalls: ToolCallBlockType[]): TimelineEn
         kind: toolCall.toolName === 'TodoWrite' ? 'todo' : path ? 'file' : 'generic',
         label: actionLabel,
         badge: badge || null,
-        detail: toolCall.toolName === 'Read' ? `${countDisplayLines(resultText)}줄 읽음` : null,
+        detail: toolCall.toolName === 'Read'
+          ? (language === 'en' ? `${countDisplayLines(resultText)} lines read` : `${countDisplayLines(resultText)}줄 읽음`)
+          : null,
         toolCalls: [toolCall],
         added: diffStats.added,
         removed: diffStats.removed,
@@ -68,7 +71,7 @@ export function buildTimelineEntries(toolCalls: ToolCallBlockType[]): TimelineEn
 
     if (toolCall.toolName === 'Read') {
       existing.label = 'Read'
-      existing.detail = `${existing.readLines}줄 읽음`
+      existing.detail = language === 'en' ? `${existing.readLines} lines read` : `${existing.readLines}줄 읽음`
     }
     if (toolCall.toolName === 'TodoWrite') {
       existing.label = 'Update Todos'

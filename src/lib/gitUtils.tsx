@@ -1,5 +1,6 @@
 import { parseDiff } from 'react-diff-view'
 import type { GitStatusEntry, GitDiffResult, GitLogEntry } from '../../electron/preload'
+import type { AppLanguage } from './i18n'
 
 export type GitDraftAction = 'review' | 'summary' | 'commitMessage'
 
@@ -68,22 +69,30 @@ export function buildGitDraft(
     commit: GitLogEntry | null
     gitDiff: GitDiffResult | null
   },
+  language: AppLanguage = 'ko',
 ): string | null {
+  const isEnglish = language === 'en'
   const diff = payload.gitDiff?.diff ?? ''
   if (!diff.trim()) return null
 
   const scopeLabel = payload.commit
-    ? `커밋 ${payload.commit.shortHash} ${payload.commit.subject}`
+    ? (isEnglish ? `commit ${payload.commit.shortHash} ${payload.commit.subject}` : `커밋 ${payload.commit.shortHash} ${payload.commit.subject}`)
     : payload.entry
-      ? `파일 ${payload.entry.relativePath}`
-      : '선택된 Git diff'
+      ? (isEnglish ? `file ${payload.entry.relativePath}` : `파일 ${payload.entry.relativePath}`)
+      : (isEnglish ? 'selected Git diff' : '선택된 Git diff')
   const { content, truncated } = trimGitDraftDiff(diff)
-  const truncationNote = truncated ? '\n참고: diff가 너무 길어서 일부만 포함했어.\n' : '\n'
+  const truncationNote = truncated
+    ? (isEnglish ? '\nNote: the diff was too long, so only part of it is included.\n' : '\n참고: diff가 너무 길어서 일부만 포함했어.\n')
+    : '\n'
 
   if (action === 'review') {
     return [
-      `다음 ${scopeLabel}를 코드 리뷰해줘.`,
-      '우선순위 높은 버그, 리스크, 회귀 가능성을 먼저 찾고 각 항목마다 왜 문제인지와 확인할 테스트를 짧게 정리해줘.',
+      isEnglish
+        ? `Review the following ${scopeLabel}.`
+        : `다음 ${scopeLabel}를 코드 리뷰해줘.`,
+      isEnglish
+        ? 'Prioritize high-severity bugs, risks, and regressions. For each finding, explain the issue and the test to run.'
+        : '우선순위 높은 버그, 리스크, 회귀 가능성을 먼저 찾고 각 항목마다 왜 문제인지와 확인할 테스트를 짧게 정리해줘.',
       truncationNote.trim(),
       '```diff',
       content,
@@ -93,11 +102,11 @@ export function buildGitDraft(
 
   if (action === 'summary') {
     return [
-      `다음 ${scopeLabel}를 요약해줘.`,
-      '1. 무엇이 바뀌었는지',
-      '2. 사용자 영향',
-      '3. 테스트 포인트',
-      '4. 릴리즈 노트용 한 단락',
+      isEnglish ? `Summarize the following ${scopeLabel}.` : `다음 ${scopeLabel}를 요약해줘.`,
+      isEnglish ? '1. What changed' : '1. 무엇이 바뀌었는지',
+      isEnglish ? '2. User impact' : '2. 사용자 영향',
+      isEnglish ? '3. Test points' : '3. 테스트 포인트',
+      isEnglish ? '4. One release-note paragraph' : '4. 릴리즈 노트용 한 단락',
       truncationNote.trim(),
       '```diff',
       content,
@@ -106,11 +115,13 @@ export function buildGitDraft(
   }
 
   return [
-    `다음 ${scopeLabel}를 바탕으로 커밋 메시지를 작성해줘.`,
-    '1. Conventional Commit 후보 3개',
-    '2. 가장 적절한 추천안 1개',
-    '3. 상세 본문 1개',
-    '응답은 한국어로 해줘.',
+    isEnglish
+      ? `Write commit messages based on the following ${scopeLabel}.`
+      : `다음 ${scopeLabel}를 바탕으로 커밋 메시지를 작성해줘.`,
+    isEnglish ? '1. Three Conventional Commit candidates' : '1. Conventional Commit 후보 3개',
+    isEnglish ? '2. One recommended option' : '2. 가장 적절한 추천안 1개',
+    isEnglish ? '3. One detailed body' : '3. 상세 본문 1개',
+    isEnglish ? 'Respond in English.' : '응답은 한국어로 해줘.',
     truncationNote.trim(),
     '```diff',
     content,
@@ -118,14 +129,15 @@ export function buildGitDraft(
   ].filter(Boolean).join('\n\n')
 }
 
-export function getGitEntryLabel(entry: GitStatusEntry): string {
-  if (entry.untracked) return '새 파일'
-  if (entry.deleted) return '삭제'
-  if (entry.renamed) return '이름 변경'
-  if (entry.staged && entry.unstaged) return '수정됨'
-  if (entry.staged) return '스테이징'
-  if (entry.unstaged) return '수정됨'
-  return '변경'
+export function getGitEntryLabel(entry: GitStatusEntry, language: AppLanguage = 'ko'): string {
+  const isEnglish = language === 'en'
+  if (entry.untracked) return isEnglish ? 'New file' : '새 파일'
+  if (entry.deleted) return isEnglish ? 'Deleted' : '삭제'
+  if (entry.renamed) return isEnglish ? 'Renamed' : '이름 변경'
+  if (entry.staged && entry.unstaged) return isEnglish ? 'Modified' : '수정됨'
+  if (entry.staged) return isEnglish ? 'Staged' : '스테이징'
+  if (entry.unstaged) return isEnglish ? 'Modified' : '수정됨'
+  return isEnglish ? 'Changed' : '변경'
 }
 
 export function getGitEntryBadgeClass(entry: GitStatusEntry): string {
@@ -154,8 +166,10 @@ export function shouldStageGitEntry(entry: GitStatusEntry) {
   return !entry.staged || entry.unstaged || entry.untracked
 }
 
-export function getGitStageActionLabel(entry: GitStatusEntry) {
-  return shouldStageGitEntry(entry) ? '스테이징' : '언스테이징'
+export function getGitStageActionLabel(entry: GitStatusEntry, language: AppLanguage = 'ko') {
+  return shouldStageGitEntry(entry)
+    ? (language === 'en' ? 'Stage' : '스테이징')
+    : (language === 'en' ? 'Unstage' : '언스테이징')
 }
 
 export function shouldStageGitEntryForFilter(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
@@ -164,8 +178,14 @@ export function shouldStageGitEntryForFilter(entry: GitStatusEntry, filter: 'uns
   return shouldStageGitEntry(entry)
 }
 
-export function getGitStageActionLabelForFilter(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
-  return shouldStageGitEntryForFilter(entry, filter) ? '스테이징' : '언스테이징'
+export function getGitStageActionLabelForFilter(
+  entry: GitStatusEntry,
+  filter: 'unstaged' | 'staged' | 'all',
+  language: AppLanguage = 'ko',
+) {
+  return shouldStageGitEntryForFilter(entry, filter)
+    ? (language === 'en' ? 'Stage' : '스테이징')
+    : (language === 'en' ? 'Unstage' : '언스테이징')
 }
 
 export function getGitEntryCounts(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {

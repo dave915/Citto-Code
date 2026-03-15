@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject, type R
 import { matchShortcut } from '../lib/shortcuts'
 import type { PendingPermissionRequest, PendingQuestionRequest, PermissionMode } from '../store/sessions'
 import {
-  PERMISSION_ACTIONS,
   cycleClaudeCodeMode,
   formatPermissionPreview,
+  getPermissionActions,
 } from '../components/input/inputUtils'
+import type { AppLanguage } from '../lib/i18n'
 
 type UseInputPromptsOptions = {
   pendingPermission: PendingPermissionRequest | null
@@ -20,6 +21,7 @@ type UseInputPromptsOptions = {
   onPlanModeChange: (value: boolean) => void
   permissionShortcutLabel: string
   bypassShortcutLabel: string
+  language: AppLanguage
   textareaRef: RefObject<HTMLTextAreaElement>
   escapePressedAtRef: MutableRefObject<number>
   resetComposer: () => void
@@ -38,6 +40,7 @@ export function useInputPrompts({
   onPlanModeChange,
   permissionShortcutLabel,
   bypassShortcutLabel,
+  language,
   textareaRef,
   escapePressedAtRef,
   resetComposer,
@@ -46,11 +49,12 @@ export function useInputPrompts({
   const [permissionSelectedIndex, setPermissionSelectedIndex] = useState(0)
   const [questionInputMode, setQuestionInputMode] = useState(false)
   const permissionItemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const permissionActions = getPermissionActions(language)
 
   const showPermissionPrompt = Boolean(pendingPermission) && !isStreaming
   const showQuestionPrompt = Boolean(pendingQuestion) && !showPermissionPrompt && !isStreaming
   const questionOptions = pendingQuestion?.options ?? []
-  const permissionPreview = formatPermissionPreview(pendingPermission)
+  const permissionPreview = formatPermissionPreview(pendingPermission, language)
 
   const handleQuestionSubmit = useCallback((answer: string | null) => {
     const trimmed = answer?.trim() ?? ''
@@ -160,14 +164,14 @@ export function useInputPrompts({
         if (event.key === 'ArrowDown') {
           event.preventDefault()
           event.stopPropagation()
-          setPermissionSelectedIndex((index) => (index + 1) % PERMISSION_ACTIONS.length)
+          setPermissionSelectedIndex((index) => (index + 1) % permissionActions.length)
           return
         }
 
         if (event.key === 'ArrowUp') {
           event.preventDefault()
           event.stopPropagation()
-          setPermissionSelectedIndex((index) => (index - 1 + PERMISSION_ACTIONS.length) % PERMISSION_ACTIONS.length)
+          setPermissionSelectedIndex((index) => (index - 1 + permissionActions.length) % permissionActions.length)
           return
         }
 
@@ -175,9 +179,9 @@ export function useInputPrompts({
           event.preventDefault()
           event.stopPropagation()
           if (event.shiftKey) {
-            setPermissionSelectedIndex((index) => (index - 1 + PERMISSION_ACTIONS.length) % PERMISSION_ACTIONS.length)
+            setPermissionSelectedIndex((index) => (index - 1 + permissionActions.length) % permissionActions.length)
           } else {
-            setPermissionSelectedIndex((index) => (index + 1) % PERMISSION_ACTIONS.length)
+            setPermissionSelectedIndex((index) => (index + 1) % permissionActions.length)
           }
           return
         }
@@ -185,7 +189,7 @@ export function useInputPrompts({
         if (event.key === 'Enter') {
           event.preventDefault()
           event.stopPropagation()
-          onPermissionRequestAction(PERMISSION_ACTIONS[permissionSelectedIndex].action)
+          onPermissionRequestAction(permissionActions[permissionSelectedIndex].action)
           return
         }
       }
@@ -226,6 +230,7 @@ export function useInputPrompts({
     questionInputMode,
     questionOptions,
     permissionSelectedIndex,
+    permissionActions,
     showPermissionPrompt,
     handleQuestionSubmit,
     onPermissionRequestAction,
@@ -258,7 +263,7 @@ export function useInputPrompts({
 
   return {
     handleQuestionSubmit,
-    permissionActions: PERMISSION_ACTIONS,
+    permissionActions,
     permissionItemRefs,
     permissionPreview,
     permissionSelectedIndex,

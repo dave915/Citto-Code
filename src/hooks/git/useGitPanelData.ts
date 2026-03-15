@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { GitBranchInfo, GitDiffResult, GitLogEntry, GitRepoStatus, GitStatusEntry } from '../../../electron/preload'
+import { useI18n } from '../useI18n'
 import {
   areGitDiffResultsEqual,
   areGitLogEntriesEqual,
@@ -14,6 +15,7 @@ export function useGitPanelData({
   cwd: string
   gitPanelOpen: boolean
 }) {
+  const { language } = useI18n()
   const selectedGitEntryPathRef = useRef<string | null>(null)
   const selectedGitCommitHashRef = useRef<string | null>(null)
   const gitPanelRefreshInFlightRef = useRef(false)
@@ -166,7 +168,7 @@ export function useGitPanelData({
       const nextDiff = await window.claude.getGitDiff({ cwd: cwd || '~', filePath: entry.path })
       setGitDiff(nextDiff)
     } catch {
-      setGitDiff({ ok: false, diff: '', error: 'diff를 불러오지 못했습니다.' })
+      setGitDiff({ ok: false, diff: '', error: language === 'en' ? 'Failed to load the diff.' : 'diff를 불러오지 못했습니다.' })
     } finally {
       setGitDiffLoading(false)
     }
@@ -190,7 +192,7 @@ export function useGitPanelData({
       const nextDiff = await window.claude.getGitCommitDiff({ cwd: cwd || '~', commitHash: entry.hash })
       setGitDiff(nextDiff)
     } catch {
-      setGitDiff({ ok: false, diff: '', error: '커밋 diff를 불러오지 못했습니다.' })
+      setGitDiff({ ok: false, diff: '', error: language === 'en' ? 'Failed to load the commit diff.' : '커밋 diff를 불러오지 못했습니다.' })
     } finally {
       setGitDiffLoading(false)
     }
@@ -227,7 +229,11 @@ export function useGitPanelData({
           const nextDiff = await window.claude.getGitDiff({ cwd: cwd || '~', filePath: nextEntry.path })
           setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
         } catch {
-          const nextDiff = { ok: false as const, diff: '', error: 'diff를 불러오지 못했습니다.' }
+          const nextDiff = {
+            ok: false as const,
+            diff: '',
+            error: language === 'en' ? 'Failed to load the diff.' : 'diff를 불러오지 못했습니다.',
+          }
           setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
         } finally {
           if (!gitDiff) {
@@ -259,7 +265,11 @@ export function useGitPanelData({
           const nextDiff = await window.claude.getGitCommitDiff({ cwd: cwd || '~', commitHash: nextCommit.hash })
           setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
         } catch {
-          const nextDiff = { ok: false as const, diff: '', error: '커밋 diff를 불러오지 못했습니다.' }
+          const nextDiff = {
+            ok: false as const,
+            diff: '',
+            error: language === 'en' ? 'Failed to load the commit diff.' : '커밋 diff를 불러오지 못했습니다.',
+          }
           setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
         } finally {
           if (!gitDiff) {

@@ -1,9 +1,11 @@
 import type { MutableRefObject } from 'react'
 
 import type { FileEntry } from '../../../electron/preload'
+import type { AppLanguage } from '../../lib/i18n'
 import type { SlashCommand } from './inputUtils'
 
 export function MentionMenu({
+  language,
   slashResults,
   atResults,
   slashSelectedIndex,
@@ -13,6 +15,7 @@ export function MentionMenu({
   onSlashSelect,
   onAtSelect,
 }: {
+  language: AppLanguage
   slashResults: SlashCommand[]
   atResults: FileEntry[]
   slashSelectedIndex: number
@@ -39,9 +42,13 @@ export function MentionMenu({
           </svg>
         )}
         <span className="text-xs font-medium text-claude-muted">
-          {slashResults.length > 0 ? '슬래시 명령어' : '파일 참조'}
+          {slashResults.length > 0
+            ? (language === 'en' ? 'Slash commands' : '슬래시 명령어')
+            : (language === 'en' ? 'File references' : '파일 참조')}
         </span>
-        <span className="ml-auto text-xs text-claude-muted/60">↑↓ 탐색 · Enter 선택 · Esc 닫기</span>
+        <span className="ml-auto text-xs text-claude-muted/60">
+          {language === 'en' ? '↑↓ navigate · Enter select · Esc close' : '↑↓ 탐색 · Enter 선택 · Esc 닫기'}
+        </span>
       </div>
       <div className="max-h-48 overflow-y-auto py-1">
         {slashResults.length > 0 ? (
@@ -61,7 +68,7 @@ export function MentionMenu({
               <span className="truncate font-medium">/{command.name}</span>
               <span className="ml-auto max-w-[40%] truncate text-xs text-claude-muted">
                 {command.kind === 'builtin'
-                  ? (command.description ?? '내장 명령어')
+                  ? (command.description ?? (language === 'en' ? 'Built-in command' : '내장 명령어'))
                   : command.kind === 'plugin'
                     ? `${command.pluginName ?? 'plugin'}`
                     : command.legacy

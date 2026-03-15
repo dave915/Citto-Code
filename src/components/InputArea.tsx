@@ -9,6 +9,7 @@ import { useInputPrompts } from '../hooks/useInputPrompts'
 import { AttachmentList } from './input/AttachmentList'
 import { InputComposer } from './input/InputComposer'
 import { sanitizeEnvVars } from './input/inputUtils'
+import { useI18n } from '../hooks/useI18n'
 
 type Props = {
   cwd: string
@@ -53,6 +54,7 @@ export function InputArea({
   bypassShortcutLabel,
   externalDraft,
 }: Props) {
+  const { language } = useI18n()
   const envVars = useSessionsStore((state) => state.envVars)
   const sanitizedEnvVars = useMemo(() => sanitizeEnvVars(envVars), [envVars])
   const [text, setText] = useState('')
@@ -73,7 +75,7 @@ export function InputArea({
     handleDragOver,
     handleDrop,
   } = useInputAttachments({ disabled, isStreaming })
-  const { models, modelsLoading, slashCommands } = useInputModelData(sanitizedEnvVars)
+  const { models, modelsLoading, slashCommands } = useInputModelData(sanitizedEnvVars, language)
 
   const syncTextareaHeight = useCallback((value: string) => {
     if (!textareaRef.current) return
@@ -150,6 +152,7 @@ export function InputArea({
     onPlanModeChange,
     permissionShortcutLabel,
     bypassShortcutLabel,
+    language,
     textareaRef,
     escapePressedAtRef,
     resetComposer,
@@ -232,11 +235,13 @@ export function InputArea({
         <AttachmentList
           attachedFiles={attachedFiles}
           skippedFiles={skippedFiles}
+          language={language}
           onRemoveFile={(path) => setAttachedFiles((current) => current.filter((file) => file.path !== path))}
         />
 
         <InputComposer
           textareaRef={textareaRef}
+          language={language}
           text={text}
           attachedFileCount={attachedFiles.length}
           isStreaming={isStreaming}
@@ -257,6 +262,7 @@ export function InputArea({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           overlayProps={{
+            language,
             showQuestionPrompt,
             pendingQuestion,
             questionOptions,
@@ -274,6 +280,7 @@ export function InputArea({
             onPermissionAction: onPermissionRequestAction,
           }}
           mentionMenuProps={{
+            language,
             slashResults,
             atResults,
             slashSelectedIndex,
@@ -286,6 +293,7 @@ export function InputArea({
             },
           }}
           toolbarProps={{
+            language,
             isStreaming,
             disabled,
             isAttaching,

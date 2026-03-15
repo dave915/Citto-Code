@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useI18n } from '../../../hooks/useI18n'
 
 type PathStatus = { ok: true; version: string | null } | { ok: false } | null
 
@@ -8,6 +9,7 @@ type Props = {
 }
 
 export function ClaudeBinaryPathSection({ claudeBinaryPath, onChange }: Props) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState(claudeBinaryPath)
   const [pathStatus, setPathStatus] = useState<PathStatus>(null)
 
@@ -45,10 +47,11 @@ export function ClaudeBinaryPathSection({ claudeBinaryPath, onChange }: Props) {
 
   return (
     <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-      <p className="text-sm font-semibold text-claude-text">Claude 실행 경로</p>
+      <p className="text-sm font-semibold text-claude-text">{t('settings.general.claudePath.title')}</p>
       <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-        비워두면 자동으로 감지합니다. 터미널에서{' '}
-        <code className="rounded bg-claude-border px-1 py-0.5 font-mono">which claude</code>로 경로를 확인할 수 있습니다.
+        {t('settings.general.claudePath.description').split('`which claude`')[0]}
+        <code className="rounded bg-claude-border px-1 py-0.5 font-mono">which claude</code>
+        {t('settings.general.claudePath.description').split('`which claude`')[1]}
       </p>
       <input
         value={draft}
@@ -59,8 +62,8 @@ export function ClaudeBinaryPathSection({ claudeBinaryPath, onChange }: Props) {
       />
       {pathStatus !== null && (
         pathStatus.ok
-          ? <p className="mt-1.5 text-xs text-green-400">✓ {pathStatus.version ?? '경로 확인됨'}</p>
-          : <p className="mt-1.5 text-xs text-red-400">경로를 찾을 수 없습니다</p>
+          ? <p className="mt-1.5 text-xs text-green-400">✓ {pathStatus.version ?? t('settings.general.claudePath.verified')}</p>
+          : <p className="mt-1.5 text-xs text-red-400">{t('settings.general.claudePath.notFound')}</p>
       )}
     </div>
   )

@@ -10,7 +10,10 @@ export function buildSelectedRange<T extends { key: string }>(all: T[], anchorKe
 }
 
 export function summarizeLineRange(startLine: number, endLine: number) {
-  return startLine === endLine ? `줄 ${startLine}` : `줄 ${startLine}-${endLine}`
+  const isEnglish = typeof document !== 'undefined' && document.documentElement.lang.startsWith('en')
+  return startLine === endLine
+    ? (isEnglish ? `Line ${startLine}` : `줄 ${startLine}`)
+    : (isEnglish ? `Lines ${startLine}-${endLine}` : `줄 ${startLine}-${endLine}`)
 }
 
 export function buildSelectionPayload(

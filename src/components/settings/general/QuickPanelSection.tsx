@@ -1,16 +1,20 @@
+import { useI18n } from '../../../hooks/useI18n'
+
 type Props = {
   quickPanelEnabled: boolean
   onToggle: (value: boolean) => void
 }
 
 export function QuickPanelSection({ quickPanelEnabled, onToggle }: Props) {
+  const { t } = useI18n()
+
   return (
     <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-claude-text">퀵 패널</p>
+          <p className="text-sm font-semibold text-claude-text">{t('settings.general.quickPanel.title')}</p>
           <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-            글로벌 단축키로 Spotlight 스타일 입력창을 열 수 있습니다. 비활성화하면 메인 프로세스 글로벌 단축키 등록도 함께 해제됩니다.
+            {t('settings.general.quickPanel.description')}
           </p>
         </div>
         <button
@@ -22,7 +26,7 @@ export function QuickPanelSection({ quickPanelEnabled, onToggle }: Props) {
               : 'border-claude-border bg-claude-panel/70'
           }`}
           aria-pressed={quickPanelEnabled}
-          title={quickPanelEnabled ? '퀵 패널 끄기' : '퀵 패널 켜기'}
+          title={quickPanelEnabled ? t('settings.general.quickPanel.disable') : t('settings.general.quickPanel.enable')}
         >
           <span
             className={`inline-block h-5 w-5 rounded-full bg-claude-text transition-transform ${

@@ -1,4 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 import type { Session } from '../../store/sessions'
 import type { useFileExplorer } from '../../hooks/useFileExplorer'
 import type { useGitPanel } from '../../hooks/useGitPanel'
@@ -77,6 +78,7 @@ export function ChatSidePanel({
   onExportSession,
   onCopySessionExport,
 }: Props) {
+  const { t } = useI18n()
   if (!visible) return null
 
   return (
@@ -91,7 +93,7 @@ export function ChatSidePanel({
           <button
             onClick={() => void (filePanelOpen ? fileExplorer.refreshExplorer(false) : gitPanel.refreshGitPanel())}
             className="flex h-8 w-8 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-            title={filePanelOpen ? '파일 탐색기 새로고침' : 'Git 상태 새로고침'}
+            title={filePanelOpen ? t('sidePanel.refreshFileExplorer') : t('sidePanel.refreshGit')}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-2.64-6.36" />

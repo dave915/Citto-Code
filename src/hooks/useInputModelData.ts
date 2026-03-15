@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { ModelInfo, PluginSkill } from '../../electron/preload'
-import { BUILTIN_SLASH_COMMANDS, type SlashCommand } from '../components/input/inputUtils'
+import type { AppLanguage } from '../lib/i18n'
+import { getBuiltinSlashCommands, type SlashCommand } from '../components/input/inputUtils'
 
-export function useInputModelData(sanitizedEnvVars: Record<string, string>) {
+export function useInputModelData(sanitizedEnvVars: Record<string, string>, language: AppLanguage) {
   const [models, setModels] = useState<ModelInfo[]>([])
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([])
   const [modelsLoading, setModelsLoading] = useState(true)
 
   useEffect(() => {
+    const builtinSlashCommands = getBuiltinSlashCommands(language)
     const modelEnvVars = Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : undefined
 
     setModelsLoading(true)
@@ -28,10 +30,10 @@ export function useInputModelData(sanitizedEnvVars: Record<string, string>) {
           kind: 'plugin' as const,
           description: `${skill.pluginName} plugin`,
         }))
-        setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...customCommands, ...pluginCommands])
+        setSlashCommands([...builtinSlashCommands, ...customCommands, ...pluginCommands])
       })
-      .catch(() => setSlashCommands(BUILTIN_SLASH_COMMANDS))
-  }, [sanitizedEnvVars])
+      .catch(() => setSlashCommands(builtinSlashCommands))
+  }, [language, sanitizedEnvVars])
 
   return {
     models,
