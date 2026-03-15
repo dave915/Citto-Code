@@ -971,7 +971,7 @@ export default function App() {
       if (!tabId) return
       if (abortedTabIdsRef.current.has(tabId)) return
       store.setStreaming(tabId, false)
-      if (event.totalCostUsd) store.setLastCost(tabId, event.totalCostUsd)
+      if (event.totalCostUsd !== undefined) store.setLastCost(tabId, event.totalCostUsd)
       const askUserQuestionRequest = event.permissionDenials
         ?.map(mapPendingQuestionRequest)
         .find((request): request is PendingQuestionRequest => Boolean(request))
