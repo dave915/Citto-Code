@@ -1,0 +1,53 @@
+import type { ToolCallBlock as ToolCallBlockType } from '../../store/sessions'
+
+export type DiffHunk = {
+  before: string
+  after: string
+}
+
+export type DiffSegment = {
+  before: string
+  after: string
+  oldContent: string | null
+  newContent: string | null
+}
+
+export type DiffRow = {
+  kind: 'removed' | 'added'
+  text: string
+  lineNumber: number
+}
+
+export type AskAboutSelectionPayload = {
+  kind: 'diff' | 'code'
+  path: string
+  startLine: number
+  endLine: number
+  code: string
+  prompt?: string
+}
+
+export type HtmlPreviewCandidate = {
+  path: string
+  fallbackContent: string | null
+}
+
+export type TimelineEntry = {
+  id: string
+  kind: 'file' | 'todo' | 'generic'
+  label: string
+  badge: string | null
+  detail: string | null
+  toolCalls: ToolCallBlockType[]
+  added: number
+  removed: number
+  readLines: number
+  status: 'running' | 'done' | 'error'
+}
+
+export type SubagentSessionInfo = {
+  lookupId: string
+  outputFile: string
+  agent: string | null
+  description: string | null
+}

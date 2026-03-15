@@ -1,0 +1,351 @@
+import { parseDiff } from 'react-diff-view'
+import type { GitStatusEntry, GitDiffResult, GitLogEntry } from '../../electron/preload'
+
+export type GitDraftAction = 'review' | 'summary' | 'commitMessage'
+
+export type GitDecorationRef = {
+  label: string
+  kind: 'current' | 'local' | 'remote' | 'tag' | 'other'
+}
+
+export function areGitStatusEntriesEqual(a: GitStatusEntry | null, b: GitStatusEntry | null) {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.path === b.path &&
+    a.relativePath === b.relativePath &&
+    (a.originalPath ?? null) === (b.originalPath ?? null) &&
+    a.statusCode === b.statusCode &&
+    a.stagedAdditions === b.stagedAdditions &&
+    a.stagedDeletions === b.stagedDeletions &&
+    a.unstagedAdditions === b.unstagedAdditions &&
+    a.unstagedDeletions === b.unstagedDeletions &&
+    a.totalAdditions === b.totalAdditions &&
+    a.totalDeletions === b.totalDeletions &&
+    a.staged === b.staged &&
+    a.unstaged === b.unstaged &&
+    a.untracked === b.untracked &&
+    a.deleted === b.deleted &&
+    a.renamed === b.renamed
+  )
+}
+
+export function areGitDiffResultsEqual(a: GitDiffResult | null, b: GitDiffResult | null) {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.ok === b.ok && a.diff === b.diff && (a.error ?? null) === (b.error ?? null)
+}
+
+export function areGitLogEntriesEqual(a: GitLogEntry | null, b: GitLogEntry | null) {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.hash === b.hash &&
+    a.shortHash === b.shortHash &&
+    a.subject === b.subject &&
+    a.author === b.author &&
+    a.relativeDate === b.relativeDate &&
+    a.decorations === b.decorations &&
+    a.graph === b.graph
+  )
+}
+
+export function trimGitDraftDiff(diff: string, maxLength = 12000): { content: string; truncated: boolean } {
+  const trimmed = diff.trim()
+  if (trimmed.length <= maxLength) {
+    return { content: trimmed, truncated: false }
+  }
+  return {
+    content: `${trimmed.slice(0, maxLength)}\n...\n[diff truncated]`,
+    truncated: true,
+  }
+}
+
+export function buildGitDraft(
+  action: GitDraftAction,
+  payload: {
+    entry: GitStatusEntry | null
+    commit: GitLogEntry | null
+    gitDiff: GitDiffResult | null
+  },
+): string | null {
+  const diff = payload.gitDiff?.diff ?? ''
+  if (!diff.trim()) return null
+
+  const scopeLabel = payload.commit
+    ? `커밋 ${payload.commit.shortHash} ${payload.commit.subject}`
+    : payload.entry
+      ? `파일 ${payload.entry.relativePath}`
+      : '선택된 Git diff'
+  const { content, truncated } = trimGitDraftDiff(diff)
+  const truncationNote = truncated ? '\n참고: diff가 너무 길어서 일부만 포함했어.\n' : '\n'
+
+  if (action === 'review') {
+    return [
+      `다음 ${scopeLabel}를 코드 리뷰해줘.`,
+      '우선순위 높은 버그, 리스크, 회귀 가능성을 먼저 찾고 각 항목마다 왜 문제인지와 확인할 테스트를 짧게 정리해줘.',
+      truncationNote.trim(),
+      '```diff',
+      content,
+      '```',
+    ].filter(Boolean).join('\n\n')
+  }
+
+  if (action === 'summary') {
+    return [
+      `다음 ${scopeLabel}를 요약해줘.`,
+      '1. 무엇이 바뀌었는지',
+      '2. 사용자 영향',
+      '3. 테스트 포인트',
+      '4. 릴리즈 노트용 한 단락',
+      truncationNote.trim(),
+      '```diff',
+      content,
+      '```',
+    ].filter(Boolean).join('\n\n')
+  }
+
+  return [
+    `다음 ${scopeLabel}를 바탕으로 커밋 메시지를 작성해줘.`,
+    '1. Conventional Commit 후보 3개',
+    '2. 가장 적절한 추천안 1개',
+    '3. 상세 본문 1개',
+    '응답은 한국어로 해줘.',
+    truncationNote.trim(),
+    '```diff',
+    content,
+    '```',
+  ].filter(Boolean).join('\n\n')
+}
+
+export function getGitEntryLabel(entry: GitStatusEntry): string {
+  if (entry.untracked) return '새 파일'
+  if (entry.deleted) return '삭제'
+  if (entry.renamed) return '이름 변경'
+  if (entry.staged && entry.unstaged) return '수정됨'
+  if (entry.staged) return '스테이징'
+  if (entry.unstaged) return '수정됨'
+  return '변경'
+}
+
+export function getGitEntryBadgeClass(entry: GitStatusEntry): string {
+  if (entry.untracked) return 'border-emerald-500/30 bg-emerald-500/10 text-claude-text'
+  if (entry.deleted) return 'border-red-500/30 bg-red-500/10 text-claude-text'
+  if (entry.renamed) return 'border-sky-500/30 bg-sky-500/10 text-claude-text'
+  if (entry.staged && entry.unstaged) return 'border-amber-500/30 bg-amber-500/10 text-claude-text'
+  return 'border-claude-border bg-claude-surface text-claude-text'
+}
+
+export function getGitEntryStatusDotClass(entry: GitStatusEntry): string | null {
+  if (entry.deleted) return 'bg-red-400'
+  if (entry.untracked || entry.renamed) return 'bg-sky-400'
+  return null
+}
+
+export function formatGitChangeCount(value: number | null): string {
+  return value && value > 0 ? `+${value}` : '+0'
+}
+
+export function formatGitDeletionCount(value: number | null): string {
+  return value && value > 0 ? `-${value}` : '-0'
+}
+
+export function shouldStageGitEntry(entry: GitStatusEntry) {
+  return !entry.staged || entry.unstaged || entry.untracked
+}
+
+export function getGitStageActionLabel(entry: GitStatusEntry) {
+  return shouldStageGitEntry(entry) ? '스테이징' : '언스테이징'
+}
+
+export function shouldStageGitEntryForFilter(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
+  if (filter === 'staged') return false
+  if (filter === 'unstaged') return true
+  return shouldStageGitEntry(entry)
+}
+
+export function getGitStageActionLabelForFilter(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
+  return shouldStageGitEntryForFilter(entry, filter) ? '스테이징' : '언스테이징'
+}
+
+export function getGitEntryCounts(entry: GitStatusEntry, filter: 'unstaged' | 'staged' | 'all') {
+  if (filter === 'staged') {
+    return {
+      additions: entry.stagedAdditions,
+      deletions: entry.stagedDeletions,
+    }
+  }
+
+  if (filter === 'unstaged') {
+    return {
+      additions: entry.unstagedAdditions,
+      deletions: entry.unstagedDeletions,
+    }
+  }
+
+  return {
+    additions: entry.totalAdditions,
+    deletions: entry.totalDeletions,
+  }
+}
+
+export function safeParseGitDiff(diffText: string) {
+  try {
+    return parseDiff(diffText)
+  } catch {
+    return []
+  }
+}
+
+export function parseGitDecorations(decorations: string): GitDecorationRef[] {
+  if (!decorations.trim()) return []
+
+  return decorations
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .flatMap<GitDecorationRef>((value) => {
+      if (value.startsWith('HEAD -> ')) {
+        return [{
+          label: value.slice('HEAD -> '.length).trim(),
+          kind: 'current' as const,
+        }]
+      }
+
+      if (value === 'HEAD') {
+        return [{ label: 'HEAD', kind: 'current' as const }]
+      }
+
+      if (value.startsWith('tag: ')) {
+        return [{
+          label: value.slice('tag: '.length).trim(),
+          kind: 'tag' as const,
+        }]
+      }
+
+      if (value.startsWith('origin/')) {
+        return [{ label: value, kind: 'remote' as const }]
+      }
+
+      if (value.includes('/')) {
+        return [{ label: value, kind: 'other' as const }]
+      }
+
+      return [{ label: value, kind: 'local' as const }]
+    })
+}
+
+export function getGitDecorationBadgeClass(kind: 'current' | 'local' | 'remote' | 'tag' | 'other') {
+  switch (kind) {
+    case 'current':
+      return 'border-sky-500/40 bg-sky-500/12 text-sky-200'
+    case 'local':
+      return 'border-indigo-500/35 bg-indigo-500/12 text-indigo-200'
+    case 'remote':
+      return 'border-fuchsia-500/35 bg-fuchsia-500/12 text-fuchsia-200'
+    case 'tag':
+      return 'border-amber-500/35 bg-amber-500/12 text-amber-100'
+    default:
+      return 'border-claude-border bg-claude-surface text-claude-text'
+  }
+}
+
+export function isGitGraphActiveCommit(refs: GitDecorationRef[]) {
+  const currentBranchNames = refs
+    .filter((ref) => ref.kind === 'current')
+    .map((ref) => ref.label)
+    .filter((label) => label !== 'HEAD')
+
+  if (currentBranchNames.length === 0) {
+    return refs.some((ref) => ref.kind === 'current')
+  }
+
+  const hasMatchingRemote = currentBranchNames.some((branchName) => (
+    refs.some((ref) => ref.kind === 'remote' && ref.label.endsWith(`/${branchName}`))
+  ))
+
+  return !hasMatchingRemote
+}
+
+export function getGitGraphLane(graph: string) {
+  const starIndex = graph.indexOf('*')
+  if (starIndex >= 0) return starIndex
+  const branchIndex = graph.search(/[|\\/]/)
+  return branchIndex >= 0 ? branchIndex : 0
+}
+
+export const GIT_GRAPH_LANE_WIDTH = 12
+export const GIT_GRAPH_MARKER_CENTER_Y = 12
+export const GIT_GRAPH_ACTIVE_MARKER_SIZE = 10
+export const GIT_GRAPH_DEFAULT_MARKER_SIZE = 8
+
+export function renderGitGraph(
+  graph: string,
+  previousGraph: string,
+  nextGraph: string,
+  active: boolean,
+  previousActive: boolean,
+) {
+  const lane = getGitGraphLane(graph)
+  const previousLane = previousGraph ? getGitGraphLane(previousGraph) : -1
+  const nextLane = nextGraph ? getGitGraphLane(nextGraph) : -1
+  const width = Math.max(
+    28,
+    Math.max(graph.length, previousGraph.length, nextGraph.length, lane + 1) * GIT_GRAPH_LANE_WIDTH + 8,
+  )
+  const markerLeft = lane * GIT_GRAPH_LANE_WIDTH + 8
+  const markerSize = active ? GIT_GRAPH_ACTIVE_MARKER_SIZE : GIT_GRAPH_DEFAULT_MARKER_SIZE
+  const markerRadius = markerSize / 2
+  const markerTop = GIT_GRAPH_MARKER_CENTER_Y - markerRadius
+  const lineColor = active ? 'rgba(105, 202, 255, 0.95)' : 'rgba(223, 157, 255, 0.88)'
+  const previousLineColor = previousActive ? 'rgba(105, 202, 255, 0.95)' : 'rgba(223, 157, 255, 0.88)'
+  const markerStyle = active
+    ? {
+        backgroundColor: 'rgb(31 34 46)',
+        borderColor: lineColor,
+        borderWidth: '2px',
+      }
+    : {
+        backgroundColor: lineColor,
+        borderColor: lineColor,
+        borderWidth: '0px',
+      }
+
+  return (
+    <span className="relative block h-full min-h-[24px]" style={{ width: `${width}px` }}>
+      {previousLane === lane && (
+        <span
+          className="absolute w-[2px] rounded-full"
+          style={{
+            left: `${markerLeft}px`,
+            top: 0,
+            height: `${Math.max(0, GIT_GRAPH_MARKER_CENTER_Y - markerRadius)}px`,
+            transform: 'translateX(-50%)',
+            backgroundColor: previousLineColor,
+          }}
+        />
+      )}
+      {nextLane === lane && (
+        <span
+          className="absolute bottom-0 w-[2px] rounded-full"
+          style={{
+            left: `${markerLeft}px`,
+            top: `${GIT_GRAPH_MARKER_CENTER_Y + markerRadius}px`,
+            transform: 'translateX(-50%)',
+            backgroundColor: lineColor,
+          }}
+        />
+      )}
+      <span
+        className="absolute -translate-x-1/2 rounded-full border shadow-[0_0_0_1px_rgba(18,20,27,0.18)]"
+        style={{
+          left: `${markerLeft}px`,
+          top: `${markerTop}px`,
+          width: `${markerSize}px`,
+          height: `${markerSize}px`,
+          ...markerStyle,
+        }}
+      />
+    </span>
+  )
+}
