@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useI18n } from '../../hooks/useI18n'
 
 function normalizeNewlines(value: string): string {
@@ -113,9 +114,24 @@ function injectHtmlPreviewBridge(documentHtml: string, previewId: string): strin
     });
   };
 
+  const postEscape = () => {
+    parent.postMessage({
+      __claudeHtmlPreview: true,
+      previewId,
+      action: 'escape',
+    }, '*');
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key !== 'Escape') return;
+    postEscape();
+  };
+
   window.addEventListener('load', scheduleMeasure);
   window.addEventListener('resize', scheduleMeasure);
   window.addEventListener('DOMContentLoaded', scheduleMeasure);
+  window.addEventListener('keydown', handleKeyDown, true);
+  document.addEventListener('keydown', handleKeyDown, true);
 
   if (document.fonts && typeof document.fonts.ready?.then === 'function') {
     document.fonts.ready.then(scheduleMeasure).catch(() => {});
@@ -200,6 +216,28 @@ async function inlineHtmlPreviewAssets(html: string, filePath: string | null | u
   return `<!doctype html>\n${documentNode.documentElement.outerHTML}`
 }
 
+function getFileName(filePath: string | null | undefined): string {
+  const normalized = filePath?.replace(/\\/g, '/').trim() ?? ''
+  if (!normalized) return 'html-preview.html'
+  const lastSegment = normalized.split('/').filter(Boolean).pop() ?? 'html-preview.html'
+  return lastSegment.toLowerCase().endsWith('.html') || lastSegment.toLowerCase().endsWith('.htm')
+    ? lastSegment
+    : `${lastSegment}.html`
+}
+
+function buildSuggestedSavePath(filePath: string | null | undefined): string | undefined {
+  if (!filePath) return undefined
+  const normalized = filePath.replace(/\\/g, '/')
+  const lastSlash = normalized.lastIndexOf('/')
+  if (lastSlash < 0) return undefined
+  const dirPath = normalized.slice(0, lastSlash)
+  const fileName = getFileName(filePath)
+  const extensionIndex = fileName.lastIndexOf('.')
+  const baseName = extensionIndex >= 0 ? fileName.slice(0, extensionIndex) : fileName
+  const extension = extensionIndex >= 0 ? fileName.slice(extensionIndex) : '.html'
+  return `${dirPath}/${baseName}-download${extension}`
+}
+
 export function HtmlPreview({
   html,
   path,
@@ -208,33 +246,38 @@ export function HtmlPreview({
   path?: string | null
 }) {
   const { language } = useI18n()
+  const isMacOs = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previewIdRef = useRef(`html-preview-${Math.random().toString(36).slice(2)}`)
-  const [frameKey, setFrameKey] = useState(0)
   const [frameHeight, setFrameHeight] = useState(420)
-  const fallbackSrcDoc = useMemo(
-    () => injectHtmlPreviewBridge(buildHtmlPreviewDocument(html, path), previewIdRef.current),
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fallbackDocument = useMemo(
+    () => buildHtmlPreviewDocument(html, path),
     [html, path],
   )
-  const [srcDoc, setSrcDoc] = useState(fallbackSrcDoc)
+  const [documentHtml, setDocumentHtml] = useState(fallbackDocument)
+  const srcDoc = useMemo(
+    () => injectHtmlPreviewBridge(documentHtml, previewIdRef.current),
+    [documentHtml],
+  )
 
   useEffect(() => {
     let cancelled = false
-    setSrcDoc(fallbackSrcDoc)
+    setDocumentHtml(fallbackDocument)
     setFrameHeight(420)
 
     void inlineHtmlPreviewAssets(html, path)
       .then((nextSrcDoc) => {
-        if (!cancelled) setSrcDoc(injectHtmlPreviewBridge(nextSrcDoc, previewIdRef.current))
+        if (!cancelled) setDocumentHtml(nextSrcDoc)
       })
       .catch(() => {
-        if (!cancelled) setSrcDoc(fallbackSrcDoc)
+        if (!cancelled) setDocumentHtml(fallbackDocument)
       })
 
     return () => {
       cancelled = true
     }
-  }, [fallbackSrcDoc, html, path])
+  }, [fallbackDocument, html, path])
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -245,10 +288,15 @@ export function HtmlPreview({
         __claudeHtmlPreview?: unknown
         previewId?: unknown
         height?: unknown
+        action?: unknown
       }
 
       if (payload.__claudeHtmlPreview !== true) return
       if (payload.previewId !== previewIdRef.current) return
+      if (payload.action === 'escape') {
+        setIsFullscreen(false)
+        return
+      }
 
       const nextHeight = typeof payload.height === 'number' ? payload.height : Number(payload.height)
       if (!Number.isFinite(nextHeight) || nextHeight <= 0) return
@@ -259,41 +307,122 @@ export function HtmlPreview({
     return () => window.removeEventListener('message', handleMessage)
   }, [])
 
+  useEffect(() => {
+    if (!isFullscreen) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setIsFullscreen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [isFullscreen])
+
+  const handleDownload = async () => {
+    await window.claude.saveTextFile({
+      suggestedName: getFileName(path),
+      defaultPath: buildSuggestedSavePath(path),
+      content: documentHtml,
+      filters: [{ name: 'HTML', extensions: ['html', 'htm'] }],
+    })
+  }
+
+  const previewTitle = language === 'en' ? 'Live HTML preview' : 'HTML 실행 미리보기'
+  const downloadLabel = language === 'en' ? 'Download code' : '코드 다운로드'
+  const openLabel = language === 'en' ? 'Open in browser' : '브라우저에서 열기'
+  const maximizeLabel = isFullscreen
+    ? (language === 'en' ? 'Exit fullscreen' : '최대화 해제')
+    : (language === 'en' ? 'Maximize' : '최대화')
+
+  const renderHeaderActions = () => (
+    <div className="no-drag flex flex-shrink-0 items-center gap-2" data-no-drag="true">
+      <button
+        type="button"
+        onClick={() => { void handleDownload() }}
+        className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+      >
+        {downloadLabel}
+      </button>
+      {path ? (
+        <button
+          type="button"
+          onClick={() => { void window.claude.openInBrowser(path) }}
+          className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+        >
+          {openLabel}
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => setIsFullscreen((value) => !value)}
+        className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+      >
+        {maximizeLabel}
+      </button>
+    </div>
+  )
+
+  const renderHeader = (fullscreen: boolean) => {
+    if (fullscreen) {
+      return (
+        <div className="draggable-region flex h-12 items-center gap-2 border-b border-claude-border/70 bg-claude-panel px-4">
+          {isMacOs ? <div className="w-[52px] flex-shrink-0" aria-hidden="true" /> : null}
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-medium text-claude-text/90">{previewTitle}</div>
+          </div>
+          {renderHeaderActions()}
+        </div>
+      )
+    }
+
+    return (
+      <div className="draggable-region flex items-center justify-between gap-3 border-b border-claude-border/70 bg-claude-panel px-3 py-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-medium text-claude-text/90">{previewTitle}</div>
+        </div>
+        {renderHeaderActions()}
+      </div>
+    )
+  }
+
+  const renderIframe = (fullscreen: boolean) => (
+    <iframe
+      ref={iframeRef}
+      title={path ? `${path} preview` : 'html-preview'}
+      srcDoc={srcDoc}
+      sandbox="allow-scripts allow-forms allow-modals"
+      style={fullscreen ? undefined : { height: `${frameHeight}px` }}
+      className={fullscreen ? 'block h-full w-full bg-white' : 'block w-full bg-white'}
+    />
+  )
+
   return (
-    <div className="overflow-hidden rounded-lg border border-claude-border/70 bg-claude-bg">
-      <div className="flex items-center justify-between gap-3 border-b border-claude-border/70 bg-claude-panel px-3 py-2">
-        <div className="min-w-0">
-          <div className="text-[11px] font-medium text-claude-text/90">{language === 'en' ? 'Live HTML preview' : 'HTML 실행 미리보기'}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          {path ? (
-            <button
-              type="button"
-              onClick={() => { void window.claude.openInBrowser(path) }}
-              className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
-            >
-              {language === 'en' ? 'Open in browser' : '브라우저에서 열기'}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setFrameKey((value) => value + 1)}
-            className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
-          >
-            {language === 'en' ? 'Run again' : '다시 실행'}
-          </button>
-        </div>
+    <>
+      <div className="overflow-hidden rounded-lg border border-claude-border/70 bg-claude-bg">
+        {renderHeader(false)}
+        {!isFullscreen ? renderIframe(false) : null}
       </div>
 
-      <iframe
-        ref={iframeRef}
-        key={frameKey}
-        title={path ? `${path} preview` : 'html-preview'}
-        srcDoc={srcDoc}
-        sandbox="allow-scripts allow-forms allow-modals"
-        style={{ height: `${frameHeight}px` }}
-        className="block w-full bg-white"
-      />
-    </div>
+      {isFullscreen && typeof document !== 'undefined'
+        ? createPortal(
+          <div className="fixed inset-0 z-[200] flex flex-col bg-claude-bg">
+            {renderHeader(true)}
+            <div className="min-h-0 flex-1 bg-white">
+              {renderIframe(true)}
+            </div>
+          </div>,
+          document.body,
+        )
+        : null}
+    </>
   )
 }

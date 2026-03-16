@@ -177,21 +177,19 @@ export function shouldAutoGenerateHtmlPreview(text: string, files: SelectedFile[
 export function buildAutoHtmlPreviewInstruction(userText: string, cwd: string): string {
   const previewRoot = joinPromptPath(cwd || '~', `.claude-ui/previews/visual-demo-${formatAutoPreviewTimestamp()}`)
   const indexPath = joinPromptPath(previewRoot, 'index.html')
-  const stylesPath = joinPromptPath(previewRoot, 'styles.css')
-  const scriptPath = joinPromptPath(previewRoot, 'app.js')
 
   return [
     '<system-reminder>',
     '이 요청은 실행 가능한 HTML 미리보기 데모로 답하세요. 텍스트 설명만 하고 끝내지 마세요.',
-    `산출물은 다음 파일에 작성하세요: ${indexPath}, ${stylesPath}, ${scriptPath}`,
+    `산출물은 다음 단일 파일에 작성하세요: ${indexPath}`,
     '파일 생성이나 수정이 필요하면 반드시 Write/Edit/MultiEdit 같은 도구를 직접 호출하세요.',
     '파일 저장 권한이 필요할 때는 채팅 본문으로 허락을 묻거나 코드 전문을 붙이지 말고, 도구 호출을 통해 앱의 권한 승인 UI를 띄우세요.',
     '사용자가 권한을 허용하면 바로 이어서 파일을 작성하고, 권한이 거절되면 짧게 중단 사실만 설명하세요.',
     '최종 응답에 HTML/CSS/JavaScript 전체 코드를 그대로 붙이지 마세요. <details> 같은 HTML 태그로 코드 블록을 감싸서 대신 제시하지도 마세요.',
     'HTML/CSS/JavaScript만 사용하고 빌드 도구나 프레임워크는 쓰지 마세요.',
+    '결과물은 self-contained 단일 HTML 파일이어야 하며, CSS와 JavaScript도 모두 index.html 내부에 포함하세요.',
     '사용자의 언어와 톤을 유지하고, 요청이 개념 설명이면 입력값이나 조작 가능한 컨트롤을 넣어 인터랙티브하게 만드세요.',
     '요청이 UI, 타이포그래피, 템플릿, 애니메이션, 레이아웃 고민이면 시각 완성도를 높이고 움직임을 적극적으로 사용하세요.',
-    'CSS와 JavaScript는 가능한 한 별도 파일로 분리하세요.',
     `작업이 끝나면 반드시 ${indexPath} 를 Read 해서 HTML preview가 바로 보이게 하세요.`,
     '필수 정보가 조금 비어 있어도 합리적으로 가정하고 바로 구현하세요.',
     '마지막 응답은 짧게 유지하고, 사용자가 무엇을 눌러보면 되는지만 간단히 알려주세요.',
