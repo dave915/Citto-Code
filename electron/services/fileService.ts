@@ -35,7 +35,7 @@ const MAC_OPEN_WITH_APPS: MacOpenWithApp[] = [
   { id: 'webstorm', label: 'WebStorm', bundleIds: ['com.jetbrains.WebStorm'] },
 ]
 
-const FILE_SIZE_LIMIT = 10 * 1024 * 1024
+const FILE_SIZE_LIMIT = 100 * 1024 * 1024
 
 export type ReadFileOutcome =
   | { ok: true; file: SelectedFile }
@@ -55,7 +55,7 @@ export function readSelectedFile(filePath: string): Promise<ReadFileOutcome> {
           return
         }
         if (data.length > FILE_SIZE_LIMIT) {
-          resolve({ ok: false, name, reason: `파일 크기 초과 (${(data.length / 1024 / 1024).toFixed(1)}MB > 10MB)` })
+          resolve({ ok: false, name, reason: `파일 크기 초과 (${(data.length / 1024 / 1024).toFixed(1)}MB > 100MB)` })
           return
         }
         resolve({ ok: true, file: { name, path: filePath, content: '', size: data.length, fileType: 'image' } })
@@ -69,7 +69,7 @@ export function readSelectedFile(filePath: string): Promise<ReadFileOutcome> {
         return
       }
       if (data.length > FILE_SIZE_LIMIT) {
-        resolve({ ok: false, name, reason: `파일 크기 초과 (${(data.length / 1024 / 1024).toFixed(1)}MB > 10MB)` })
+        resolve({ ok: false, name, reason: `파일 크기 초과 (${(data.length / 1024 / 1024).toFixed(1)}MB > 100MB)` })
         return
       }
       const sample = data.slice(0, 8192)

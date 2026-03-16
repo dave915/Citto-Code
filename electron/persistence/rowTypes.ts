@@ -19,6 +19,7 @@ export type PersistedSessionRow = {
   favorite: number
   cwd: string
   error: string | null
+  input_tokens: number | null
   last_cost: number | null
   permission_mode: PermissionMode
   plan_mode: number

@@ -1,5 +1,5 @@
-import { ipcMain, type WebContents } from 'electron'
-import { spawn, spawnSync, type ChildProcess } from 'child_process'
+import { ipcMain } from 'electron'
+import { spawn, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { handleClaudeEvent, clearStreamedAssistantState } from '../services/claude/eventParser'
@@ -32,6 +32,14 @@ type SendMessageParams = {
 const activeProcesses = new Map<string, ChildProcess>()
 let modelsCache: { list: ModelInfo[]; fetchedAt: number; cacheKey: string } | null = null
 const CACHE_TTL = 5 * 60 * 1000
+
+function removeActiveProcessReferences(proc: ChildProcess) {
+  for (const [key, value] of activeProcesses.entries()) {
+    if (value === proc) {
+      activeProcesses.delete(key)
+    }
+  }
+}
 
 export function registerClaudeIpcHandlers({
   fetchModelsFromApi,
@@ -69,8 +77,11 @@ export function registerClaudeIpcHandlers({
     const { sessionId, prompt, cwd, claudePath, permissionMode, planMode, model, envVars } = params
 
     if (sessionId && activeProcesses.has(sessionId)) {
-      activeProcesses.get(sessionId)?.kill()
-      activeProcesses.delete(sessionId)
+      const existingProc = activeProcesses.get(sessionId)
+      if (existingProc) {
+        existingProc.kill()
+        removeActiveProcessReferences(existingProc)
+      }
     }
 
     const expandedPath = claudePath?.replace(/^~/, getUserHomePath())
@@ -112,9 +123,14 @@ export function registerClaudeIpcHandlers({
           stdio: ['pipe', 'pipe', 'pipe'],
         })
 
+    const tempKey = `pending-${Date.now()}`
+    activeProcesses.set(tempKey, proc)
+    if (sessionId) {
+      activeProcesses.set(sessionId, proc)
+    }
+
     proc.stdin?.write(prompt)
     proc.stdin?.end()
-    const tempKey = `pending-${Date.now()}`
 
     let resolvedSessionId: string | null = sessionId
     let buffer = ''
@@ -172,12 +188,7 @@ export function registerClaudeIpcHandlers({
       if (buffer.trim()) {
         processOutputLines(true)
       }
-      if (activeProcesses.get(tempKey) === proc) {
-        activeProcesses.delete(tempKey)
-      }
-      if (resolvedSessionId && activeProcesses.get(resolvedSessionId) === proc) {
-        activeProcesses.delete(resolvedSessionId)
-      }
+      removeActiveProcessReferences(proc)
       appendClaudeResponseLog({
         source: 'lifecycle',
         sessionId: resolvedSessionId,
@@ -188,12 +199,7 @@ export function registerClaudeIpcHandlers({
     })
 
     proc.on('error', (error) => {
-      if (activeProcesses.get(tempKey) === proc) {
-        activeProcesses.delete(tempKey)
-      }
-      if (resolvedSessionId && activeProcesses.get(resolvedSessionId) === proc) {
-        activeProcesses.delete(resolvedSessionId)
-      }
+      removeActiveProcessReferences(proc)
       appendClaudeResponseLog({
         source: 'lifecycle',
         sessionId: resolvedSessionId,
@@ -203,7 +209,6 @@ export function registerClaudeIpcHandlers({
       event.sender.send('claude:error', { sessionId: resolvedSessionId, error: error.message })
     })
 
-    activeProcesses.set(tempKey, proc)
     return { tempKey }
   })
 
@@ -212,14 +217,17 @@ export function registerClaudeIpcHandlers({
     if (!proc) return
 
     proc.kill('SIGINT')
-    setTimeout(() => {
+    const forceKillTimer = setTimeout(() => {
       try {
-        if (!proc.killed) proc.kill('SIGKILL')
+        if (proc.exitCode === null) proc.kill('SIGKILL')
       } catch {
         // Ignore force-kill failures.
       }
     }, 250)
-    activeProcesses.delete(sessionId)
+    proc.once('close', () => {
+      clearTimeout(forceKillTimer)
+    })
+    removeActiveProcessReferences(proc)
   })
 
   ipcMain.handle('claude:has-active-process', (_event, { sessionId }: { sessionId: string }) => {

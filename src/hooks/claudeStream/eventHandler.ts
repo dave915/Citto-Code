@@ -88,6 +88,13 @@ export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
       return
     }
 
+    if (event.type === 'token-usage') {
+      const tabId = resolveEventTabId(event.sessionId)
+      if (!tabId || runtime.abortedTabIdsRef.current.has(tabId)) return
+      store.setTokenUsage(tabId, event.inputTokens)
+      return
+    }
+
     if (event.type === 'text-chunk') {
       const tabId = resolveEventTabId(event.sessionId)
       if (!tabId || runtime.abortedTabIdsRef.current.has(tabId)) return

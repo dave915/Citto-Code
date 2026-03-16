@@ -1,4 +1,4 @@
-import { spawnSync } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 import { homedir } from 'os'
 import { join, relative } from 'path'
 import type { GitStatusEntry } from '../../preload'
@@ -17,6 +17,54 @@ export function runGit(args: string[], cwd: string) {
     cwd,
     encoding: 'utf-8',
     timeout: 5000,
+  })
+}
+
+export function runGitAsync(args: string[], cwd: string, timeoutMs = 60_000): Promise<{
+  status: number
+  stdout: string
+  stderr: string
+}> {
+  return new Promise((resolve) => {
+    const proc = spawn('git', ['-c', 'core.quotepath=false', ...args], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+
+    const finish = (status: number, nextStderr = stderr) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ status, stdout, stderr: nextStderr })
+    }
+
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString()
+    })
+
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString()
+    })
+
+    proc.on('error', (error) => {
+      finish(1, stderr || String(error))
+    })
+
+    proc.on('close', (code) => {
+      finish(code ?? 1)
+    })
+
+    const timer = setTimeout(() => {
+      try {
+        proc.kill('SIGKILL')
+      } catch {
+        // Ignore timeout cleanup failures.
+      }
+      finish(1, stderr || 'git 명령 실행 시간이 초과되었습니다.')
+    }, timeoutMs)
   })
 }
 

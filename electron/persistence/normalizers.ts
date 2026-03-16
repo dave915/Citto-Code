@@ -183,6 +183,7 @@ function normalizeSession(value: unknown, index: number): Session {
     error: toNullableString(input.error),
     pendingPermission: null,
     pendingQuestion: null,
+    tokenUsage: toNullableNumber(input.tokenUsage ?? input.inputTokens),
     lastCost: toNullableNumber(input.lastCost) ?? undefined,
     permissionMode: parsePermissionMode(input.permissionMode),
     planMode: Boolean(input.planMode),

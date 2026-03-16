@@ -21,6 +21,7 @@ import {
   buildSessionExportFileName,
   buildSessionJsonExport,
   buildSessionMarkdownExport,
+  calculateContextUsagePercentFromTokens,
   estimateContextUsagePercent,
   type SessionExportFormat,
 } from '../lib/sessionExport'
@@ -138,7 +139,9 @@ export function ChatView({
   const totalCharacters = session.messages.reduce((sum, message) => sum + message.text.length, 0)
   const totalToolCalls = session.messages.reduce((sum, message) => sum + message.toolCalls.length, 0)
   const totalAttachments = session.messages.reduce((sum, message) => sum + (message.attachedFiles?.length ?? 0), 0)
-  const contextUsagePercent = estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
+  const contextUsagePercent = session.tokenUsage !== null
+    ? calculateContextUsagePercentFromTokens(session.tokenUsage)
+    : estimateContextUsagePercent(totalCharacters, totalToolCalls, totalAttachments)
   const fileConflictLabel = useMemo(() => {
     if (!fileConflict || fileConflict.paths.length === 0) return null
     const labels = fileConflict.paths.map((path) => path.split('/').filter(Boolean).pop() || path)

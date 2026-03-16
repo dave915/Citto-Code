@@ -73,6 +73,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
         error: null,
         pendingPermission: null,
         pendingQuestion: null,
+        tokenUsage: data.tokenUsage ?? null,
         lastCost: data.lastCost,
         permissionMode: data.permissionMode ?? 'default',
         planMode: data.planMode ?? false,
@@ -177,6 +178,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
                 isStreaming: true,
                 pendingPermission: null,
                 pendingQuestion: null,
+                tokenUsage: null,
                 messages: [
                   ...session.messages,
                   {
@@ -351,6 +353,16 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
         sessions: state.sessions.map((session) =>
           session.id === tabId
             ? { ...session, pendingQuestion: request }
+            : session,
+        ),
+      }))
+    },
+
+    setTokenUsage: (tabId, inputTokens) => {
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id === tabId
+            ? { ...session, tokenUsage: inputTokens }
             : session,
         ),
       }))

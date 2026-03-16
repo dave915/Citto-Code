@@ -45,6 +45,7 @@ export class AppPersistence {
 
       this.db = new SQL.Database(fileData)
       this.exec(SCHEMA_SQL)
+      this.ensureSessionColumns()
       this.flush()
     })()
 
@@ -131,6 +132,19 @@ export class AppPersistence {
 
   private exec(sql: string, params?: BindParams): SqlJsExecResult[] {
     return this.requireDb().exec(sql, params)
+  }
+
+  private ensureSessionColumns(): void {
+    const rows = this.query<Record<string, SqlValue>>('PRAGMA table_info(sessions)')
+    const columns = new Set(
+      rows
+        .map((row) => row.name)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    )
+
+    if (!columns.has('input_tokens')) {
+      this.run('ALTER TABLE sessions ADD COLUMN input_tokens INTEGER')
+    }
   }
 
   private run(sql: string, params?: BindParams): void {

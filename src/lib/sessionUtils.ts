@@ -59,6 +59,7 @@ export function makeDefaultSession(cwd: string, name: string): Session {
     error: null,
     pendingPermission: null,
     pendingQuestion: null,
+    tokenUsage: null,
     permissionMode: 'default',
     planMode: false,
     model: null,

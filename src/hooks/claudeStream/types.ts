@@ -20,6 +20,7 @@ export type StreamStoreActions = Pick<
   | 'setError'
   | 'setPendingPermission'
   | 'setPendingQuestion'
+  | 'setTokenUsage'
   | 'setLastCost'
   | 'updateSession'
   | 'setPermissionMode'

@@ -37,6 +37,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function readUsageTokenCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function extractInputTokens(event: Record<string, unknown>): number | null {
+  const usage = isRecord(event.message) && isRecord(event.message.usage)
+    ? event.message.usage
+    : isRecord(event.usage)
+      ? event.usage
+      : null
+
+  if (!usage) return null
+
+  let sawUsageField = false
+  let total = 0
+  for (const key of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']) {
+    const value = readUsageTokenCount(usage[key])
+    if (value === null) continue
+    sawUsageField = true
+    total += value
+  }
+
+  return sawUsageField ? total : null
+}
+
 export function handleClaudeEvent(
   sender: WebContents,
   data: Record<string, unknown>,
@@ -63,6 +88,10 @@ export function handleClaudeEvent(
     const eventType = typeof event.type === 'string' ? event.type : ''
     if (eventType === 'message_start') {
       resetStreamedAssistantState(sid)
+      const inputTokens = extractInputTokens(event)
+      if (inputTokens !== null) {
+        sender.send('claude:token-usage', { sessionId: sid, inputTokens })
+      }
       return
     }
 

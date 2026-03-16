@@ -1,7 +1,7 @@
 import { rmSync } from 'fs'
 import { relative } from 'path'
 import { getGitStatus } from './gitReadService'
-import { isGitAvailable, resolveGitRepoRoot, resolveTargetPath, runGit } from './gitCore'
+import { isGitAvailable, resolveGitRepoRoot, resolveTargetPath, runGit, runGitAsync } from './gitCore'
 
 export function setGitStaged(cwd: string, filePath: string, staged: boolean): { ok: boolean; error?: string } {
   const repoRoot = resolveGitRepoRoot(cwd)
@@ -106,11 +106,11 @@ export function switchGitBranch(cwd: string, name: string): { ok: boolean; error
   return { ok: true }
 }
 
-export function pullGit(cwd: string): { ok: boolean; error?: string } {
+export async function pullGit(cwd: string): Promise<{ ok: boolean; error?: string }> {
   const repoRoot = resolveGitRepoRoot(cwd)
   if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
 
-  const result = runGit(['pull', '--ff-only'], repoRoot)
+  const result = await runGitAsync(['pull', '--ff-only'], repoRoot)
   if (result.status !== 0) {
     return { ok: false, error: result.stderr.trim() || result.stdout.trim() || 'git pull을 실행하지 못했습니다.' }
   }
@@ -118,11 +118,11 @@ export function pullGit(cwd: string): { ok: boolean; error?: string } {
   return { ok: true }
 }
 
-export function pushGit(cwd: string): { ok: boolean; error?: string } {
+export async function pushGit(cwd: string): Promise<{ ok: boolean; error?: string }> {
   const repoRoot = resolveGitRepoRoot(cwd)
   if (!repoRoot) return { ok: false, error: 'Git 저장소가 아닙니다.' }
 
-  const result = runGit(['push'], repoRoot)
+  const result = await runGitAsync(['push'], repoRoot)
   if (result.status !== 0) {
     return { ok: false, error: result.stderr.trim() || result.stdout.trim() || 'git push를 실행하지 못했습니다.' }
   }

@@ -88,6 +88,7 @@ export type Session = {
   error: string | null
   pendingPermission: PendingPermissionRequest | null
   pendingQuestion: PendingQuestionRequest | null
+  tokenUsage: number | null
   lastCost?: number
   permissionMode: PermissionMode
   planMode: boolean
@@ -110,6 +111,7 @@ export type ImportedSessionData = {
   name: string
   cwd: string
   messages: ImportedMessage[]
+  tokenUsage?: number | null
   lastCost?: number
   permissionMode?: PermissionMode
   planMode?: boolean
@@ -160,6 +162,7 @@ export type SessionsStore = {
   setError: (tabId: string, error: string | null) => void
   setPendingPermission: (tabId: string, request: PendingPermissionRequest | null) => void
   setPendingQuestion: (tabId: string, request: PendingQuestionRequest | null) => void
+  setTokenUsage: (tabId: string, inputTokens: number | null) => void
   setLastCost: (tabId: string, cost: number) => void
   setPermissionMode: (tabId: string, mode: PermissionMode) => void
   setPlanMode: (tabId: string, value: boolean) => void

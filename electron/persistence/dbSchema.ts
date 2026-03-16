@@ -1,5 +1,5 @@
 export const DB_FILE_NAME = 'app.sqlite'
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
 export const SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   favorite INTEGER NOT NULL DEFAULT 0,
   cwd TEXT NOT NULL,
   error TEXT,
+  input_tokens INTEGER,
   last_cost REAL,
   permission_mode TEXT NOT NULL,
   plan_mode INTEGER NOT NULL DEFAULT 0,

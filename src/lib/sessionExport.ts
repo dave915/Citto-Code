@@ -126,6 +126,11 @@ export function estimateContextUsagePercent(totalCharacters: number, totalToolCa
   return Math.min(100, Math.max(0, Math.round((weightedSize / maxContextEstimate) * 100)))
 }
 
+export function calculateContextUsagePercentFromTokens(inputTokens: number): number {
+  const maxContextTokens = 200000
+  return Math.min(100, Math.max(0, Math.round((Math.max(0, inputTokens) / maxContextTokens) * 100)))
+}
+
 export function lastMessageSummary(session: Session, language: AppLanguage = 'ko'): string {
   const message = session.messages[session.messages.length - 1]
   if (!message) return language === 'en' ? 'No messages' : '메시지 없음'

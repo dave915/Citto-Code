@@ -8,6 +8,7 @@ import type {
 
 const claudeStreamChannels = [
   'claude:stream-start',
+  'claude:token-usage',
   'claude:thinking-chunk',
   'claude:text-chunk',
   'claude:tool-start',

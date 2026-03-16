@@ -14,8 +14,8 @@ type RegisterGitIpcHandlersOptions = {
   commitGit: (cwd: string, message: string) => { ok: boolean; commitHash?: string; error?: string }
   createGitBranch: (cwd: string, name: string) => { ok: boolean; branchName?: string; error?: string }
   switchGitBranch: (cwd: string, name: string) => { ok: boolean; error?: string }
-  pullGit: (cwd: string) => { ok: boolean; error?: string }
-  pushGit: (cwd: string) => { ok: boolean; error?: string }
+  pullGit: (cwd: string) => Promise<{ ok: boolean; error?: string }>
+  pushGit: (cwd: string) => Promise<{ ok: boolean; error?: string }>
   deleteGitBranch: (cwd: string, name: string) => { ok: boolean; error?: string }
   initGitRepo: (cwd: string) => { ok: boolean; error?: string }
 }
@@ -92,11 +92,11 @@ export function registerGitIpcHandlers({
     return switchGitBranch(cwd, name)
   })
 
-  ipcMain.handle('claude:pull-git', (_event, { cwd }: { cwd: string }) => {
+  ipcMain.handle('claude:pull-git', async (_event, { cwd }: { cwd: string }) => {
     return pullGit(cwd)
   })
 
-  ipcMain.handle('claude:push-git', (_event, { cwd }: { cwd: string }) => {
+  ipcMain.handle('claude:push-git', async (_event, { cwd }: { cwd: string }) => {
     return pushGit(cwd)
   })
 

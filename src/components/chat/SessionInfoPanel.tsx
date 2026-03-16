@@ -38,6 +38,9 @@ export function SessionInfoPanel({
 }: SessionInfoPanelProps) {
   const { language, t } = useI18n()
   const createdAt = session.messages[0]?.createdAt ?? null
+  const formattedTokenUsage = session.tokenUsage !== null
+    ? new Intl.NumberFormat(language === 'en' ? 'en-US' : 'ko-KR').format(session.tokenUsage)
+    : null
 
   return (
     <div className="flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
@@ -106,8 +109,15 @@ export function SessionInfoPanel({
         </div>
         <div className="mt-4">
           <div className="flex items-end justify-between gap-3">
-            <p className="text-2xl font-semibold text-claude-text">{contextUsagePercent}%</p>
-            <p className="text-xs text-claude-muted">{t('sessionInfo.estimated')}</p>
+            <div>
+              <p className="text-2xl font-semibold text-claude-text">{contextUsagePercent}%</p>
+              {formattedTokenUsage !== null ? (
+                <p className="text-xs text-claude-muted">{formattedTokenUsage} {t('sessionInfo.inputTokens')}</p>
+              ) : null}
+            </div>
+            <p className="text-xs text-claude-muted">
+              {formattedTokenUsage !== null ? t('sessionInfo.actual') : t('sessionInfo.estimated')}
+            </p>
           </div>
           <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-claude-bg">
             <div

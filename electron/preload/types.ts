@@ -2,6 +2,7 @@ import type { Session, ScheduledTask } from '../persistence-types'
 
 export type ClaudeStreamEvent =
   | { type: 'stream-start'; sessionId: string; cwd: string }
+  | { type: 'token-usage'; sessionId: string; inputTokens: number }
   | { type: 'thinking-chunk'; sessionId: string; text: string }
   | { type: 'text-chunk'; sessionId: string; text: string }
   | {

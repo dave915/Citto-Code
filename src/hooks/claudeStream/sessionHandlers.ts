@@ -196,7 +196,7 @@ export function createClaudeSessionHandlers({
 
   const handleAbort = async () => {
     if (!activeSessionId) return
-    const processKey = activeSession?.sessionId ?? runtime.pendingProcessKeyByTabRef.current.get(activeSessionId)
+    const processKey = runtime.pendingProcessKeyByTabRef.current.get(activeSessionId) ?? activeSession?.sessionId
     if (!processKey) return
 
     runtime.abortedTabIdsRef.current.add(activeSessionId)
