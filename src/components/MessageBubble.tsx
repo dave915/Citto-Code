@@ -328,7 +328,7 @@ export function MessageBubble({
         ) : null}
 
         {(message.text || hasThinking || showStreamingUi) && (
-          <div className="relative max-w-[88%] px-0.5 py-1">
+          <div className="relative inline-block max-w-[88%] px-0.5 py-1 align-top">
             {showThinkingRow ? (
               <div className="mb-2 space-y-1">
                 <button
