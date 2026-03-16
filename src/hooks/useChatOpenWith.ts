@@ -1,5 +1,6 @@
 import { useEffect, useState, type MutableRefObject } from 'react'
 import type { OpenWithApp } from '../../electron/preload'
+import { getCurrentPlatform } from '../lib/shortcuts'
 import { useI18n } from './useI18n'
 
 type Params = {
@@ -38,8 +39,11 @@ export function useChatOpenWith({
   const [openWithMenuOpen, setOpenWithMenuOpen] = useState(false)
   const [openWithApps, setOpenWithApps] = useState<OpenWithApp[]>([])
   const [openWithLoading, setOpenWithLoading] = useState(false)
+  const isMacPlatform = getCurrentPlatform() === 'mac'
 
   useEffect(() => {
+    if (!isMacPlatform) return
+
     let cancelled = false
 
     window.claude.listOpenWithApps()
@@ -61,10 +65,10 @@ export function useChatOpenWith({
     return () => {
       cancelled = true
     }
-  }, [preferredOpenWithAppId, setPreferredOpenWithAppId])
+  }, [isMacPlatform, preferredOpenWithAppId, setPreferredOpenWithAppId])
 
   useEffect(() => {
-    if (!openWithMenuOpen) return
+    if (!openWithMenuOpen || !isMacPlatform) return
 
     let cancelled = false
     setOpenWithLoading(true)
@@ -85,7 +89,7 @@ export function useChatOpenWith({
       cancelled = true
       window.removeEventListener('mousedown', handleMouseDown)
     }
-  }, [openWithMenuOpen, openWithMenuRef, preferredOpenWithAppId, setPreferredOpenWithAppId])
+  }, [isMacPlatform, openWithMenuOpen, openWithMenuRef, preferredOpenWithAppId, setPreferredOpenWithAppId])
 
   const preferredOpenWithApp = openWithApps.find((app) => app.id === preferredOpenWithAppId) ?? null
   const defaultOpenWithApp = preferredOpenWithApp ?? openWithApps[0] ?? null

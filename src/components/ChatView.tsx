@@ -30,7 +30,7 @@ import {
   type GitDraftAction,
 } from '../lib/gitUtils'
 import { extractHtmlPreviewCandidate } from '../lib/toolCallUtils'
-import { matchShortcut } from '../lib/shortcuts'
+import { getCurrentPlatform, matchShortcut } from '../lib/shortcuts'
 import { useChatOpenWith } from '../hooks/useChatOpenWith'
 
 type AskAboutSelectionPayload = {
@@ -191,7 +191,8 @@ export function ChatView({
   })
   const showGitPreviewPane = gitPanel.showGitPreviewPane
   const gitAvailable = gitPanel.gitAvailable
-  const showHeaderOpenWithAction = openWithMenuOpen || effectiveMainPaneWidth >= HEADER_OPEN_WITH_MIN_WIDTH
+  const isMacPlatform = getCurrentPlatform() === 'mac'
+  const showHeaderOpenWithAction = isMacPlatform && (openWithMenuOpen || effectiveMainPaneWidth >= HEADER_OPEN_WITH_MIN_WIDTH)
   const showHeaderSessionAction = sessionPanelOpen || effectiveMainPaneWidth >= HEADER_SESSION_ACTION_MIN_WIDTH
   const showHeaderGitAction = gitPanelOpen || effectiveMainPaneWidth >= HEADER_GIT_ACTION_MIN_WIDTH
   const showHeaderFileAction = filePanelOpen || effectiveMainPaneWidth >= HEADER_FILE_ACTION_MIN_WIDTH
