@@ -16,6 +16,7 @@ import {
   parseBranchSummary,
   parsePorcelainPaths,
   resolveGitRepoRoot,
+  NULL_DEVICE,
   runGit,
 } from './gitCore'
 
@@ -138,7 +139,7 @@ export function getGitDiff(cwd: string, filePath: string): GitDiffResult {
 
   try {
     if (entry?.untracked) {
-      const result = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--no-color', '--no-index', '--', '/dev/null', filePath], {
+      const result = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--no-color', '--no-index', '--', NULL_DEVICE, filePath], {
         encoding: 'utf-8',
         timeout: 5000,
       })

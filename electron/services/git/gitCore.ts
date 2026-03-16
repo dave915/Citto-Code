@@ -3,6 +3,8 @@ import { homedir } from 'os'
 import { join, relative } from 'path'
 import type { GitStatusEntry } from '../../preload'
 
+export const NULL_DEVICE = process.platform === 'win32' ? 'NUL' : '/dev/null'
+
 export function resolveTargetPath(targetPath: string): string {
   const homePath = process.env.HOME ?? process.env.USERPROFILE ?? homedir()
   if (targetPath === '~') return homePath
@@ -152,7 +154,7 @@ export function getGitEntryNumstat(
 ) {
   try {
     if (entry.untracked) {
-      const result = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--no-color', '--numstat', '--no-index', '--', '/dev/null', entry.path], {
+      const result = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--no-color', '--numstat', '--no-index', '--', NULL_DEVICE, entry.path], {
         encoding: 'utf-8',
         timeout: 5000,
       })
