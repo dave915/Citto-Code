@@ -125,12 +125,14 @@ export type GitBranchInfo = {
 
 export type GitLogEntry = {
   hash: string
+  parents: string[]
   shortHash: string
   subject: string
   author: string
   relativeDate: string
   decorations: string
   graph: string
+  bridgeToNext: string[]
 }
 
 export type GitLogResult = {

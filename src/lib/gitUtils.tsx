@@ -42,12 +42,14 @@ export function areGitLogEntriesEqual(a: GitLogEntry | null, b: GitLogEntry | nu
   if (!a || !b) return false
   return (
     a.hash === b.hash &&
+    a.parents.join(' ') === b.parents.join(' ') &&
     a.shortHash === b.shortHash &&
     a.subject === b.subject &&
     a.author === b.author &&
     a.relativeDate === b.relativeDate &&
     a.decorations === b.decorations &&
-    a.graph === b.graph
+    a.graph === b.graph &&
+    a.bridgeToNext.join('\n') === b.bridgeToNext.join('\n')
   )
 }
 
@@ -287,85 +289,70 @@ export function isGitGraphActiveCommit(refs: GitDecorationRef[]) {
   return !hasMatchingRemote
 }
 
-export function getGitGraphLane(graph: string) {
-  const starIndex = graph.indexOf('*')
-  if (starIndex >= 0) return starIndex
-  const branchIndex = graph.search(/[|\\/]/)
-  return branchIndex >= 0 ? branchIndex : 0
-}
-
-export const GIT_GRAPH_LANE_WIDTH = 12
+export const GIT_GRAPH_ROW_HEIGHT = 24
 export const GIT_GRAPH_MARKER_CENTER_Y = 12
 export const GIT_GRAPH_ACTIVE_MARKER_SIZE = 10
 export const GIT_GRAPH_DEFAULT_MARKER_SIZE = 8
+export const GIT_GRAPH_LANE_GAP = 24
+const GIT_GRAPH_MAIN_LANE_COLOR = 'rgba(201, 156, 73, 0.92)'
+const GIT_GRAPH_BRANCH_LANE_COLOR = 'rgba(177, 92, 231, 0.92)'
 
-export function renderGitGraph(
-  graph: string,
-  previousGraph: string,
-  nextGraph: string,
-  active: boolean,
-  previousActive: boolean,
-) {
-  const lane = getGitGraphLane(graph)
-  const previousLane = previousGraph ? getGitGraphLane(previousGraph) : -1
-  const nextLane = nextGraph ? getGitGraphLane(nextGraph) : -1
-  const width = Math.max(
-    28,
-    Math.max(graph.length, previousGraph.length, nextGraph.length, lane + 1) * GIT_GRAPH_LANE_WIDTH + 8,
-  )
-  const markerLeft = lane * GIT_GRAPH_LANE_WIDTH + 8
-  const markerSize = active ? GIT_GRAPH_ACTIVE_MARKER_SIZE : GIT_GRAPH_DEFAULT_MARKER_SIZE
-  const markerRadius = markerSize / 2
-  const markerTop = GIT_GRAPH_MARKER_CENTER_Y - markerRadius
-  const lineColor = active ? 'rgba(105, 202, 255, 0.95)' : 'rgba(223, 157, 255, 0.88)'
-  const previousLineColor = previousActive ? 'rgba(105, 202, 255, 0.95)' : 'rgba(223, 157, 255, 0.88)'
-  const markerStyle = active
-    ? {
-        backgroundColor: 'rgb(31 34 46)',
-        borderColor: lineColor,
-        borderWidth: '2px',
-      }
-    : {
-        backgroundColor: lineColor,
-        borderColor: lineColor,
-        borderWidth: '0px',
-      }
+export type GitGraphLayoutRow = {
+  hash: string
+  lane: number
+  parentHashes: string[]
+  parentLanes: number[]
+}
 
-  return (
-    <span className="relative block h-full min-h-[24px]" style={{ width: `${width}px` }}>
-      {previousLane === lane && (
-        <span
-          className="absolute w-[2px] rounded-full"
-          style={{
-            left: `${markerLeft}px`,
-            top: 0,
-            height: `${Math.max(0, GIT_GRAPH_MARKER_CENTER_Y - markerRadius)}px`,
-            transform: 'translateX(-50%)',
-            backgroundColor: previousLineColor,
-          }}
-        />
-      )}
-      {nextLane === lane && (
-        <span
-          className="absolute bottom-0 w-[2px] rounded-full"
-          style={{
-            left: `${markerLeft}px`,
-            top: `${GIT_GRAPH_MARKER_CENTER_Y + markerRadius}px`,
-            transform: 'translateX(-50%)',
-            backgroundColor: lineColor,
-          }}
-        />
-      )}
-      <span
-        className="absolute -translate-x-1/2 rounded-full border shadow-[0_0_0_1px_rgba(18,20,27,0.18)]"
-        style={{
-          left: `${markerLeft}px`,
-          top: `${markerTop}px`,
-          width: `${markerSize}px`,
-          height: `${markerSize}px`,
-          ...markerStyle,
-        }}
-      />
-    </span>
-  )
+export function getGitGraphLaneColor(lane: number) {
+  return lane <= 0 ? GIT_GRAPH_MAIN_LANE_COLOR : GIT_GRAPH_BRANCH_LANE_COLOR
+}
+
+export function getGitGraphLaneCenter(lane: number) {
+  return lane * GIT_GRAPH_LANE_GAP + 12
+}
+
+export function buildGitGraphLayout(entries: GitLogEntry[]): {
+  rows: GitGraphLayoutRow[]
+  maxLane: number
+} {
+  const activeLanes: string[] = []
+  const rows: GitGraphLayoutRow[] = []
+  let maxLane = 0
+
+  for (const entry of entries) {
+    let lane = activeLanes.indexOf(entry.hash)
+    if (lane === -1) {
+      lane = activeLanes.length
+    }
+
+    const nextActiveLanes = [...activeLanes]
+    if (lane < nextActiveLanes.length) {
+      nextActiveLanes.splice(lane, 1)
+    }
+
+    const parentLanes: number[] = []
+    let insertOffset = 0
+
+    for (const parentHash of entry.parents) {
+      let parentLane = nextActiveLanes.indexOf(parentHash)
+      if (parentLane === -1) {
+        parentLane = lane + insertOffset
+        nextActiveLanes.splice(parentLane, 0, parentHash)
+        insertOffset += 1
+      }
+      parentLanes.push(parentLane)
+    }
+
+    activeLanes.splice(0, activeLanes.length, ...nextActiveLanes)
+    maxLane = Math.max(maxLane, lane, ...parentLanes)
+    rows.push({
+      hash: entry.hash,
+      lane,
+      parentHashes: entry.parents,
+      parentLanes,
+    })
+  }
+
+  return { rows, maxLane }
 }

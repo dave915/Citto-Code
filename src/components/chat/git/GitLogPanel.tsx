@@ -3,12 +3,42 @@ import type { GitLogEntry, GitRepoStatus } from '../../../../electron/preload'
 import { useI18n } from '../../../hooks/useI18n'
 import {
   getGitDecorationBadgeClass,
+  getGitGraphLaneColor,
+  GIT_GRAPH_ACTIVE_MARKER_SIZE,
+  GIT_GRAPH_DEFAULT_MARKER_SIZE,
+  GIT_GRAPH_MARKER_CENTER_Y,
+  GIT_GRAPH_ROW_HEIGHT,
   isGitGraphActiveCommit,
   parseGitDecorations,
-  renderGitGraph,
   type GitDecorationRef,
 } from '../../../lib/gitUtils'
 import { IconTooltipButton } from './GitShared'
+
+const GIT_GRAPH_COLUMN_OFFSET = 12
+const GIT_GRAPH_LANE_GAP = 24
+const GIT_GRAPH_DIAGONAL_SPAN = GIT_GRAPH_ROW_HEIGHT
+
+function getGitGraphLaneCenter(lane: number) {
+  return GIT_GRAPH_COLUMN_OFFSET + lane * GIT_GRAPH_LANE_GAP
+}
+
+function getGitGraphLaneFromColumn(column: number) {
+  return Math.max(0, Math.floor(column / 2))
+}
+
+function buildGitGraphEdgePath(fromX: number, fromY: number, toX: number, toY: number) {
+  if (fromX === toX || toY <= fromY) {
+    return `M ${fromX} ${fromY} L ${toX} ${toY}`
+  }
+
+  const bend = Math.min(GIT_GRAPH_DIAGONAL_SPAN, Math.max(GIT_GRAPH_ROW_HEIGHT / 2, (toY - fromY) / 2))
+
+  if (toX > fromX) {
+    return `M ${fromX} ${fromY} L ${toX} ${fromY + bend} L ${toX} ${toY}`
+  }
+
+  return `M ${fromX} ${fromY} L ${fromX} ${toY - bend} L ${toX} ${toY}`
+}
 
 export function GitLogPanel({
   status,
@@ -31,6 +61,21 @@ export function GitLogPanel({
 }) {
   const { language } = useI18n()
   const historyEntries = gitLog
+  const graphCommits = historyEntries.map((entry, index) => {
+    const markerColumn = Math.max(0, entry.graph.indexOf('*'))
+    const lane = getGitGraphLaneFromColumn(markerColumn)
+    return {
+      entry,
+      index,
+      lane,
+      y: index * GIT_GRAPH_ROW_HEIGHT + GIT_GRAPH_MARKER_CENTER_Y,
+    }
+  })
+  const maxGraphLane = graphCommits.reduce((maxLane, row) => Math.max(maxLane, row.lane), 0)
+  const graphWidth = Math.max(36, getGitGraphLaneCenter(maxGraphLane) + GIT_GRAPH_COLUMN_OFFSET)
+  const graphHeight = historyEntries.length * GIT_GRAPH_ROW_HEIGHT
+  const rowIndexByHash = new Map(graphCommits.map((row) => [row.entry.hash, row.index]))
+  const graphCommitByHash = new Map(graphCommits.map((row) => [row.entry.hash, row]))
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -88,17 +133,67 @@ export function GitLogPanel({
               : (language === 'en' ? 'No commit history to display.' : '표시할 커밋 로그가 없습니다.')}
           </div>
         ) : (
-          <div className="flex flex-col pr-1">
+          <div className="relative flex flex-col pr-1">
+            <div
+              className="pointer-events-none absolute left-2 top-0 z-10"
+              style={{ width: `${graphWidth}px`, height: `${graphHeight}px` }}
+            >
+              <svg width={graphWidth} height={graphHeight} viewBox={`0 0 ${graphWidth} ${graphHeight}`} aria-hidden="true">
+                {graphCommits.flatMap((row) => {
+                  return row.entry.parents.flatMap((parentHash) => {
+                    const parentRowIndex = rowIndexByHash.get(parentHash)
+                    const parentRow = graphCommitByHash.get(parentHash)
+
+                    if (parentRowIndex === undefined || !parentRow || parentRowIndex <= row.index) {
+                      return []
+                    }
+
+                    const fromX = getGitGraphLaneCenter(row.lane)
+                    const fromY = row.y
+                    const toX = getGitGraphLaneCenter(parentRow.lane)
+                    const toY = parentRow.y
+                    const stroke = getGitGraphLaneColor(Math.max(row.lane, parentRow.lane))
+
+                    return (
+                      <path
+                        key={`${row.entry.hash}-${parentHash}`}
+                        d={buildGitGraphEdgePath(fromX, fromY, toX, toY)}
+                        stroke={stroke}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                    )
+                  })
+                })}
+                {historyEntries.map((entry, index) => {
+                  const refs: GitDecorationRef[] = parseGitDecorations(entry.decorations)
+                  const isHeadCommit = isGitGraphActiveCommit(refs)
+                  const lane = graphCommits[index]?.lane ?? 0
+                  const laneColor = getGitGraphLaneColor(lane)
+                  const markerSize = isHeadCommit ? GIT_GRAPH_ACTIVE_MARKER_SIZE : GIT_GRAPH_DEFAULT_MARKER_SIZE
+                  const markerRadius = markerSize / 2
+                  const centerX = getGitGraphLaneCenter(lane)
+                  const centerY = index * GIT_GRAPH_ROW_HEIGHT + GIT_GRAPH_MARKER_CENTER_Y
+
+                  return (
+                    <circle
+                      key={`${entry.hash}-node`}
+                      cx={centerX}
+                      cy={centerY}
+                      r={markerRadius}
+                      fill={isHeadCommit ? 'rgb(31 34 46)' : laneColor}
+                      stroke={laneColor}
+                      strokeWidth={isHeadCommit ? 2 : 0}
+                    />
+                  )
+                })}
+              </svg>
+            </div>
             {historyEntries.map((entry, index) => {
               const refs: GitDecorationRef[] = parseGitDecorations(entry.decorations)
               const isSelected = selectedCommitHash === entry.hash
-              const isHeadCommit = isGitGraphActiveCommit(refs)
-              const previousGraph = index > 0 ? historyEntries[index - 1]?.graph ?? '' : ''
-              const nextGraph = index < historyEntries.length - 1 ? historyEntries[index + 1]?.graph ?? '' : ''
-              const previousRefs: GitDecorationRef[] = index > 0
-                ? parseGitDecorations(historyEntries[index - 1]?.decorations ?? '')
-                : []
-              const previousIsHeadCommit = isGitGraphActiveCommit(previousRefs)
 
               return (
                 <button
@@ -111,9 +206,7 @@ export function GitLogPanel({
                   title={`${entry.shortHash} ${entry.subject}`}
                 >
                   <div className="flex items-stretch gap-1">
-                    <div className="flex min-h-[24px] shrink-0 self-stretch items-stretch justify-center">
-                      {renderGitGraph(entry.graph, previousGraph, nextGraph, isHeadCommit, previousIsHeadCommit)}
-                    </div>
+                    <div className="shrink-0" style={{ width: `${graphWidth}px`, minWidth: `${graphWidth}px`, height: `${GIT_GRAPH_ROW_HEIGHT}px` }} />
                     <div className="min-w-0 flex-1 py-0">
                       <div className="flex min-w-0 items-center gap-1 overflow-hidden">
                         <p className={`min-w-0 truncate text-[13px] leading-[15px] ${isSelected ? 'font-semibold text-claude-text' : 'font-medium text-claude-text'}`}>

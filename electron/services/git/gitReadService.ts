@@ -189,12 +189,12 @@ export function getGitLog(cwd: string, limit?: number): GitLogResult {
     return { ok: false, entries: [], error: 'Git 저장소가 아닙니다.' }
   }
 
-  const format = '%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cr%x1f%D'
+  const format = '%x1f%H%x1f%P%x1f%h%x1f%s%x1f%an%x1f%cr%x1f%D'
   const args = [
     'log',
     '--graph',
     '--decorate=short',
-    '--date-order',
+    '--topo-order',
     `--pretty=format:${format}`,
   ]
   if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
@@ -206,21 +206,32 @@ export function getGitLog(cwd: string, limit?: number): GitLogResult {
     return { ok: false, entries: [], error: result.stderr.trim() || 'Git 로그를 불러오지 못했습니다.' }
   }
 
-  const entries = result.stdout
+  const entries: GitLogEntry[] = []
+
+  result.stdout
     .split('\n')
-    .flatMap((line) => {
+    .forEach((line) => {
       const parts = line.split('\x1f')
-      if (parts.length < 7) return []
-      const [graph, hash, shortHash, subject, author, relativeDate, decorations] = parts
-      return [{
+      if (parts.length < 7) {
+        const bridgeLine = line.replace(/\s+$/, '')
+        if (bridgeLine && entries.length > 0) {
+          entries[entries.length - 1]?.bridgeToNext.push(bridgeLine)
+        }
+        return
+      }
+
+      const [graph, hash, parents, shortHash, subject, author, relativeDate, decorations] = parts
+      entries.push({
         hash: hash.trim(),
+        parents: parents.trim() ? parents.trim().split(/\s+/) : [],
         shortHash: shortHash.trim(),
         subject: subject.trim(),
         author: author.trim(),
         relativeDate: relativeDate.trim(),
         decorations: decorations.trim(),
         graph: graph.replace(/\s+$/, ''),
-      } satisfies GitLogEntry]
+        bridgeToNext: [],
+      } satisfies GitLogEntry)
     })
 
   return { ok: true, entries }
