@@ -16,13 +16,13 @@ const CRC32_TABLE = (() => {
   return table
 })()
 
-export function resolveAppIconPath() {
+function resolveIconPath(filename: string) {
   const candidates = [
-    join(process.cwd(), 'build', 'icon.png'),
-    join(app.getAppPath(), 'build', 'icon.png'),
-    join(dirname(app.getAppPath()), 'build', 'icon.png'),
-    join(process.resourcesPath, 'build', 'icon.png'),
-    join(process.resourcesPath, 'app.asar.unpacked', 'build', 'icon.png'),
+    join(process.cwd(), 'build', filename),
+    join(app.getAppPath(), 'build', filename),
+    join(dirname(app.getAppPath()), 'build', filename),
+    join(process.resourcesPath, 'build', filename),
+    join(process.resourcesPath, 'app.asar.unpacked', 'build', filename),
   ]
 
   for (const iconPath of candidates) {
@@ -30,6 +30,14 @@ export function resolveAppIconPath() {
   }
 
   return undefined
+}
+
+export function resolveAppIconPath() {
+  return resolveIconPath('icon.png')
+}
+
+function resolveWinTrayIconPath() {
+  return resolveIconPath('tray-icon.png') ?? resolveIconPath('icon.png')
 }
 
 function resolveMacTrayTemplatePath() {
@@ -274,9 +282,9 @@ function createMacMascotTrayPixels(size: number, color: [number, number, number,
 }
 
 export function createTrayImage() {
-  const size = process.platform === 'darwin' ? 18 : 16
+  const size = process.platform === 'darwin' ? 18 : 48
   if (process.platform === 'win32') {
-    const appIconPath = resolveAppIconPath()
+    const appIconPath = resolveWinTrayIconPath()
     if (appIconPath) {
       const appIcon = nativeImage.createFromPath(appIconPath).resize({ width: size, height: size })
       if (!appIcon.isEmpty()) {

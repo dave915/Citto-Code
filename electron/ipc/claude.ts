@@ -101,7 +101,8 @@ export function registerClaudeIpcHandlers({
 
     const { CLAUDECODE: _ignoredClaudeCode, ...cleanEnv } = process.env
     const homePath = getUserHomePath(cleanEnv)
-    const resolvedCwd = cwd ? resolveTargetPath(cwd) : homePath
+    const rawCwd = cwd ? resolveTargetPath(cwd) : homePath
+    const resolvedCwd = existsSync(rawCwd) ? rawCwd : (existsSync(homePath) ? homePath : undefined)
     const procEnv: NodeJS.ProcessEnv = {
       ...cleanEnv,
       HOME: cleanEnv.HOME ?? homePath,

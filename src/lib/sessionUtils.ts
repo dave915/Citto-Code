@@ -6,7 +6,7 @@ import type {
   ShortcutConfig,
 } from '../store/sessionTypes'
 
-export const DEFAULT_PROJECT_PATH = '~/Desktop'
+export const DEFAULT_PROJECT_PATH = '~'
 export const DEFAULT_UI_FONT_SIZE = 16
 export const MIN_UI_FONT_SIZE = 13
 export const MAX_UI_FONT_SIZE = 20

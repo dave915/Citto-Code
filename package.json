@@ -9,7 +9,7 @@
     "preview": "electron-vite preview",
     "pack": "npm run build && electron-builder",
     "pack:mac": "npm run build && electron-builder --mac dmg",
-    "pack:win": "npm run build && electron-builder --win nsis",
+    "pack:win": "npm run build && electron-builder --win nsis --x64",
     "install:mac": "node ./scripts/install-mac-app.mjs",
     "install:win": "node ./scripts/install-win-app.mjs"
   },
@@ -42,12 +42,22 @@
     "zustand": "^5.0.0"
   },
   "build": {
-    "appId": "com.company.citto-code",
+    "appId": "com.dave915.citto-code",
     "productName": "Citto Code",
     "afterPack": "scripts/afterPack.cjs",
     "directories": {
       "buildResources": "build"
     },
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "build/icon.png"
+      },
+      {
+        "from": "build/tray-icon.png",
+        "to": "build/tray-icon.png"
+      }
+    ],
     "mac": {
       "target": "dmg",
       "icon": "build/icon.icns"
@@ -68,7 +78,10 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "Citto Code"
     }
   }
 }

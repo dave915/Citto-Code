@@ -125,6 +125,9 @@ export function importShellEnvironmentVars() {
 }
 
 export function getUserHomePath(env: NodeJS.ProcessEnv = process.env): string {
+  if (process.platform === 'win32') {
+    return env.USERPROFILE ?? env.HOME ?? app.getPath('home')
+  }
   return env.HOME ?? env.USERPROFILE ?? app.getPath('home')
 }
 
