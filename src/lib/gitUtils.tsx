@@ -1,4 +1,5 @@
 import { parseDiff } from 'react-diff-view'
+import type { CSSProperties } from 'react'
 import type { GitStatusEntry, GitDiffResult, GitLogEntry } from '../../electron/preload'
 import type { AppLanguage } from './i18n'
 
@@ -7,6 +8,44 @@ export type GitDraftAction = 'review' | 'summary' | 'commitMessage'
 export type GitDecorationRef = {
   label: string
   kind: 'current' | 'local' | 'remote' | 'tag' | 'other'
+}
+
+const GIT_REMOTE_REF_PREFIXES = ['origin/', 'upstream/']
+const GIT_CURRENT_BRANCH_COLOR = 'rgba(96, 165, 250, 0.95)'
+const GIT_LOCAL_REF_PALETTE = [
+  'rgba(59, 130, 246, 0.95)',
+  'rgba(14, 165, 233, 0.95)',
+  'rgba(99, 102, 241, 0.95)',
+  'rgba(16, 185, 129, 0.95)',
+  'rgba(34, 211, 238, 0.95)',
+]
+const GIT_REMOTE_REF_PALETTE = [
+  'rgba(45, 212, 191, 0.95)',
+  'rgba(245, 158, 11, 0.95)',
+  'rgba(244, 114, 182, 0.95)',
+  'rgba(168, 85, 247, 0.95)',
+  'rgba(250, 204, 21, 0.95)',
+  'rgba(251, 113, 133, 0.95)',
+]
+const GIT_TAG_COLOR = 'rgba(245, 158, 11, 0.95)'
+
+function hashGitDecorationLabel(label: string) {
+  let hash = 0
+  for (let index = 0; index < label.length; index += 1) {
+    hash = ((hash << 5) - hash + label.charCodeAt(index)) | 0
+  }
+  return Math.abs(hash)
+}
+
+function getGitPaletteColor(palette: string[], label: string, fallback: string) {
+  return palette[hashGitDecorationLabel(label) % palette.length] ?? fallback
+}
+
+function withGitColorAlpha(color: string, alpha: number) {
+  const match = color.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)$/)
+  if (!match) return color
+  const [, r, g, b] = match
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 export function areGitStatusEntriesEqual(a: GitStatusEntry | null, b: GitStatusEntry | null) {
@@ -245,12 +284,12 @@ export function parseGitDecorations(decorations: string): GitDecorationRef[] {
         }]
       }
 
-      if (value.startsWith('origin/')) {
+      if (GIT_REMOTE_REF_PREFIXES.some((prefix) => value.startsWith(prefix))) {
         return [{ label: value, kind: 'remote' as const }]
       }
 
       if (value.includes('/')) {
-        return [{ label: value, kind: 'other' as const }]
+        return [{ label: value, kind: 'local' as const }]
       }
 
       return [{ label: value, kind: 'local' as const }]
@@ -260,15 +299,53 @@ export function parseGitDecorations(decorations: string): GitDecorationRef[] {
 export function getGitDecorationBadgeClass(kind: 'current' | 'local' | 'remote' | 'tag' | 'other') {
   switch (kind) {
     case 'current':
-      return 'border-sky-500/40 bg-sky-500/12 text-sky-200'
     case 'local':
-      return 'border-indigo-500/35 bg-indigo-500/12 text-indigo-200'
     case 'remote':
-      return 'border-fuchsia-500/35 bg-fuchsia-500/12 text-fuchsia-200'
     case 'tag':
-      return 'border-amber-500/35 bg-amber-500/12 text-amber-100'
+      return ''
     default:
       return 'border-claude-border bg-claude-surface text-claude-text'
+  }
+}
+
+export function getGitDecorationColor(
+  ref: GitDecorationRef,
+  options?: {
+    currentBranchName?: string | null
+  },
+) {
+  const currentBranchName = options?.currentBranchName?.trim() || null
+
+  switch (ref.kind) {
+    case 'current':
+      return GIT_CURRENT_BRANCH_COLOR
+    case 'local':
+      if (currentBranchName && ref.label === currentBranchName) {
+        return GIT_CURRENT_BRANCH_COLOR
+      }
+      return getGitPaletteColor(GIT_LOCAL_REF_PALETTE, ref.label, GIT_CURRENT_BRANCH_COLOR)
+    case 'remote':
+      return getGitPaletteColor(GIT_REMOTE_REF_PALETTE, ref.label, GIT_REMOTE_REF_PALETTE[0] ?? GIT_TAG_COLOR)
+    case 'tag':
+      return GIT_TAG_COLOR
+    default:
+      return null
+  }
+}
+
+export function getGitDecorationBadgeStyle(
+  ref: GitDecorationRef,
+  options?: {
+    currentBranchName?: string | null
+  },
+): CSSProperties | undefined {
+  const color = getGitDecorationColor(ref, options)
+  if (!color) return undefined
+
+  return {
+    borderColor: withGitColorAlpha(color, 0.38),
+    backgroundColor: withGitColorAlpha(color, 0.14),
+    color: withGitColorAlpha(color, 0.98),
   }
 }
 

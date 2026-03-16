@@ -8,6 +8,7 @@ import {
   areGitLogEntriesEqual,
   areGitStatusEntriesEqual,
   getGitDecorationBadgeClass,
+  getGitDecorationBadgeStyle,
   getGitEntryBadgeClass,
   getGitEntryLabel,
   parseGitDecorations,
@@ -56,6 +57,11 @@ export const GitDiffPanel = memo(function GitDiffPanel({
     error: string
   }>>({})
   const markdownPreviewAvailable = Boolean(entry && !entry.deleted && isMarkdownFile(entry.relativePath))
+  const commitRefs: GitDecorationRef[] = useMemo(() => parseGitDecorations(commit?.decorations ?? ''), [commit?.decorations])
+  const currentBranchName = useMemo(
+    () => commitRefs.find((ref) => ref.kind === 'current')?.label ?? null,
+    [commitRefs],
+  )
 
   useEffect(() => {
     commitHashRef.current = commit?.hash ?? null
@@ -171,7 +177,6 @@ export const GitDiffPanel = memo(function GitDiffPanel({
     )
   }
 
-  const commitRefs: GitDecorationRef[] = commit ? parseGitDecorations(commit.decorations) : []
   const canCreateDraft = Boolean(gitDiff?.diff.trim())
 
   return (
@@ -196,6 +201,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
                   <span
                     key={`${commit.hash}-${ref.kind}-${ref.label}`}
                     className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none ${getGitDecorationBadgeClass(ref.kind)}`}
+                    style={getGitDecorationBadgeStyle(ref, { currentBranchName })}
                   >
                     {ref.label}
                   </span>

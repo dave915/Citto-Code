@@ -3,6 +3,8 @@ import type { GitLogEntry, GitRepoStatus } from '../../../../electron/preload'
 import { useI18n } from '../../../hooks/useI18n'
 import {
   getGitDecorationBadgeClass,
+  getGitDecorationBadgeStyle,
+  getGitDecorationColor,
   getGitGraphLaneColor,
   GIT_GRAPH_ACTIVE_MARKER_SIZE,
   GIT_GRAPH_DEFAULT_MARKER_SIZE,
@@ -40,6 +42,30 @@ function buildGitGraphEdgePath(fromX: number, fromY: number, toX: number, toY: n
   return `M ${fromX} ${fromY} L ${fromX} ${toY - bend} L ${toX} ${toY}`
 }
 
+function getGitGraphEdgeColor(
+  row: { lane: number; graphColor: string },
+  parentRow: { lane: number; graphColor: string },
+) {
+  if (row.lane === parentRow.lane) {
+    return row.graphColor
+  }
+
+  return row.lane > parentRow.lane ? row.graphColor : parentRow.graphColor
+}
+
+function getGitGraphLanesInRow(graph: string) {
+  const lanes = new Set<number>()
+
+  for (let column = 0; column < graph.length; column += 1) {
+    const char = graph[column]
+    if (char && char !== ' ') {
+      lanes.add(getGitGraphLaneFromColumn(column))
+    }
+  }
+
+  return lanes
+}
+
 export function GitLogPanel({
   status,
   gitLog,
@@ -61,6 +87,9 @@ export function GitLogPanel({
 }) {
   const { language } = useI18n()
   const historyEntries = gitLog
+  const primaryLane = getGitGraphLaneFromColumn(Math.max(0, historyEntries[0]?.graph.indexOf('*') ?? 0))
+  const currentBranchName = status?.branch?.trim() || null
+  const currentBranchRef: GitDecorationRef | null = currentBranchName ? { label: currentBranchName, kind: 'current' } : null
   const graphCommits = historyEntries.map((entry, index) => {
     const markerColumn = Math.max(0, entry.graph.indexOf('*'))
     const lane = getGitGraphLaneFromColumn(markerColumn)
@@ -71,11 +100,63 @@ export function GitLogPanel({
       y: index * GIT_GRAPH_ROW_HEIGHT + GIT_GRAPH_MARKER_CENTER_Y,
     }
   })
-  const maxGraphLane = graphCommits.reduce((maxLane, row) => Math.max(maxLane, row.lane), 0)
+  const currentBranchRemoteRef = currentBranchName
+    ? graphCommits
+      .flatMap((row) => parseGitDecorations(row.entry.decorations))
+      .find((ref) => ref.kind === 'remote' && ref.label.endsWith(`/${currentBranchName}`))
+      ?.label ?? null
+    : null
+  const trackingRemoteIndex = currentBranchRemoteRef
+    ? graphCommits.findIndex((row) => (
+      parseGitDecorations(row.entry.decorations).some((ref) => ref.kind === 'remote' && ref.label === currentBranchRemoteRef)
+    ))
+    : -1
+  const laneColorByLane = new Map<number, string>()
+  const graphCommitRows = graphCommits.map((row) => {
+    const visibleLanes = getGitGraphLanesInRow(row.entry.graph)
+    for (const lane of Array.from(laneColorByLane.keys())) {
+      if (!visibleLanes.has(lane)) {
+        laneColorByLane.delete(lane)
+      }
+    }
+
+    const refs = parseGitDecorations(row.entry.decorations)
+    const inheritedColor = laneColorByLane.get(row.lane)
+
+    let graphColor = inheritedColor ?? getGitGraphLaneColor(row.lane)
+    if (row.lane === primaryLane && currentBranchName) {
+      if (trackingRemoteIndex >= 0) {
+        graphColor = row.index < trackingRemoteIndex
+          ? (getGitDecorationColor({ label: currentBranchName, kind: 'current' }, { currentBranchName }) ?? graphColor)
+          : (getGitDecorationColor({ label: currentBranchRemoteRef ?? `origin/${currentBranchName}`, kind: 'remote' }, { currentBranchName }) ?? graphColor)
+      } else {
+        graphColor = getGitDecorationColor({ label: currentBranchName, kind: 'current' }, { currentBranchName }) ?? graphColor
+      }
+    } else if (refs.some((ref) => ref.kind === 'remote')) {
+      graphColor = getGitDecorationColor(
+        refs.find((ref) => ref.kind === 'remote') ?? { label: `remote-${row.lane}`, kind: 'remote' },
+        { currentBranchName },
+      ) ?? graphColor
+    } else if (refs.some((ref) => ref.kind === 'local')) {
+      graphColor = getGitDecorationColor(
+        refs.find((ref) => ref.kind === 'local') ?? { label: `local-${row.lane}`, kind: 'local' },
+        { currentBranchName },
+      ) ?? graphColor
+    }
+
+    laneColorByLane.set(row.lane, graphColor)
+
+    return {
+      ...row,
+      refs,
+      graphColor,
+    }
+  })
+  const maxGraphLane = graphCommitRows.reduce((maxLane, row) => Math.max(maxLane, row.lane), 0)
   const graphWidth = Math.max(36, getGitGraphLaneCenter(maxGraphLane) + GIT_GRAPH_COLUMN_OFFSET)
   const graphHeight = historyEntries.length * GIT_GRAPH_ROW_HEIGHT
-  const rowIndexByHash = new Map(graphCommits.map((row) => [row.entry.hash, row.index]))
-  const graphCommitByHash = new Map(graphCommits.map((row) => [row.entry.hash, row]))
+  const rowIndexByHash = new Map(graphCommitRows.map((row) => [row.entry.hash, row.index]))
+  const graphCommitByHash = new Map(graphCommitRows.map((row) => [row.entry.hash, row]))
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -83,7 +164,10 @@ export function GitLogPanel({
         <div className="flex items-center gap-2">
           <p className="text-[12px] font-semibold text-claude-text">{language === 'en' ? 'Recent commits' : '최근 커밋'}</p>
           {status?.branch && (
-            <span className="rounded-full border border-sky-500/35 bg-sky-500/12 px-2 py-0.5 font-mono text-[10px] font-medium text-sky-200">
+            <span
+              className="rounded-full border px-2 py-0.5 font-mono text-[10px] font-medium"
+              style={currentBranchRef ? getGitDecorationBadgeStyle(currentBranchRef, { currentBranchName }) : undefined}
+            >
               {status.branch}
             </span>
           )}
@@ -139,7 +223,7 @@ export function GitLogPanel({
               style={{ width: `${graphWidth}px`, height: `${graphHeight}px` }}
             >
               <svg width={graphWidth} height={graphHeight} viewBox={`0 0 ${graphWidth} ${graphHeight}`} aria-hidden="true">
-                {graphCommits.flatMap((row) => {
+                {graphCommitRows.flatMap((row) => {
                   return row.entry.parents.flatMap((parentHash) => {
                     const parentRowIndex = rowIndexByHash.get(parentHash)
                     const parentRow = graphCommitByHash.get(parentHash)
@@ -152,7 +236,7 @@ export function GitLogPanel({
                     const fromY = row.y
                     const toX = getGitGraphLaneCenter(parentRow.lane)
                     const toY = parentRow.y
-                    const stroke = getGitGraphLaneColor(Math.max(row.lane, parentRow.lane))
+                    const stroke = getGitGraphEdgeColor(row, parentRow)
 
                     return (
                       <path
@@ -167,19 +251,18 @@ export function GitLogPanel({
                     )
                   })
                 })}
-                {historyEntries.map((entry, index) => {
-                  const refs: GitDecorationRef[] = parseGitDecorations(entry.decorations)
-                  const isHeadCommit = isGitGraphActiveCommit(refs)
-                  const lane = graphCommits[index]?.lane ?? 0
-                  const laneColor = getGitGraphLaneColor(lane)
+                {graphCommitRows.map((row) => {
+                  const isHeadCommit = isGitGraphActiveCommit(row.refs)
+                  const lane = row.lane
+                  const laneColor = row.graphColor
                   const markerSize = isHeadCommit ? GIT_GRAPH_ACTIVE_MARKER_SIZE : GIT_GRAPH_DEFAULT_MARKER_SIZE
                   const markerRadius = markerSize / 2
                   const centerX = getGitGraphLaneCenter(lane)
-                  const centerY = index * GIT_GRAPH_ROW_HEIGHT + GIT_GRAPH_MARKER_CENTER_Y
+                  const centerY = row.y
 
                   return (
                     <circle
-                      key={`${entry.hash}-node`}
+                      key={`${row.entry.hash}-node`}
                       cx={centerX}
                       cy={centerY}
                       r={markerRadius}
@@ -217,6 +300,7 @@ export function GitLogPanel({
                           <span
                             key={`${entry.hash}-${ref.kind}-${ref.label}`}
                             className={`rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none ${getGitDecorationBadgeClass(ref.kind)}`}
+                            style={getGitDecorationBadgeStyle(ref, { currentBranchName })}
                           >
                             {ref.label}
                           </span>
