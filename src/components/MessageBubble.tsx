@@ -9,7 +9,8 @@ import { HtmlPreview, ToolTimeline, extractHtmlPreviewCandidate } from './ToolCa
 
 type Props = {
   message: Message
-  isLatestAssistantMessage?: boolean
+  isActiveHtmlPreviewMessage?: boolean
+  hideHtmlPreview?: boolean
   isStreaming?: boolean
   onAbort?: () => void
   onAskAboutSelection?: (payload: {
@@ -136,7 +137,8 @@ function ThinkingDots({ muted = false }: { muted?: boolean }) {
 
 export function MessageBubble({
   message,
-  isLatestAssistantMessage = false,
+  isActiveHtmlPreviewMessage = false,
+  hideHtmlPreview = false,
   isStreaming,
   onAbort,
   onAskAboutSelection,
@@ -156,9 +158,9 @@ export function MessageBubble({
     [message.role, message.toolCalls]
   )
   const shouldShowHtmlPreview = Boolean(
-    isLatestAssistantMessage &&
+    isActiveHtmlPreviewMessage &&
+    !hideHtmlPreview &&
     !showStreamingUi &&
-    hasFinalAssistantText &&
     htmlPreviewCandidate
   )
 

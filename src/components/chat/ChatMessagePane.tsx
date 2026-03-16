@@ -14,7 +14,8 @@ type Props = {
   fileConflictLabel: string | null
   conflictSessionLabel: string
   highlightedMessageId: string | null
-  latestAssistantMessageId: string | null
+  activeHtmlPreviewMessageId: string | null
+  hideHtmlPreview: boolean
   showErrorCard: boolean
   messageRefs: MutableRefObject<Record<string, HTMLDivElement | null>>
   bottomRef: MutableRefObject<HTMLDivElement | null>
@@ -34,7 +35,8 @@ function MessageList({
   messages,
   messageRefs,
   highlightedMessageId,
-  latestAssistantMessageId,
+  activeHtmlPreviewMessageId,
+  hideHtmlPreview,
   isStreaming,
   currentAssistantMsgId,
   onAbort,
@@ -43,7 +45,8 @@ function MessageList({
   messages: Message[]
   messageRefs: MutableRefObject<Record<string, HTMLDivElement | null>>
   highlightedMessageId: string | null
-  latestAssistantMessageId: string | null
+  activeHtmlPreviewMessageId: string | null
+  hideHtmlPreview: boolean
   isStreaming: boolean
   currentAssistantMsgId: string | null
   onAbort: () => void
@@ -67,7 +70,8 @@ function MessageList({
     >
       <MessageBubble
         message={message}
-        isLatestAssistantMessage={message.id === latestAssistantMessageId}
+        isActiveHtmlPreviewMessage={message.id === activeHtmlPreviewMessageId}
+        hideHtmlPreview={hideHtmlPreview}
         isStreaming={isStreaming && message.id === currentAssistantMsgId}
         onAbort={isStreaming && message.id === currentAssistantMsgId ? onAbort : undefined}
         onAskAboutSelection={onAskAboutSelection}
@@ -83,7 +87,8 @@ export function ChatMessagePane({
   fileConflictLabel,
   conflictSessionLabel,
   highlightedMessageId,
-  latestAssistantMessageId,
+  activeHtmlPreviewMessageId,
+  hideHtmlPreview,
   showErrorCard,
   messageRefs,
   bottomRef,
@@ -125,7 +130,8 @@ export function ChatMessagePane({
             messages={session.messages}
             messageRefs={messageRefs}
             highlightedMessageId={highlightedMessageId}
-            latestAssistantMessageId={latestAssistantMessageId}
+            activeHtmlPreviewMessageId={activeHtmlPreviewMessageId}
+            hideHtmlPreview={hideHtmlPreview}
             isStreaming={session.isStreaming}
             currentAssistantMsgId={session.currentAssistantMsgId}
             onAbort={onAbort}

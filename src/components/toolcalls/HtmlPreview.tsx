@@ -238,6 +238,20 @@ function buildSuggestedSavePath(filePath: string | null | undefined): string | u
   return `${dirPath}/${baseName}-download${extension}`
 }
 
+function isViewportSizedPreview(html: string): boolean {
+  const normalized = normalizeNewlines(html)
+  const hasViewportHeight = /(?:min-height|height)\s*:\s*100(?:d|s|l)?vh/i.test(normalized)
+  const hasFixedLayout = /position\s*:\s*fixed/i.test(normalized) || /inset\s*:\s*0/i.test(normalized)
+  const hidesOverflow = /overflow\s*:\s*hidden/i.test(normalized)
+  return hasViewportHeight && (hasFixedLayout || hidesOverflow)
+}
+
+function getPreviewMinimumHeight(isViewportLayout: boolean, windowHeight: number): number {
+  if (!isViewportLayout) return 420
+  if (!windowHeight || !Number.isFinite(windowHeight)) return 620
+  return Math.max(560, Math.min(Math.round(windowHeight * 0.72), 920))
+}
+
 export function HtmlPreview({
   html,
   path,
@@ -249,7 +263,13 @@ export function HtmlPreview({
   const isMacOs = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previewIdRef = useRef(`html-preview-${Math.random().toString(36).slice(2)}`)
-  const [frameHeight, setFrameHeight] = useState(420)
+  const isViewportLayout = useMemo(() => isViewportSizedPreview(html), [html])
+  const [windowHeight, setWindowHeight] = useState(() => (typeof window !== 'undefined' ? window.innerHeight : 0))
+  const minimumFrameHeight = useMemo(
+    () => getPreviewMinimumHeight(isViewportLayout, windowHeight),
+    [isViewportLayout, windowHeight],
+  )
+  const [frameHeight, setFrameHeight] = useState(minimumFrameHeight)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fallbackDocument = useMemo(
     () => buildHtmlPreviewDocument(html, path),
@@ -262,9 +282,21 @@ export function HtmlPreview({
   )
 
   useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const updateWindowHeight = () => {
+      setWindowHeight(window.innerHeight)
+    }
+
+    updateWindowHeight()
+    window.addEventListener('resize', updateWindowHeight)
+    return () => window.removeEventListener('resize', updateWindowHeight)
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
     setDocumentHtml(fallbackDocument)
-    setFrameHeight(420)
+    setFrameHeight(minimumFrameHeight)
 
     void inlineHtmlPreviewAssets(html, path)
       .then((nextSrcDoc) => {
@@ -277,7 +309,11 @@ export function HtmlPreview({
     return () => {
       cancelled = true
     }
-  }, [fallbackDocument, html, path])
+  }, [fallbackDocument, html, minimumFrameHeight, path])
+
+  useEffect(() => {
+    setFrameHeight((current) => (current < minimumFrameHeight ? minimumFrameHeight : current))
+  }, [minimumFrameHeight])
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -300,12 +336,12 @@ export function HtmlPreview({
 
       const nextHeight = typeof payload.height === 'number' ? payload.height : Number(payload.height)
       if (!Number.isFinite(nextHeight) || nextHeight <= 0) return
-      setFrameHeight(Math.max(420, Math.min(Math.ceil(nextHeight), 1600)))
+      setFrameHeight(Math.max(minimumFrameHeight, Math.min(Math.ceil(nextHeight), 1600)))
     }
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [])
+  }, [minimumFrameHeight])
 
   useEffect(() => {
     if (!isFullscreen) return undefined

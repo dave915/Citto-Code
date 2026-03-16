@@ -29,6 +29,7 @@ import {
   buildGitDraft,
   type GitDraftAction,
 } from '../lib/gitUtils'
+import { extractHtmlPreviewCandidate } from '../lib/toolCallUtils'
 import { matchShortcut } from '../lib/shortcuts'
 import { useChatOpenWith } from '../hooks/useChatOpenWith'
 
@@ -76,6 +77,12 @@ const HEADER_OPEN_WITH_MIN_WIDTH = 640
 const HEADER_SESSION_ACTION_MIN_WIDTH = 700
 const HEADER_GIT_ACTION_MIN_WIDTH = 756
 const HEADER_FILE_ACTION_MIN_WIDTH = 812
+const PERMISSION_CONTINUATION_TEXTS = new Set([
+  'Continue after permission approval',
+  'Continue after one-time permission approval',
+  '권한 승인 후 계속',
+  '이번만 권한 승인 후 계속',
+])
 
 export function ChatView({
   session, fileConflict, jumpToMessageId, jumpToMessageToken, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
@@ -127,8 +134,18 @@ export function ChatView({
   const promptHistory = session.messages
     .filter((message) => message.role === 'user' && message.text.trim().length > 0)
     .map((message) => message.text)
+  const lastUserMessage = [...session.messages].reverse().find((message) => message.role === 'user')
   const lastAssistantMessage = [...session.messages].reverse().find((message) => message.role === 'assistant')
-  const latestAssistantMessageId = lastAssistantMessage?.id ?? null
+  const activeHtmlPreviewMessageId = useMemo(
+    () => [...session.messages]
+      .reverse()
+      .find((message) => message.role === 'assistant' && Boolean(extractHtmlPreviewCandidate(message.toolCalls)))?.id ?? null,
+    [session.messages],
+  )
+  const hideHtmlPreview = Boolean(
+    session.pendingPermission ||
+    (session.isStreaming && lastUserMessage && PERMISSION_CONTINUATION_TEXTS.has(lastUserMessage.text.trim()))
+  )
   const showErrorCard = Boolean(
     session.error &&
     session.error.trim() &&
@@ -592,7 +609,8 @@ export function ChatView({
           fileConflictLabel={fileConflictLabel}
           conflictSessionLabel={conflictSessionLabel}
           highlightedMessageId={highlightedMessageId}
-          latestAssistantMessageId={latestAssistantMessageId}
+          activeHtmlPreviewMessageId={activeHtmlPreviewMessageId}
+          hideHtmlPreview={hideHtmlPreview}
           showErrorCard={showErrorCard}
           messageRefs={messageRefs}
           bottomRef={bottomRef}
