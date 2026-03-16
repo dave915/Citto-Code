@@ -1,5 +1,5 @@
 {
-  "name": "claude-ui",
+  "name": "citto-code",
   "version": "0.1.0",
   "description": "Claude Code GUI for non-developers",
   "main": "out/main/index.js",
@@ -42,7 +42,7 @@
     "zustand": "^5.0.0"
   },
   "build": {
-    "appId": "com.company.claude-ui",
+    "appId": "com.company.citto-code",
     "productName": "Citto Code",
     "afterPack": "scripts/afterPack.cjs",
     "directories": {

@@ -25,7 +25,7 @@ export const useSessionsStore = create<SessionsStore>()(
   persist(
     (set) => createSessionStoreState(set),
     {
-      name: 'claude-ui-sessions',
+      name: 'citto-code-sessions',
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       version: 6,

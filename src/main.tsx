@@ -12,8 +12,8 @@ type PersistEnvelope = {
   }
 }
 
-const SESSIONS_STORAGE_KEY = 'claude-ui-sessions'
-const SCHEDULED_TASKS_STORAGE_KEY = 'claude-ui-scheduled-tasks'
+const SESSIONS_STORAGE_KEY = 'citto-code-sessions'
+const SCHEDULED_TASKS_STORAGE_KEY = 'citto-code-scheduled-tasks'
 const PERSISTENCE_DEBOUNCE_MS = 400
 
 function readPersistEnvelope(key: string): PersistEnvelope | null {

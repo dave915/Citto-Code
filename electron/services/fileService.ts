@@ -130,7 +130,7 @@ function convertPngToDataUrl(iconPath: string): string | undefined {
 }
 
 function convertIcnsToPng(iconPath: string, cacheKey: string): string | undefined {
-  const outputPath = join(tmpdir(), `claude-ui-open-with-${cacheKey}.png`)
+  const outputPath = join(tmpdir(), `citto-code-open-with-${cacheKey}.png`)
 
   try {
     if (existsSync(outputPath)) {

@@ -140,11 +140,11 @@
 
 1. SQLite 파일이 비어 있는지 확인
 2. renderer가 세션 store hydration 전에 기존 `localStorage` 키를 읽음
-   - `claude-ui-sessions`
-   - `claude-ui-scheduled-tasks`
+   - `citto-code-sessions`
+   - `citto-code-scheduled-tasks`
 3. DB가 비어 있고 legacy 데이터가 있으면 SQLite에 1회 import
 4. 이후부터는 SQLite를 기준으로 로드
-5. UI 설정은 기존 `claude-ui-sessions` localStorage에 계속 저장하되, 세션 본문은 더 이상 거기에 저장하지 않음
+5. UI 설정은 기존 `citto-code-sessions` localStorage에 계속 저장하되, 세션 본문은 더 이상 거기에 저장하지 않음
 
 ## 현재 구현 메모
 

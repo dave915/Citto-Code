@@ -44,7 +44,7 @@ const AUTO_HTML_PREVIEW_SKIP_PATTERNS = [
   /preview\s*없이/i,
   /text\s*only/i,
 ]
-const AUTO_HTML_PREVIEW_PATH_MARKER = '/.claude-ui/previews/'
+const AUTO_HTML_PREVIEW_PATH_MARKER = '/.citto-code/previews/'
 
 function formatAutoPreviewTimestamp(date = new Date()): string {
   const year = date.getFullYear()
@@ -175,7 +175,7 @@ export function shouldAutoGenerateHtmlPreview(text: string, files: SelectedFile[
 }
 
 export function buildAutoHtmlPreviewInstruction(userText: string, cwd: string): string {
-  const previewRoot = joinPromptPath(cwd || '~', `.claude-ui/previews/visual-demo-${formatAutoPreviewTimestamp()}`)
+  const previewRoot = joinPromptPath(cwd || '~', `.citto-code/previews/visual-demo-${formatAutoPreviewTimestamp()}`)
   const indexPath = joinPromptPath(previewRoot, 'index.html')
 
   return [

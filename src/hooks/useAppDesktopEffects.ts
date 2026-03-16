@@ -83,8 +83,8 @@ export function useAppDesktopEffects({
   }, [themeId])
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--claude-ui-font-size', `${uiFontSize}px`)
-    document.documentElement.style.setProperty('--claude-ui-zoom', `${uiZoomPercent / 100}`)
+    document.documentElement.style.setProperty('--citto-code-font-size', `${uiFontSize}px`)
+    document.documentElement.style.setProperty('--citto-code-zoom', `${uiZoomPercent / 100}`)
   }, [uiFontSize, uiZoomPercent])
 
   useEffect(() => {
