@@ -1,3 +1,5 @@
+import type { AgentIconType } from '../components/team/AgentPixelIcon'
+
 export type AgentMessage = {
   id: string
   text: string
@@ -12,7 +14,9 @@ export type TeamAgent = {
   role: string
   description: string
   color: string
+  iconType: AgentIconType
   emoji: string
+  systemPrompt: string
   claudeSessionId: string | null
   messages: AgentMessage[]
   isStreaming: boolean
@@ -46,7 +50,7 @@ export type TeamStore = {
   teams: AgentTeam[]
   activeTeamId: string | null
 
-  addTeam: (cwd: string, name: string, agents: Pick<TeamAgent, 'id' | 'name' | 'role' | 'description' | 'color' | 'emoji' | 'isCustom'>[], mode?: DiscussionMode) => string
+  addTeam: (cwd: string, name: string, agents: Pick<TeamAgent, 'id' | 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt' | 'isCustom'>[], mode?: DiscussionMode) => string
   removeTeam: (id: string) => void
   setActiveTeam: (id: string | null) => void
   updateTeamName: (teamId: string, name: string) => void
@@ -58,9 +62,9 @@ export type TeamStore = {
   incrementRound: (teamId: string) => void
   resetDiscussion: (teamId: string) => void
 
-  addAgent: (teamId: string, agent: Pick<TeamAgent, 'id' | 'name' | 'role' | 'description' | 'color' | 'emoji' | 'isCustom'>) => void
+  addAgent: (teamId: string, agent: Pick<TeamAgent, 'id' | 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt' | 'isCustom'>) => void
   removeAgent: (teamId: string, agentId: string) => void
-  updateAgent: (teamId: string, agentId: string, patch: Partial<Pick<TeamAgent, 'name' | 'role' | 'description' | 'color' | 'emoji'>>) => void
+  updateAgent: (teamId: string, agentId: string, patch: Partial<Pick<TeamAgent, 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt'>>) => void
 
   setAgentClaudeSessionId: (teamId: string, agentId: string, claudeSessionId: string) => void
   startAgentMessage: (teamId: string, agentId: string) => string

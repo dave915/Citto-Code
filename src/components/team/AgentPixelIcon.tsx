@@ -1,7 +1,7 @@
 // Pixel art icons inspired by the Ditto mascot style
 // Each agent role has its own expression + accessory
 
-type AgentIconType =
+export type AgentIconType =
   | 'architect'   // 설계자 - hard hat
   | 'critic'      // 비판자 - magnifying glass
   | 'developer'   // 개발자 - laptop

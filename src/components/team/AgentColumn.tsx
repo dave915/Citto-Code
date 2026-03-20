@@ -1,13 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import type { TeamAgent, AgentMessage } from '../../store/teamTypes'
-import type { AgentIconType } from './AgentPixelIcon'
-
-type AgentWithMeta = TeamAgent & { iconType?: AgentIconType }
 
 type Props = {
-  agent: AgentWithMeta
+  agent: TeamAgent
   roundNumber: number
   isActive: boolean
   isFirst: boolean
@@ -75,7 +72,7 @@ function MessageBubble({
 
 export function AgentColumn({ agent, roundNumber, isActive, isFirst }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const iconType = (agent as AgentWithMeta).iconType ?? 'custom'
+  const [showMeta, setShowMeta] = useState(false)
 
   // Auto-scroll to bottom when streaming
   useEffect(() => {
@@ -100,57 +97,105 @@ export function AgentColumn({ agent, roundNumber, isActive, isFirst }: Props) {
     >
       {/* Agent header */}
       <div
-        className="flex items-center gap-3 rounded-t-xl border-b border-claude-border px-4 py-3"
+        className="rounded-t-xl border-b border-claude-border px-4 py-3"
         style={{
           background: `linear-gradient(135deg, ${agent.color}15 0%, transparent 100%)`,
         }}
       >
-        <div className="relative shrink-0">
-          <AgentPixelIcon type={iconType} size={40} color={agent.color} />
-          {/* Status indicator */}
-          {agent.isStreaming && (
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-              <span
-                className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-                style={{ backgroundColor: agent.color }}
-              />
-              <span
-                className="relative inline-flex h-3 w-3 rounded-full"
-                style={{ backgroundColor: agent.color }}
-              />
-            </span>
-          )}
-          {!agent.isStreaming && agent.messages.length > 0 && !agent.error && (
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-green-500">
-              <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
-                <path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            </span>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-claude-text text-sm">{agent.name}</h3>
-            {isFirst && (
-              <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-400">
-                선발
+        <div className="flex items-start gap-3">
+          <div className="relative shrink-0">
+            <AgentPixelIcon type={agent.iconType} size={40} color={agent.color} />
+            {/* Status indicator */}
+            {agent.isStreaming && (
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+                <span
+                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                  style={{ backgroundColor: agent.color }}
+                />
+                <span
+                  className="relative inline-flex h-3 w-3 rounded-full"
+                  style={{ backgroundColor: agent.color }}
+                />
+              </span>
+            )}
+            {!agent.isStreaming && agent.messages.length > 0 && !agent.error && (
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-green-500">
+                <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                  <path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
               </span>
             )}
           </div>
-          <p className="truncate text-xs text-claude-text-muted">{agent.role}</p>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <h3 className="min-w-0 truncate whitespace-nowrap font-semibold text-claude-text text-sm">
+                {agent.name}
+              </h3>
+              {isFirst && (
+                <span className="shrink-0 rounded bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-400">
+                  선발
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 truncate whitespace-nowrap text-xs text-claude-text-muted">
+              {agent.role}
+            </p>
+            {agent.description && (
+              <p className="mt-1 truncate whitespace-nowrap text-[11px] leading-relaxed text-claude-text-muted">
+                {agent.description}
+              </p>
+            )}
+          </div>
+
+          {agent.messages.length > 0 && (
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: agent.color + '22', color: agent.color }}
+            >
+              {agent.messages.length}회
+            </span>
+          )}
         </div>
 
-        {/* Round badge */}
-        {agent.messages.length > 0 && (
-          <span
-            className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: agent.color + '22', color: agent.color }}
-          >
-            {agent.messages.length}회
-          </span>
+        {(agent.description || agent.systemPrompt) && (
+          <div className="mt-3 flex justify-start">
+            <button
+              type="button"
+              onClick={() => setShowMeta((current) => !current)}
+              className="rounded-full border border-claude-border px-2.5 py-1 text-[11px] font-medium leading-none text-claude-text-muted transition-colors hover:border-claude-border-hover hover:text-claude-text"
+            >
+              {showMeta ? '정보 접기' : '설명/프롬프트'}
+            </button>
+          </div>
         )}
       </div>
+
+      {showMeta && (
+        <div className="space-y-3 border-b border-claude-border bg-claude-bg-base/60 px-4 py-3">
+          {agent.description && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
+                설명
+              </p>
+              <p className="text-xs leading-relaxed text-claude-text">
+                {agent.description}
+              </p>
+            </div>
+          )}
+
+          {agent.systemPrompt && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
+                시스템 프롬프트
+              </p>
+              <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-xs leading-relaxed text-claude-text">
+                {agent.systemPrompt}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div
@@ -160,7 +205,7 @@ export function AgentColumn({ agent, roundNumber, isActive, isFirst }: Props) {
       >
         {agent.messages.length === 0 && !agent.isStreaming && (
           <div className="flex h-full flex-col items-center justify-center gap-3 py-8 opacity-40">
-            <AgentPixelIcon type={iconType} size={48} color={agent.color} />
+            <AgentPixelIcon type={agent.iconType} size={48} color={agent.color} />
             <p className="text-sm text-claude-text-muted text-center">
               토론이 시작되면 이곳에<br />응답이 표시됩니다
             </p>

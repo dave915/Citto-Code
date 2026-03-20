@@ -1,12 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useTeamStore } from '../store/teamStore'
 import type { AgentTeam, TeamAgent, DiscussionMode } from '../store/teamTypes'
-import type { AgentIconType } from '../components/team/AgentPixelIcon'
-
-export type AgentWithMeta = TeamAgent & {
-  iconType?: AgentIconType
-  systemPromptHint?: string
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -158,7 +152,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   // Prompt builders
   // ---------------------------------------------------------------------------
 
-  function buildInitialPrompt(agent: AgentWithMeta, task: string, priorAgents: AgentWithMeta[]): string {
+  function buildInitialPrompt(agent: TeamAgent, task: string, priorAgents: TeamAgent[]): string {
     const priorResponses = priorAgents
       .map((a) => {
         const last = a.messages[a.messages.length - 1]
@@ -167,7 +161,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       })
       .filter(Boolean)
 
-    const hint = agent.systemPromptHint
+    const hint = agent.systemPrompt
     let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
     prompt += `## 작업\n${task}\n`
 
@@ -179,8 +173,8 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   }
 
   /** 병렬 모드 1라운드: 모든 에이전트가 동일 프롬프트를 받음 */
-  function buildParallelPrompt(agent: AgentWithMeta, task: string): string {
-    const hint = agent.systemPromptHint
+  function buildParallelPrompt(agent: TeamAgent, task: string): string {
+    const hint = agent.systemPrompt
     let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
     prompt += `## 작업\n${task}\n\n`
     prompt += `## 지시\n**${agent.name}**(${agent.role}) 관점에서 독립적으로 의견을 제시해주세요.`
@@ -188,7 +182,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   }
 
   /** 병렬 모드 2라운드~: 다른 에이전트들의 응답을 모두 참고 */
-  function buildParallelRoundPrompt(agent: AgentWithMeta, task: string, allAgents: AgentWithMeta[], round: number): string {
+  function buildParallelRoundPrompt(agent: TeamAgent, task: string, allAgents: TeamAgent[], round: number): string {
     const others = allAgents.filter((a) => a.id !== agent.id)
     const responses = others
       .map((a) => {
@@ -198,7 +192,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       })
       .filter(Boolean)
 
-    const hint = agent.systemPromptHint
+    const hint = agent.systemPrompt
     let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
     prompt += `## 원래 작업\n${task}\n\n`
     prompt += `## Round ${round} — 다른 에이전트들의 의견\n`
@@ -210,7 +204,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   }
 
   /** 회의 모드: 매 라운드마다 모든 다른 에이전트의 최신 응답을 참고 */
-  function buildMeetingPrompt(agent: AgentWithMeta, task: string, allAgents: AgentWithMeta[], round: number): string {
+  function buildMeetingPrompt(agent: TeamAgent, task: string, allAgents: TeamAgent[], round: number): string {
     const isFirst = round === 1
     const others = allAgents.filter((a) => a.id !== agent.id)
 
@@ -222,7 +216,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       })
       .filter(Boolean)
 
-    const hint = agent.systemPromptHint
+    const hint = agent.systemPrompt
     let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
     prompt += `## 주제\n${task}\n\n`
 
@@ -245,7 +239,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   // Core: send one agent's message and await completion (sequential/meeting)
   // ---------------------------------------------------------------------------
 
-  async function sendToAgentAwaited(team: AgentTeam, agent: AgentWithMeta, prompt: string): Promise<void> {
+  async function sendToAgentAwaited(team: AgentTeam, agent: TeamAgent, prompt: string): Promise<void> {
     return new Promise((resolve) => {
       const msgId = storeRef.current.startAgentMessage(team.id, agent.id)
       pendingQueueRef.current.push({ teamId: team.id, agentId: agent.id, msgId })
@@ -274,7 +268,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   // Core: fire all agents simultaneously (parallel)
   // ---------------------------------------------------------------------------
 
-  async function sendAllParallel(team: AgentTeam, agents: AgentWithMeta[], prompts: string[]): Promise<void> {
+  async function sendAllParallel(team: AgentTeam, agents: TeamAgent[], prompts: string[]): Promise<void> {
     return new Promise((resolve) => {
       parallelPendingCountRef.current = agents.length
       parallelDoneCallbackRef.current = resolve
@@ -313,11 +307,11 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
     storeRef.current.setTeamTask(teamId, task)
     storeRef.current.setTeamStatus(teamId, 'running')
 
-    const agents = team.agents as AgentWithMeta[]
+    const agents = team.agents
     agents.forEach((agent, index) => {
       enqueueExec(() => {
         const currentTeam = teamsRef.current.find((t) => t.id === teamId)!
-        const prior = (currentTeam.agents as AgentWithMeta[]).slice(0, index)
+        const prior = currentTeam.agents.slice(0, index)
         const prompt = buildInitialPrompt(agent, task, prior)
         void sendToAgentAwaited(currentTeam, agent, prompt)
       })
@@ -336,7 +330,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
     storeRef.current.setTeamTask(teamId, task)
     storeRef.current.setTeamStatus(teamId, 'running')
 
-    const agents = team.agents as AgentWithMeta[]
+    const agents = team.agents
     const prompts = agents.map((a) => buildParallelPrompt(a, task))
     await sendAllParallel(team, agents, prompts)
     storeRef.current.setTeamStatus(teamId, 'done')
@@ -350,11 +344,11 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
     storeRef.current.setTeamTask(teamId, task)
     storeRef.current.setTeamStatus(teamId, 'running')
 
-    const agents = team.agents as AgentWithMeta[]
+    const agents = team.agents
     agents.forEach((agent) => {
       enqueueExec(() => {
         const currentTeam = teamsRef.current.find((t) => t.id === teamId)!
-        const prompt = buildMeetingPrompt(agent, task, currentTeam.agents as AgentWithMeta[], 1)
+        const prompt = buildMeetingPrompt(agent, task, currentTeam.agents, 1)
         void sendToAgentAwaited(currentTeam, agent, prompt)
       })
     })
@@ -385,7 +379,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
     storeRef.current.setTeamStatus(teamId, 'running')
 
     const newRound = team.roundNumber + 1
-    const agents = team.agents as AgentWithMeta[]
+    const agents = team.agents
     const mode: DiscussionMode = team.mode ?? 'sequential'
 
     if (mode === 'parallel') {
@@ -397,7 +391,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       agents.forEach((agent) => {
         enqueueExec(() => {
           const currentTeam = teamsRef.current.find((t) => t.id === teamId)!
-          const prompt = buildMeetingPrompt(agent, currentTeam.currentTask, currentTeam.agents as AgentWithMeta[], newRound)
+          const prompt = buildMeetingPrompt(agent, currentTeam.currentTask, currentTeam.agents, newRound)
           void sendToAgentAwaited(currentTeam, agent, prompt)
         })
       })
@@ -410,7 +404,7 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       agents.forEach((agent, index) => {
         enqueueExec(() => {
           const currentTeam = teamsRef.current.find((t) => t.id === teamId)!
-          const prior = (currentTeam.agents as AgentWithMeta[]).slice(0, index)
+          const prior = currentTeam.agents.slice(0, index)
           const prompt = buildInitialPrompt(agent, currentTeam.currentTask, prior)
           void sendToAgentAwaited(currentTeam, agent, prompt)
         })
