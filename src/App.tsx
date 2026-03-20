@@ -6,6 +6,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { Sidebar } from './components/Sidebar'
 import { ClaudeInstallModal } from './components/app/ClaudeInstallModal'
 import { EmptyMainState } from './components/app/EmptyMainState'
+import { TeamView } from './components/team/TeamView'
 import { useI18n } from './hooks/useI18n'
 import { useClaudeStream } from './hooks/useClaudeStream'
 import { useAppDesktopEffects } from './hooks/useAppDesktopEffects'
@@ -62,6 +63,7 @@ export default function App() {
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [teamOpen, setTeamOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [messageJumpTarget, setMessageJumpTarget] = useState<{
     sessionId: string
@@ -183,19 +185,29 @@ export default function App() {
   const closeOverlayPanels = () => {
     setSettingsOpen(false)
     setScheduleOpen(false)
+    setTeamOpen(false)
     setCommandPaletteOpen(false)
   }
 
   const openSettingsPanel = () => {
     setCommandPaletteOpen(false)
     setScheduleOpen(false)
+    setTeamOpen(false)
     setSettingsOpen(true)
   }
 
   const openSchedulePanel = () => {
     setSettingsOpen(false)
     setCommandPaletteOpen(false)
+    setTeamOpen(false)
     setScheduleOpen(true)
+  }
+
+  const openTeamPanel = () => {
+    setSettingsOpen(false)
+    setScheduleOpen(false)
+    setCommandPaletteOpen(false)
+    setTeamOpen(true)
   }
 
   async function handleNewSession(cwdOverride?: string): Promise<string> {
@@ -274,7 +286,9 @@ export default function App() {
             onSelectFolder={(sessionId) => handleSelectFolder(sessionId)}
             onOpenSchedule={openSchedulePanel}
             onOpenSettings={openSettingsPanel}
+            onOpenTeam={openTeamPanel}
             scheduleOpen={scheduleOpen}
+            teamOpen={teamOpen}
             newSessionShortcutLabel={getShortcutLabel(shortcutConfig, 'newSession', shortcutPlatform)}
             settingsShortcutLabel={getShortcutLabel(shortcutConfig, 'openSettings', shortcutPlatform)}
           />
@@ -286,7 +300,14 @@ export default function App() {
       )}
 
       <main className="flex-1 overflow-hidden">
-        {scheduleOpen ? (
+        {teamOpen ? (
+          <TeamView
+            defaultCwd={activeSession?.cwd ?? defaultProjectPath}
+            envVars={sanitizedEnvVars}
+            claudeBinaryPath={claudeBinaryPath || undefined}
+            onClose={() => setTeamOpen(false)}
+          />
+        ) : scheduleOpen ? (
           <ScheduledTasksView
             defaultProjectPath={activeSession?.cwd ?? defaultProjectPath}
             onClose={() => setScheduleOpen(false)}

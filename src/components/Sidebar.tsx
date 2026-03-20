@@ -21,7 +21,9 @@ type Props = {
   onSelectFolder: (sessionId: string) => void
   onOpenSchedule: () => void
   onOpenSettings: () => void
+  onOpenTeam: () => void
   scheduleOpen: boolean
+  teamOpen: boolean
 }
 
 export function Sidebar({
@@ -39,7 +41,9 @@ export function Sidebar({
   onSelectFolder: _onSelectFolder,
   onOpenSchedule,
   onOpenSettings,
+  onOpenTeam,
   scheduleOpen,
+  teamOpen,
 }: Props) {
   const { t } = useI18n()
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
@@ -128,8 +132,10 @@ export function Sidebar({
         activeScheduledTaskCount={activeScheduledTaskCount}
         scheduleOpen={scheduleOpen}
         settingsShortcutLabel={settingsShortcutLabel}
+        teamOpen={teamOpen}
         onOpenSchedule={onOpenSchedule}
         onOpenSettings={onOpenSettings}
+        onOpenTeam={onOpenTeam}
       />
     </aside>
   )
