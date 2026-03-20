@@ -13,6 +13,7 @@ import {
   normalizeImportedMessage,
   pruneEmptyCurrentAssistantMessage,
 } from '../lib/sessionUtils'
+import { extractSubagentRuntimeInfo, isSubagentToolName } from '../lib/agent-subcalls'
 import { nanoid } from './nanoid'
 import type { Session, SessionsStore, ToolCallBlock } from './sessionTypes'
 
@@ -231,8 +232,40 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
       }))
     },
 
+    appendSubagentText: (tabId, toolUseId, chunk) => {
+      if (!chunk) return
+
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id === tabId
+            ? {
+                ...session,
+                messages: session.messages.map((message) => ({
+                  ...message,
+                  toolCalls: message.toolCalls.map((toolCall) =>
+                    toolCall.toolUseId === toolUseId
+                      ? {
+                          ...toolCall,
+                          streamingText: (toolCall.streamingText ?? '') + chunk,
+                        }
+                      : toolCall,
+                  ),
+                })),
+              }
+            : session,
+        ),
+      }))
+    },
+
     addToolCall: (tabId, assistantMsgId, toolCall) => {
-      const nextToolCall: ToolCallBlock = { id: nanoid(), ...toolCall }
+      const nextToolCall: ToolCallBlock = {
+        id: nanoid(),
+        ...toolCall,
+        streamingText: toolCall.streamingText ?? '',
+        subagentState: isSubagentToolName(toolCall.toolName)
+          ? (toolCall.subagentState ?? 'pending')
+          : toolCall.subagentState,
+      }
       set((state) => ({
         sessions: state.sessions.map((session) =>
           session.id === tabId
@@ -259,11 +292,46 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
                   ...message,
                   toolCalls: message.toolCalls.map((toolCall) =>
                     toolCall.toolUseId === toolUseId
+                      ? (() => {
+                          const runtimeInfo = isSubagentToolName(toolCall.toolName)
+                            ? extractSubagentRuntimeInfo(result, toolCall.toolInput)
+                            : null
+
+                          return {
+                            ...toolCall,
+                            result,
+                            isError,
+                            status: isError ? 'error' : 'done',
+                            subagentState: isSubagentToolName(toolCall.toolName)
+                              ? (isError ? 'error' : (runtimeInfo ? 'running' : (toolCall.subagentState ?? 'done')))
+                              : toolCall.subagentState,
+                            subagentSessionId: runtimeInfo?.sessionId ?? toolCall.subagentSessionId,
+                            subagentAgentId: runtimeInfo?.agentId ?? toolCall.subagentAgentId,
+                            subagentTranscriptPath: runtimeInfo?.transcriptPath ?? toolCall.subagentTranscriptPath,
+                          }
+                        })()
+                      : toolCall,
+                  ),
+                })),
+              }
+            : session,
+        ),
+      }))
+    },
+
+    updateSubagent: (tabId, toolUseId, patch) => {
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id === tabId
+            ? {
+                ...session,
+                messages: session.messages.map((message) => ({
+                  ...message,
+                  toolCalls: message.toolCalls.map((toolCall) =>
+                    toolCall.toolUseId === toolUseId
                       ? {
                           ...toolCall,
-                          result,
-                          isError,
-                          status: isError ? 'error' : 'done',
+                          ...patch,
                         }
                       : toolCall,
                   ),

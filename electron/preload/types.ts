@@ -232,6 +232,20 @@ export type ScheduledTaskAdvanceEvent = {
   manual?: boolean
 }
 
+export type GitHeadChangedEvent = {
+  cwd: string
+  headPath: string
+}
+
+export type SubagentTextChunkEvent = {
+  tabId: string
+  toolUseId: string
+  transcriptPath: string | null
+  chunk: string
+  done?: boolean
+  error?: string
+}
+
 export type McpConfigScope = 'user' | 'local' | 'project'
 
 export type McpReadResult = {
@@ -341,9 +355,23 @@ export type ClaudeAPI = {
   updateQuickPanelShortcut: (params: { accelerator: string; enabled: boolean }) => Promise<{ ok: boolean; error?: string }>
   quickPanelSubmit: (params: { text: string; cwd: string }) => Promise<void>
   quickPanelHide: () => Promise<void>
+  watchGitHead: (params: { cwd: string }) => Promise<{ watchId: string | null }>
+  unwatchGitHead: (params: { watchId: string }) => Promise<void>
+  watchSubagentText: (params: {
+    tabId: string
+    toolUseId: string
+    cwd: string
+    parentSessionId: string | null
+    subagentSessionId?: string | null
+    agentId?: string | null
+    transcriptPath?: string | null
+  }) => Promise<{ watchId: string | null; transcriptPath: string | null }>
+  unwatchSubagentText: (params: { watchId: string }) => Promise<void>
   onClaudeEvent: (handler: (event: ClaudeStreamEvent) => void) => () => void
   onQuickPanelMessage: (handler: (payload: { text: string; cwd: string }) => void) => () => void
   onTrayNewSession: (handler: () => void) => () => void
   onScheduledTaskFired: (handler: (event: ScheduledTaskFiredEvent) => void) => () => void
   onScheduledTaskAdvance: (handler: (event: ScheduledTaskAdvanceEvent) => void) => () => void
+  onGitHeadChanged: (handler: (event: GitHeadChangedEvent) => void) => () => void
+  onSubagentTextChunk: (handler: (event: SubagentTextChunkEvent) => void) => () => void
 }

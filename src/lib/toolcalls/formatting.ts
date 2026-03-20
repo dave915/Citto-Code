@@ -1,4 +1,5 @@
 import type { ToolCallBlock as ToolCallBlockType } from '../../store/sessions'
+import { extractSubagentRuntimeInfo, isSubagentToolName } from '../agent-subcalls'
 import type { SubagentSessionInfo } from './types'
 
 const ACTION_LABELS: Record<string, string> = {
@@ -15,6 +16,9 @@ const ACTION_LABELS: Record<string, string> = {
   WebSearch: 'Search',
   Agent: 'Task',
   Task: 'Task',
+  agent: 'Task',
+  task: 'Task',
+  call_omo_agent: 'Task',
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -65,6 +69,15 @@ function stripSystemTags(value: string): string {
     .trimEnd()
 }
 
+function extractPreferredResultContent(result: unknown): unknown {
+  if (!isRecord(result)) return result
+  if (typeof result.content !== 'undefined') return result.content
+  if (typeof result.result !== 'undefined') return result.result
+  if (typeof result.toolOutput !== 'undefined') return result.toolOutput
+  if (typeof result.tool_output !== 'undefined') return result.tool_output
+  return result
+}
+
 export function formatToolInput(name: string, input: unknown): string {
   if (!input || typeof input !== 'object') return String(input ?? '')
   const obj = input as Record<string, unknown>
@@ -76,7 +89,7 @@ export function formatToolInput(name: string, input: unknown): string {
   if (name === 'Grep') return String(obj.pattern ?? '') + (obj.path ? ` in ${obj.path}` : '')
   if (name === 'WebFetch') return String(obj.url ?? '')
   if (name === 'WebSearch') return String(obj.query ?? '')
-  if (name === 'Task' || name === 'Agent') {
+  if (isSubagentToolName(name)) {
     const description = typeof obj.description === 'string' ? obj.description.trim() : ''
     if (description) return description
     const subagentType = typeof obj.subagent_type === 'string' ? obj.subagent_type.trim() : ''
@@ -86,16 +99,17 @@ export function formatToolInput(name: string, input: unknown): string {
 }
 
 export function formatToolResult(result: unknown): string {
-  if (typeof result === 'string') return stripSystemTags(result)
-  if (Array.isArray(result)) {
+  const preferred = extractPreferredResultContent(result)
+  if (typeof preferred === 'string') return stripSystemTags(preferred)
+  if (Array.isArray(preferred)) {
     return stripSystemTags(
-      result
+      preferred
         .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
         .map((item) => (item.type === 'text' ? String(item.text) : JSON.stringify(item)))
         .join('\n'),
     )
   }
-  return stripSystemTags(JSON.stringify(result ?? '', null, 2))
+  return stripSystemTags(JSON.stringify(preferred ?? '', null, 2))
 }
 
 export function countDisplayLines(content: string): number {
@@ -148,31 +162,31 @@ export function getEditableToolPath(name: string, input: unknown): string | null
 }
 
 export function getSubagentSessionInfo(toolCall: ToolCallBlockType): SubagentSessionInfo | null {
-  if (toolCall.toolName !== 'Task' && toolCall.toolName !== 'Agent') return null
+  if (!isSubagentToolName(toolCall.toolName)) return null
 
+  const runtimeInfo = extractSubagentRuntimeInfo(toolCall.result, toolCall.toolInput)
   const resultText = formatToolResult(toolCall.result)
-  const result = isRecord(toolCall.result) ? toolCall.result : null
   const input = isRecord(toolCall.toolInput) ? toolCall.toolInput : null
-  const outputFile = typeof result?.outputFile === 'string'
-    ? result.outputFile.trim()
-    : typeof result?.output_file === 'string'
-      ? result.output_file.trim()
-      : extractOutputFileFromText(resultText)
+  const outputFile = toolCall.subagentTranscriptPath
+    ?? runtimeInfo?.transcriptPath
+    ?? extractOutputFileFromText(resultText)
   if (!outputFile) return null
 
+  const sessionId = toolCall.subagentSessionId ?? runtimeInfo?.sessionId ?? null
+  const agentId = toolCall.subagentAgentId ?? runtimeInfo?.agentId ?? null
+  const lookupId = agentId
+    ? `subagent:${agentId}`
+    : sessionId?.startsWith('ses_')
+      ? sessionId
+      : inferSubagentLookupId(outputFile, null, input)
+
   return {
-    lookupId: inferSubagentLookupId(outputFile, result, input),
+    lookupId,
     outputFile,
-    agent: typeof result?.agent === 'string'
-      ? result.agent
-      : typeof input?.subagent_type === 'string'
-        ? input.subagent_type
-        : null,
-    description: typeof result?.description === 'string'
-      ? result.description
-      : typeof input?.description === 'string'
-        ? input.description
-        : null,
+    agent: runtimeInfo?.agent ?? null,
+    agentId,
+    description: runtimeInfo?.description ?? null,
+    sessionId,
   }
 }
 

@@ -4,6 +4,10 @@ import { join } from 'path'
 
 type GetUserHomePath = (env?: NodeJS.ProcessEnv) => string
 
+export function isPowerShellScriptPath(commandPath: string): boolean {
+  return commandPath.trim().toLowerCase().endsWith('.ps1')
+}
+
 export function readEnvVar(envVars: Record<string, string> | undefined, key: string): string {
   const value = envVars?.[key]
   return typeof value === 'string' ? value.trim() : ''
@@ -17,12 +21,14 @@ export function resolveClaude(getUserHomePath: GetUserHomePath): string {
       join(appDataPath, 'npm', 'claude.cmd'),
       join(appDataPath, 'npm', 'claude.exe'),
       join(appDataPath, 'npm', 'claude.bat'),
+      join(appDataPath, 'npm', 'claude.ps1'),
     ]
     const pathDirs = (process.env.PATH ?? '').split(';').filter(Boolean)
     for (const dir of pathDirs) {
       candidates.push(join(dir, 'claude.cmd'))
       candidates.push(join(dir, 'claude.exe'))
       candidates.push(join(dir, 'claude.bat'))
+      candidates.push(join(dir, 'claude.ps1'))
       candidates.push(join(dir, 'claude'))
     }
     for (const candidate of candidates) {
@@ -58,17 +64,24 @@ export function detectClaudeInstallation(
     return { installed: false, path: null, version: null }
   }
   const commandPath = expandedOverride ?? resolveClaude(getUserHomePath)
+  const sharedEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: process.env.HOME ?? homePath,
+    USERPROFILE: process.env.USERPROFILE ?? homePath,
+  }
   const result = process.platform === 'win32'
-    ? spawnSync(commandPath, ['--version'], {
-        encoding: 'utf-8',
-        timeout: 3000,
-        env: {
-          ...process.env,
-          HOME: process.env.HOME ?? homePath,
-          USERPROFILE: process.env.USERPROFILE ?? homePath,
-        },
-        shell: true,
-      })
+    ? isPowerShellScriptPath(commandPath)
+      ? spawnSync('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', commandPath, '--version'], {
+          encoding: 'utf-8',
+          timeout: 3000,
+          env: sharedEnv,
+        })
+      : spawnSync(commandPath, ['--version'], {
+          encoding: 'utf-8',
+          timeout: 3000,
+          env: sharedEnv,
+          shell: true,
+        })
     : spawnSync(userShell, ['-l', '-c', '"$0" --version', commandPath], {
         encoding: 'utf-8',
         timeout: 3000,

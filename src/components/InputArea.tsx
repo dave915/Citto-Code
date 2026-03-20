@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import type { SelectedFile } from '../../electron/preload'
 import { useSessionsStore, type PendingPermissionRequest, type PendingQuestionRequest, type PermissionMode } from '../store/sessions'
 import { useInputAttachments } from '../hooks/useInputAttachments'
@@ -31,6 +31,7 @@ type Props = {
   permissionShortcutLabel: string
   bypassShortcutLabel: string
   externalDraft?: { id: number; text: string } | null
+  topSlot?: ReactNode
 }
 
 export function InputArea({
@@ -53,6 +54,7 @@ export function InputArea({
   permissionShortcutLabel,
   bypassShortcutLabel,
   externalDraft,
+  topSlot,
 }: Props) {
   const { language } = useI18n()
   const envVars = useSessionsStore((state) => state.envVars)
@@ -232,6 +234,8 @@ export function InputArea({
   return (
     <div className="bg-claude-chat-bg px-6 pt-4 pb-5">
       <div className="mx-auto w-full max-w-[860px]">
+        {topSlot}
+
         <AttachmentList
           attachedFiles={attachedFiles}
           skippedFiles={skippedFiles}

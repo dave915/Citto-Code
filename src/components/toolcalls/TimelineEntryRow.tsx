@@ -91,13 +91,14 @@ export function TimelineEntryRow({
         return
       }
 
-      importSession({
+      const importedId = importSession({
         ...session,
         sessionId: session.sessionId ?? subagentSessionInfo.lookupId,
         name: subagentSessionInfo.description?.trim()
           ? `${session.name} · ${subagentSessionInfo.description.trim()}`
           : session.name,
       })
+      setActiveSession(importedId)
     } catch {
       setSubagentSessionError(language === 'en' ? 'An error occurred while opening the subagent session.' : '서브에이전트 세션을 여는 중 오류가 발생했습니다.')
     } finally {

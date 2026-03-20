@@ -16,6 +16,7 @@ import {
 } from './services/fileService'
 import { createScheduledTaskScheduler, mapPersistedScheduledTaskToSyncItem } from './services/scheduledTaskScheduler'
 import { fetchModelsFromApi } from './services/modelService'
+import { createGitHeadWatchService } from './services/gitHeadWatchService'
 import {
   commitGit,
   createGitBranch,
@@ -41,6 +42,7 @@ import {
   resolveTargetPath,
 } from './services/shellEnvironmentService'
 import { createSettingsDataService } from './services/settingsDataService'
+import { createSubagentWatchService } from './services/subagentWatchService'
 import { createTrayImage, resolveAppIconPath } from './services/trayImageService'
 
 const IS_DEV = process.env.NODE_ENV === 'development'
@@ -57,6 +59,10 @@ const scheduledTaskScheduler = createScheduledTaskScheduler({
   showMainWindow,
   sendWhenRendererReady,
   getProjectNameFromPath,
+})
+const gitHeadWatchService = createGitHeadWatchService()
+const subagentWatchService = createSubagentWatchService({
+  getHomePath: () => getUserHomePath(),
 })
 
 function appendClaudeResponseLog(entry: Record<string, unknown>) {
@@ -522,6 +528,36 @@ app.whenReady().then(async () => {
     mapPersistedScheduledTaskToSyncItem,
   })
 
+  ipcMain.handle('git:watch-head', (event, { cwd }: { cwd: string }) => {
+    return gitHeadWatchService.register(event.sender, cwd)
+  })
+
+  ipcMain.handle('git:unwatch-head', (_event, { watchId }: { watchId: string }) => {
+    gitHeadWatchService.unregister(watchId)
+  })
+
+  ipcMain.handle(
+    'subagent:watch-text',
+    (
+      event,
+      params: {
+        tabId: string
+        toolUseId: string
+        cwd: string
+        parentSessionId: string | null
+        subagentSessionId?: string | null
+        agentId?: string | null
+        transcriptPath?: string | null
+      },
+    ) => {
+      return subagentWatchService.register(event.sender, params)
+    },
+  )
+
+  ipcMain.handle('subagent:unwatch-text', (_event, { watchId }: { watchId: string }) => {
+    subagentWatchService.unregister(watchId)
+  })
+
   ipcMain.handle('window:toggle-maximize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
@@ -554,6 +590,8 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   scheduledTaskScheduler.stop()
+  gitHeadWatchService.dispose()
+  subagentWatchService.dispose()
   killAllClaudeProcesses()
   globalShortcut.unregisterAll()
 })

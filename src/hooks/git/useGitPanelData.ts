@@ -335,6 +335,39 @@ export function useGitPanelData({
   }, [cwd])
 
   useEffect(() => {
+    const normalizedCwd = cwd.trim()
+    if (!normalizedCwd) return
+
+    let watchId: string | null = null
+    let cancelled = false
+
+    const cleanupEvent = window.claude.onGitHeadChanged((event) => {
+      if (event.cwd !== normalizedCwd) return
+      void refreshGitPanel({ silent: true })
+    })
+
+    void window.claude.watchGitHead({ cwd: normalizedCwd })
+      .then((result) => {
+        if (cancelled) {
+          if (result.watchId) {
+            void window.claude.unwatchGitHead({ watchId: result.watchId }).catch(() => undefined)
+          }
+          return
+        }
+        watchId = result.watchId
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+      cleanupEvent()
+      if (watchId) {
+        void window.claude.unwatchGitHead({ watchId }).catch(() => undefined)
+      }
+    }
+  }, [cwd])
+
+  useEffect(() => {
     setSelectedGitEntry(null)
     setSelectedGitCommit(null)
     setGitLog([])

@@ -23,9 +23,21 @@ This app is not meant to replace the official product. If you can use the offici
 - Start new work quickly from the quick panel and recent projects
 - Attach files or read file contents into the conversation
 - Ask for code explanations, bug investigation, and feature work in natural language
-- Review modified files and Git diffs, and switch branches, commit, pull, or push
+- Monitor subagent activity above the composer, open a detail modal, and read live streamed output
+- Preview runnable HTML results directly inside the chat
+- Review modified files and Git diffs, switch branches, commit, pull, or push, and auto-refresh when the current branch changes outside the app
 - Manage MCP, Skills, Agents, environment variables, themes, notifications, and shortcuts
-- Run scheduled Claude sessions automatically
+- Run scheduled Claude sessions automatically, with duplicate runs blocked during wake or timer overlap
+
+## Recent Changes
+
+### March 17, 2026
+
+- Added a subagent status bar above the input area with live text streaming, markdown rendering, and a detail modal.
+- The Git panel now refreshes immediately when `.git/HEAD` changes after an external branch switch.
+- Fixed HTML preview path resolution for relative files and prevented previews from reopening unexpectedly after permission approval.
+- Scheduled tasks are now guarded against duplicate runs when precise timers, fallback polling, or wake-from-sleep checks overlap.
+- Windows builds now include a dedicated tray PNG alongside the `.ico` app icon.
 
 ## Requirements
 

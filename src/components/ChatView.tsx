@@ -12,6 +12,7 @@ import { useGitPanel } from '../hooks/useGitPanel'
 import { useI18n } from '../hooks/useI18n'
 import { InputArea } from './InputArea'
 import { BranchCreateModal } from './chat/BranchCreateModal'
+import { AgentStatusBar } from './chat/AgentStatusBar'
 import { ChatHeader } from './chat/ChatHeader'
 import { ChatMessagePane } from './chat/ChatMessagePane'
 import { ChatSidePanel } from './chat/ChatSidePanel'
@@ -639,6 +640,7 @@ export function ChatView({
           permissionShortcutLabel={permissionShortcutLabel}
           bypassShortcutLabel={bypassShortcutLabel}
           externalDraft={externalDraft}
+          topSlot={<AgentStatusBar session={session} />}
         />
       </div>
 

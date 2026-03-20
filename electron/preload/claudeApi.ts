@@ -87,6 +87,10 @@ export const claudeAPI: ClaudeAPI = {
   updateQuickPanelShortcut: (params) => ipcRenderer.invoke('quick-panel:update-shortcut', params),
   quickPanelSubmit: (params) => ipcRenderer.invoke('quick-panel:submit', params),
   quickPanelHide: () => ipcRenderer.invoke('quick-panel:hide'),
+  watchGitHead: (params) => ipcRenderer.invoke('git:watch-head', params),
+  unwatchGitHead: (params) => ipcRenderer.invoke('git:unwatch-head', params),
+  watchSubagentText: (params) => ipcRenderer.invoke('subagent:watch-text', params),
+  unwatchSubagentText: (params) => ipcRenderer.invoke('subagent:unwatch-text', params),
   onClaudeEvent: (handler) => {
     const listeners = claudeStreamChannels.map((channel) => {
       const listener = (_: Electron.IpcRendererEvent, data: unknown) => {
@@ -122,5 +126,25 @@ export const claudeAPI: ClaudeAPI = {
     const listener = (_: Electron.IpcRendererEvent, payload: ScheduledTaskAdvanceEvent) => handler(payload)
     ipcRenderer.on('scheduled-tasks:advance', listener)
     return () => ipcRenderer.removeListener('scheduled-tasks:advance', listener)
+  },
+  onGitHeadChanged: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: { cwd: string; headPath: string }) => handler(payload)
+    ipcRenderer.on('git:head-changed', listener)
+    return () => ipcRenderer.removeListener('git:head-changed', listener)
+  },
+  onSubagentTextChunk: (handler) => {
+    const listener = (
+      _: Electron.IpcRendererEvent,
+      payload: {
+        tabId: string
+        toolUseId: string
+        transcriptPath: string | null
+        chunk: string
+        done?: boolean
+        error?: string
+      },
+    ) => handler(payload)
+    ipcRenderer.on('subagent:text-chunk', listener)
+    return () => ipcRenderer.removeListener('subagent:text-chunk', listener)
   },
 }

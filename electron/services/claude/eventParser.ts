@@ -62,6 +62,23 @@ function extractInputTokens(event: Record<string, unknown>): number | null {
   return sawUsageField ? total : null
 }
 
+function buildToolResultPayload(record: Record<string, unknown>): unknown {
+  const content = typeof record.content !== 'undefined' ? record.content : undefined
+  const toolOutput = typeof record.tool_output !== 'undefined'
+    ? record.tool_output
+    : typeof record.toolOutput !== 'undefined'
+      ? record.toolOutput
+      : undefined
+
+  if (typeof toolOutput === 'undefined') return content
+  if (typeof content === 'undefined') return toolOutput
+
+  return {
+    content,
+    toolOutput,
+  }
+}
+
 export function handleClaudeEvent(
   sender: WebContents,
   data: Record<string, unknown>,
@@ -173,6 +190,18 @@ export function handleClaudeEvent(
         })
       }
     }
+    return
+  }
+
+  if (type === 'tool_result') {
+    const sid = (data.session_id as string) || sessionId
+    if (sid) onSessionId(sid)
+    sender.send('claude:tool-result', {
+      sessionId: sid,
+      toolUseId: data.tool_use_id,
+      content: buildToolResultPayload(data),
+      isError: data.is_error ?? false,
+    })
     return
   }
 

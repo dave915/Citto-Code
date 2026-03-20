@@ -229,6 +229,23 @@ export function createCliHistoryService({
 
       if (record.type === 'result' && typeof record.total_cost_usd === 'number') {
         lastCost = record.total_cost_usd
+        continue
+      }
+
+      if (record.type === 'tool_result') {
+        const toolUseId = String(record.tool_use_id ?? '')
+        const toolCall = toolCallsById.get(toolUseId)
+        if (!toolCall) continue
+
+        const hasToolOutput = typeof record.tool_output !== 'undefined' || typeof record.toolOutput !== 'undefined'
+        toolCall.result = hasToolOutput
+          ? {
+              content: record.content,
+              toolOutput: typeof record.tool_output !== 'undefined' ? record.tool_output : record.toolOutput,
+            }
+          : record.content
+        toolCall.isError = Boolean(record.is_error)
+        toolCall.status = toolCall.isError ? 'error' : 'done'
       }
     }
 

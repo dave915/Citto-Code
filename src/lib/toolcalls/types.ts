@@ -49,5 +49,7 @@ export type SubagentSessionInfo = {
   lookupId: string
   outputFile: string
   agent: string | null
+  agentId: string | null
   description: string | null
+  sessionId: string | null
 }

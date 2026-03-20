@@ -11,6 +11,7 @@ import { useClaudeStream } from './hooks/useClaudeStream'
 import { useAppDesktopEffects } from './hooks/useAppDesktopEffects'
 import { useInstallationCheck } from './hooks/useInstallationCheck'
 import { useSidebarLayout } from './hooks/useSidebarLayout'
+import { useSubagentStreams } from './hooks/useSubagentStreams'
 import { buildQuickPanelProjects, normalizeSelectedFolder, sanitizeEnvVars } from './lib/claudeRuntime'
 import { getShortcutLabel, getCurrentPlatform } from './lib/shortcuts'
 import { buildSessionFileLockState } from './lib/sessionLocks'
@@ -33,8 +34,10 @@ export default function App() {
     startAssistantMessage,
     appendThinkingChunk,
     appendTextChunk,
+    appendSubagentText,
     addToolCall,
     resolveToolCall,
+    updateSubagent,
     setStreaming,
     setClaudeSessionId,
     setError,
@@ -155,6 +158,12 @@ export default function App() {
     setModel,
     commitStreamEnd,
     removeSession,
+  })
+
+  useSubagentStreams({
+    sessions,
+    appendSubagentText,
+    updateSubagent,
   })
 
   useEffect(() => {

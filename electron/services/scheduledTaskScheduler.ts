@@ -103,6 +103,7 @@ export function createScheduledTaskScheduler({
   let scheduledTasks: ScheduledTaskSyncItem[] = []
   let scheduledTaskInterval: NodeJS.Timeout | null = null
   let nextScheduledTaskTimeout: NodeJS.Timeout | null = null
+  const runningTaskIds = new Set<string>()
 
   const getScheduledTaskWindow = () => {
     const currentWindow = getMainWindow()
@@ -114,6 +115,33 @@ export function createScheduledTaskScheduler({
     if (!nextScheduledTaskTimeout) return
     clearTimeout(nextScheduledTaskTimeout)
     nextScheduledTaskTimeout = null
+  }
+
+  const reconcileRunningTaskIds = () => {
+    const activeTaskIds = new Set(scheduledTasks.map((task) => task.id))
+    const now = Date.now()
+
+    for (const taskId of [...runningTaskIds]) {
+      const task = scheduledTasks.find((item) => item.id === taskId)
+      if (!task || !activeTaskIds.has(taskId)) {
+        runningTaskIds.delete(taskId)
+        continue
+      }
+
+      if (task.frequency === 'manual') {
+        runningTaskIds.delete(taskId)
+        continue
+      }
+
+      if (!task.enabled) {
+        runningTaskIds.delete(taskId)
+        continue
+      }
+
+      if (typeof task.nextRunAt === 'number' && task.nextRunAt > now) {
+        runningTaskIds.delete(taskId)
+      }
+    }
   }
 
   const scheduleNextTaskCheck = () => {
@@ -152,6 +180,9 @@ export function createScheduledTaskScheduler({
   }
 
   const fireScheduledTask = (task: ScheduledTaskSyncItem, options?: { catchUp?: boolean; manual?: boolean }) => {
+    if (runningTaskIds.has(task.id)) return false
+    runningTaskIds.add(task.id)
+
     const firedAt = Date.now()
     const lateness = typeof task.nextRunAt === 'number' ? firedAt - task.nextRunAt : 0
     const catchUp = Boolean(options?.catchUp) || (!options?.manual && lateness > catchUpThresholdMs)
@@ -176,6 +207,7 @@ export function createScheduledTaskScheduler({
       manual,
     })
     holdScheduledTaskUntilSync(task.id)
+    return true
   }
 
   const checkMissedRuns = async () => {
@@ -206,6 +238,7 @@ export function createScheduledTaskScheduler({
   return {
     setTasks(tasks: ScheduledTaskSyncItem[]) {
       scheduledTasks = normalizeScheduledTasks(tasks)
+      reconcileRunningTaskIds()
       scheduleNextTaskCheck()
     },
 
@@ -232,6 +265,7 @@ export function createScheduledTaskScheduler({
 
     syncTasks(tasks: ScheduledTaskSyncItem[]) {
       scheduledTasks = normalizeScheduledTasks(tasks)
+      reconcileRunningTaskIds()
       scheduleNextTaskCheck()
       void checkMissedRuns()
     },
@@ -242,7 +276,9 @@ export function createScheduledTaskScheduler({
         return { ok: false, error: '작업을 찾을 수 없습니다.' }
       }
 
-      fireScheduledTask(task, { manual: true })
+      if (!fireScheduledTask(task, { manual: true })) {
+        return { ok: false, error: '이미 실행 중인 작업입니다.' }
+      }
       scheduleNextTaskCheck()
       return { ok: true }
     },

@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { handleClaudeEvent, clearStreamedAssistantState } from '../services/claude/eventParser'
-import { detectClaudeInstallation, readEnvVar, resolveClaude } from '../services/claude/installation'
+import { detectClaudeInstallation, isPowerShellScriptPath, readEnvVar, resolveClaude } from '../services/claude/installation'
 
 type ModelInfo = {
   id: string
@@ -112,12 +112,18 @@ export function registerClaudeIpcHandlers({
     const userShell = procEnv.SHELL ?? '/bin/bash'
 
     const proc = process.platform === 'win32'
-      ? spawn(claudeBin, args, {
-          cwd: resolvedCwd,
-          env: procEnv,
-          stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true,
-        })
+      ? isPowerShellScriptPath(claudeBin)
+        ? spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', claudeBin, ...args], {
+            cwd: resolvedCwd,
+            env: procEnv,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          })
+        : spawn(claudeBin, args, {
+            cwd: resolvedCwd,
+            env: procEnv,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            shell: true,
+          })
       : spawn(userShell, ['-l', '-c', '"$0" "$@"', claudeBin, ...args], {
           cwd: resolvedCwd,
           env: procEnv,

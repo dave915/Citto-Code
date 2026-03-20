@@ -123,6 +123,7 @@ export type {
   ShortcutConfig,
   ShortcutPlatform,
   SidebarMode,
+  SubagentState,
   ToolCallBlock,
   ToolCallStatus,
 } from './sessionTypes'

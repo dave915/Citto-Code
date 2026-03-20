@@ -2,6 +2,7 @@ import type { ThemeId } from '../lib/theme'
 import type { AppLanguage } from '../lib/i18n'
 
 export type ToolCallStatus = 'running' | 'done' | 'error'
+export type SubagentState = 'pending' | 'running' | 'done' | 'error'
 
 export type ToolCallBlock = {
   id: string
@@ -12,6 +13,11 @@ export type ToolCallBlock = {
   result?: unknown
   isError?: boolean
   status: ToolCallStatus
+  streamingText?: string
+  subagentState?: SubagentState
+  subagentSessionId?: string | null
+  subagentAgentId?: string | null
+  subagentTranscriptPath?: string | null
 }
 
 export type PendingPermissionRequest = {
@@ -154,8 +160,10 @@ export type SessionsStore = {
   startAssistantMessage: (sessionId: string) => string
   appendThinkingChunk: (sessionId: string, assistantMsgId: string, chunk: string) => void
   appendTextChunk: (sessionId: string, assistantMsgId: string, chunk: string) => void
+  appendSubagentText: (sessionId: string, toolUseId: string, chunk: string) => void
   addToolCall: (sessionId: string, assistantMsgId: string, toolCall: Omit<ToolCallBlock, 'id'>) => void
   resolveToolCall: (sessionId: string, toolUseId: string, result: unknown, isError: boolean) => void
+  updateSubagent: (sessionId: string, toolUseId: string, patch: Partial<Pick<ToolCallBlock, 'streamingText' | 'subagentState' | 'subagentSessionId' | 'subagentAgentId' | 'subagentTranscriptPath'>>) => void
   setStreaming: (sessionId: string, value: boolean) => void
   commitStreamEnd: (sessionId: string) => void
   setClaudeSessionId: (tabId: string, claudeSessionId: string) => void
