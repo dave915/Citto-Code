@@ -96,7 +96,7 @@ export function ChatMessagePane({
   onAbort,
   onAskAboutSelection,
 }: Props) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   return (
     <div
       className="relative z-0 min-w-0 flex-1 overflow-y-auto px-6 py-7"

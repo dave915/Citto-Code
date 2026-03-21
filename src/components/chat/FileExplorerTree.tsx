@@ -22,7 +22,7 @@ export function ExplorerNode({
   onToggleDirectory,
   onSelectEntry,
 }: ExplorerNodeProps) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const isDirectory = entry.type === 'directory'
   const isExpanded = expandedDirs[entry.path]
   const children = childEntries[entry.path] ?? []

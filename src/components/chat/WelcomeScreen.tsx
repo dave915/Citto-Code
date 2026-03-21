@@ -184,7 +184,12 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
               </div>
             )}
           </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-claude-bg via-claude-bg/75 to-transparent" />
+          <div
+            className="pointer-events-none absolute bottom-0 left-1/2 h-20 w-[min(86vw,440px)] -translate-x-1/2"
+            style={{
+              background: 'radial-gradient(ellipse at center bottom, rgb(var(--claude-bg) / 0.82) 0%, rgb(var(--claude-bg) / 0.44) 44%, rgb(var(--claude-bg) / 0) 78%)',
+            }}
+          />
         </div>
       </div>
     </div>
