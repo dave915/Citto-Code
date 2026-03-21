@@ -160,6 +160,34 @@ function AgentSpeechBubble({
   )
 }
 
+function SystemPromptHoverCard({ prompt }: { prompt: string }) {
+  if (!prompt.trim()) return null
+
+  return (
+    <>
+      <button
+        type="button"
+        className="peer/prompt flex h-7 w-7 items-center justify-center rounded-full text-claude-text-muted transition-colors hover:bg-white/5 hover:text-claude-text"
+        aria-label="시스템 프롬프트 보기"
+        title="시스템 프롬프트"
+      >
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v5m0-8h.01" />
+        </svg>
+      </button>
+      <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-[min(24rem,calc(var(--team-detail-width)-3rem),calc(100vw-5rem))] rounded-2xl border border-claude-border bg-claude-panel/95 p-3 opacity-0 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-opacity peer-hover/prompt:opacity-100 peer-focus-visible/prompt:opacity-100">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
+          시스템 프롬프트
+        </p>
+        <div className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-claude-text">
+          {prompt}
+        </div>
+      </div>
+    </>
+  )
+}
+
 function getAgentSpeechPreview(agent: TeamAgent) {
   if (!agent.isStreaming) return null
   return `${agent.name}가 발언중입니다.`
@@ -192,7 +220,7 @@ function AgentMessageCard({
   }, [message.text])
 
   return (
-    <div className="space-y-2 rounded-2xl border border-claude-border bg-claude-bg-base/50 p-4">
+    <div className="space-y-2 rounded-2xl bg-claude-bg-base/50 p-4">
       <div className="flex items-center gap-2 text-xs text-claude-text-muted">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
         <span>Round {roundIndex + 1}</span>
@@ -384,14 +412,13 @@ function SelectedAgentPanel({
   isFirst: boolean
   roundNumber: number
 }) {
-  const [showMeta, setShowMeta] = useState(false)
   const latestMessage = agent.messages.at(-1)
   const preview = latestMessage?.text?.trim() || latestMessage?.thinking?.trim() || ''
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-[28px] border border-claude-border bg-claude-bg-base/70 backdrop-blur-sm">
       <div
-        className="shrink-0 rounded-t-[28px] border-b border-claude-border px-5 py-5"
+        className="shrink-0 rounded-t-[28px] border-b border-claude-border px-4 py-5"
         style={{ background: `linear-gradient(160deg, ${agent.color}20 0%, transparent 70%)` }}
       >
         <div className="flex items-start gap-4">
@@ -412,8 +439,9 @@ function SelectedAgentPanel({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-semibold text-claude-text">{agent.name}</h3>
+              {agent.systemPrompt && <SystemPromptHoverCard prompt={agent.systemPrompt} />}
               {isFirst && (
                 <span className="rounded-full bg-blue-500/15 px-2 py-1 text-[11px] font-medium text-blue-300">
                   선발 에이전트
@@ -442,13 +470,6 @@ function SelectedAgentPanel({
           <span className="rounded-full border border-claude-border px-2.5 py-1 text-xs text-claude-text-muted">
             현재 Round {roundNumber}
           </span>
-          <button
-            type="button"
-            onClick={() => setShowMeta((current) => !current)}
-            className="rounded-full border border-claude-border px-2.5 py-1 text-xs text-claude-text-muted transition-colors hover:border-claude-border-hover hover:text-claude-text"
-          >
-            {showMeta ? '정보 접기' : '설명/프롬프트'}
-          </button>
         </div>
 
         {preview && (
@@ -460,31 +481,9 @@ function SelectedAgentPanel({
           </div>
         )}
 
-        {showMeta && (
-          <div className="mt-4 space-y-3 rounded-2xl border border-claude-border bg-claude-bg/70 p-4">
-            {agent.description && (
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
-                  설명
-                </p>
-                <p className="text-sm leading-relaxed text-claude-text">{agent.description}</p>
-              </div>
-            )}
-            {agent.systemPrompt && (
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
-                  시스템 프롬프트
-                </p>
-                <div className="max-h-44 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-claude-border bg-claude-bg-base px-3 py-2 text-xs leading-relaxed text-claude-text">
-                  {agent.systemPrompt}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div className="flex-1 overflow-y-auto px-1.5 pb-3 pt-2">
         {agent.messages.length === 0 && !agent.isStreaming && !agent.error ? (
           <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-claude-border bg-claude-bg/60 text-center">
             <AgentPixelIcon type={agent.iconType} size={60} color={agent.color} />
@@ -955,12 +954,12 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                   <button
                     type="button"
                     onPointerDown={handleDetailPanelResizeStart}
-                    className="absolute bottom-0 left-[-12px] top-0 z-20 hidden w-6 cursor-col-resize items-center justify-center lg:flex"
+                    className="absolute bottom-[28px] left-[-12px] top-[28px] z-20 hidden w-6 cursor-col-resize items-center justify-center lg:flex"
                     aria-label="에이전트 상세 패널 너비 조절"
                     title="드래그해서 상세 패널 너비 조절"
                   >
-                    <span className="relative h-full w-px bg-white/10">
-                      <span className="absolute left-1/2 top-1/2 h-14 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-claude-border bg-claude-bg-base shadow-[0_4px_12px_rgba(0,0,0,0.22)]" />
+                    <span className="relative h-full w-full">
+                      <span className="absolute left-1/2 top-1/2 h-14 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-claude-border/80 bg-claude-bg-base shadow-[0_4px_12px_rgba(0,0,0,0.22)]" />
                       <span className="absolute left-1/2 top-1/2 h-6 w-px -translate-x-1/2 -translate-y-1/2 bg-claude-text-muted/60" />
                     </span>
                   </button>
