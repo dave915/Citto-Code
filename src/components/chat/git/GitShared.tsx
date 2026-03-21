@@ -53,7 +53,7 @@ export function GitDraftActions({
   showSummary?: boolean
   showCommitMessage?: boolean
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
       <button
@@ -62,7 +62,7 @@ export function GitDraftActions({
         disabled={disabled}
         className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
       >
-        {language === 'en' ? 'Review' : '리뷰'}
+        {t('git.shared.review')}
       </button>
       {showSummary && (
         <button
@@ -71,7 +71,7 @@ export function GitDraftActions({
           disabled={disabled}
           className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
         >
-          {language === 'en' ? 'Summary' : '요약'}
+          {t('git.shared.summary')}
         </button>
       )}
       {showCommitMessage && (
@@ -81,7 +81,7 @@ export function GitDraftActions({
           disabled={disabled}
           className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
         >
-          {language === 'en' ? 'Commit message' : '커밋 메시지'}
+          {t('git.shared.commitMessage')}
         </button>
       )}
     </div>

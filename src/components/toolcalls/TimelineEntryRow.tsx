@@ -22,7 +22,7 @@ export function TimelineEntryRow({
   entry: TimelineEntry
   onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const [showFullDiff, setShowFullDiff] = useState(false)
   const [editedFileContent, setEditedFileContent] = useState<string | null>(null)
@@ -40,7 +40,7 @@ export function TimelineEntryRow({
     [entry.toolCalls],
   )
   const resultText = useMemo(() => formatToolResult(primaryTool.result), [primaryTool.result])
-  const showCodePreview = entry.label === 'Read' && resultText.trim().length > 0
+  const showCodePreview = primaryTool.toolName === 'Read' && resultText.trim().length > 0
   const diffSegments = useMemo(
     () => buildDiffSegments(entry.toolCalls, editedFileContent),
     [entry.toolCalls, editedFileContent],
@@ -87,7 +87,7 @@ export function TimelineEntryRow({
     try {
       const session = await window.claude.loadCliSession({ filePath: subagentSessionInfo.outputFile })
       if (!session) {
-        setSubagentSessionError(language === 'en' ? 'The subagent transcript is not available yet.' : '서브에이전트 transcript를 아직 불러올 수 없습니다.')
+        setSubagentSessionError(t('subagent.transcriptUnavailable'))
         return
       }
 
@@ -100,7 +100,7 @@ export function TimelineEntryRow({
       })
       setActiveSession(importedId)
     } catch {
-      setSubagentSessionError(language === 'en' ? 'An error occurred while opening the subagent session.' : '서브에이전트 세션을 여는 중 오류가 발생했습니다.')
+      setSubagentSessionError(t('subagent.openSessionFailed'))
     } finally {
       setOpeningSubagentSession(false)
     }
@@ -151,7 +151,7 @@ export function TimelineEntryRow({
             <TodoPreview toolCalls={entry.toolCalls} />
           ) : subagentSessionInfo ? (
             <div className="space-y-1 rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-2">
-              <div className="text-[11px] font-medium text-claude-text/80">{language === 'en' ? 'Subagent session' : '서브에이전트 세션'}</div>
+              <div className="text-[11px] font-medium text-claude-text/80">{t('toolTimeline.subagentSession')}</div>
               {subagentSessionInfo.description && (
                 <div className="text-[11px] text-claude-muted/80">{subagentSessionInfo.description}</div>
               )}
@@ -165,7 +165,7 @@ export function TimelineEntryRow({
                   disabled={openingSubagentSession}
                   className="mt-1 rounded bg-claude-border/50 px-2 py-0.5 text-[11px] text-claude-text/80 transition-colors hover:bg-claude-border disabled:opacity-50"
                 >
-                  {language === 'en' ? 'Open session' : '세션 열기'}
+                  {t('toolTimeline.openSession')}
                 </button>
               )}
             </div>
@@ -186,7 +186,7 @@ export function TimelineEntryRow({
               />
             </div>
           ) : loadingEditedFile ? (
-            <div className="text-[11px] text-claude-muted">{language === 'en' ? 'Loading file contents...' : '파일 내용을 불러오는 중...'}</div>
+            <div className="text-[11px] text-claude-muted">{t('toolTimeline.loadingFileContents')}</div>
           ) : showCodePreview ? (
             <div className="space-y-1">
               {(() => {

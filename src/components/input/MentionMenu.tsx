@@ -1,7 +1,7 @@
 import type { MutableRefObject } from 'react'
 
 import type { FileEntry } from '../../../electron/preload'
-import type { AppLanguage } from '../../lib/i18n'
+import { translate, type AppLanguage } from '../../lib/i18n'
 import type { SlashCommand } from './inputUtils'
 
 export function MentionMenu({
@@ -43,11 +43,11 @@ export function MentionMenu({
         )}
         <span className="text-xs font-medium text-claude-muted">
           {slashResults.length > 0
-            ? (language === 'en' ? 'Slash commands' : '슬래시 명령어')
-            : (language === 'en' ? 'File references' : '파일 참조')}
+            ? translate(language, 'input.mention.slashCommands')
+            : translate(language, 'input.mention.fileReferences')}
         </span>
         <span className="ml-auto text-xs text-claude-muted/60">
-          {language === 'en' ? '↑↓ navigate · Enter select · Esc close' : '↑↓ 탐색 · Enter 선택 · Esc 닫기'}
+          {translate(language, 'input.mention.hint')}
         </span>
       </div>
       <div className="max-h-48 overflow-y-auto py-1">
@@ -68,7 +68,7 @@ export function MentionMenu({
               <span className="truncate font-medium">/{command.name}</span>
               <span className="ml-auto max-w-[40%] truncate text-xs text-claude-muted">
                 {command.kind === 'builtin'
-                  ? (command.description ?? (language === 'en' ? 'Built-in command' : '내장 명령어'))
+                  ? (command.description ?? translate(language, 'input.mention.builtinCommand'))
                   : command.kind === 'plugin'
                     ? `${command.pluginName ?? 'plugin'}`
                     : command.legacy

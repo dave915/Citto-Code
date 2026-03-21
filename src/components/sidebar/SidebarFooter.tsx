@@ -30,7 +30,7 @@ export function SidebarFooter({
             ? 'bg-claude-surface text-claude-text'
             : 'text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
         }`}
-        title="에이전트 팀"
+        title={t('sidebar.agentTeam')}
       >
         {/* Pixel-style team icon: three small blobs */}
         <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
@@ -39,7 +39,7 @@ export function SidebarFooter({
           <circle cx="12" cy="7" r="3" stroke="currentColor" strokeWidth="1.8" />
           <path d="M3 19c0-2.2 1.8-4 4-4h1M21 19c0-2.2-1.8-4-4-4h-1M8 19c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
-        <span className="truncate">에이전트 팀</span>
+        <span className="truncate">{t('sidebar.agentTeam')}</span>
       </button>
 
       <button

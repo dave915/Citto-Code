@@ -75,7 +75,7 @@ export function useAppDesktopEffects({
   scheduledTaskSessionByRunRef,
   closeOverlayPanels,
 }: Params) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const syncedQuickPanelProjectsSignatureRef = useRef('')
 
   useEffect(() => {
@@ -188,9 +188,9 @@ export function useAppDesktopEffects({
       await handleSendForSession(sessionId, payload.prompt, [], {
         permissionModeOverride: payload.permissionMode,
         visibleTextOverride: payload.manual
-          ? (language === 'en' ? `${sessionName} run now` : `${sessionName} 지금 실행`)
+          ? t('scheduled.app.runNowLabel', { sessionName })
           : payload.catchUp
-            ? (language === 'en' ? `${sessionName} catch-up run` : `${sessionName} 따라잡기 실행`)
+            ? t('scheduled.app.catchUpLabel', { sessionName })
             : sessionName,
       })
     })

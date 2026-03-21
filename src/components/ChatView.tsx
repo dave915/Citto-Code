@@ -5,6 +5,7 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
+import { translate } from '../lib/i18n'
 import type { Session, PermissionMode, SidebarMode } from '../store/sessions'
 import { useSessionsStore } from '../store/sessions'
 import { useFileExplorer } from '../hooks/useFileExplorer'
@@ -79,10 +80,10 @@ const HEADER_SESSION_ACTION_MIN_WIDTH = 700
 const HEADER_GIT_ACTION_MIN_WIDTH = 756
 const HEADER_FILE_ACTION_MIN_WIDTH = 812
 const PERMISSION_CONTINUATION_TEXTS = new Set([
-  'Continue after permission approval',
-  'Continue after one-time permission approval',
-  '권한 승인 후 계속',
-  '이번만 권한 승인 후 계속',
+  translate('en', 'claudeStream.permissionContinue'),
+  translate('en', 'claudeStream.permissionContinueOnce'),
+  translate('ko', 'claudeStream.permissionContinue'),
+  translate('ko', 'claudeStream.permissionContinueOnce'),
 ])
 
 export function ChatView({
@@ -165,17 +166,13 @@ export function ChatView({
     const labels = fileConflict.paths.map((path) => path.split('/').filter(Boolean).pop() || path)
     if (labels.length === 1) return labels[0]
     if (labels.length === 2) return `${labels[0]}, ${labels[1]}`
-    return language === 'en'
-      ? `${labels[0]}, ${labels[1]}, ${t('chatView.otherSessions', { count: labels.length - 2 })}`
-      : `${labels[0]}, ${labels[1]} 외 ${labels.length - 2}개`
-  }, [fileConflict, language, t])
+    return `${labels[0]}, ${labels[1]}, ${t('chatView.otherSessions', { count: labels.length - 2 })}`
+  }, [fileConflict, t])
   const conflictSessionLabel = useMemo(() => {
     if (!fileConflict || fileConflict.sessionNames.length === 0) return t('app.anotherSession')
     if (fileConflict.sessionNames.length === 1) return fileConflict.sessionNames[0]
-    return language === 'en'
-      ? `${fileConflict.sessionNames[0]}, ${t('chatView.otherSessionCount', { count: fileConflict.sessionNames.length - 1 })}`
-      : `${fileConflict.sessionNames[0]} 외 ${fileConflict.sessionNames.length - 1}개 세션`
-  }, [fileConflict, language, t])
+    return `${fileConflict.sessionNames[0]}, ${t('chatView.otherSessionCount', { count: fileConflict.sessionNames.length - 1 })}`
+  }, [fileConflict, t])
   const {
     openWithMenuOpen,
     openWithApps,
@@ -620,7 +617,7 @@ export function ChatView({
           onAbort={onAbort}
           onAskAboutSelection={handleAskAboutSelection}
         />
-        {/* 입력창 (설정 툴바 포함) */}
+        {/* Input area, including the settings toolbar */}
         <InputArea
           cwd={session.cwd}
           promptHistory={promptHistory}

@@ -85,7 +85,7 @@ export function GitLogPanel({
   onPull: () => Promise<void>
   onPush: () => Promise<void>
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const historyEntries = gitLog
   const primaryLane = getGitGraphLaneFromColumn(Math.max(0, historyEntries[0]?.graph.indexOf('*') ?? 0))
   const currentBranchName = status?.branch?.trim() || null
@@ -162,7 +162,7 @@ export function GitLogPanel({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 px-1 pb-2">
         <div className="flex items-center gap-2">
-          <p className="text-[12px] font-semibold text-claude-text">{language === 'en' ? 'Recent commits' : '최근 커밋'}</p>
+          <p className="text-[12px] font-semibold text-claude-text">{t('git.log.recentCommits')}</p>
           {status?.branch && (
             <span
               className="rounded-full border px-2 py-0.5 font-mono text-[10px] font-medium"
@@ -177,7 +177,7 @@ export function GitLogPanel({
             type="button"
             onClick={() => void onPull()}
             disabled={actionLoading}
-            tooltip={status && status.behind > 0 ? `Pull(${status.behind})` : 'Pull'}
+            tooltip={status && status.behind > 0 ? t('git.log.pullWithCount', { count: status.behind }) : t('git.log.pull')}
             tooltipAlign="right"
             className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
           >
@@ -191,7 +191,7 @@ export function GitLogPanel({
             type="button"
             onClick={() => void onPush()}
             disabled={actionLoading}
-            tooltip={status && status.ahead > 0 ? `Push(${status.ahead})` : 'Push'}
+            tooltip={status && status.ahead > 0 ? t('git.log.pushWithCount', { count: status.ahead }) : t('git.log.push')}
             tooltipAlign="right"
             className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
           >
@@ -213,8 +213,8 @@ export function GitLogPanel({
         {historyEntries.length === 0 ? (
           <div className="px-2 py-6 text-center text-[12px] text-claude-muted">
             {loading
-              ? (language === 'en' ? 'Loading commit history...' : '로그를 불러오는 중입니다.')
-              : (language === 'en' ? 'No commit history to display.' : '표시할 커밋 로그가 없습니다.')}
+              ? t('git.log.loadingHistory')
+              : t('git.log.noHistory')}
           </div>
         ) : (
           <div className="relative flex flex-col pr-1">

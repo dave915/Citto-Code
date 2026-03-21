@@ -23,7 +23,7 @@ export function McpScopePanel({
   onScopeChange: (scope: McpConfigScope) => void
   onSelectedProjectPathChange: (projectPath: string) => void
 }) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const scopeOptions = getMcpScopeOptions(language)
   const selectedScope = scopeOptions.find((option) => option.value === scope) ?? scopeOptions[0]
   const currentProjectLabel = scopeInfo?.projectPath ?? effectiveProjectPath
@@ -51,9 +51,7 @@ export function McpScopePanel({
         {scope !== 'user' && (
           <div className="space-y-2 pt-1">
             <p className="text-xs text-claude-muted">
-              {language === 'en'
-                ? 'Select the target project to store settings in this scope.'
-                : '대상 프로젝트를 선택해서 이 범위에 저장합니다.'}
+              {t('settings.mcp.selectProjectHint')}
             </p>
             <div className="relative">
               <select
@@ -61,9 +59,7 @@ export function McpScopePanel({
                 onChange={(event) => onSelectedProjectPathChange(event.target.value)}
                 className="w-full appearance-none rounded-xl border border-claude-border bg-claude-panel px-3 py-2 pr-10 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
               >
-                {availableProjectPaths.length === 0 && (
-                  <option value="">{language === 'en' ? 'No projects are available' : '선택 가능한 프로젝트가 없습니다'}</option>
-                )}
+                {availableProjectPaths.length === 0 && <option value="">{t('settings.mcp.noAvailableProjects')}</option>}
                 {availableProjectPaths.map((path) => (
                   <option key={path} value={path}>{path}</option>
                 ))}
@@ -80,35 +76,31 @@ export function McpScopePanel({
             </div>
             {currentProjectLabel && (
               <p className="text-xs text-claude-muted">
-                {language === 'en' ? 'Selected project:' : '선택된 프로젝트:'}
+                {t('settings.mcp.selectedProject')}
                 <span className="ml-1 font-mono text-claude-text">{currentProjectLabel}</span>
                 {currentProjectName && <span className="ml-2 text-claude-muted/70">({currentProjectName})</span>}
               </p>
             )}
             {availableProjectPaths.length === 0 && (
               <p className="text-xs text-amber-400">
-                {language === 'en'
-                  ? 'No project path could be found from sidebar sessions or Claude settings.'
-                  : '사이드바 세션이나 Claude 설정에서 프로젝트 경로를 찾지 못했습니다.'}
+                {t('settings.mcp.noProjectPathsFound')}
               </p>
             )}
           </div>
         )}
         <p className="text-xs text-claude-muted">
-          {language === 'en' ? 'Stored file:' : '저장 파일:'}
+          {t('settings.mcp.storedFile')}
           <span className="ml-1 font-mono text-claude-text">{formatDisplayPath(scopeInfo?.targetPath ?? '')}</span>
         </p>
         {scope === 'local' && scopeInfo?.projectPath && (
           <p className="text-xs text-claude-muted">
-            {language === 'en' ? 'Stored key:' : '저장 키:'}
+            {t('settings.mcp.storedKey')}
             <span className="ml-1 break-all font-mono text-claude-text">{`projects["${scopeInfo.projectPath}"].mcpServers`}</span>
           </p>
         )}
         {!canManageScope && (
           <p className="text-xs text-amber-400">
-            {scopeInfo?.message ?? (language === 'en'
-              ? 'Choose a target project path before editing this scope.'
-              : '대상 프로젝트 경로를 선택해야 이 범위를 편집할 수 있습니다.')}
+            {scopeInfo?.message ?? t('settings.mcp.scopeUnavailable')}
           </p>
         )}
       </div>

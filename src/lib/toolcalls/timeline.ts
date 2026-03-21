@@ -1,5 +1,5 @@
 import type { ToolCallBlock as ToolCallBlockType } from '../../store/sessions'
-import type { AppLanguage } from '../i18n'
+import { translate, type AppLanguage } from '../i18n'
 import {
   countDisplayLines,
   formatToolInput,
@@ -14,13 +14,15 @@ export function buildSummary(entries: TimelineEntry[], language: AppLanguage = '
   const parts: string[] = []
   const fileEdits = entries.filter((entry) => entry.kind === 'file' && (entry.added > 0 || entry.removed > 0)).length
   const todos = entries.filter((entry) => entry.kind === 'todo').length
-  const reads = entries.filter((entry) => entry.label === 'Read').length
+  const reads = entries.filter((entry) => entry.readLines > 0).length
 
-  if (fileEdits > 0) parts.push(language === 'en' ? `${fileEdits} files edited` : `${fileEdits}개 파일 수정됨`)
-  if (todos > 0) parts.push(language === 'en' ? 'Todo list updated' : '할 일 목록 업데이트됨')
-  if (reads > 0) parts.push(language === 'en' ? 'Files read' : '파일 읽음')
+  if (fileEdits > 0) parts.push(translate(language, 'toolTimeline.summary.filesEdited', { count: fileEdits }))
+  if (todos > 0) parts.push(translate(language, 'toolTimeline.summary.todoUpdated'))
+  if (reads > 0) parts.push(translate(language, 'toolTimeline.summary.filesRead'))
 
-  return parts.length > 0 ? parts.join(', ') : (language === 'en' ? `${entries.length} tasks` : `${entries.length}개 작업`)
+  return parts.length > 0
+    ? parts.join(', ')
+    : translate(language, 'toolTimeline.summary.tasks', { count: entries.length })
 }
 
 export function buildTimelineEntries(toolCalls: ToolCallBlockType[], language: AppLanguage = 'ko'): TimelineEntry[] {
@@ -31,7 +33,7 @@ export function buildTimelineEntries(toolCalls: ToolCallBlockType[], language: A
     const path = getEditableToolPath(toolCall.toolName, toolCall.toolInput)
     const diffStats = getDiffStats(getEditDiffHunks(toolCall.toolName, toolCall.toolInput))
     const resultText = formatToolResult(toolCall.result)
-    const actionLabel = getActionLabel(toolCall.toolName)
+    const actionLabel = getActionLabel(toolCall.toolName, language)
     const key =
       toolCall.toolName === 'TodoWrite'
         ? `todo:${toolCall.id}`
@@ -46,7 +48,7 @@ export function buildTimelineEntries(toolCalls: ToolCallBlockType[], language: A
         label: actionLabel,
         badge: badge || null,
         detail: toolCall.toolName === 'Read'
-          ? (language === 'en' ? `${countDisplayLines(resultText)} lines read` : `${countDisplayLines(resultText)}줄 읽음`)
+          ? translate(language, 'toolTimeline.readLines', { count: countDisplayLines(resultText) })
           : null,
         toolCalls: [toolCall],
         added: diffStats.added,
@@ -70,11 +72,11 @@ export function buildTimelineEntries(toolCalls: ToolCallBlockType[], language: A
           : 'done'
 
     if (toolCall.toolName === 'Read') {
-      existing.label = 'Read'
-      existing.detail = language === 'en' ? `${existing.readLines} lines read` : `${existing.readLines}줄 읽음`
+      existing.label = getActionLabel('Read', language)
+      existing.detail = translate(language, 'toolTimeline.readLines', { count: existing.readLines })
     }
     if (toolCall.toolName === 'TodoWrite') {
-      existing.label = 'Update Todos'
+      existing.label = getActionLabel('TodoWrite', language)
     }
   }
 

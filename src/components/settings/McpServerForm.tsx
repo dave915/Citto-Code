@@ -24,7 +24,7 @@ export function McpServerForm({
   onCancel: () => void
   autoFocusName?: boolean
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const updateField = <K extends keyof McpForm>(key: K, value: McpForm[K]) => {
     onChange({ ...form, [key]: value })
   }
@@ -34,7 +34,7 @@ export function McpServerForm({
       <p className="text-xs font-semibold text-claude-text">{title}</p>
 
       <div>
-        <label className="mb-1 block text-xs text-claude-muted">{language === 'en' ? 'Server name *' : '서버 이름 *'}</label>
+        <label className="mb-1 block text-xs text-claude-muted">{t('settings.mcp.form.serverName')}</label>
         <input
           value={form.name}
           onChange={(event) => updateField('name', event.target.value)}
@@ -46,8 +46,8 @@ export function McpServerForm({
 
       <div className="flex flex-wrap gap-4">
         {([
-          { value: 'http', label: 'HTTP', badge: language === 'en' ? 'Recommended' : '권장' },
-          { value: 'stdio', label: 'stdio', badge: language === 'en' ? 'Local' : '로컬' },
+          { value: 'http', label: 'HTTP', badge: t('settings.mcp.form.recommended') },
+          { value: 'stdio', label: 'stdio', badge: t('settings.mcp.form.local') },
         ] as const).map(({ value, label, badge }) => (
           <label key={value} className="flex cursor-pointer items-center gap-1.5">
             <input
@@ -69,7 +69,7 @@ export function McpServerForm({
       {form.serverType === 'http' && (
         <>
           <div>
-            <label className="mb-1 block text-xs text-claude-muted">URL *</label>
+            <label className="mb-1 block text-xs text-claude-muted">{t('settings.mcp.form.url')}</label>
             <input
               value={form.url}
               onChange={(event) => updateField('url', event.target.value)}
@@ -79,7 +79,7 @@ export function McpServerForm({
           </div>
           <div>
             <label className="mb-1 block text-xs text-claude-muted">
-              Headers <span className="text-claude-muted/60">{language === 'en' ? '(optional · Key: Value, one per line)' : '(선택 · Key: Value 형식, 줄 구분)'}</span>
+              {t('settings.mcp.form.headers')} <span className="text-claude-muted/60">{t('settings.mcp.form.headersHint')}</span>
             </label>
             <textarea
               value={form.headers}
@@ -96,7 +96,7 @@ export function McpServerForm({
       {form.serverType === 'stdio' && (
         <>
           <div>
-            <label className="mb-1 block text-xs text-claude-muted">Command *</label>
+            <label className="mb-1 block text-xs text-claude-muted">{t('settings.mcp.form.command')}</label>
             <input
               value={form.command}
               onChange={(event) => updateField('command', event.target.value)}
@@ -105,7 +105,7 @@ export function McpServerForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-claude-muted">Args <span className="text-claude-muted/60">{language === 'en' ? '(separate by spaces or new lines)' : '(여러 줄 또는 공백 구분)'}</span></label>
+            <label className="mb-1 block text-xs text-claude-muted">{t('settings.mcp.form.args')} <span className="text-claude-muted/60">{t('settings.mcp.form.argsHint')}</span></label>
             <textarea
               value={form.args}
               onChange={(event) => updateField('args', event.target.value)}
@@ -117,7 +117,7 @@ export function McpServerForm({
           </div>
           <div>
             <label className="mb-1 block text-xs text-claude-muted">
-              Env vars <span className="text-claude-muted/60">{language === 'en' ? '(optional · KEY=VALUE, one per line)' : '(선택 · KEY=VALUE 형식, 줄 구분)'}</span>
+              {t('settings.mcp.form.envVars')} <span className="text-claude-muted/60">{t('settings.mcp.form.envVarsHint')}</span>
             </label>
             <textarea
               value={form.env}
@@ -139,13 +139,13 @@ export function McpServerForm({
           disabled={saving}
           className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a] disabled:opacity-50"
         >
-          {saving ? (language === 'en' ? 'Saving...' : '저장 중...') : submitLabel}
+          {saving ? t('common.saving') : submitLabel}
         </button>
         <button
           onClick={onCancel}
           className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
         >
-          {language === 'en' ? 'Cancel' : '취소'}
+          {t('common.cancel')}
         </button>
       </div>
     </div>

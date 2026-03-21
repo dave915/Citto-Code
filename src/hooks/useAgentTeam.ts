@@ -3,6 +3,8 @@ import type { SelectedFile } from '../../electron/preload'
 import { useTeamStore } from '../store/teamStore'
 import type { AgentTeam, TeamAgent, DiscussionMode } from '../store/teamTypes'
 import { buildPromptWithAttachments, toAttachedFiles } from '../lib/attachmentPrompts'
+import { translate, type AppLanguage, type TranslationKey } from '../lib/i18n'
+import { resolveTeamAgentStrings } from '../lib/teamAgentPresets'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,10 +20,15 @@ type PendingAgent = {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useAgentTeamStream(envVars: Record<string, string>, claudeBinaryPath?: string) {
+export function useAgentTeamStream(
+  envVars: Record<string, string>,
+  claudeBinaryPath?: string,
+  language: AppLanguage = 'ko',
+) {
   const store = useTeamStore()
   const teamsRef = useRef(store.teams)
   teamsRef.current = store.teams
+  const t = (key: TranslationKey, params?: Record<string, string | number>) => translate(language, key, params)
 
   /** claudeSessionId → agent info */
   const sessionToAgentRef = useRef<Map<string, { teamId: string; agentId: string; msgId: string }>>(new Map())
@@ -154,58 +161,76 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   // Prompt builders
   // ---------------------------------------------------------------------------
 
+  function buildRoleHint(hint: string | null | undefined): string {
+    return hint?.trim() ? `${t('team.prompt.roleHint', { hint: hint.trim() })}\n\n` : ''
+  }
+
   function buildInitialPrompt(agent: TeamAgent, taskPrompt: string, priorAgents: TeamAgent[]): string {
     const priorResponses = priorAgents
       .map((a) => {
         const last = a.messages[a.messages.length - 1]
         if (!last?.text?.trim()) return null
-        return `### ${a.name} (${a.role})의 의견:\n${last.text.trim()}`
+        const agentCopy = resolveTeamAgentStrings(a, language)
+        return t('team.prompt.agentView', {
+          name: agentCopy.name,
+          role: agentCopy.role,
+          text: last.text.trim(),
+        })
       })
       .filter(Boolean)
 
-    const hint = agent.systemPrompt
-    let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
-    prompt += `## 작업\n${taskPrompt}\n`
+    const agentCopy = resolveTeamAgentStrings(agent, language)
+    let prompt = buildRoleHint(agentCopy.systemPrompt)
+    prompt += `${t('team.prompt.taskHeading')}\n${taskPrompt}\n`
 
     if (priorResponses.length > 0) {
-      prompt += `\n## 다른 에이전트들의 의견\n${priorResponses.join('\n\n')}`
-      prompt += `\n\n## 지시\n위 의견들을 참고하여 **${agent.name}**(${agent.role}) 관점에서 의견을 제시해주세요. 동의/반박/보완할 점을 명확히 밝혀주세요.`
+      prompt += `\n${t('team.prompt.otherResponsesHeading')}\n${priorResponses.join('\n\n')}`
+      prompt += `\n\n${t('team.prompt.sequentialInstructions', {
+        name: agentCopy.name,
+        role: agentCopy.role,
+      })}`
     }
     return prompt
   }
 
-  /** 병렬 모드 1라운드: 모든 에이전트가 동일 프롬프트를 받음 */
   function buildParallelPrompt(agent: TeamAgent, taskPrompt: string): string {
-    const hint = agent.systemPrompt
-    let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
-    prompt += `## 작업\n${taskPrompt}\n\n`
-    prompt += `## 지시\n**${agent.name}**(${agent.role}) 관점에서 독립적으로 의견을 제시해주세요.`
+    const agentCopy = resolveTeamAgentStrings(agent, language)
+    let prompt = buildRoleHint(agentCopy.systemPrompt)
+    prompt += `${t('team.prompt.taskHeading')}\n${taskPrompt}\n\n`
+    prompt += t('team.prompt.parallelInstructions', {
+      name: agentCopy.name,
+      role: agentCopy.role,
+    })
     return prompt
   }
 
-  /** 병렬 모드 2라운드~: 다른 에이전트들의 응답을 모두 참고 */
   function buildParallelRoundPrompt(agent: TeamAgent, taskPrompt: string, allAgents: TeamAgent[], round: number): string {
     const others = allAgents.filter((a) => a.id !== agent.id)
     const responses = others
       .map((a) => {
         const last = a.messages[a.messages.length - 1]
         if (!last?.text?.trim()) return null
-        return `### ${a.name} (${a.role}):\n${last.text.trim()}`
+        const agentCopy = resolveTeamAgentStrings(a, language)
+        return t('team.prompt.agentRoundView', {
+          name: agentCopy.name,
+          role: agentCopy.role,
+          round: Math.max(1, round - 1),
+          text: last.text.trim(),
+        })
       })
       .filter(Boolean)
 
-    const hint = agent.systemPrompt
-    let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
-    prompt += `## 원래 작업\n${taskPrompt}\n\n`
-    prompt += `## Round ${round} — 다른 에이전트들의 의견\n`
+    const agentCopy = resolveTeamAgentStrings(agent, language)
+    let prompt = buildRoleHint(agentCopy.systemPrompt)
+    prompt += `${t('team.prompt.originalTaskHeading')}\n${taskPrompt}\n\n`
+    prompt += `${t('team.prompt.parallelRoundHeading', { round })}\n`
     if (responses.length > 0) {
       prompt += responses.join('\n\n')
-      prompt += `\n\n## 지시\n위 의견들에 대해 응답해주세요. 동의·반박·보완 후 합의 방향을 제시해주세요.`
+      prompt += `\n\n${t('team.prompt.parallelRoundInstructions')}`
     }
     return prompt
   }
 
-  /** 회의 모드: 매 라운드마다 모든 다른 에이전트의 최신 응답을 참고 */
   function buildMeetingPrompt(agent: TeamAgent, taskPrompt: string, allAgents: TeamAgent[], round: number): string {
     const isFirst = round === 1
     const others = allAgents.filter((a) => a.id !== agent.id)
@@ -214,25 +239,39 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       .map((a) => {
         const last = a.messages[a.messages.length - 1]
         if (!last?.text?.trim()) return null
-        return `### ${a.name} (${a.role}) — Round ${last ? round - 1 : '?'}:\n${last.text.trim()}`
+        const agentCopy = resolveTeamAgentStrings(a, language)
+        return t('team.prompt.agentRoundView', {
+          name: agentCopy.name,
+          role: agentCopy.role,
+          round: Math.max(1, round - 1),
+          text: last.text.trim(),
+        })
       })
       .filter(Boolean)
 
-    const hint = agent.systemPrompt
-    let prompt = hint ? `[당신의 역할: ${hint}]\n\n` : ''
-    prompt += `## 주제\n${taskPrompt}\n\n`
+    const agentCopy = resolveTeamAgentStrings(agent, language)
+    let prompt = buildRoleHint(agentCopy.systemPrompt)
+    prompt += `${t('team.prompt.topicHeading')}\n${taskPrompt}\n\n`
 
     if (isFirst) {
-      prompt += `## 회의 Round 1 — 첫 번째 발언\n**${agent.name}**(${agent.role}) 관점에서 첫 의견을 제시해주세요. 구체적으로 핵심 포인트를 2~3가지로 정리해주세요.`
+      prompt += t('team.prompt.meetingOpening', {
+        name: agentCopy.name,
+        role: agentCopy.role,
+      })
     } else {
-      prompt += `## 회의 Round ${round} — 토론 계속\n`
+      prompt += `${t('team.prompt.meetingContinueHeading', { round })}\n`
       if (responses.length > 0) {
-        prompt += `다른 참가자들의 발언:\n\n${responses.join('\n\n')}\n\n`
+        prompt += `${t('team.prompt.otherParticipantsSaidHeading')}\n\n${responses.join('\n\n')}\n\n`
       }
-      prompt += `**${agent.name}**(${agent.role})으로서 위 발언들에 직접 응답해주세요:\n`
-      prompt += `- 동의하는 점, 반대하는 점을 명확히\n`
-      prompt += `- 새로운 논점이나 해결책 제안\n`
-      if (round >= 3) prompt += `- 합의 가능한 결론을 도출해주세요`
+      prompt += `${t('team.prompt.meetingRespondAs', {
+        name: agentCopy.name,
+        role: agentCopy.role,
+      })}\n`
+      prompt += `${t('team.prompt.meetingBulletAgree')}\n`
+      prompt += `${t('team.prompt.meetingBulletNewAngles')}\n`
+      if (round >= 3) {
+        prompt += t('team.prompt.meetingBulletConclusion')
+      }
     }
     return prompt
   }
@@ -302,11 +341,10 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
   // Public API
   // ---------------------------------------------------------------------------
 
-  /** 순차 모드 토론 시작 */
   const startSequential = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
     const team = teamsRef.current.find((t) => t.id === teamId)
     if (!team) return
-    const taskPrompt = buildPromptWithAttachments(task, files)
+    const taskPrompt = buildPromptWithAttachments(task, files, language)
     storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
     storeRef.current.setTeamStatus(teamId, 'running')
 
@@ -324,13 +362,12 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       drainExecQueue()
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [language])
 
-  /** 병렬 모드 토론 시작 */
   const startParallel = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
     const team = teamsRef.current.find((t) => t.id === teamId)
     if (!team) return
-    const taskPrompt = buildPromptWithAttachments(task, files)
+    const taskPrompt = buildPromptWithAttachments(task, files, language)
     storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
     storeRef.current.setTeamStatus(teamId, 'running')
 
@@ -339,13 +376,12 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
     await sendAllParallel(team, agents, prompts)
     storeRef.current.setTeamStatus(teamId, 'done')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [language])
 
-  /** 회의 모드 토론 시작 (round 1) */
   const startMeeting = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
     const team = teamsRef.current.find((t) => t.id === teamId)
     if (!team) return
-    const taskPrompt = buildPromptWithAttachments(task, files)
+    const taskPrompt = buildPromptWithAttachments(task, files, language)
     storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
     storeRef.current.setTeamStatus(teamId, 'running')
 
@@ -362,9 +398,8 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
       drainExecQueue()
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [language])
 
-  /** 모드에 맞게 자동 선택하는 startDiscussion */
   const startDiscussion = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
     const team = teamsRef.current.find((t) => t.id === teamId)
     if (!team || team.agents.length < 2) return
@@ -375,7 +410,6 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startSequential, startParallel, startMeeting])
 
-  /** 다음 라운드 계속 (모드 자동 감지) */
   const continueDiscussion = useCallback(async (teamId: string) => {
     const team = teamsRef.current.find((t) => t.id === teamId)
     if (!team || team.status !== 'done') return
@@ -415,7 +449,6 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
         drainExecQueue()
       })
     } else {
-      // sequential
       agents.forEach((agent, index) => {
         enqueueExec(() => {
           const currentTeam = teamsRef.current.find((t) => t.id === teamId)!
@@ -432,7 +465,6 @@ export function useAgentTeamStream(envVars: Record<string, string>, claudeBinary
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** 중단 */
   const abortDiscussion = useCallback(async (teamId: string) => {
     const team = teamsRef.current.find((t) => t.id === teamId)
     if (!team) return

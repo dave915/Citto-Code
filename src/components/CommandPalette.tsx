@@ -35,7 +35,7 @@ export function CommandPalette({
   onSelectSession,
   onSelectMessage,
 }: Props) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -51,7 +51,7 @@ export function CommandPalette({
           id: `message-${match.messageId}`,
           kind: 'message' as const,
           label: match.preview,
-          description: `${match.role === 'user' ? (language === 'en' ? 'User message' : '사용자 메시지') : (language === 'en' ? 'Claude response' : 'Claude 응답')} · ${match.sessionName} · ${match.cwd || '~'}`,
+          description: `${match.role === 'user' ? t('commandPalette.userMessage') : t('commandPalette.claudeResponse')} · ${match.sessionName} · ${match.cwd || '~'}`,
           sessionId: match.sessionId,
           messageId: match.messageId,
           role: match.role,
@@ -61,7 +61,7 @@ export function CommandPalette({
           id: `session-${session.id}`,
           kind: 'session' as const,
           label: session.name,
-          description: `${language === 'en' ? 'Session' : '세션'} · ${session.cwd || '~'}`,
+          description: `${t('commandPalette.session')} · ${session.cwd || '~'}`,
           sessionId: session.id,
           onSelect: () => onSelectSession(session.id),
         })),
@@ -72,8 +72,8 @@ export function CommandPalette({
       {
         id: 'new-session',
         kind: 'action',
-        label: language === 'en' ? 'New session' : '새 세션',
-        description: language === 'en' ? 'Open a new project or session.' : '새 프로젝트 또는 세션을 엽니다.',
+        label: t('sidebar.newSession'),
+        description: t('commandPalette.newSessionDescription'),
         onSelect: () => {
           void onNewSession()
         },
@@ -81,8 +81,8 @@ export function CommandPalette({
       {
         id: 'open-settings',
         kind: 'action',
-        label: language === 'en' ? 'Open settings' : '설정 열기',
-        description: language === 'en' ? 'Open the settings screen.' : '환경설정 화면을 엽니다.',
+        label: t('commandPalette.openSettingsLabel'),
+        description: t('commandPalette.openSettingsDescription'),
         onSelect: onOpenSettings,
       },
       ...filteredSessions.map((session) => ({
@@ -94,7 +94,7 @@ export function CommandPalette({
         onSelect: () => onSelectSession(session.id),
       })),
     ]
-  }, [language, onNewSession, onOpenSettings, onSelectMessage, onSelectSession, query, sessions])
+  }, [onNewSession, onOpenSettings, onSelectMessage, onSelectSession, query, sessions, t])
 
   useEffect(() => {
     if (!open) {
@@ -142,7 +142,7 @@ export function CommandPalette({
     <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/40 px-4 pt-[12vh] backdrop-blur-sm">
       <button
         type="button"
-        aria-label={language === 'en' ? 'Close command palette' : '커맨드 팔레트 닫기'}
+        aria-label={t('commandPalette.close')}
         className="absolute inset-0 cursor-default"
         onClick={onClose}
       />
@@ -170,7 +170,7 @@ export function CommandPalette({
                 handleConfirm()
               }
             }}
-            placeholder={language === 'en' ? 'Search sessions, messages, or run a command' : '세션, 대화 내용 검색 또는 명령 실행'}
+            placeholder={t('commandPalette.searchPlaceholder')}
             className="command-palette-input w-full bg-transparent text-[15px] text-claude-text outline-none placeholder:text-claude-muted"
             spellCheck={false}
           />
@@ -218,7 +218,7 @@ export function CommandPalette({
                             ? 'bg-sky-500/10 text-sky-200'
                             : 'bg-emerald-500/10 text-emerald-200'
                         }`}>
-                          {item.role === 'user' ? 'USER' : 'AI'}
+                          {item.role === 'user' ? t('commandPalette.userBadge') : t('commandPalette.aiBadge')}
                         </span>
                       )}
                     </div>
@@ -229,9 +229,7 @@ export function CommandPalette({
             })
           ) : (
             <div className="px-4 py-8 text-center text-sm text-claude-muted">
-              {query.trim()
-                ? (language === 'en' ? 'No matching sessions or messages.' : '일치하는 세션이나 메시지가 없습니다.')
-                : (language === 'en' ? 'No results found.' : '검색 결과가 없습니다.')}
+              {query.trim() ? t('commandPalette.noMatching') : t('commandPalette.noResults')}
             </div>
           )}
         </div>

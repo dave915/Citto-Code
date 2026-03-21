@@ -11,7 +11,7 @@ export function ToolTimeline({
   toolCalls: ToolCallBlockType[]
   onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
 }) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const entries = useMemo(() => buildTimelineEntries(toolCalls, language), [language, toolCalls])
@@ -44,7 +44,7 @@ export function ToolTimeline({
               onClick={() => setShowAll(true)}
               className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
             >
-              {language === 'en' ? `Show ${hiddenCount} more` : `${hiddenCount}개 더 보기`}
+              {t('toolTimeline.showMore', { count: hiddenCount })}
             </button>
           )}
           {showAll && entries.length > 3 && (
@@ -53,7 +53,7 @@ export function ToolTimeline({
               onClick={() => setShowAll(false)}
               className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
             >
-              {language === 'en' ? 'Show less' : '간단히 보기'}
+              {t('toolTimeline.showLess')}
             </button>
           )}
         </div>

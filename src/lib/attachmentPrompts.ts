@@ -1,5 +1,5 @@
 import type { SelectedFile } from '../../electron/preload'
-import type { AppLanguage } from './i18n'
+import { translate, type AppLanguage } from './i18n'
 import type { AttachedFile } from '../store/sessionTypes'
 
 function resolveLanguage(language?: AppLanguage): AppLanguage {
@@ -21,7 +21,7 @@ export function buildPromptWithAttachments(
   const fileSections = files
     .map((file) => {
       if (file.fileType === 'image') {
-        return `<file path="${file.path}" type="image">\n[${resolvedLanguage === 'en' ? 'Image file' : '이미지 파일'}: ${file.name} (${file.size} bytes) - ${resolvedLanguage === 'en' ? 'check it directly from the path' : '경로에서 직접 확인하세요'}]\n</file>`
+        return `<file path="${file.path}" type="image">\n[${translate(resolvedLanguage, 'attachment.imageFile')}: ${file.name} (${file.size} bytes) - ${translate(resolvedLanguage, 'attachment.checkPath')}]\n</file>`
       }
 
       return `<file path="${file.path}">\n${file.content}\n</file>`
@@ -42,9 +42,7 @@ export function toAttachedFiles(files: SelectedFile[]): AttachedFile[] {
 
 export function formatAttachedFilesSummary(count: number, language?: AppLanguage) {
   const resolvedLanguage = resolveLanguage(language)
-  return resolvedLanguage === 'en'
-    ? `(${count} attached files)`
-    : `(파일 ${count}개 첨부)`
+  return `(${translate(resolvedLanguage, 'sessionExport.attachedFiles', { count })})`
 }
 
 export function buildAttachmentCopyText(
@@ -63,7 +61,7 @@ export function buildAttachmentCopyText(
   if (attachedFiles.length > 0) {
     sections.push(
       [
-        resolvedLanguage === 'en' ? 'Attached files' : '첨부 파일',
+        translate(resolvedLanguage, 'sessionExport.attachments'),
         ...attachedFiles.map((file) => `- ${file.name}`),
       ].join('\n'),
     )

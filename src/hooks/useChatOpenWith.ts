@@ -35,7 +35,7 @@ export function useChatOpenWith({
   preferredOpenWithAppId,
   setPreferredOpenWithAppId,
 }: Params) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const [openWithMenuOpen, setOpenWithMenuOpen] = useState(false)
   const [openWithApps, setOpenWithApps] = useState<OpenWithApp[]>([])
   const [openWithLoading, setOpenWithLoading] = useState(false)
@@ -101,7 +101,7 @@ export function useChatOpenWith({
     }
     setOpenWithMenuOpen(false)
     if (!result.ok) {
-      window.alert(result.error ?? (language === 'en' ? 'Could not open in the selected app.' : '앱에서 열지 못했습니다.'))
+      window.alert(result.error ?? t('openWith.errorOpenSelectedApp'))
     }
   }
 
@@ -113,7 +113,7 @@ export function useChatOpenWith({
 
     const result = await window.claude.openPathWithApp({ targetPath: openTargetPath, appId: 'default' })
     if (!result.ok) {
-      window.alert(result.error ?? (language === 'en' ? 'Could not open in the selected app.' : '앱에서 열지 못했습니다.'))
+      window.alert(result.error ?? t('openWith.errorOpenSelectedApp'))
     }
   }
 

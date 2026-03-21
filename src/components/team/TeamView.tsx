@@ -12,12 +12,13 @@ import { useTeamStore } from '../../store/teamStore'
 import { useAgentTeamStream } from '../../hooks/useAgentTeam'
 import { useInputAttachments } from '../../hooks/useInputAttachments'
 import { useI18n } from '../../hooks/useI18n'
+import { translate, type AppLanguage } from '../../lib/i18n'
 import { TeamSetupModal } from './TeamSetupModal'
 import { AgentTeamGuideModal } from './AgentTeamGuideModal'
 import type { AgentIconType } from './AgentPixelIcon'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import type { DiscussionMode, TeamAgent, AgentMessage } from '../../store/teamTypes'
-import { resolveAgentColor } from '../../lib/teamAgentPresets'
+import { resolveAgentColor, resolveTeamAgentStrings } from '../../lib/teamAgentPresets'
 import type { AttachedFile } from '../../store/sessionTypes'
 import { AttachmentList } from '../input/AttachmentList'
 import { formatBytes } from '../input/inputUtils'
@@ -30,41 +31,43 @@ type Props = {
   onClose: () => void
 }
 
-const MODE_OPTIONS: { value: DiscussionMode; label: string; icon: string; desc: string }[] = [
-  {
-    value: 'sequential',
-    label: '순차',
-    icon: '→',
-    desc: '앞 에이전트 응답을 보며 차례로 발언',
-  },
-  {
-    value: 'parallel',
-    label: '병렬',
-    icon: '⇉',
-    desc: '모두 동시에 독립 응답 후 서로 참고',
-  },
-  {
-    value: 'meeting',
-    label: '회의',
-    icon: '◎',
-    desc: '여러 라운드 맞대응하며 합의 도출',
-  },
-]
-
 const DETAIL_PANEL_DEFAULT_WIDTH = 420
 const DETAIL_PANEL_MIN_WIDTH = 320
 const DETAIL_PANEL_MAX_WIDTH = 640
 const TEAM_TASK_TEXTAREA_MAX_HEIGHT = 140
 
+function getModeOptions(language: AppLanguage): { value: DiscussionMode; label: string; icon: string; desc: string }[] {
+  return [
+    {
+      value: 'sequential',
+      label: translate(language, 'team.mode.sequential.label'),
+      icon: '→',
+      desc: translate(language, 'team.mode.sequential.description'),
+    },
+    {
+      value: 'parallel',
+      label: translate(language, 'team.mode.parallel.label'),
+      icon: '⇉',
+      desc: translate(language, 'team.mode.parallel.description'),
+    },
+    {
+      value: 'meeting',
+      label: translate(language, 'team.mode.meeting.label'),
+      icon: '◎',
+      desc: translate(language, 'team.mode.meeting.description'),
+    },
+  ]
+}
+
 function formatTeamTaskSummary(
   task: string,
   attachedFiles: AttachedFile[],
-  language: 'ko' | 'en',
+  language: AppLanguage,
 ) {
   const trimmed = task.trim()
   if (trimmed) return trimmed
   if (attachedFiles.length > 0) return formatAttachedFilesSummary(attachedFiles.length, language)
-  return language === 'en' ? 'No discussion topic yet' : '아직 토론 주제가 없습니다'
+  return translate(language, 'team.noTopicYet')
 }
 
 function clampDetailPanelWidth(width: number) {
@@ -88,9 +91,12 @@ function ModeSelector({
   disabled: boolean
   onChange: (m: DiscussionMode) => void
 }) {
+  const { language } = useI18n()
+  const modeOptions = getModeOptions(language)
+
   return (
     <div className="flex items-center gap-1 rounded-lg border border-claude-border bg-claude-bg p-0.5">
-      {MODE_OPTIONS.map((opt) => (
+      {modeOptions.map((opt) => (
         <button
           key={opt.value}
           disabled={disabled}
@@ -114,11 +120,12 @@ function ModeSelector({
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { language } = useI18n()
   const configs = {
-    idle: { label: '대기 중', className: 'bg-gray-500/20 text-gray-400' },
-    running: { label: '토론 중', className: 'bg-blue-500/20 text-blue-400 animate-pulse' },
-    done: { label: '완료', className: 'bg-green-500/20 text-green-400' },
-    error: { label: '오류', className: 'bg-red-500/20 text-red-400' },
+    idle: { label: translate(language, 'team.status.idle'), className: 'bg-gray-500/20 text-gray-400' },
+    running: { label: translate(language, 'team.status.running'), className: 'bg-blue-500/20 text-blue-400 animate-pulse' },
+    done: { label: translate(language, 'team.status.done'), className: 'bg-green-500/20 text-green-400' },
+    error: { label: translate(language, 'team.status.error'), className: 'bg-red-500/20 text-red-400' },
   }
   const c = configs[status as keyof typeof configs] ?? configs.idle
   return (
@@ -129,11 +136,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function ThinkingBubble({ text }: { text: string }) {
+  const { t } = useI18n()
+
   if (!text?.trim()) return null
   return (
     <div className="rounded-xl border border-blue-500/25 bg-blue-500/8 px-3 py-2">
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-500">
-        Thinking
+        {t('team.thinking')}
       </p>
       <p className="line-clamp-4 text-xs leading-relaxed text-claude-text/90">{text}</p>
     </div>
@@ -180,6 +189,8 @@ function AgentSpeechBubble({
 }
 
 function SystemPromptHoverCard({ prompt }: { prompt: string }) {
+  const { t } = useI18n()
+
   if (!prompt.trim()) return null
 
   return (
@@ -187,7 +198,7 @@ function SystemPromptHoverCard({ prompt }: { prompt: string }) {
       <button
         type="button"
         className="peer/prompt flex h-7 w-7 items-center justify-center rounded-full text-claude-text-muted transition-colors hover:bg-white/5 hover:text-claude-text"
-        aria-label="시스템 프롬프트 보기"
+        aria-label={t('team.systemPrompt.show')}
       >
         <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <circle cx="12" cy="12" r="8" />
@@ -201,7 +212,7 @@ function SystemPromptHoverCard({ prompt }: { prompt: string }) {
         }}
       >
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
-          시스템 프롬프트
+          {t('team.systemPrompt.title')}
         </p>
         <div className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-claude-text">
           {prompt}
@@ -223,6 +234,8 @@ function TaskPopover({
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const copyLabel = copied ? translate(language, 'common.copied') : translate(language, 'common.copy')
+  const closeLabel = translate(language, 'team.taskPopover.close')
 
   useEffect(() => {
     if (!copied) return
@@ -260,17 +273,17 @@ function TaskPopover({
         type="button"
         onClick={onClose}
         className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-        aria-label="현재 주제 팝오버 닫기"
+        aria-label={closeLabel}
       />
 
       <div className="relative z-10 flex max-h-[min(76vh,48rem)] w-[min(44rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[12px] border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] shadow-[0_18px_42px_rgba(38,52,68,0.24)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#d3dbe3] px-5 py-4">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#607080]">
-              Current Task
+              {translate(language, 'team.taskPopover.title')}
             </p>
             <p className="mt-1 text-xs text-[#6f8090]">
-              전체 주제와 첨부 파일을 다시 확인할 수 있습니다
+              {translate(language, 'team.taskPopover.description')}
             </p>
           </div>
 
@@ -278,7 +291,7 @@ function TaskPopover({
             type="button"
             onClick={onClose}
             className="shrink-0 rounded-lg p-1.5 text-[#607080] transition-colors hover:bg-[#dfe7ef] hover:text-[#41515e]"
-            aria-label="현재 주제 팝오버 닫기"
+            aria-label={closeLabel}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -291,8 +304,8 @@ function TaskPopover({
             type="button"
             onClick={handleCopy}
             className="invisible absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-[#c8d2dc] bg-white/95 text-[#41515e] opacity-0 shadow-sm transition-all hover:bg-[#f4f7fa] group-hover/task:visible group-hover/task:opacity-100 group-focus-within/task:visible group-focus-within/task:opacity-100"
-            title={copied ? '복사됨' : '복사'}
-            aria-label={copied ? '복사됨' : '복사'}
+            title={copyLabel}
+            aria-label={copyLabel}
           >
             {copied ? (
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -330,7 +343,7 @@ function TaskPopover({
               </p>
             ) : (
               <p className="text-sm leading-relaxed text-[#6f8090]">
-                {language === 'en' ? 'Only files are attached.' : '첨부 파일만 포함된 주제입니다.'}
+                {translate(language, 'team.taskPopover.filesOnly')}
               </p>
             )}
           </div>
@@ -341,9 +354,9 @@ function TaskPopover({
   )
 }
 
-function getAgentSpeechPreview(agent: TeamAgent) {
+function getAgentSpeechPreview(agent: TeamAgent, language: AppLanguage) {
   if (!agent.isStreaming) return null
-  return `${agent.name}가 발언중입니다.`
+  return translate(language, 'team.agent.speakingPreview', { name: agent.name })
 }
 
 function AgentMessageCard({
@@ -359,6 +372,7 @@ function AgentMessageCard({
   highlighted?: boolean
   containerRef?: (node: HTMLDivElement | null) => void
 }) {
+  const { t } = useI18n()
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -387,7 +401,7 @@ function AgentMessageCard({
     >
       <div className="flex items-center gap-2 text-xs text-claude-text-muted">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-        <span>Round {roundIndex + 1}</span>
+        <span>{t('team.roundWithNumber', { round: roundIndex + 1 })}</span>
       </div>
 
       {message.thinking && <ThinkingBubble text={message.thinking} />}
@@ -401,8 +415,8 @@ function AgentMessageCard({
             type="button"
             onClick={handleCopy}
             className="pointer-events-auto absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted opacity-0 transition-all hover:bg-claude-surface-2 hover:text-claude-text group-hover/message:opacity-100 focus:outline-none focus-visible:opacity-100"
-            title={copied ? '복사됨' : '복사'}
-            aria-label={copied ? '복사됨' : '복사'}
+            title={copied ? t('common.copied') : t('common.copy')}
+            aria-label={copied ? t('common.copied') : t('common.copy')}
           >
             {copied ? (
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -422,7 +436,7 @@ function AgentMessageCard({
             <ReactMarkdown>{message.text}</ReactMarkdown>
           </div>
         ) : (
-          <span className="text-xs text-claude-text-muted">응답 생성 중...</span>
+          <span className="text-xs text-claude-text-muted">{t('team.message.generating')}</span>
         )}
         {message.isStreaming && <StreamingCursor />}
       </div>
@@ -480,7 +494,8 @@ function AgentSeat({
     : isFocused
     ? 'border-[#3958a8] bg-[#eef3ff] text-[#1b2950]'
     : 'border-[#8a7868] bg-[#f3e9dc] text-[#43342a]'
-  const speechPreview = getAgentSpeechPreview(agent)
+  const { language } = useI18n()
+  const speechPreview = getAgentSpeechPreview(agent, language)
 
   return (
     <button
@@ -576,6 +591,7 @@ function SelectedAgentPanel({
   isFirst: boolean
   roundNumber: number
 }) {
+  const { t } = useI18n()
   const latestMessage = agent.messages.at(-1)
   const preview = latestMessage?.text?.trim() || latestMessage?.thinking?.trim() || ''
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
@@ -643,12 +659,12 @@ function SelectedAgentPanel({
                     color: '#2f6fe4',
                   }}
                 >
-                  선발 에이전트
+                  {t('team.panel.firstAgent')}
                 </span>
               )}
               {agent.isStreaming && (
                 <span className="rounded-full px-2 py-1 text-[11px] font-medium" style={{ backgroundColor: `${agent.color}22`, color: agent.color }}>
-                  발언 중
+                  {t('team.panel.speaking')}
                 </span>
               )}
             </div>
@@ -664,10 +680,10 @@ function SelectedAgentPanel({
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-claude-border px-2.5 py-1 text-xs text-claude-text-muted">
-            {agent.messages.length}개 발언
+            {t('team.panel.messageCount', { count: agent.messages.length })}
           </span>
           <span className="rounded-full border border-claude-border px-2.5 py-1 text-xs text-claude-text-muted">
-            현재 Round {roundNumber}
+            {t('team.panel.currentRound', { round: roundNumber })}
           </span>
         </div>
 
@@ -678,7 +694,7 @@ function SelectedAgentPanel({
             className="mt-4 block w-full rounded-2xl border border-claude-border bg-claude-surface/80 px-4 py-3 text-left transition-colors hover:bg-claude-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-border"
           >
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-claude-text/65">
-              Latest cue
+              {t('team.panel.latestCue')}
             </p>
             <p className="line-clamp-3 text-sm leading-relaxed text-claude-text">{preview}</p>
           </button>
@@ -691,9 +707,9 @@ function SelectedAgentPanel({
           <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-claude-border bg-claude-bg/60 text-center">
             <AgentPixelIcon type={agent.iconType} size={60} color={agent.color} />
             <div>
-              <p className="text-sm font-medium text-claude-text">아직 발언이 없습니다</p>
+              <p className="text-sm font-medium text-claude-text">{t('team.panel.emptyTitle')}</p>
               <p className="mt-1 text-xs text-claude-text-muted">
-                토론이 시작되면 이곳에서 전체 내용을 확인할 수 있습니다
+                {t('team.panel.emptyDescription')}
               </p>
             </div>
           </div>
@@ -718,7 +734,7 @@ function SelectedAgentPanel({
 
             {agent.error && (
               <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                오류: {agent.error}
+                {t('team.panel.error', { error: agent.error })}
               </div>
             )}
           </div>
@@ -729,7 +745,7 @@ function SelectedAgentPanel({
 }
 
 export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Props) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const {
     teams,
     activeTeamId,
@@ -743,6 +759,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const { startDiscussion, continueDiscussion, abortDiscussion } = useAgentTeamStream(
     envVars,
     claudeBinaryPath,
+    language,
   )
 
   const [showSetup, setShowSetup] = useState(false)
@@ -779,6 +796,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
         currentTaskAttachments: activeTeam.currentTaskAttachments ?? [],
         agents: activeTeam.agents.map((agent) => ({
           ...agent,
+          ...resolveTeamAgentStrings(agent, language),
           color: resolveAgentColor(agent.iconType, agent.color),
         })),
       }
@@ -917,6 +935,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
     cwd: string,
     selectedAgents: Array<{
       id: string
+      presetId: string | null
       name: string
       role: string
       description: string
@@ -931,6 +950,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
       teamName,
       selectedAgents.map((a) => ({
         id: a.id,
+        presetId: a.presetId,
         name: a.name,
         role: a.role,
         description: a.description,
@@ -1013,10 +1033,10 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
           </div>
 
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-claude-text">에이전트 팀</h2>
+            <h2 className="text-2xl font-bold text-claude-text">{t('team.empty.title')}</h2>
             <p className="mt-2 max-w-sm text-sm text-claude-text-muted leading-relaxed">
-              여러 AI 에이전트들이 함께 의논·토론·협력하며
-              <br />더 나은 답을 찾아갑니다
+              {t('team.empty.descriptionTop')}
+              <br />{t('team.empty.descriptionBottom')}
             </p>
           </div>
 
@@ -1027,7 +1047,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            첫 팀 만들기
+            {t('team.empty.createFirst')}
           </button>
         </div>
 
@@ -1051,7 +1071,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text"
-            title="닫기"
+            title={t('settings.close')}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -1087,7 +1107,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
               <circle cx="12" cy="12" r="8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v5m0-8h.01" />
             </svg>
-            가이드
+            {t('team.guide')}
           </button>
 
           <button
@@ -1097,7 +1117,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            새 팀
+            {t('team.new')}
           </button>
 
         </div>
@@ -1114,7 +1134,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
               />
 
               <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
-                <span className="text-xs text-claude-text-muted shrink-0">Round</span>
+                <span className="text-xs text-claude-text-muted shrink-0">{t('team.roundLabel')}</span>
                 <span className="text-xs font-bold text-claude-text shrink-0">{displayActiveTeam.roundNumber}</span>
                 <span className="mx-1 text-claude-border shrink-0">·</span>
                 {displayActiveTeam.agents.map((agent, i) => {
@@ -1156,13 +1176,13 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                     disabled={activeTeam.status === 'running'}
                     className="rounded-lg px-3 py-1.5 text-xs text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    초기화
+                    {t('team.reset')}
                   </button>
                   <button
                     onClick={() => removeTeam(activeTeam.id)}
                     disabled={activeTeam.status === 'running'}
                     className="rounded-lg p-1.5 text-claude-text-muted hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="팀 삭제"
+                    title={t('team.delete')}
                   >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -1207,7 +1227,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                     className="absolute left-1/2 top-[7%] z-10 w-[20%] min-w-[164px] -translate-x-1/2 border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] px-4 py-3 text-center shadow-[0_4px_0_#c7d0d9] transition-transform hover:-translate-y-[1px]"
                   >
                     <span className="inline-flex border border-[#cfd8e1] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#607080]">
-                      Task
+                      {t('team.taskLabel')}
                     </span>
                     <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[#4c5a67]">
                       {taskSummary}
@@ -1243,8 +1263,8 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                     type="button"
                     onPointerDown={handleDetailPanelResizeStart}
                     className="absolute bottom-[28px] left-[-12px] top-[28px] z-20 hidden w-6 cursor-col-resize items-center justify-center lg:flex"
-                    aria-label="에이전트 상세 패널 너비 조절"
-                    title="드래그해서 상세 패널 너비 조절"
+                    aria-label={t('team.resizePanel')}
+                    title={t('team.resizePanelHint')}
                   >
                     <span className="relative h-full w-full">
                       <span className="absolute left-1/2 top-1/2 h-14 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-claude-border/80 bg-claude-bg-base shadow-[0_4px_12px_rgba(0,0,0,0.22)]" />
@@ -1305,10 +1325,10 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                       onCompositionEnd={() => { isComposingRef.current = false }}
                       placeholder={
                         activeTeam.status === 'running'
-                          ? '토론이 진행 중입니다...'
+                          ? t('team.placeholder.running')
                           : displayActiveTeam.currentTask
-                          ? '새 토론 주제를 입력하세요...'
-                          : '토론 주제를 입력하세요...'
+                          ? t('team.placeholder.newTopic')
+                          : t('team.placeholder.topic')
                       }
                       rows={1}
                       disabled={activeTeam.status === 'running'}
@@ -1323,7 +1343,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                         void handleAttachFiles()
                       }}
                       disabled={activeTeam.status === 'running' || isAttaching}
-                      title={language === 'en' ? 'Attach files' : '파일 첨부'}
+                      title={t('team.attachFiles')}
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text disabled:opacity-30"
                     >
                       {isAttaching ? (
@@ -1343,15 +1363,15 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                             const mode = activeTeam.mode ?? 'sequential'
                             const streamingAgents = activeTeam.agents.filter((a) => a.isStreaming)
                             if (mode === 'parallel' && streamingAgents.length > 1) {
-                              return `${streamingAgents.length}명이 동시 응답 중...`
+                              return t('team.streaming.parallel', { count: streamingAgents.length })
                             }
+                            const defaultAgentName = streamingAgents[0]?.name ?? t('team.streaming.defaultAgent')
                             if (mode === 'meeting') {
-                              const name = streamingAgents[0]?.name ?? '에이전트'
-                              return `회의 Round ${activeTeam.roundNumber} — ${name} 발언 중...`
+                              return t('team.streaming.meeting', { round: activeTeam.roundNumber, name: defaultAgentName })
                             }
-                            return `${streamingAgents[0]?.name ?? '에이전트'}가 응답 중...`
+                            return t('team.streaming.agent', { name: defaultAgentName })
                           })()
-                        : 'Shift+Enter: 줄바꿈 · Enter: 전송'}
+                        : t('team.inputHint')}
                     </span>
 
                     <div className="flex-1" />
@@ -1360,7 +1380,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                       <button
                         onClick={handleAbort}
                         className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90"
-                        title="중단"
+                        title={t('team.abort')}
                       >
                         <svg className="h-[17px] w-[17px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                           <rect x="5.25" y="5.25" width="13.5" height="13.5" rx="2.85" />
@@ -1374,10 +1394,10 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                             className="rounded-xl border border-claude-border px-3 py-1.5 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
                           >
                             {activeTeam.mode === 'meeting'
-                              ? `Round ${activeTeam.roundNumber + 1} 진행`
+                              ? t('team.continue.meeting', { round: activeTeam.roundNumber + 1 })
                               : activeTeam.mode === 'parallel'
-                              ? '다음 라운드'
-                              : '계속 토론'}
+                              ? t('team.continue.parallel')
+                              : t('team.continue.sequential')}
                           </button>
                         )}
 
@@ -1385,7 +1405,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                           onClick={handleStart}
                           disabled={!canSubmitTask}
                           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-claude-panel disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
-                          title={activeTeam.status === 'done' ? '새 주제 전송 (Enter)' : '토론 시작 (Enter)'}
+                          title={activeTeam.status === 'done' ? t('team.startNewTopic') : t('team.startDiscussion')}
                         >
                           <svg className="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m-7 7l7-7 7 7" />

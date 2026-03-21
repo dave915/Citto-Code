@@ -1,6 +1,6 @@
 import type { SelectedFile } from '../../../electron/preload'
 import type { PendingPermissionRequest, PermissionMode } from '../../store/sessions'
-import type { AppLanguage } from '../../lib/i18n'
+import { translate, type AppLanguage, type TranslationKey } from '../../lib/i18n'
 
 export type SlashCommand = {
   name: string
@@ -19,55 +19,31 @@ export type PermissionAction = {
   badge: string
 }
 
-export function getBuiltinSlashCommands(language: AppLanguage = 'ko'): SlashCommand[] {
-  const descriptions = language === 'en'
-    ? {
-        'add-dir': 'Add working directory',
-        agents: 'Manage agents',
-        bug: 'Send bug report',
-        clear: 'Clear conversation history',
-        compact: 'Compact conversation',
-        config: 'View or edit config',
-        cost: 'Show token usage',
-        doctor: 'Check installation status',
-        help: 'Help',
-        init: 'Initialize CLAUDE.md',
-        login: 'Switch account',
-        logout: 'Log out',
-        mcp: 'Manage MCP connections',
-        memory: 'Edit CLAUDE.md memory',
-        model: 'Select or change model',
-        permissions: 'View or edit permissions',
-        pr_comments: 'Show PR comments',
-        review: 'Request code review',
-        status: 'Show status',
-        'terminal-setup': 'Configure Shift+Enter newline',
-        vim: 'Toggle vim mode',
-      }
-    : {
-        'add-dir': '작업 디렉토리 추가',
-        agents: '에이전트 관리',
-        bug: '버그 리포트 전송',
-        clear: '대화 기록 지우기',
-        compact: '대화 압축',
-        config: '설정 보기/수정',
-        cost: '토큰 사용량 보기',
-        doctor: '설치 상태 점검',
-        help: '도움말',
-        init: 'CLAUDE.md 초기화',
-        login: '계정 전환',
-        logout: '로그아웃',
-        mcp: 'MCP 연결 관리',
-        memory: 'CLAUDE.md 메모리 편집',
-        model: '모델 선택/변경',
-        permissions: '권한 보기/수정',
-        pr_comments: 'PR 댓글 보기',
-        review: '코드 리뷰 요청',
-        status: '상태 보기',
-        'terminal-setup': 'Shift+Enter 줄바꿈 설정',
-        vim: 'vim 모드 전환',
-      }
+const BUILTIN_SLASH_COMMAND_KEYS = {
+  'add-dir': 'input.slash.addDir',
+  agents: 'input.slash.agents',
+  bug: 'input.slash.bug',
+  clear: 'input.slash.clear',
+  compact: 'input.slash.compact',
+  config: 'input.slash.config',
+  cost: 'input.slash.cost',
+  doctor: 'input.slash.doctor',
+  help: 'input.slash.help',
+  init: 'input.slash.init',
+  login: 'input.slash.login',
+  logout: 'input.slash.logout',
+  mcp: 'input.slash.mcp',
+  memory: 'input.slash.memory',
+  model: 'input.slash.model',
+  permissions: 'input.slash.permissions',
+  pr_comments: 'input.slash.prComments',
+  review: 'input.slash.review',
+  status: 'input.slash.status',
+  'terminal-setup': 'input.slash.terminalSetup',
+  vim: 'input.slash.vim',
+} as const satisfies Record<string, TranslationKey>
 
+export function getBuiltinSlashCommands(language: AppLanguage = 'ko'): SlashCommand[] {
   return [
     'add-dir',
     'agents',
@@ -96,38 +72,53 @@ export function getBuiltinSlashCommands(language: AppLanguage = 'ko'): SlashComm
     dir: '',
     legacy: false,
     kind: 'builtin' as const,
-    description: descriptions[name as keyof typeof descriptions],
+    description: translate(language, BUILTIN_SLASH_COMMAND_KEYS[name]),
   }))
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico', 'heic', 'heif'])
 
 export function getPermissionOptions(language: AppLanguage = 'ko'): { value: PermissionMode; label: string; title: string }[] {
-  return language === 'en'
-    ? [
-        { value: 'default', label: '🔒 Default', title: 'Ask before editing files' },
-        { value: 'acceptEdits', label: '✅ Auto-approve', title: 'Automatically accept file edits' },
-        { value: 'bypassPermissions', label: '⚡ Bypass', title: 'Skip all permission confirmations' },
-      ]
-    : [
-        { value: 'default', label: '🔒 기본', title: '파일 수정 전 확인 요청' },
-        { value: 'acceptEdits', label: '✅ 자동승인', title: '파일 편집 자동 수락' },
-        { value: 'bypassPermissions', label: '⚡ 전체허용', title: '모든 권한 확인 건너뜀' },
-      ]
+  return [
+    {
+      value: 'default',
+      label: `🔒 ${translate(language, 'input.permission.default.label')}`,
+      title: translate(language, 'input.permission.default.title'),
+    },
+    {
+      value: 'acceptEdits',
+      label: `✅ ${translate(language, 'input.permission.acceptEdits.label')}`,
+      title: translate(language, 'input.permission.acceptEdits.title'),
+    },
+    {
+      value: 'bypassPermissions',
+      label: `⚡ ${translate(language, 'input.permission.bypass.label')}`,
+      title: translate(language, 'input.permission.bypass.title'),
+    },
+  ]
 }
 
 export function getPermissionActions(language: AppLanguage = 'ko'): PermissionAction[] {
-  return language === 'en'
-    ? [
-        { action: 'once', title: 'Allow once and continue', description: 'Approve only this request and resume the task', badge: '1x' },
-        { action: 'always', title: 'Always allow in this session', description: 'Raise session permissions and resume the interrupted task', badge: 'Session' },
-        { action: 'deny', title: 'Close permission request', description: 'Stop this request without approving it', badge: 'Cancel' },
-      ]
-    : [
-        { action: 'once', title: '이번만 허용 후 계속', description: '현재 요청만 승인하고 작업 이어서 진행', badge: '1회' },
-        { action: 'always', title: '이 세션에서 계속 허용', description: '현재 세션 권한을 올리고 중단된 작업 계속', badge: '세션' },
-        { action: 'deny', title: '권한 요청 닫기', description: '승인하지 않고 현재 요청 종료', badge: '취소' },
-      ]
+  return [
+    {
+      action: 'once',
+      title: translate(language, 'input.permission.once.title'),
+      description: translate(language, 'input.permission.once.description'),
+      badge: translate(language, 'input.permission.once.badge'),
+    },
+    {
+      action: 'always',
+      title: translate(language, 'input.permission.always.title'),
+      description: translate(language, 'input.permission.always.description'),
+      badge: translate(language, 'input.permission.always.badge'),
+    },
+    {
+      action: 'deny',
+      title: translate(language, 'input.permission.deny.title'),
+      description: translate(language, 'input.permission.deny.description'),
+      badge: translate(language, 'input.permission.deny.badge'),
+    },
+  ]
 }
 
 export function sanitizeEnvVars(envVars: Record<string, string>): Record<string, string> {
@@ -239,5 +230,5 @@ export function formatPermissionPreview(request: PendingPermissionRequest | null
     }
   }
 
-  return language === 'en' ? 'Permission request' : '권한 요청'
+  return translate(language, 'input.permission.request')
 }

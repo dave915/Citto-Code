@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Diff, Hunk, getChangeKey, parseDiff } from 'react-diff-view'
+import { useI18n } from '../../hooks/useI18n'
 import { buildDiffRows, buildUnifiedDiffText, buildUnifiedDiffTextFromSegments, type AskAboutSelectionPayload, type DiffHunk, type DiffSegment } from '../../lib/toolCallUtils'
 import { SelectionActionBar } from './SelectionActionBar'
 import { buildSelectedRange, buildSelectionPayload, summarizeLineRange } from './selectionUtils'
@@ -78,6 +79,7 @@ export function DiffPreview({
   onShowFullDiff?: () => void
   onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
 }) {
+  const { language, t } = useI18n()
   const [anchorKey, setAnchorKey] = useState<string | null>(null)
   const [selectedChangeKeys, setSelectedChangeKeys] = useState<string[]>([])
   const [hoveredChangeKey, setHoveredChangeKey] = useState<string | null>(null)
@@ -272,12 +274,12 @@ export function DiffPreview({
           onClick={onShowFullDiff}
           className="block w-full border-t border-claude-border/70 px-3 py-2 text-center text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
         >
-          Show full diff ({hiddenCount} more lines)
+          {t('toolTimeline.showFullDiff', { count: hiddenCount })}
         </button>
       )}
       {selectedPayload && onAskAboutSelection && (
         <SelectionActionBar
-          label={summarizeLineRange(selectedPayload.startLine, selectedPayload.endLine)}
+          label={summarizeLineRange(selectedPayload.startLine, selectedPayload.endLine, language)}
           onAskAgain={() => onAskAboutSelection(selectedPayload)}
           onOpenComment={() => setCommentOpen(true)}
           commentOpen={commentOpen}

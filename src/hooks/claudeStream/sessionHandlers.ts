@@ -9,6 +9,7 @@ import {
   shouldAutoGenerateHtmlPreview,
 } from '../../lib/claudeRuntime'
 import { buildPromptWithAttachments, formatAttachedFilesSummary, toAttachedFiles } from '../../lib/attachmentPrompts'
+import { translate, type AppLanguage } from '../../lib/i18n'
 import { useSessionsStore, type Session } from '../../store/sessions'
 import type {
   ClaudeSessionHandlerDeps,
@@ -16,8 +17,8 @@ import type {
   HandleSendOptions,
 } from './types'
 
-function isEnglishUi() {
-  return typeof document !== 'undefined' && document.documentElement.lang.startsWith('en')
+function getUiLanguage(): AppLanguage {
+  return typeof document !== 'undefined' && document.documentElement.lang.startsWith('en') ? 'en' : 'ko'
 }
 
 async function cleanupSessionAutoPreviewDirectories(session: Session, remainingSessions: Session[]) {
@@ -64,13 +65,15 @@ export function createClaudeSessionHandlers({
     const session = useSessionsStore.getState().sessions.find((item) => item.id === sessionId)
     if (!session || session.isStreaming) return
     runtime.abortedTabIdsRef.current.delete(sessionId)
+    const uiLanguage = getUiLanguage()
 
-    let fullPrompt = buildPromptWithAttachments(text, files, isEnglishUi() ? 'en' : 'ko')
+    let fullPrompt = buildPromptWithAttachments(text, files, uiLanguage)
 
     if (shouldAutoGenerateHtmlPreview(text, files)) {
       const autoPreviewInstruction = buildAutoHtmlPreviewInstruction(
         text,
         session.cwd && session.cwd !== '~' ? session.cwd : '~',
+        uiLanguage,
       )
       fullPrompt = fullPrompt.trim()
         ? `${fullPrompt}\n\n${autoPreviewInstruction}`
@@ -81,7 +84,7 @@ export function createClaudeSessionHandlers({
 
     runtime.storeRef.current.addUserMessage(
       sessionId,
-      options?.visibleTextOverride ?? (text || formatAttachedFilesSummary(files.length, isEnglishUi() ? 'en' : 'ko')),
+      options?.visibleTextOverride ?? (text || formatAttachedFilesSummary(files.length, uiLanguage)),
       visibleFiles.length > 0 ? visibleFiles : undefined,
     )
 
@@ -206,18 +209,17 @@ export function createClaudeSessionHandlers({
     if (action === 'always' && activeSession.permissionMode !== nextPermissionMode) {
       runtime.storeRef.current.setPermissionMode(activeSessionId, nextPermissionMode)
     }
+    const uiLanguage = getUiLanguage()
 
     await handleSendForSession(
       activeSessionId,
-      isEnglishUi()
-        ? 'Approve the permission request you just made and continue the interrupted task.'
-        : '방금 요청한 권한을 승인합니다. 중단된 작업을 이어서 계속 진행하세요.',
+      translate(uiLanguage, 'claudeStream.permissionContinuePrompt'),
       [],
       {
         permissionModeOverride: nextPermissionMode,
         visibleTextOverride: action === 'always'
-          ? (isEnglishUi() ? 'Continue after permission approval' : '권한 승인 후 계속')
-          : (isEnglishUi() ? 'Continue after one-time permission approval' : '이번만 권한 승인 후 계속'),
+          ? translate(uiLanguage, 'claudeStream.permissionContinue')
+          : translate(uiLanguage, 'claudeStream.permissionContinueOnce'),
       },
     )
   }
@@ -241,7 +243,7 @@ export function createClaudeSessionHandlers({
     const session = sessions.find((item) => item.id === targetSessionId)
     const folder = normalizeSelectedFolder(await window.claude.selectFolder({
       defaultPath: session?.cwd || defaultProjectPath,
-      title: isEnglishUi() ? 'Select project folder' : '프로젝트 폴더 선택',
+      title: translate(getUiLanguage(), 'app.selectProjectFolderTitle'),
     }))
     if (!folder) return
 

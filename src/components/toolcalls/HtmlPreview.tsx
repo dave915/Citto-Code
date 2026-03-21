@@ -259,7 +259,7 @@ export function HtmlPreview({
   html: string
   path?: string | null
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const isMacOs = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previewIdRef = useRef(`html-preview-${Math.random().toString(36).slice(2)}`)
@@ -372,12 +372,12 @@ export function HtmlPreview({
     })
   }
 
-  const previewTitle = language === 'en' ? 'Live HTML preview' : 'HTML 실행 미리보기'
-  const downloadLabel = language === 'en' ? 'Download code' : '코드 다운로드'
-  const openLabel = language === 'en' ? 'Open in browser' : '브라우저에서 열기'
+  const previewTitle = t('toolcall.htmlPreview.title')
+  const downloadLabel = t('toolcall.htmlPreview.download')
+  const openLabel = t('toolcall.htmlPreview.openInBrowser')
   const maximizeLabel = isFullscreen
-    ? (language === 'en' ? 'Exit fullscreen' : '최대화 해제')
-    : (language === 'en' ? 'Maximize' : '최대화')
+    ? t('toolcall.htmlPreview.exitFullscreen')
+    : t('toolcall.htmlPreview.maximize')
 
   const renderHeaderActions = () => (
     <div className="no-drag flex flex-shrink-0 items-center gap-2" data-no-drag="true">

@@ -1,24 +1,25 @@
 import type { ToolCallBlock as ToolCallBlockType } from '../../store/sessions'
 import { extractSubagentRuntimeInfo, isSubagentToolName } from '../agent-subcalls'
+import { translate, type AppLanguage, type TranslationKey } from '../i18n'
 import type { SubagentSessionInfo } from './types'
 
-const ACTION_LABELS: Record<string, string> = {
-  Read: 'Read',
-  Edit: 'Edit',
-  Write: 'Write',
-  MultiEdit: 'Edit',
-  TodoWrite: 'Update Todos',
-  Bash: 'Run',
-  Glob: 'Glob',
-  Grep: 'Grep',
-  ToolSearch: 'Search',
-  WebFetch: 'Fetch',
-  WebSearch: 'Search',
-  Agent: 'Task',
-  Task: 'Task',
-  agent: 'Task',
-  task: 'Task',
-  call_omo_agent: 'Task',
+const ACTION_LABEL_KEYS: Record<string, TranslationKey> = {
+  Read: 'toolcall.action.read',
+  Edit: 'toolcall.action.edit',
+  Write: 'toolcall.action.write',
+  MultiEdit: 'toolcall.action.edit',
+  TodoWrite: 'toolcall.action.updateTodos',
+  Bash: 'toolcall.action.run',
+  Glob: 'toolcall.action.glob',
+  Grep: 'toolcall.action.grep',
+  ToolSearch: 'toolcall.action.search',
+  WebFetch: 'toolcall.action.fetch',
+  WebSearch: 'toolcall.action.search',
+  Agent: 'toolcall.action.task',
+  Task: 'toolcall.action.task',
+  agent: 'toolcall.action.task',
+  task: 'toolcall.action.task',
+  call_omo_agent: 'toolcall.action.task',
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -190,8 +191,9 @@ export function getSubagentSessionInfo(toolCall: ToolCallBlockType): SubagentSes
   }
 }
 
-export function getActionLabel(toolName: string): string {
-  return ACTION_LABELS[toolName] ?? toolName
+export function getActionLabel(toolName: string, language: AppLanguage = 'ko'): string {
+  const key = ACTION_LABEL_KEYS[toolName]
+  return key ? translate(language, key) : toolName
 }
 
 export function isHtmlPath(path: string | null | undefined): boolean {

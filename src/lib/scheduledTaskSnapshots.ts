@@ -1,5 +1,5 @@
 import type { Session } from '../store/sessions'
-import type { AppLanguage } from './i18n'
+import { translate, type AppLanguage } from './i18n'
 
 const SCHEDULED_TASK_WRITE_TOOL_NAMES = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
 
@@ -56,9 +56,9 @@ export function getScheduledTaskSnapshotStatus(session: Session): 'running' | 'a
 
 export function getScheduledTaskSnapshotSummary(session: Session, language: AppLanguage = 'ko'): string | null {
   if (session.pendingPermission?.toolName) {
-    return language === 'en'
-      ? `Waiting for ${session.pendingPermission.toolName} permission approval.`
-      : `${session.pendingPermission.toolName} 권한 승인 대기 중입니다.`
+    return translate(language, 'scheduled.summary.waitingPermission', {
+      toolName: session.pendingPermission.toolName,
+    })
   }
 
   if (session.pendingQuestion?.question) {
@@ -66,9 +66,7 @@ export function getScheduledTaskSnapshotSummary(session: Session, language: AppL
   }
 
   if (session.error?.trim()) {
-    return truncateSummary(session.error) || (language === 'en'
-      ? 'The automated run did not complete because of an error.'
-      : '오류로 인해 자동 실행이 완료되지 않았습니다.')
+    return truncateSummary(session.error) || translate(language, 'scheduled.summary.errorFallback')
   }
 
   for (let index = session.messages.length - 1; index >= 0; index -= 1) {
@@ -79,6 +77,6 @@ export function getScheduledTaskSnapshotSummary(session: Session, language: AppL
   }
 
   return session.isStreaming
-    ? (language === 'en' ? 'Claude is generating the result.' : 'Claude가 결과를 생성하는 중입니다.')
+    ? translate(language, 'scheduled.summary.generating')
     : null
 }

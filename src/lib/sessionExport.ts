@@ -1,22 +1,16 @@
 import type { Session, PermissionMode } from '../store/sessions'
-import type { AppLanguage } from './i18n'
+import { getIntlLocale, translate, type AppLanguage } from './i18n'
 
 export type SessionExportFormat = 'markdown' | 'json'
 
 export function formatPermissionMode(mode: PermissionMode, language: AppLanguage = 'ko'): string {
-  if (language === 'en') {
-    if (mode === 'acceptEdits') return 'Auto approve'
-    if (mode === 'bypassPermissions') return 'Bypass permissions'
-    return 'Default'
-  }
-
-  if (mode === 'acceptEdits') return '자동승인'
-  if (mode === 'bypassPermissions') return '전체허용'
-  return '기본'
+  if (mode === 'acceptEdits') return translate(language, 'input.permission.acceptEdits.label')
+  if (mode === 'bypassPermissions') return translate(language, 'input.permission.bypass.label')
+  return translate(language, 'input.permission.default.label')
 }
 
 export function formatDateTime(timestamp: number, language: AppLanguage = 'ko'): string {
-  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'ko-KR', {
+  return new Intl.DateTimeFormat(getIntlLocale(language), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -74,36 +68,36 @@ export function safeJsonStringify(value: unknown, space = 2): string {
 }
 
 export function buildSessionMarkdownExport(session: Session, language: AppLanguage = 'ko'): string {
-  const isEnglish = language === 'en'
+  const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) => translate(language, key, params)
   const lines: string[] = [
     `# ${session.name}`,
     '',
-    `- ${isEnglish ? 'Exported at' : '내보낸 시각'}: ${formatDateTime(Date.now(), language)}`,
-    `- ${isEnglish ? 'Working path' : '작업 경로'}: ${session.cwd || '~'}`,
-    `- ${isEnglish ? 'Session ID' : '세션 ID'}: ${session.sessionId ?? (isEnglish ? 'None' : '없음')}`,
-    `- ${isEnglish ? 'Model' : '모델'}: ${session.model ?? (isEnglish ? 'Default model' : '기본 모델')}`,
-    `- ${isEnglish ? 'Permission' : '권한'}: ${formatPermissionMode(session.permissionMode, language)}`,
-    `- ${isEnglish ? 'Plan mode' : '플랜 모드'}: ${session.planMode ? (isEnglish ? 'On' : '켜짐') : (isEnglish ? 'Off' : '꺼짐')}`,
-    `- ${isEnglish ? 'Last cost' : '마지막 비용'}: ${session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'}`,
+    `- ${t('sessionExport.exportedAt')}: ${formatDateTime(Date.now(), language)}`,
+    `- ${t('sessionExport.workingPath')}: ${session.cwd || '~'}`,
+    `- ${t('sessionExport.sessionId')}: ${session.sessionId ?? t('sessionExport.none')}`,
+    `- ${t('sessionInfo.model')}: ${session.model ?? t('input.modelPicker.defaultModel')}`,
+    `- ${t('sessionInfo.permission')}: ${formatPermissionMode(session.permissionMode, language)}`,
+    `- ${t('sessionInfo.planMode')}: ${session.planMode ? t('sessionExport.on') : t('sessionExport.off')}`,
+    `- ${t('sessionInfo.lastCost')}: ${session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'}`,
   ]
 
   for (const message of session.messages) {
-    lines.push('', `## ${message.role === 'user' ? (isEnglish ? 'User' : '사용자') : 'Claude'} · ${formatDateTime(message.createdAt, language)}`, '')
-    lines.push(message.text.trim() || (isEnglish ? '_No content_' : '_내용 없음_'))
+    lines.push('', `## ${message.role === 'user' ? t('sessionExport.user') : 'Claude'} · ${formatDateTime(message.createdAt, language)}`, '')
+    lines.push(message.text.trim() || `_${t('sessionExport.noContent')}_`)
 
     if (message.attachedFiles?.length) {
-      lines.push('', `### ${isEnglish ? 'Attachments' : '첨부 파일'}`)
+      lines.push('', `### ${t('sessionExport.attachments')}`)
       for (const file of message.attachedFiles) {
         lines.push(`- ${file.name} (${file.path})`)
       }
     }
 
     if (message.thinking?.trim()) {
-      lines.push('', '### Thinking', '```text', message.thinking.trim(), '```')
+      lines.push('', `### ${t('chat.message.thinking')}`, '```text', message.thinking.trim(), '```')
     }
 
     if (message.toolCalls.length) {
-      lines.push('', '### Tool Calls')
+      lines.push('', `### ${t('sessionExport.toolCalls')}`)
       for (const toolCall of message.toolCalls) {
         lines.push(`- ${toolCall.toolName} · ${toolCall.status}`)
       }
@@ -132,16 +126,13 @@ export function calculateContextUsagePercentFromTokens(inputTokens: number): num
 }
 
 export function lastMessageSummary(session: Session, language: AppLanguage = 'ko'): string {
+  const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) => translate(language, key, params)
   const message = session.messages[session.messages.length - 1]
-  if (!message) return language === 'en' ? 'No messages' : '메시지 없음'
-  const prefix = message.role === 'user' ? (language === 'en' ? 'User' : '사용자') : 'Claude'
+  if (!message) return t('sessionExport.noMessages')
+  const prefix = message.role === 'user' ? t('sessionExport.user') : 'Claude'
   const body = message.text.trim()
     || (message.attachedFiles?.length
-      ? language === 'en'
-        ? `${message.attachedFiles.length} attached files`
-        : `파일 ${message.attachedFiles.length}개 첨부`
-      : language === 'en'
-        ? 'No content'
-        : '내용 없음')
+      ? t('sessionExport.attachedFiles', { count: message.attachedFiles.length })
+      : t('sessionExport.noContent'))
   return `${prefix} · ${body.slice(0, 80)}${body.length > 80 ? '…' : ''}`
 }

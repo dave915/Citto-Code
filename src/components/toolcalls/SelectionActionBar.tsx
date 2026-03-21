@@ -19,7 +19,7 @@ export function SelectionActionBar({
   onSubmitComment: () => void
   onCancelComment: () => void
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   return (
     <div className="mt-2 rounded-lg border border-claude-border/70 bg-claude-panel px-3 py-2">
       <div className="flex items-center justify-between gap-3">
@@ -30,14 +30,14 @@ export function SelectionActionBar({
             onClick={onOpenComment}
             className="inline-flex items-center gap-1 rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
           >
-            {language === 'en' ? 'Add comment' : '코멘트 입력'}
+            {t('selection.addComment')}
           </button>
           <button
             type="button"
             onClick={onAskAgain}
             className="inline-flex items-center gap-1 rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
           >
-            {language === 'en' ? 'Ask again with these lines' : '이 줄들로 다시 질문'}
+            {t('selection.askAgain')}
           </button>
         </div>
       </div>
@@ -47,7 +47,7 @@ export function SelectionActionBar({
           <textarea
             value={commentValue}
             onChange={(event) => onCommentChange(event.target.value)}
-            placeholder={language === 'en' ? 'Enter a question or comment about the selected lines' : '선택한 줄에 대해 질문이나 코멘트를 입력하세요'}
+            placeholder={t('selection.placeholder')}
             rows={2}
             autoFocus
             className="min-h-[56px] flex-1 resize-none rounded-md border border-claude-border bg-claude-surface px-3 py-2 text-[12px] leading-5 text-claude-text outline-none placeholder:text-claude-muted focus-visible:ring-1 focus-visible:ring-white/10"
@@ -58,7 +58,7 @@ export function SelectionActionBar({
               onClick={onCancelComment}
               className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
             >
-              {language === 'en' ? 'Cancel' : '취소'}
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -66,7 +66,7 @@ export function SelectionActionBar({
               disabled={!commentValue.trim()}
               className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 disabled:opacity-40"
             >
-              {language === 'en' ? 'Add to input' : '입력창에 추가'}
+              {t('selection.addToInput')}
             </button>
           </div>
         </div>

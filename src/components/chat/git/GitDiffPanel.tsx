@@ -39,7 +39,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
     gitDiff: GitDiffResult | null
   }) => void
 }) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const parsedFiles = useMemo(() => {
     if (!gitDiff?.diff.trim()) return []
     return safeParseGitDiff(gitDiff.diff)
@@ -94,7 +94,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
       if (!result || result.fileType !== 'text') {
         setMarkdownPreviewState('error')
         setMarkdownPreviewContent('')
-        setMarkdownPreviewError(language === 'en' ? 'Failed to load the markdown preview.' : '마크다운 미리보기를 불러오지 못했습니다.')
+        setMarkdownPreviewError(t('git.error.loadMarkdownPreview'))
         return
       }
 
@@ -146,7 +146,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
           : {
               state: 'error',
               content: '',
-              error: result.error || (language === 'en' ? 'Failed to load the markdown preview.' : '마크다운 미리보기를 불러오지 못했습니다.'),
+              error: result.error || t('git.error.loadMarkdownPreview'),
             },
       }))
     } catch (error) {
@@ -159,8 +159,8 @@ export const GitDiffPanel = memo(function GitDiffPanel({
           state: 'error',
           content: '',
           error: message.includes('getGitFileContent') || message.includes('getGitCommitFileContent')
-            ? (language === 'en' ? 'Please restart the app and try again.' : '앱을 다시 시작한 뒤 다시 시도해 주세요.')
-            : (language === 'en' ? 'Failed to load the markdown preview.' : '마크다운 미리보기를 불러오지 못했습니다.'),
+            ? t('git.error.restartForPreview')
+            : t('git.error.loadMarkdownPreview'),
         },
       }))
     }
@@ -170,8 +170,8 @@ export const GitDiffPanel = memo(function GitDiffPanel({
     return (
       <div className="flex h-full items-center justify-center px-6 text-center">
         <div>
-          <p className="text-sm font-medium text-claude-text">{language === 'en' ? 'Select a file or commit.' : '파일이나 커밋을 선택하세요.'}</p>
-          <p className="mt-2 text-xs leading-6 text-claude-muted">{language === 'en' ? 'Choose a changed file or commit from the right to view the diff here.' : '오른쪽 목록에서 변경 파일이나 커밋 로그를 선택하면 diff를 여기에서 보여줍니다.'}</p>
+          <p className="text-sm font-medium text-claude-text">{t('git.diff.selectTitle')}</p>
+          <p className="mt-2 text-xs leading-6 text-claude-muted">{t('git.diff.selectDescription')}</p>
         </div>
       </div>
     )
@@ -187,7 +187,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-100">
-                  {language === 'en' ? 'Commit' : '커밋'}
+                  {t('git.diff.commitBadge')}
                 </span>
                 <p className="min-w-0 truncate text-sm font-medium text-claude-text">{commit.subject}</p>
               </div>
@@ -225,7 +225,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
                 <p className="min-w-0 truncate text-sm font-medium text-claude-text">{entry.relativePath}</p>
               </div>
               {entry.originalPath && (
-                <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">{language === 'en' ? 'Previous:' : '이전:'} {entry.originalPath}</p>
+                <p className="mt-1 truncate text-[11px] text-[rgb(var(--claude-text)/0.72)]">{t('git.diff.previous')} {entry.originalPath}</p>
               )}
               {markdownPreviewAvailable && (
                 <button
@@ -257,16 +257,16 @@ export const GitDiffPanel = memo(function GitDiffPanel({
             </div>
           ) : (
             <div className="flex h-full items-center justify-center text-claude-muted">
-              <p className="text-sm">{language === 'en' ? 'Loading preview...' : '미리보기를 불러오는 중입니다.'}</p>
+              <p className="text-sm">{t('git.diff.loadingPreview')}</p>
             </div>
           )
         ) : loading ? (
           <div className="flex h-full items-center justify-center text-claude-muted">
-            <p className="text-sm">{language === 'en' ? 'Loading diff...' : 'diff를 불러오는 중입니다.'}</p>
+            <p className="text-sm">{t('git.diff.loadingDiff')}</p>
           </div>
         ) : !gitDiff ? (
           <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
-            {language === 'en' ? 'Loading diff...' : 'diff를 불러오는 중입니다.'}
+            {t('git.diff.loadingDiff')}
           </div>
         ) : gitDiff.error && !gitDiff.diff.trim() ? (
           <div className="rounded-2xl border border-red-900/40 bg-red-950/20 px-4 py-8 text-center text-sm text-red-100">
@@ -274,7 +274,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
           </div>
         ) : !gitDiff.diff.trim() ? (
           <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
-            {language === 'en' ? 'No diff to display.' : '표시할 diff가 없습니다.'}
+            {t('git.diff.noDiff')}
           </div>
         ) : parsedFiles.length > 0 ? (
           <div className="space-y-4">
@@ -333,7 +333,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
                         </div>
                       ) : (
                         <div className="px-4 py-8 text-center text-sm text-claude-muted">
-                          {language === 'en' ? 'Loading preview...' : '미리보기를 불러오는 중입니다.'}
+                          {t('git.diff.loadingPreview')}
                         </div>
                       )
                     ) : (

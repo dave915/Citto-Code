@@ -44,24 +44,24 @@ export const EMPTY_MCP_FORM: McpForm = {
   env: '',
 }
 
-export const MCP_SCOPE_OPTIONS: Array<{
-  value: McpConfigScope
-  label: string
-  description: string
-}> = [
-  { value: 'user', label: '전체', description: '~/.claude.json 전체 공통 설정' },
-  { value: 'local', label: '프로젝트별', description: '~/.claude.json 안에서 선택한 프로젝트별 설정' },
-  { value: 'project', label: '공유', description: '선택한 프로젝트의 .mcp.json 공유 설정' },
-]
-
 export function getMcpScopeOptions(language: AppLanguage) {
-  return language === 'en'
-    ? [
-        { value: 'user' as const, label: 'Global', description: 'Shared settings in ~/.claude.json' },
-        { value: 'local' as const, label: 'Project local', description: 'Project-specific settings stored in ~/.claude.json' },
-        { value: 'project' as const, label: 'Shared project', description: 'Shared settings in the selected project .mcp.json' },
-      ]
-    : MCP_SCOPE_OPTIONS
+  return [
+    {
+      value: 'user' as const,
+      label: translate(language, 'settings.mcp.scope.user.label'),
+      description: translate(language, 'settings.mcp.scope.user.description'),
+    },
+    {
+      value: 'local' as const,
+      label: translate(language, 'settings.mcp.scope.local.label'),
+      description: translate(language, 'settings.mcp.scope.local.description'),
+    },
+    {
+      value: 'project' as const,
+      label: translate(language, 'settings.mcp.scope.project.label'),
+      description: translate(language, 'settings.mcp.scope.project.description'),
+    },
+  ]
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

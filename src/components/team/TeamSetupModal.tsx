@@ -3,13 +3,20 @@ import { nanoid } from 'nanoid'
 import { createPortal } from 'react-dom'
 import { AgentPixelIcon, type AgentIconType } from './AgentPixelIcon'
 import { AgentTeamGuideModal } from './AgentTeamGuideModal'
+import { useI18n } from '../../hooks/useI18n'
 import {
-  AGENT_PRESETS,
-  PRESET_CATEGORIES,
+  buildCustomAgentSystemPrompt,
+  getAgentPresets,
+  getCustomAgentTag,
+  getDefaultCustomAgentRole,
+  getPresetCategories,
   normalizeCustomAgentColor,
   resolveAgentColor,
   type AgentPreset,
+  type PresetCategory,
+  resolveTeamAgentStrings,
 } from '../../lib/teamAgentPresets'
+import type { AppLanguage } from '../../lib/i18n'
 import { normalizeSelectedFolder } from '../../lib/claudeRuntime'
 
 type SelectedAgent = {
@@ -57,7 +64,7 @@ const COLOR_PALETTE = [
   '#8B5CF6', '#F97316', '#EC4899', '#14B8A6', '#84CC16',
 ]
 
-function loadCustomAgentPresets(): AgentPreset[] {
+function loadCustomAgentPresets(language: AppLanguage): AgentPreset[] {
   if (typeof localStorage === 'undefined') return []
 
   try {
@@ -91,7 +98,7 @@ function loadCustomAgentPresets(): AgentPreset[] {
         systemPrompt: candidate.systemPrompt,
         tags: Array.isArray(candidate.tags)
           ? candidate.tags.filter((tag): tag is string => typeof tag === 'string')
-          : ['커스텀'],
+          : [getCustomAgentTag(language)],
       }]
     })
   } catch {
@@ -116,6 +123,8 @@ function AgentPresetCard({
   onHoverEnd: () => void
   onDelete?: () => void
 }) {
+  const { t } = useI18n()
+
   return (
     <div
       role="button"
@@ -156,7 +165,7 @@ function AgentPresetCard({
             onDelete()
           }}
           className="absolute right-2 top-2 rounded-md p-1 text-claude-text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
-          title="삭제"
+          title={t('team.setup.deletePreset')}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -191,6 +200,8 @@ function AgentPresetCard({
 }
 
 function PresetHoverCard({ hoverState }: { hoverState: PresetHoverState }) {
+  const { t } = useI18n()
+
   if (!hoverState || typeof document === 'undefined') return null
 
   const width = 360
@@ -233,7 +244,7 @@ function PresetHoverCard({ hoverState }: { hoverState: PresetHoverState }) {
       <div className="space-y-3">
         <div>
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
-            설명
+            {t('team.setup.descriptionLabel')}
           </p>
           <div className="rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-xs leading-relaxed text-claude-text">
             {preset.description}
@@ -242,7 +253,7 @@ function PresetHoverCard({ hoverState }: { hoverState: PresetHoverState }) {
 
         <div>
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
-            시스템 프롬프트
+            {t('team.setup.systemPromptLabel')}
           </p>
           <div className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-xs leading-relaxed text-claude-text">
             {preset.systemPrompt}
@@ -283,12 +294,13 @@ function SelectedAgentBadge({
 }
 
 export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
+  const { language, t } = useI18n()
   const [step, setStep] = useState<'select' | 'custom'>('select')
   const [showGuide, setShowGuide] = useState(false)
-  const [teamName, setTeamName] = useState('새 에이전트 팀')
+  const [teamName, setTeamName] = useState(() => t('team.setup.defaultTeamName'))
   const [cwd, setCwd] = useState(defaultCwd)
   const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>([])
-  const [customAgentPresets, setCustomAgentPresets] = useState<AgentPreset[]>(() => loadCustomAgentPresets())
+  const [customAgentPresets, setCustomAgentPresets] = useState<AgentPreset[]>(() => loadCustomAgentPresets(language))
   const [hoveredPreset, setHoveredPreset] = useState<PresetHoverState>(null)
 
   // Custom agent form state
@@ -297,18 +309,30 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
   const [customDesc, setCustomDesc] = useState('')
   const [customColor, setCustomColor] = useState(COLOR_PALETTE[0])
   const [customSystemPrompt, setCustomSystemPrompt] = useState('')
+  const presetCategories = getPresetCategories(language)
+  const agentPresets = getAgentPresets(language)
+
   useEffect(() => {
     if (typeof localStorage === 'undefined') return
     localStorage.setItem(CUSTOM_AGENT_PRESETS_STORAGE_KEY, JSON.stringify(customAgentPresets))
   }, [customAgentPresets])
 
-  const isCategorySelected = (category: typeof PRESET_CATEGORIES[number]) => (
+  const isCategorySelected = (category: PresetCategory) => (
     category.presetIds.every((presetId) => selectedAgents.some((agent) => agent.presetId === presetId))
   )
   const isPresetSelected = (presetId: string) => (
     selectedAgents.some((agent) => agent.presetId === presetId)
   )
   const remainingSlots = Math.max(0, MAX_TEAM_AGENTS - selectedAgents.length)
+  const selectedCountLabel = selectedAgents.length < 2
+    ? t('team.setup.selectedCountNeedsMin', { count: selectedAgents.length, min: 2 })
+    : selectedAgents.length >= MAX_TEAM_AGENTS
+      ? t('team.setup.selectedCountAtMax', { count: selectedAgents.length, max: MAX_TEAM_AGENTS })
+      : t('team.setup.selectedCount', { count: selectedAgents.length, max: MAX_TEAM_AGENTS })
+
+  function localizeSelectedAgent(agent: SelectedAgent) {
+    return resolveTeamAgentStrings(agent, language)
+  }
 
   function togglePreset(preset: AgentPreset) {
     const exists = selectedAgents.find((a) => a.presetId === preset.presetId)
@@ -323,7 +347,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
     }
   }
 
-  function applyCategory(category: typeof PRESET_CATEGORIES[0]) {
+  function applyCategory(category: PresetCategory) {
     if (isCategorySelected(category)) {
       setSelectedAgents((prev) => (
         prev.filter((agent) => !category.presetIds.includes(agent.presetId ?? ''))
@@ -332,7 +356,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
     }
 
     const newAgents = category.presetIds
-      .map((id) => AGENT_PRESETS.find((preset) => preset.presetId === id))
+      .map((id) => agentPresets.find((preset) => preset.presetId === id))
       .filter((preset): preset is AgentPreset => Boolean(preset))
       .filter((preset) => !selectedAgents.some((agent) => agent.presetId === preset.presetId))
       .slice(0, remainingSlots)
@@ -348,12 +372,12 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
     const customPreset: AgentPreset = {
       presetId: `custom-${nanoid()}`,
       name: customName.trim(),
-      role: customRole.trim() || '에이전트',
+      role: customRole.trim() || getDefaultCustomAgentRole(language),
       description: customDesc.trim(),
       color: normalizeCustomAgentColor(customColor),
       iconType: 'custom',
-      systemPrompt: customSystemPrompt.trim() || `당신은 ${customRole || '에이전트'}입니다. ${customDesc}`,
-      tags: ['커스텀'],
+      systemPrompt: customSystemPrompt.trim() || buildCustomAgentSystemPrompt(customRole, customDesc, language),
+      tags: [getCustomAgentTag(language)],
     }
     setCustomAgentPresets((prev) => [customPreset, ...prev])
     setCustomName('')
@@ -374,7 +398,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
   async function handleSelectFolder() {
     const selected = normalizeSelectedFolder(await window.claude.selectFolder({
       defaultPath: cwd || defaultCwd,
-      title: '작업 폴더 선택',
+      title: t('team.setup.selectFolderDialogTitle'),
     }))
     if (!selected) return
     setCwd(selected)
@@ -382,7 +406,14 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
   function handleConfirm() {
     if (selectedAgents.length < 2) return
-    onConfirm(teamName, cwd, selectedAgents)
+    onConfirm(
+      teamName,
+      cwd,
+      selectedAgents.map((agent) => ({
+        ...agent,
+        ...localizeSelectedAgent(agent),
+      })),
+    )
   }
 
   return (
@@ -392,9 +423,9 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-claude-border px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-claude-text">에이전트 팀 구성</h2>
+            <h2 className="text-lg font-semibold text-claude-text">{t('team.setup.title')}</h2>
             <p className="text-sm text-claude-text">
-              함께 토론할 에이전트들을 선택하세요
+              {t('team.setup.description')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -407,7 +438,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 <circle cx="12" cy="12" r="8" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v5m0-8h.01" />
               </svg>
-              가이드
+              {t('team.guide')}
             </button>
             <button
               onClick={onClose}
@@ -434,7 +465,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                     : 'text-claude-text/75 hover:bg-claude-surface/40 hover:text-claude-text'
                 }`}
               >
-                에이전트
+                {t('team.setup.tab.agents')}
               </button>
               <button
                 onClick={() => setStep('custom')}
@@ -444,7 +475,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                     : 'text-claude-text/75 hover:bg-claude-surface/40 hover:text-claude-text'
                 }`}
               >
-                커스텀 에이전트
+                {t('team.setup.tab.customAgent')}
               </button>
             </div>
 
@@ -453,10 +484,10 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 {/* Quick categories */}
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
-                    빠른 팀 구성
+                    {t('team.setup.quickCategories')}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {PRESET_CATEGORIES.map((cat) => (
+                    {presetCategories.map((cat) => (
                       <button
                         key={cat.label}
                         onClick={() => applyCategory(cat)}
@@ -476,7 +507,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 {customAgentPresets.length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
-                      저장한 커스텀 에이전트 ({customAgentPresets.length})
+                      {t('team.setup.savedCustomAgents', { count: customAgentPresets.length })}
                     </p>
                     <div className="grid grid-cols-1 gap-2">
                       {customAgentPresets.map((preset) => {
@@ -505,10 +536,10 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 {/* All presets */}
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
-                    기본 에이전트 ({AGENT_PRESETS.length})
+                    {t('team.setup.defaultAgents', { count: agentPresets.length })}
                   </p>
                   <div className="grid grid-cols-1 gap-2">
-                    {AGENT_PRESETS.map((preset) => {
+                    {agentPresets.map((preset) => {
                       const isSelected = isPresetSelected(preset.presetId)
                       return (
                       <AgentPresetCard
@@ -533,16 +564,16 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               /* Custom agent form */
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 <p className="text-sm text-claude-text">
-                  직접 에이전트를 만들어 팀에 추가하세요
+                  {t('team.setup.customIntro')}
                 </p>
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-claude-text">
-                    이름 *
+                    {t('team.setup.field.name')} *
                   </label>
                   <input
                     className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
-                    placeholder="예: 데이터 분석가"
+                    placeholder={t('team.setup.placeholder.customName')}
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                   />
@@ -550,11 +581,11 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-claude-text">
-                    역할
+                    {t('team.setup.field.role')}
                   </label>
                   <input
                     className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
-                    placeholder="예: Data Analyst"
+                    placeholder={t('team.setup.placeholder.customRole')}
                     value={customRole}
                     onChange={(e) => setCustomRole(e.target.value)}
                   />
@@ -562,11 +593,11 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-claude-text">
-                    설명
+                    {t('team.setup.field.description')}
                   </label>
                   <input
                     className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
-                    placeholder="이 에이전트가 하는 일"
+                    placeholder={t('team.setup.placeholder.customDescription')}
                     value={customDesc}
                     onChange={(e) => setCustomDesc(e.target.value)}
                   />
@@ -574,12 +605,12 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-claude-text">
-                    시스템 프롬프트 (선택)
+                    {t('team.setup.field.systemPromptOptional')}
                   </label>
                   <textarea
                     rows={4}
                     className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none resize-none"
-                    placeholder="에이전트의 역할과 행동 방식을 자세히 설명하세요..."
+                    placeholder={t('team.setup.placeholder.customSystemPrompt')}
                     value={customSystemPrompt}
                     onChange={(e) => setCustomSystemPrompt(e.target.value)}
                   />
@@ -587,7 +618,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
                 <div>
                   <label className="mb-2 block text-xs font-medium text-claude-text">
-                    색상
+                    {t('team.setup.field.color')}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {COLOR_PALETTE.map((c) => (
@@ -612,7 +643,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                     disabled={!customName.trim()}
                     className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    저장
+                    {t('common.save')}
                   </button>
                 </div>
               </div>
@@ -626,7 +657,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               {/* Team name */}
               <div>
                 <label className="mb-1 block text-xs font-medium text-claude-text">
-                  팀 이름
+                  {t('team.setup.field.teamName')}
                 </label>
                 <input
                   className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text focus:border-blue-500 focus:outline-none"
@@ -638,7 +669,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               {/* Project path */}
               <div>
                 <label className="mb-1 block text-xs font-medium text-claude-text">
-                  작업 경로
+                  {t('team.setup.field.workingPath')}
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -651,7 +682,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                     onClick={() => void handleSelectFolder()}
                     className="shrink-0 rounded-lg border border-claude-border bg-claude-surface/55 px-3 py-2 text-sm text-claude-text transition-colors hover:border-claude-border-hover hover:bg-claude-surface"
                   >
-                    폴더 선택
+                    {t('team.setup.chooseFolder')}
                   </button>
                 </div>
               </div>
@@ -660,22 +691,17 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-claude-text">
-                    선택된 에이전트
+                    {t('team.setup.selectedAgents')}
                   </p>
                   <span className="text-xs text-claude-text/80">
-                    {selectedAgents.length}명
-                    {selectedAgents.length < 2
-                      ? ' (최소 2명 필요)'
-                      : selectedAgents.length >= MAX_TEAM_AGENTS
-                      ? ` (최대 ${MAX_TEAM_AGENTS}명)`
-                      : ` / 최대 ${MAX_TEAM_AGENTS}명`}
+                    {selectedCountLabel}
                   </span>
                 </div>
 
                 {selectedAgents.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-claude-border p-6 text-center">
                     <p className="text-sm text-claude-text/80">
-                      왼쪽에서 에이전트를 선택하세요
+                      {t('team.setup.selectFromLeft')}
                     </p>
                   </div>
                 ) : (
@@ -683,7 +709,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                     {selectedAgents.map((agent) => (
                       <SelectedAgentBadge
                         key={agent.id}
-                        agent={agent}
+                        agent={{ ...agent, ...localizeSelectedAgent(agent) }}
                         onRemove={() =>
                           setSelectedAgents((prev) => prev.filter((a) => a.id !== agent.id))
                         }
@@ -696,16 +722,16 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               {/* Discussion preview */}
               {selectedAgents.length >= 2 && (
                 <div className="rounded-xl border border-claude-border bg-claude-surface/55 p-3">
-                  <p className="mb-2 text-xs font-medium text-claude-text">토론 순서</p>
+                  <p className="mb-2 text-xs font-medium text-claude-text">{t('team.setup.discussionOrder')}</p>
                   <div className="space-y-1">
                     {selectedAgents.map((agent, i) => (
                       <div key={agent.id} className="flex items-center gap-2">
                         <span className="w-4 text-xs text-claude-text/80">{i + 1}.</span>
                         <AgentPixelIcon type={agent.iconType} size={20} color={agent.color} />
-                        <span className="text-xs text-claude-text">{agent.name}</span>
+                        <span className="text-xs text-claude-text">{localizeSelectedAgent(agent).name}</span>
                         {i > 0 && (
                           <span className="text-xs text-claude-text/80">
-                            (앞 {i}명 응답 참고)
+                            {t('team.setup.discussionOrderReference', { count: i })}
                           </span>
                         )}
                       </div>
@@ -723,13 +749,13 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 disabled={selectedAgents.length < 2}
                 className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
               >
-                팀 시작하기 →
+                {t('team.setup.startTeam')}
               </button>
               <button
                 onClick={onClose}
                 className="w-full rounded-xl py-2 text-sm text-claude-text transition-colors hover:bg-claude-surface/35"
               >
-                취소
+                {t('common.cancel')}
               </button>
             </div>
           </div>

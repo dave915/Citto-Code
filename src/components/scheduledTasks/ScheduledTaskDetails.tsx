@@ -23,18 +23,14 @@ export function ScheduledTaskDetails({
   onSelectSession,
   onToggleEnabled,
 }: Props) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   if (!selectedTask) {
     return (
       <section className="min-h-0 flex-1 overflow-y-auto bg-claude-bg">
         <div className="flex h-full items-center justify-center px-6">
           <div className="max-w-sm text-center">
-            <p className="text-lg font-semibold text-claude-text">{language === 'en' ? 'Select a task' : '작업을 선택하세요'}</p>
-            <p className="mt-2 text-sm leading-relaxed text-claude-muted">
-              {language === 'en'
-                ? 'Choose a scheduled task from the left to see details and run history.'
-                : '왼쪽 목록에서 예약 작업을 고르면 상세 정보와 실행 기록을 볼 수 있습니다.'}
-            </p>
+            <p className="text-lg font-semibold text-claude-text">{t('scheduled.details.selectTitle')}</p>
+            <p className="mt-2 text-sm leading-relaxed text-claude-muted">{t('scheduled.details.selectDescription')}</p>
           </div>
         </div>
       </section>
@@ -62,54 +58,50 @@ export function ScheduledTaskDetails({
                 disabled={runNowLoadingId === selectedTask.id}
                 className="rounded-xl bg-claude-surface px-3.5 py-2 text-sm font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
               >
-                {runNowLoadingId === selectedTask.id
-                  ? (language === 'en' ? 'Running...' : '실행 중...')
-                  : (language === 'en' ? 'Run now' : '지금 실행')}
+                {runNowLoadingId === selectedTask.id ? t('scheduled.details.running') : t('scheduled.runNote.manual')}
               </button>
               <button
                 onClick={() => onEdit(selectedTask)}
                 className="rounded-xl border border-claude-border px-3.5 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
               >
-                {language === 'en' ? 'Edit' : '수정'}
+                {t('common.edit')}
               </button>
               <button
                 onClick={() => onToggleEnabled(selectedTask.id)}
                 className="rounded-xl border border-claude-border px-3.5 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
               >
-                {selectedTask.enabled
-                  ? (language === 'en' ? 'Disable' : '비활성화')
-                  : (language === 'en' ? 'Enable' : '활성화')}
+                {selectedTask.enabled ? t('common.disable') : t('common.enable')}
               </button>
               <button
                 onClick={() => onDelete(selectedTask.id)}
                 className="rounded-xl border border-red-500/25 px-3.5 py-2 text-sm text-red-300 transition-colors hover:bg-red-500/10"
               >
-                {language === 'en' ? 'Delete' : '삭제'}
+                {t('common.delete')}
               </button>
             </div>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
-              <p className="text-xs text-claude-muted">{language === 'en' ? 'Next run' : '다음 실행'}</p>
+              <p className="text-xs text-claude-muted">{t('scheduled.details.nextRun')}</p>
               <p className="mt-1 text-sm font-medium text-claude-text">{formatDateTime(selectedTask.nextRunAt, language)}</p>
             </div>
             <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
-              <p className="text-xs text-claude-muted">{language === 'en' ? 'Last run' : '마지막 실행'}</p>
+              <p className="text-xs text-claude-muted">{t('scheduled.details.lastRun')}</p>
               <p className="mt-1 text-sm font-medium text-claude-text">{formatDateTime(selectedTask.lastRunAt, language)}</p>
             </div>
             <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
-              <p className="text-xs text-claude-muted">{language === 'en' ? 'Permission mode' : '권한 모드'}</p>
+              <p className="text-xs text-claude-muted">{t('scheduled.details.permissionMode')}</p>
               <p className="mt-1 text-sm font-medium text-claude-text">{selectedTask.permissionMode}</p>
             </div>
             <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
-              <p className="text-xs text-claude-muted">{language === 'en' ? 'Exceptions' : '예외 설정'}</p>
+              <p className="text-xs text-claude-muted">{t('scheduled.details.exceptions')}</p>
               <p className="mt-1 text-sm font-medium text-claude-text">{describeExceptions(selectedTask, language)}</p>
             </div>
           </div>
 
           <div className="mt-5 rounded-[12px] border border-claude-border bg-claude-bg px-4 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-claude-muted">Prompt</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-claude-muted">{t('common.prompt')}</p>
             <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-7 text-claude-text">
               {selectedTask.prompt}
             </pre>
@@ -119,15 +111,15 @@ export function ScheduledTaskDetails({
         <div className="rounded-[16px] border border-claude-border bg-claude-panel px-5 py-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-base font-semibold text-claude-text">{language === 'en' ? 'Run history' : '실행 기록'}</p>
-              <p className="mt-1 text-xs text-claude-muted">{language === 'en' ? 'Keeps up to the latest 24 runs.' : '최근 24회까지 보관합니다.'}</p>
+              <p className="text-base font-semibold text-claude-text">{t('scheduled.details.runHistory')}</p>
+              <p className="mt-1 text-xs text-claude-muted">{t('scheduled.details.runHistoryDescription')}</p>
             </div>
           </div>
 
           {selectedTask.runHistory.length === 0 ? (
             <div className="mt-4 rounded-[12px] border border-dashed border-claude-border bg-claude-bg px-6 py-10 text-center">
-              <p className="text-sm font-medium text-claude-text">{language === 'en' ? 'No run history yet' : '아직 실행 기록이 없습니다'}</p>
-              <p className="mt-1 text-xs text-claude-muted">{language === 'en' ? 'History appears here after a scheduled run or a manual run.' : '예약 실행 또는 지금 실행 후 여기에 기록이 쌓입니다.'}</p>
+              <p className="text-sm font-medium text-claude-text">{t('scheduled.details.noHistoryTitle')}</p>
+              <p className="mt-1 text-xs text-claude-muted">{t('scheduled.details.noHistoryDescription')}</p>
             </div>
           ) : (
             <div className="mt-4 space-y-2">
@@ -145,8 +137,8 @@ export function ScheduledTaskDetails({
                         : 'bg-amber-500/15 text-amber-200'
                     }`}>
                       {record.outcome === 'executed'
-                        ? (language === 'en' ? 'Executed' : '실행')
-                        : (language === 'en' ? 'Skipped' : '건너뜀')}
+                        ? t('scheduled.details.executed')
+                        : t('scheduled.details.skipped')}
                     </span>
                     <span className="text-sm text-claude-text">{formatDateTime(record.runAt, language)}</span>
                     <span className="text-sm text-claude-muted">{record.note}</span>
@@ -162,7 +154,7 @@ export function ScheduledTaskDetails({
                     )}
                     {canOpenSession && (
                       <span className="ml-auto text-xs font-medium text-claude-text">
-                        {language === 'en' ? 'Open session' : '세션 열기'}
+                        {t('common.openSession')}
                       </span>
                     )}
                   </>
@@ -182,7 +174,7 @@ export function ScheduledTaskDetails({
                     type="button"
                     onClick={() => onSelectSession(record.sessionTabId!)}
                     className={rowClassName}
-                    title={language === 'en' ? 'Open this session' : '해당 세션 열기'}
+                    title={t('scheduled.details.openThisSession')}
                   >
                     {content}
                   </button>

@@ -118,11 +118,11 @@ export function PreviewPane({
   markdownPreviewEnabled,
   onToggleMarkdownPreview,
 }: PreviewPaneProps) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   if (!entry) {
     return (
       <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
-        <p className="text-sm">{language === 'en' ? 'Select a file to preview it here.' : '파일을 선택하면 여기에서 미리보기를 표시합니다.'}</p>
+        <p className="text-sm">{t('chat.preview.selectFile')}</p>
       </div>
     )
   }
@@ -142,7 +142,7 @@ export function PreviewPane({
       <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
         <div>
           <p className="text-sm font-medium text-claude-text">{entry.name}</p>
-          <p className="text-xs mt-2">{language === 'en' ? 'This file type is not supported for in-app preview.' : '이 파일 형식은 앱 내 미리보기를 지원하지 않습니다.'}</p>
+          <p className="text-xs mt-2">{t('chat.preview.unsupported')}</p>
         </div>
       </div>
     )
@@ -157,7 +157,7 @@ export function PreviewPane({
             onClick={onToggleMarkdownPreview}
             className="flex-shrink-0 rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
           >
-            {language === 'en' ? 'Source' : '원문'}
+            {t('chat.preview.source')}
           </button>
         </div>
         <div className="flex-1 overflow-auto px-5 py-4">
@@ -176,7 +176,7 @@ export function PreviewPane({
             onClick={onToggleMarkdownPreview}
             className="flex-shrink-0 rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
           >
-            {language === 'en' ? 'Preview' : '미리보기'}
+            {t('chat.preview.preview')}
           </button>
         )}
       </div>

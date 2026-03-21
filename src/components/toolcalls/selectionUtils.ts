@@ -1,4 +1,5 @@
 import type { AskAboutSelectionPayload } from '../../lib/toolCallUtils'
+import { translate, type AppLanguage } from '../../lib/i18n'
 
 export function buildSelectedRange<T extends { key: string }>(all: T[], anchorKey: string, activeKey: string): string[] {
   const anchorIndex = all.findIndex((item) => item.key === anchorKey)
@@ -9,11 +10,10 @@ export function buildSelectedRange<T extends { key: string }>(all: T[], anchorKe
   return all.slice(start, end + 1).map((item) => item.key)
 }
 
-export function summarizeLineRange(startLine: number, endLine: number) {
-  const isEnglish = typeof document !== 'undefined' && document.documentElement.lang.startsWith('en')
+export function summarizeLineRange(startLine: number, endLine: number, language: AppLanguage) {
   return startLine === endLine
-    ? (isEnglish ? `Line ${startLine}` : `줄 ${startLine}`)
-    : (isEnglish ? `Lines ${startLine}-${endLine}` : `줄 ${startLine}-${endLine}`)
+    ? translate(language, 'toolcall.selection.line', { start: startLine })
+    : translate(language, 'toolcall.selection.lines', { start: startLine, end: endLine })
 }
 
 export function buildSelectionPayload(

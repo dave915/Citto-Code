@@ -11,6 +11,7 @@ export type AgentMessage = {
 
 export type TeamAgent = {
   id: string
+  presetId: string | null
   name: string
   role: string
   description: string
@@ -53,7 +54,7 @@ export type TeamStore = {
   teams: AgentTeam[]
   activeTeamId: string | null
 
-  addTeam: (cwd: string, name: string, agents: Pick<TeamAgent, 'id' | 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt' | 'isCustom'>[], mode?: DiscussionMode) => string
+  addTeam: (cwd: string, name: string, agents: Pick<TeamAgent, 'id' | 'presetId' | 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt' | 'isCustom'>[], mode?: DiscussionMode) => string
   removeTeam: (id: string) => void
   setActiveTeam: (id: string | null) => void
   updateTeamName: (teamId: string, name: string) => void
@@ -65,7 +66,7 @@ export type TeamStore = {
   incrementRound: (teamId: string) => void
   resetDiscussion: (teamId: string) => void
 
-  addAgent: (teamId: string, agent: Pick<TeamAgent, 'id' | 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt' | 'isCustom'>) => void
+  addAgent: (teamId: string, agent: Pick<TeamAgent, 'id' | 'presetId' | 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt' | 'isCustom'>) => void
   removeAgent: (teamId: string, agentId: string) => void
   updateAgent: (teamId: string, agentId: string, patch: Partial<Pick<TeamAgent, 'name' | 'role' | 'description' | 'color' | 'iconType' | 'emoji' | 'systemPrompt'>>) => void
 

@@ -10,10 +10,13 @@ import {
   useSessionsStore,
   type Session,
 } from '../../store/sessions'
+import { translate, type AppLanguage } from '../../lib/i18n'
 import type { ClaudeStreamRuntimeRefs } from './types'
 
 export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
-  const isEnglish = typeof document !== 'undefined' && document.documentElement.lang.startsWith('en')
+  const getUiLanguage = (): AppLanguage => (
+    typeof document !== 'undefined' && document.documentElement.lang.startsWith('en') ? 'en' : 'ko'
+  )
 
   function resolveTabId(claudeSessionId: string | null | undefined): string | null {
     if (!claudeSessionId) return null
@@ -209,10 +212,11 @@ export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
           const lastAssistantMessage = [...(session?.messages ?? [])]
             .reverse()
             .find((message) => message.role === 'assistant')
+          const uiLanguage = getUiLanguage()
           const title = session?.error
-            ? (isEnglish ? 'Claude task failed' : 'Claude 작업 실패')
-            : (isEnglish ? 'Claude task completed' : 'Claude 작업 완료')
-          const body = summarizeNotificationBody(session?.error ?? lastAssistantMessage?.text)
+            ? translate(uiLanguage, 'notification.taskFailed')
+            : translate(uiLanguage, 'notification.taskCompleted')
+          const body = summarizeNotificationBody(session?.error ?? lastAssistantMessage?.text, uiLanguage)
           if (shouldDeliverNotification(runtime.notificationModeRef.current)) {
             void window.claude.notify({
               title: session?.name ? `${title} · ${session.name}` : title,

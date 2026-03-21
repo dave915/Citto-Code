@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { McpConfigScope, McpReadResult } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
+import { translate } from '../../lib/i18n'
 import { getProjectNameFromPath, useSessionsStore } from '../../store/sessions'
 import {
   EMPTY_MCP_FORM,
@@ -32,14 +33,14 @@ function buildUnavailableScopeInfo(
 
 function validateMcpForm(form: McpForm, language: 'ko' | 'en'): string {
   const name = form.name.trim()
-  if (!name) return language === 'en' ? 'Enter a name.' : '이름을 입력하세요.'
-  if (form.serverType === 'stdio' && !form.command.trim()) return language === 'en' ? 'Enter a command.' : '커맨드를 입력하세요.'
-  if (form.serverType !== 'stdio' && !form.url.trim()) return language === 'en' ? 'Enter a URL.' : 'URL을 입력하세요.'
+  if (!name) return translate(language, 'settings.mcp.enterName')
+  if (form.serverType === 'stdio' && !form.command.trim()) return translate(language, 'settings.mcp.enterCommand')
+  if (form.serverType !== 'stdio' && !form.url.trim()) return translate(language, 'settings.mcp.enterUrl')
   return ''
 }
 
 export function McpTab({ projectPath }: { projectPath: string | null }) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const sessions = useSessionsStore((state) => state.sessions)
   const defaultProjectPath = useSessionsStore((state) => state.defaultProjectPath)
   const currentProjectPath = useMemo(() => {
@@ -127,7 +128,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
     setLoading(true)
 
     if (scope !== 'user' && !effectiveProjectPath) {
-      setScopeInfo(buildUnavailableScopeInfo(scope, null, language === 'en' ? 'Choose a project before editing this scope.' : '프로젝트를 선택해야 이 범위를 편집할 수 있습니다.'))
+      setScopeInfo(buildUnavailableScopeInfo(scope, null, t('settings.mcp.chooseProjectBeforeEdit')))
       setRawMcp({})
       setServers([])
       setLoading(false)
@@ -147,7 +148,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
         setServers(mapMcpServers(result.mcpServers))
       })
       .catch(() => {
-        setScopeInfo(buildUnavailableScopeInfo(scope, effectiveProjectPath, language === 'en' ? 'Failed to load MCP settings.' : 'MCP 설정을 불러오지 못했습니다.'))
+        setScopeInfo(buildUnavailableScopeInfo(scope, effectiveProjectPath, t('settings.mcp.loadFailed')))
         setRawMcp({})
         setServers([])
       })
@@ -174,7 +175,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
     }
 
     if (!effectiveProjectPath) {
-      return { ok: false, error: language === 'en' ? 'Choose a project before saving.' : '프로젝트를 선택해야 저장할 수 있습니다.' }
+      return { ok: false, error: t('settings.mcp.chooseProjectBeforeSave') }
     }
 
     if (previousName && previousName !== name) {
@@ -196,7 +197,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
     }
 
     if (!effectiveProjectPath) {
-      return Promise.resolve({ ok: false, error: language === 'en' ? 'Choose a project before deleting.' : '프로젝트를 선택해야 삭제할 수 있습니다.' })
+      return Promise.resolve({ ok: false, error: t('settings.mcp.chooseProjectBeforeDelete') })
     }
 
     return scope === 'local'
@@ -206,7 +207,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
 
   const handleSave = async () => {
     if (!canManageScope) {
-      setFormError(language === 'en' ? 'This scope cannot be edited right now.' : '현재 범위를 편집할 수 없습니다.')
+      setFormError(t('settings.mcp.scopeEditUnavailable'))
       return
     }
     const validationError = validateMcpForm(form, language)
@@ -221,7 +222,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
     const result = await upsertScopedServer(name, buildEntry(form))
     setSaving(false)
     if (!result.ok) {
-      setFormError(result.error ?? (language === 'en' ? 'Save failed' : '저장 실패'))
+      setFormError(result.error ?? t('settings.mcp.saveFailed'))
       return
     }
 
@@ -245,7 +246,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
   const handleEditSave = async () => {
     if (!editingServer) return
     if (!canManageScope) {
-      setEditError(language === 'en' ? 'This scope cannot be edited right now.' : '현재 범위를 편집할 수 없습니다.')
+      setEditError(t('settings.mcp.scopeEditUnavailable'))
       return
     }
     const validationError = validateMcpForm(editForm, language)
@@ -260,7 +261,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
     const result = await upsertScopedServer(newName, buildEntry({ ...editForm, name: newName }), editingServer)
     setEditSaving(false)
     if (!result.ok) {
-      setEditError(result.error ?? (language === 'en' ? 'Save failed' : '저장 실패'))
+      setEditError(result.error ?? t('settings.mcp.saveFailed'))
       return
     }
 
@@ -296,10 +297,10 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
       <div className="mb-1 flex items-center justify-between">
         <p className="text-xs text-claude-muted">
           {scope === 'user'
-            ? (language === 'en' ? 'Global MCP servers' : '공통 MCP 서버 목록')
+            ? t('settings.mcp.list.user')
             : scope === 'local'
-              ? (language === 'en' ? 'Project-local MCP servers' : '선택한 프로젝트 전용 MCP 서버 목록')
-              : (language === 'en' ? 'Shared MCP servers for the selected project' : '선택한 프로젝트의 공유 MCP 서버 목록')}
+              ? t('settings.mcp.list.local')
+              : t('settings.mcp.list.project')}
         </p>
         <button
           onClick={() => {
@@ -315,17 +316,17 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          {language === 'en' ? 'Add' : '추가'}
+          {t('common.add')}
         </button>
       </div>
 
       {showAdd && (
         <McpServerForm
-          title={language === 'en' ? 'Add MCP server' : '새 MCP 서버 추가'}
+          title={t('settings.mcp.addServer')}
           form={form}
           error={formError}
           saving={saving}
-          submitLabel={language === 'en' ? 'Save' : '저장'}
+          submitLabel={t('common.save')}
           onChange={setForm}
           onSubmit={handleSave}
           onCancel={() => setShowAdd(false)}
@@ -336,14 +337,14 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
       {!canManageScope && !showAdd ? (
         <EmptyState
           icon="📁"
-          title={language === 'en' ? 'Project scope unavailable' : '프로젝트 범위 사용 불가'}
-          desc={<>{language === 'en' ? 'Select a target project folder before editing this scope.' : '대상 프로젝트 폴더를 먼저 선택해야 이 범위를 편집할 수 있습니다.'}</>}
+          title={t('settings.mcp.projectScopeUnavailableTitle')}
+          desc={<>{t('settings.mcp.projectScopeUnavailableDescription')}</>}
         />
       ) : servers.length === 0 && !showAdd ? (
         <EmptyState
           icon="🔌"
-          title={language === 'en' ? 'No MCP servers' : 'MCP 서버 없음'}
-          desc={<>{language === 'en' ? 'Use the add button in the top right to register a server.' : '오른쪽 상단 추가 버튼으로 서버를 등록하세요.'}</>}
+          title={t('settings.mcp.emptyTitle')}
+          desc={<>{t('settings.mcp.emptyDescription')}</>}
         />
       ) : (
         servers.map((server) => {

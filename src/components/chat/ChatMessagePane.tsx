@@ -114,7 +114,7 @@ export function ChatMessagePane({
                 </svg>
               </span>
               <div className="min-w-0">
-                <p className="chat-danger-title font-medium">{language === 'en' ? 'The same file is being edited in another session.' : '같은 파일을 다른 세션에서도 수정 중입니다.'}</p>
+                <p className="chat-danger-title font-medium">{t('chat.conflict.sameFile')}</p>
                 <p className="chat-danger-description mt-1 text-[13px] leading-5">
                   {fileConflictLabel} · {conflictSessionLabel}
                 </p>
@@ -150,7 +150,7 @@ export function ChatMessagePane({
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
-                  {language === 'en' ? 'Error' : '오류 발생'}
+                  {t('chat.error.title')}
                 </div>
                 <p className="chat-error-card-message whitespace-pre-wrap font-mono text-xs">{session.error}</p>
               </div>

@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
 import { CURRENT_THEME_ID } from '../lib/theme'
-import { DEFAULT_APP_LANGUAGE } from '../lib/i18n'
+import { DEFAULT_APP_LANGUAGE, translate } from '../lib/i18n'
 import {
   DEFAULT_PROJECT_PATH,
   DEFAULT_SHORTCUT_CONFIG,
@@ -19,7 +19,10 @@ import type { Session, SessionsStore, ToolCallBlock } from './sessionTypes'
 
 type StoreSet = Parameters<StateCreator<SessionsStore>>[0]
 
-const GENERIC_CLAUDE_ERROR = 'Claude Code 요청이 실패했습니다.'
+const GENERIC_CLAUDE_ERRORS = new Set([
+  translate('ko', 'session.genericClaudeError'),
+  translate('en', 'session.genericClaudeError'),
+])
 
 export function createSessionStoreState(set: StoreSet): SessionsStore {
   const firstSession = makeDefaultSession(
@@ -385,9 +388,10 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
           if (session.id !== tabId) return session
 
           const shouldKeepExistingError =
-            error === GENERIC_CLAUDE_ERROR &&
+            typeof error === 'string' &&
+            GENERIC_CLAUDE_ERRORS.has(error) &&
             Boolean(session.error) &&
-            session.error !== GENERIC_CLAUDE_ERROR
+            !GENERIC_CLAUDE_ERRORS.has(session.error)
 
           const nextSession = {
             ...session,

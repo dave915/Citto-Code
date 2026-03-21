@@ -77,7 +77,7 @@ export function ExplorerNode({
         <div>
           {isLoading ? (
             <div className="px-2 py-2 text-xs text-claude-muted" style={{ paddingLeft: `${depth * 16 + 32}px` }}>
-              {language === 'en' ? 'Loading...' : '불러오는 중...'}
+              {t('chat.fileExplorer.loading')}
             </div>
           ) : (
             children.map((child) => (

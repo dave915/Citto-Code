@@ -5,17 +5,9 @@ import type {
   ScheduledTaskInput,
   ScheduledTaskRunRecord,
 } from './scheduledTaskTypes'
-import type { AppLanguage } from '../lib/i18n'
+import { translate, type AppLanguage } from '../lib/i18n'
 
-export const DAY_OPTIONS: Array<{ value: ScheduledTaskDay; label: string; shortLabel: string }> = [
-  { value: 'sun', label: '일요일', shortLabel: '일' },
-  { value: 'mon', label: '월요일', shortLabel: '월' },
-  { value: 'tue', label: '화요일', shortLabel: '화' },
-  { value: 'wed', label: '수요일', shortLabel: '수' },
-  { value: 'thu', label: '목요일', shortLabel: '목' },
-  { value: 'fri', label: '금요일', shortLabel: '금' },
-  { value: 'sat', label: '토요일', shortLabel: '토' },
-]
+export const DAY_OPTIONS: ScheduledTaskDay[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
 const DAY_INDEX: Record<ScheduledTaskDay, number> = {
   sun: 0,
@@ -31,22 +23,16 @@ const WEEKDAY_SET = new Set<ScheduledTaskDay>(['mon', 'tue', 'wed', 'thu', 'fri'
 export const HISTORY_LIMIT = 24
 const EXCEPTION_ADVANCE_LIMIT = 14
 
-const DAY_OPTIONS_EN: Array<{ value: ScheduledTaskDay; label: string; shortLabel: string }> = [
-  { value: 'sun', label: 'Sunday', shortLabel: 'Sun' },
-  { value: 'mon', label: 'Monday', shortLabel: 'Mon' },
-  { value: 'tue', label: 'Tuesday', shortLabel: 'Tue' },
-  { value: 'wed', label: 'Wednesday', shortLabel: 'Wed' },
-  { value: 'thu', label: 'Thursday', shortLabel: 'Thu' },
-  { value: 'fri', label: 'Friday', shortLabel: 'Fri' },
-  { value: 'sat', label: 'Saturday', shortLabel: 'Sat' },
-]
-
 export function getDayOptions(language: AppLanguage = 'ko') {
-  return language === 'en' ? DAY_OPTIONS_EN : DAY_OPTIONS
+  return DAY_OPTIONS.map((value) => ({
+    value,
+    label: translate(language, `scheduled.day.${value}.label`),
+    shortLabel: translate(language, `scheduled.day.${value}.short`),
+  }))
 }
 
 export function getDayKey(date: Date): ScheduledTaskDay {
-  return DAY_OPTIONS[date.getDay()]?.value ?? 'sun'
+  return DAY_OPTIONS[date.getDay()] ?? 'sun'
 }
 
 export function clampHour(value: number) {
@@ -210,10 +196,10 @@ export function computeNextRunAt(task: ScheduledTask | ScheduledTaskInput, fromT
 
 export function buildRunNote(payload: ScheduledTaskAdvancePayload, language: AppLanguage = 'ko') {
   if (payload.reason?.trim()) return payload.reason.trim()
-  if (payload.skipped) return language === 'en' ? 'Advance to the next schedule without running' : '실행 없이 다음 예약으로 이동'
-  if (payload.manual) return language === 'en' ? 'Run now' : '지금 실행'
-  if (payload.catchUp) return language === 'en' ? 'Catch up missed run' : '놓친 실행 따라잡기'
-  return language === 'en' ? 'Scheduled run' : '예약 실행'
+  if (payload.skipped) return translate(language, 'scheduled.runNote.skipAdvance')
+  if (payload.manual) return translate(language, 'scheduled.runNote.manual')
+  if (payload.catchUp) return translate(language, 'scheduled.runNote.catchUp')
+  return translate(language, 'scheduled.runNote.scheduled')
 }
 
 export function normalizeInput(input: ScheduledTaskInput): ScheduledTaskInput {

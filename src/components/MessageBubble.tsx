@@ -143,7 +143,7 @@ export function MessageBubble({
   onAbort,
   onAskAboutSelection,
 }: Props) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const [copied, setCopied] = useState(false)
   const [thinkingOpen, setThinkingOpen] = useState(false)
   const [htmlPreviewContent, setHtmlPreviewContent] = useState<string | null>(null)
@@ -247,8 +247,8 @@ export function MessageBubble({
       type="button"
       onClick={handleCopyMessage}
       className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted opacity-0 transition-all hover:bg-claude-surface-2 hover:text-claude-text group-hover/message:opacity-100 focus:outline-none focus-visible:opacity-100"
-      title={copied ? (language === 'en' ? 'Copied' : '복사됨') : (language === 'en' ? 'Copy' : '복사')}
-      aria-label={copied ? (language === 'en' ? 'Copied' : '복사됨') : (language === 'en' ? 'Copy' : '복사')}
+      title={copied ? t('common.copied') : t('common.copy')}
+      aria-label={copied ? t('common.copied') : t('common.copy')}
     >
       {copied ? (
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -321,7 +321,7 @@ export function MessageBubble({
               <HtmlPreview html={htmlPreviewContent} path={htmlPreviewCandidate!.path} />
             ) : htmlPreviewLoading ? (
               <div className="rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-3 text-[11px] text-claude-muted">
-                {language === 'en' ? 'Loading HTML preview...' : 'HTML 미리보기를 불러오는 중...'}
+                {t('chat.message.loadingHtmlPreview')}
               </div>
             ) : null}
           </div>
@@ -343,7 +343,7 @@ export function MessageBubble({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
                   </svg>
                   <ThinkingIcon className="h-3.5 w-3.5 text-claude-muted/90" />
-                  <span>{showStreamingUi ? 'Thinking...' : 'Thinking'}</span>
+                  <span>{showStreamingUi ? t('chat.message.thinkingStreaming') : t('chat.message.thinking')}</span>
                 </button>
 
                 {showThinkingPanel ? (

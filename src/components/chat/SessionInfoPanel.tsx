@@ -1,5 +1,6 @@
 import type { Session } from '../../store/sessions'
 import { useI18n } from '../../hooks/useI18n'
+import { getIntlLocale } from '../../lib/i18n'
 import {
   formatDateTime,
   formatPermissionMode,
@@ -39,7 +40,7 @@ export function SessionInfoPanel({
   const { language, t } = useI18n()
   const createdAt = session.messages[0]?.createdAt ?? null
   const formattedTokenUsage = session.tokenUsage !== null
-    ? new Intl.NumberFormat(language === 'en' ? 'en-US' : 'ko-KR').format(session.tokenUsage)
+    ? new Intl.NumberFormat(getIntlLocale(language)).format(session.tokenUsage)
     : null
 
   return (

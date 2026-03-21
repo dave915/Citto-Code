@@ -3,7 +3,7 @@ import { useI18n } from '../../hooks/useI18n'
 import { useSessionsStore } from '../../store/sessions'
 
 export function EnvTab() {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const { envVars, removeEnvVar, setEnvVar } = useSessionsStore()
   const [jsonText, setJsonText] = useState(() => JSON.stringify(envVars, null, 2))
   const [error, setError] = useState('')
@@ -17,7 +17,7 @@ export function EnvTab() {
     try {
       const parsed = JSON.parse(jsonText) as unknown
       if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-        setError(language === 'en' ? 'The top level must be a JSON object.' : '최상위는 JSON 객체여야 합니다.')
+        setError(t('settings.env.invalidTopLevel'))
         return
       }
 
@@ -31,7 +31,7 @@ export function EnvTab() {
       setError('')
       setEditing(false)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : (language === 'en' ? 'Failed to parse JSON' : 'JSON 파싱 실패'))
+      setError(cause instanceof Error ? cause.message : t('settings.env.parseFailed'))
     }
   }
 
@@ -40,22 +40,18 @@ export function EnvTab() {
   return (
     <div className="p-4">
       <div className="mb-4 rounded-xl border border-claude-border bg-claude-surface p-4">
-        <p className="mb-1 text-xs font-semibold text-claude-text">{language === 'en' ? 'Environment variables' : '환경변수'}</p>
+        <p className="mb-1 text-xs font-semibold text-claude-text">{t('settings.env.title')}</p>
         <p className="text-xs leading-relaxed text-claude-muted">
-          {language === 'en'
-            ? 'These environment variables are passed when Claude Code runs. By default they are shown as a key/value list, and you edit them as a JSON object.'
-            : 'Claude Code 실행 시 함께 전달되는 환경변수입니다. 기본은 키/값 목록으로 보이고, 수정 시 JSON 객체로 편집합니다.'}
+          {t('settings.env.description')}
         </p>
         <p className="mt-2 text-[11px] leading-relaxed text-claude-muted">
-          {language === 'en'
-            ? 'Ollama is now connected automatically when you choose a local model. Only set `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` when you need manual connection.'
-            : 'Ollama는 이제 로컬 모델 선택 시 자동 연결됩니다. 수동 연결이 필요할 때만 `ANTHROPIC_BASE_URL`과 `ANTHROPIC_AUTH_TOKEN`을 지정하세요.'}
+          {t('settings.env.ollamaHint')}
         </p>
       </div>
 
       <div className="rounded-xl border border-claude-border bg-claude-bg p-4">
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-semibold text-claude-text">{editing ? (language === 'en' ? 'JSON editor' : 'JSON 입력') : (language === 'en' ? 'Environment variables' : '환경변수 목록')}</p>
+          <p className="text-xs font-semibold text-claude-text">{editing ? t('settings.env.jsonEditor') : t('settings.env.listTitle')}</p>
           <div className="flex items-center gap-2">
             {editing ? (
               <>
@@ -63,7 +59,7 @@ export function EnvTab() {
                   onClick={handleSave}
                   className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a]"
                 >
-                  {language === 'en' ? 'Save' : '저장'}
+                  {t('common.save')}
                 </button>
                 <button
                   onClick={() => {
@@ -73,7 +69,7 @@ export function EnvTab() {
                   }}
                   className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
                 >
-                  {language === 'en' ? 'Cancel' : '취소'}
+                  {t('common.cancel')}
                 </button>
               </>
             ) : (
@@ -85,7 +81,7 @@ export function EnvTab() {
                 }}
                 className="rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
               >
-                {language === 'en' ? 'Edit' : '수정'}
+                {t('settings.env.edit')}
               </button>
             )}
           </div>
@@ -104,7 +100,7 @@ export function EnvTab() {
           </>
         ) : entries.length === 0 ? (
           <div className="py-10 text-center text-claude-muted">
-            <p className="text-xs">{language === 'en' ? 'No environment variables are configured.' : '설정된 환경변수가 없습니다.'}</p>
+            <p className="text-xs">{t('settings.env.noVariables')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -112,7 +108,7 @@ export function EnvTab() {
               <div key={key} className="flex items-center gap-3 rounded-lg border border-claude-border bg-claude-panel px-3 py-2.5">
                 <span className="min-w-0 flex-1 truncate text-xs font-mono font-semibold text-claude-text">{key}</span>
                 <span className="text-xs text-claude-muted">=</span>
-                <span className="min-w-0 flex-1 truncate text-xs font-mono text-claude-muted">{value || <em className="opacity-50">{language === 'en' ? 'Empty value' : '빈 값'}</em>}</span>
+                <span className="min-w-0 flex-1 truncate text-xs font-mono text-claude-muted">{value || <em className="opacity-50">{t('common.emptyValue')}</em>}</span>
               </div>
             ))}
           </div>

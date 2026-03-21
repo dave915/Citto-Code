@@ -5,7 +5,7 @@ import {
   type ShortcutConfig,
   type ShortcutPlatform,
 } from '../store/sessions'
-import type { AppLanguage } from './i18n'
+import { translate, type AppLanguage } from './i18n'
 
 type ParsedShortcut = {
   key: string
@@ -17,26 +17,26 @@ type ParsedShortcut = {
 
 export const SHORTCUT_ACTION_LABELS: Record<AppLanguage, Record<ShortcutAction, string>> = {
   ko: {
-    toggleSidebar: '사이드바 열기/닫기',
-    toggleFiles: '파일 탐색기 열기/닫기',
-    toggleSessionInfo: '세션 정보 열기/닫기',
-    newSession: '새 세션 / 프로젝트 추가',
-    openSettings: '설정 열기',
-    openCommandPalette: '커맨드 팔레트 열기',
-    toggleQuickPanel: '퀵 패널 열기/닫기',
-    cyclePermissionMode: '권한 모드 변경',
-    toggleBypassPermissions: '전체허용 켜기/끄기',
+    toggleSidebar: translate('ko', 'shortcut.action.toggleSidebar'),
+    toggleFiles: translate('ko', 'shortcut.action.toggleFiles'),
+    toggleSessionInfo: translate('ko', 'shortcut.action.toggleSessionInfo'),
+    newSession: translate('ko', 'shortcut.action.newSession'),
+    openSettings: translate('ko', 'shortcut.action.openSettings'),
+    openCommandPalette: translate('ko', 'shortcut.action.openCommandPalette'),
+    toggleQuickPanel: translate('ko', 'shortcut.action.toggleQuickPanel'),
+    cyclePermissionMode: translate('ko', 'shortcut.action.cyclePermissionMode'),
+    toggleBypassPermissions: translate('ko', 'shortcut.action.toggleBypassPermissions'),
   },
   en: {
-    toggleSidebar: 'Open/close sidebar',
-    toggleFiles: 'Open/close file explorer',
-    toggleSessionInfo: 'Open/close session info',
-    newSession: 'New session / project',
-    openSettings: 'Open settings',
-    openCommandPalette: 'Open command palette',
-    toggleQuickPanel: 'Open/close quick panel',
-    cyclePermissionMode: 'Cycle permission mode',
-    toggleBypassPermissions: 'Toggle bypass permissions',
+    toggleSidebar: translate('en', 'shortcut.action.toggleSidebar'),
+    toggleFiles: translate('en', 'shortcut.action.toggleFiles'),
+    toggleSessionInfo: translate('en', 'shortcut.action.toggleSessionInfo'),
+    newSession: translate('en', 'shortcut.action.newSession'),
+    openSettings: translate('en', 'shortcut.action.openSettings'),
+    openCommandPalette: translate('en', 'shortcut.action.openCommandPalette'),
+    toggleQuickPanel: translate('en', 'shortcut.action.toggleQuickPanel'),
+    cyclePermissionMode: translate('en', 'shortcut.action.cyclePermissionMode'),
+    toggleBypassPermissions: translate('en', 'shortcut.action.toggleBypassPermissions'),
   },
 }
 

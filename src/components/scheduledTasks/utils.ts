@@ -1,6 +1,6 @@
 import type { Session, ToolCallBlock } from '../../store/sessions'
 import { getDayOptions, type ScheduledTask, type ScheduledTaskRunRecord } from '../../store/scheduledTasks'
-import type { AppLanguage } from '../../lib/i18n'
+import { getIntlLocale, translate, type AppLanguage } from '../../lib/i18n'
 
 export type InboxState = 'running' | 'approval' | 'completed' | 'failed' | 'skipped' | 'missing'
 
@@ -18,9 +18,7 @@ export type InboxItem = {
 
 const WRITE_LIKE_TOOL_NAMES = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
 function getEmptySummary(language: AppLanguage) {
-  return language === 'en'
-    ? 'The task finished without response text.'
-    : '응답 텍스트 없이 작업이 완료되었습니다.'
+  return translate(language, 'scheduled.summary.emptyResponse')
 }
 
 function normalizeSummaryText(value: string): string {
@@ -105,30 +103,28 @@ function buildInboxSummary(
 ): string {
   if (state === 'skipped') return record.note
   if (record.summary?.trim()) return record.summary
-  if (state === 'missing') return language === 'en' ? 'The linked session could not be found.' : '연결된 세션을 찾을 수 없어 결과를 다시 열 수 없습니다.'
-  if (!session) return language === 'en' ? 'No session information is available.' : '세션 정보가 없습니다.'
+  if (state === 'missing') return translate(language, 'scheduled.summary.missingSession')
+  if (!session) return translate(language, 'scheduled.summary.noSessionInfo')
 
   if (state === 'approval') {
     if (session.pendingPermission?.toolName) {
-      return language === 'en'
-        ? `Waiting for ${session.pendingPermission.toolName} permission approval.`
-        : `${session.pendingPermission.toolName} 권한 승인 대기 중입니다.`
+      return translate(language, 'scheduled.summary.waitingPermission', {
+        toolName: session.pendingPermission.toolName,
+      })
     }
     if (session.pendingQuestion?.question) {
       return truncateSummary(session.pendingQuestion.question)
     }
-    return language === 'en' ? 'User confirmation is required.' : '사용자 확인이 필요합니다.'
+    return translate(language, 'scheduled.summary.userConfirmation')
   }
 
   if (state === 'failed') {
-    return truncateSummary(session.error ?? '') || (language === 'en'
-      ? 'The automated run did not complete because of an error.'
-      : '오류로 인해 자동 실행이 완료되지 않았습니다.')
+    return truncateSummary(session.error ?? '') || translate(language, 'scheduled.summary.errorFallback')
   }
 
   const assistantSummary = getLastAssistantSummary(session)
   if (assistantSummary) return assistantSummary
-  if (state === 'running') return language === 'en' ? 'Claude is generating the result.' : 'Claude가 결과를 생성하는 중입니다.'
+  if (state === 'running') return translate(language, 'scheduled.summary.generating')
   return getEmptySummary(language)
 }
 
@@ -145,7 +141,7 @@ export function buildInboxItem(
     record,
     session,
     state,
-    sessionLabel: session?.name ?? (language === 'en' ? 'No linked session' : '연결된 세션 없음'),
+    sessionLabel: session?.name ?? translate(language, 'scheduled.sessionLabel.none'),
     summary: buildInboxSummary(state, record, session, language),
     changedPaths: record.changedPaths.length > 0 ? record.changedPaths : session ? getChangedPaths(session) : [],
     costLabel: formatCostLabel(record, session),
@@ -153,12 +149,12 @@ export function buildInboxItem(
 }
 
 export function getInboxStateLabel(state: InboxState, language: AppLanguage = 'ko'): string {
-  if (state === 'running') return language === 'en' ? 'Running' : '실행 중'
-  if (state === 'approval') return language === 'en' ? 'Needs attention' : '확인 필요'
-  if (state === 'completed') return language === 'en' ? 'Completed' : '완료'
-  if (state === 'failed') return language === 'en' ? 'Failed' : '실패'
-  if (state === 'skipped') return language === 'en' ? 'Skipped' : '건너뜀'
-  return language === 'en' ? 'No session' : '세션 없음'
+  if (state === 'running') return translate(language, 'scheduled.status.running')
+  if (state === 'approval') return translate(language, 'scheduled.status.approval')
+  if (state === 'completed') return translate(language, 'scheduled.status.completed')
+  if (state === 'failed') return translate(language, 'scheduled.status.failed')
+  if (state === 'skipped') return translate(language, 'scheduled.status.skipped')
+  return translate(language, 'scheduled.status.missing')
 }
 
 export function getInboxStateClassName(state: InboxState): string {
@@ -171,8 +167,8 @@ export function getInboxStateClassName(state: InboxState): string {
 }
 
 export function formatDateTime(value: number | null, language: AppLanguage = 'ko') {
-  if (!value) return language === 'en' ? 'Not scheduled' : '미정'
-  return new Date(value).toLocaleString(language === 'en' ? 'en-US' : 'ko-KR', {
+  if (!value) return translate(language, 'scheduled.date.notScheduled')
+  return new Date(value).toLocaleString(getIntlLocale(language), {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -181,26 +177,28 @@ export function formatDateTime(value: number | null, language: AppLanguage = 'ko
 }
 
 export function formatFrequency(task: ScheduledTask, language: AppLanguage = 'ko') {
-  if (task.frequency === 'manual') return 'Manual'
+  if (task.frequency === 'manual') return translate(language, 'scheduled.frequency.summary.manual')
   if (task.frequency === 'hourly') {
-    return language === 'en'
-      ? `Every hour at minute ${String(task.minute).padStart(2, '0')}`
-      : `매시간 ${String(task.minute).padStart(2, '0')}분`
+    return translate(language, 'scheduled.frequency.summary.hourly', { minute: task.minute })
   }
   if (task.frequency === 'daily') {
-    return language === 'en'
-      ? `Every day ${String(task.hour).padStart(2, '0')}:${String(task.minute).padStart(2, '0')}`
-      : `매일 ${String(task.hour).padStart(2, '0')}:${String(task.minute).padStart(2, '0')}`
+    return translate(language, 'scheduled.frequency.summary.daily', {
+      hour: task.hour,
+      minute: task.minute,
+    })
   }
   if (task.frequency === 'weekdays') {
-    return language === 'en'
-      ? `Weekdays ${String(task.hour).padStart(2, '0')}:${String(task.minute).padStart(2, '0')}`
-      : `평일 ${String(task.hour).padStart(2, '0')}:${String(task.minute).padStart(2, '0')}`
+    return translate(language, 'scheduled.frequency.summary.weekdays', {
+      hour: task.hour,
+      minute: task.minute,
+    })
   }
   const weeklyLabel = getDayOptions(language).find((option) => option.value === task.weeklyDay)?.label ?? task.weeklyDay
-  return language === 'en'
-    ? `Every ${weeklyLabel} ${String(task.hour).padStart(2, '0')}:${String(task.minute).padStart(2, '0')}`
-    : `매주 ${weeklyLabel} ${String(task.hour).padStart(2, '0')}:${String(task.minute).padStart(2, '0')}`
+  return translate(language, 'scheduled.frequency.summary.weekly', {
+    day: weeklyLabel,
+    hour: task.hour,
+    minute: task.minute,
+  })
 }
 
 export function describeExceptions(task: ScheduledTask, language: AppLanguage = 'ko') {
@@ -210,14 +208,15 @@ export function describeExceptions(task: ScheduledTask, language: AppLanguage = 
     const skipDayLabels = task.skipDays
       .map((day) => getDayOptions(language).find((option) => option.value === day)?.shortLabel ?? day)
       .join(', ')
-    labels.push(language === 'en' ? `Skip days: ${skipDayLabels}` : `제외 요일: ${skipDayLabels}`)
+    labels.push(translate(language, 'scheduled.exceptions.skipDays', { days: skipDayLabels }))
   }
 
   if (task.quietHoursStart && task.quietHoursEnd) {
-    labels.push(language === 'en'
-      ? `Quiet hours: ${task.quietHoursStart} - ${task.quietHoursEnd}`
-      : `조용한 시간대: ${task.quietHoursStart} ~ ${task.quietHoursEnd}`)
+    labels.push(translate(language, 'scheduled.exceptions.quietHours', {
+      start: task.quietHoursStart,
+      end: task.quietHoursEnd,
+    }))
   }
 
-  return labels.length > 0 ? labels.join(' · ') : (language === 'en' ? 'No exceptions' : '예외 없음')
+  return labels.length > 0 ? labels.join(' · ') : translate(language, 'scheduled.exceptions.none')
 }

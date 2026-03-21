@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { ModelInfo } from '../../../electron/preload'
-import type { AppLanguage } from '../../lib/i18n'
+import { translate, type AppLanguage } from '../../lib/i18n'
 
 export function ModelPicker({
   model,
@@ -47,7 +47,7 @@ export function ModelPicker({
   }
 
   const current = models.find((entry) => entry.id === model)
-  const label = current ? current.displayName : (model || (language === 'en' ? 'Default model' : '기본 모델'))
+  const label = current ? current.displayName : (model || translate(language, 'input.modelPicker.defaultModel'))
 
   const familyColor = (family: string) => {
     if (family === 'opus') return 'text-violet-300'
@@ -69,11 +69,11 @@ export function ModelPicker({
 
   const currentFamily = current?.family ?? (model ? model.toLowerCase() : 'sonnet')
   const emptyState = loading
-    ? (language === 'en' ? 'Loading models...' : '모델 목록을 불러오는 중...')
-    : (language === 'en' ? 'No models are available.' : '선택 가능한 모델이 없습니다.')
+    ? translate(language, 'input.modelPicker.loading')
+    : translate(language, 'input.modelPicker.noModels')
   const emptyStateHint = loading
-    ? (language === 'en' ? 'Please wait a moment.' : '잠시만 기다려 주세요.')
-    : (language === 'en' ? 'If you use Ollama, make sure the Ollama server is running with the app.' : 'Ollama를 쓰는 경우 앱과 함께 Ollama 서버가 실행 중인지 확인하세요.')
+    ? translate(language, 'input.modelPicker.waitHint')
+    : translate(language, 'input.modelPicker.ollamaHint')
   const emptyStateClassName = loading ? 'text-claude-muted' : 'text-amber-200'
 
   const dropdown = open && dropdownPos && createPortal(
@@ -89,7 +89,7 @@ export function ModelPicker({
       className="w-56 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel"
     >
       <div className="border-b border-claude-border px-3 py-2.5">
-        <p className="text-xs font-semibold text-claude-muted uppercase tracking-wide">{language === 'en' ? 'Model selection' : '모델 선택'}</p>
+        <p className="text-xs font-semibold text-claude-muted uppercase tracking-wide">{translate(language, 'input.modelPicker.selection')}</p>
       </div>
       <div className="max-h-64 overflow-y-auto py-1">
         <button
@@ -98,8 +98,8 @@ export function ModelPicker({
         >
           <span className="w-4 text-center text-base">🤖</span>
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-claude-text">{language === 'en' ? 'Default model' : '기본 모델'}</p>
-            <p className="text-xs text-claude-muted">{language === 'en' ? 'Claude Code default' : 'Claude Code 기본값'}</p>
+            <p className="font-medium text-claude-text">{translate(language, 'input.modelPicker.defaultModel')}</p>
+            <p className="text-xs text-claude-muted">{translate(language, 'input.modelPicker.claudeDefault')}</p>
           </div>
           {!model && <svg className="h-3.5 w-3.5 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
         </button>
@@ -140,7 +140,7 @@ export function ModelPicker({
         ref={btnRef}
         onClick={handleToggle}
         disabled={disabled}
-        title={language === 'en' ? 'Choose model' : '모델 선택'}
+        title={translate(language, 'input.modelPicker.choose')}
         className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
           model
             ? `${familyColor(currentFamily)} border border-claude-border bg-claude-surface`

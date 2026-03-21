@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react'
 
-import type { AppLanguage } from '../../lib/i18n'
+import { translate, type AppLanguage } from '../../lib/i18n'
 import type { PendingPermissionRequest, PendingQuestionRequest } from '../../store/sessions'
 import type { PermissionAction } from './inputUtils'
 
@@ -43,11 +43,11 @@ export function InputPromptOverlay({
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-claude-text">{pendingQuestion.header || (language === 'en' ? 'Selection required' : '선택 필요')}</p>
+            <p className="text-sm font-medium text-claude-text">{pendingQuestion.header || translate(language, 'input.selectionRequired')}</p>
             <p className="truncate text-xs text-claude-muted">
               {pendingQuestion.question}
               {questionOptions.length > 0
-                ? (language === 'en' ? ' · press ↓ on the last item to type directly' : ' · 마지막 항목에서 ↓로 직접 입력')
+                ? translate(language, 'input.selectionInputHint')
                 : ''}
             </p>
           </div>
@@ -87,7 +87,7 @@ export function InputPromptOverlay({
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-claude-text">{language === 'en' ? 'Permission approval required' : '권한 승인 필요'}</p>
+            <p className="text-sm font-medium text-claude-text">{translate(language, 'input.permissionApprovalRequired')}</p>
             <p className="truncate text-xs text-claude-muted">
               {pendingPermission.toolName} {permissionPreview}
             </p>

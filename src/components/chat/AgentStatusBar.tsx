@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { collectSubagentCalls } from '../../lib/agent-subcalls'
 import { useI18n } from '../../hooks/useI18n'
 import { useSessionsStore, type Session } from '../../store/sessions'
+import { translate } from '../../lib/i18n'
 
 type Props = {
   session: Session
@@ -41,10 +42,10 @@ function CopyButton({
 }
 
 function getStatusLabel(status: 'pending' | 'running' | 'done' | 'error', language: string) {
-  if (status === 'pending') return language === 'en' ? 'Pending' : '준비 중'
-  if (status === 'running') return language === 'en' ? 'Running' : '실행 중'
-  if (status === 'error') return language === 'en' ? 'Error' : '오류'
-  return language === 'en' ? 'Done' : '완료'
+  if (status === 'pending') return translate(language as 'ko' | 'en', 'subagent.status.pending')
+  if (status === 'running') return translate(language as 'ko' | 'en', 'subagent.status.running')
+  if (status === 'error') return translate(language as 'ko' | 'en', 'subagent.status.error')
+  return translate(language as 'ko' | 'en', 'subagent.status.done')
 }
 
 function getStatusClassName(status: 'pending' | 'running' | 'done' | 'error') {
@@ -63,7 +64,7 @@ function AgentDetailModal({
   selectedKey: string
   onClose: () => void
 }) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const entries = useMemo(() => collectSubagentCalls(session.messages), [session.messages])
   const entry = entries.find((item) => item.key === selectedKey) ?? null
   const [loadedText, setLoadedText] = useState('')
@@ -142,14 +143,14 @@ function AgentDetailModal({
     try {
       const loadedSession = await window.claude.loadCliSession({ filePath: entry.transcriptPath })
       if (!loadedSession) {
-        setSessionError(language === 'en' ? 'The subagent transcript is not available yet.' : '서브에이전트 transcript를 아직 불러올 수 없습니다.')
+        setSessionError(t('subagent.transcriptUnavailable'))
         return
       }
 
       const importedId = importSession(loadedSession)
       setActiveSession(importedId)
     } catch {
-      setSessionError(language === 'en' ? 'Failed to open the subagent session.' : '서브에이전트 세션을 여는 중 오류가 발생했습니다.')
+      setSessionError(t('subagent.openSessionFailed'))
     } finally {
       setOpeningSession(false)
     }
@@ -168,7 +169,7 @@ function AgentDetailModal({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-semibold text-claude-text">
-                  {entry.description || entry.agent || (language === 'en' ? 'Subagent' : '서브에이전트')}
+                  {entry.description || entry.agent || t('subagent.defaultName')}
                 </div>
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${getStatusClassName(entry.status)}`}>
                   {getStatusLabel(entry.status, language)}
@@ -184,33 +185,33 @@ function AgentDetailModal({
               onClick={onClose}
               className="rounded-lg border border-claude-border/70 bg-claude-surface px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
             >
-              {language === 'en' ? 'Close' : '닫기'}
+              {t('common.close')}
             </button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <section className="min-w-0 rounded-2xl border border-claude-border/70 bg-claude-bg px-4 py-3">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="text-xs font-semibold text-claude-text/90">{language === 'en' ? 'Prompt' : '프롬프트'}</div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold text-claude-text/90">{t('subagent.promptLabel')}</div>
                   <CopyButton
                     text={prompt}
-                    label={language === 'en' ? 'Copy prompt' : '프롬프트 복사'}
-                    copiedLabel={language === 'en' ? 'Copied' : '복사됨'}
+                    label={t('subagent.copyPrompt')}
+                    copiedLabel={t('common.copied')}
                   />
                 </div>
                 <pre className="max-h-[18rem] overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-claude-text/85">
-                  {prompt || (language === 'en' ? 'No prompt available.' : '프롬프트 정보가 없습니다.')}
+                  {prompt || t('subagent.noPrompt')}
                 </pre>
               </section>
 
               <section className="min-w-0 rounded-2xl border border-claude-border/70 bg-claude-bg px-4 py-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="text-xs font-semibold text-claude-text/90">{language === 'en' ? 'Result' : '결과'}</div>
+                  <div className="text-xs font-semibold text-claude-text/90">{t('subagent.resultLabel')}</div>
                   <CopyButton
                     text={resultText}
-                    label={language === 'en' ? 'Copy result' : '결과 복사'}
-                    copiedLabel={language === 'en' ? 'Copied' : '복사됨'}
+                    label={t('subagent.copyResult')}
+                    copiedLabel={t('common.copied')}
                   />
                 </div>
                 <div className="max-h-[18rem] overflow-auto overflow-x-hidden rounded-xl bg-claude-surface px-3 py-3">
@@ -221,9 +222,9 @@ function AgentDetailModal({
                       </ReactMarkdown>
                     </div>
                   ) : loadingText ? (
-                    <div className="text-xs text-claude-muted">{language === 'en' ? 'Loading transcript...' : 'transcript를 불러오는 중...'}</div>
+                    <div className="text-xs text-claude-muted">{t('subagent.loadingTranscript')}</div>
                   ) : (
-                    <div className="text-xs text-claude-muted">{language === 'en' ? 'No output yet.' : '아직 출력이 없습니다.'}</div>
+                    <div className="text-xs text-claude-muted">{t('subagent.noOutput')}</div>
                   )}
                 </div>
               </section>
@@ -243,8 +244,8 @@ function AgentDetailModal({
                   className="rounded-lg border border-claude-border/70 bg-claude-surface px-2.5 py-1 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
                 >
                   {openingSession
-                    ? (language === 'en' ? 'Opening...' : '여는 중...')
-                    : (language === 'en' ? 'Open transcript session' : 'transcript 세션 열기')}
+                    ? t('subagent.opening')
+                    : t('subagent.openTranscriptSession')}
                 </button>
               ) : null}
               {sessionError ? <span className="text-red-200">{sessionError}</span> : null}
@@ -253,7 +254,7 @@ function AgentDetailModal({
 
           <button
             type="button"
-            aria-label={language === 'en' ? 'Resize modal' : '모달 크기 조절'}
+            aria-label={t('subagent.resizeModal')}
             onMouseDown={(event) => {
               event.preventDefault()
               const startX = event.clientX
@@ -288,7 +289,7 @@ function AgentDetailModal({
 }
 
 export function AgentStatusBar({ session }: Props) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const entries = useMemo(() => collectSubagentCalls(session.messages), [session.messages])
 
@@ -308,11 +309,11 @@ export function AgentStatusBar({ session }: Props) {
       <div className="mb-3 rounded-[12px] border border-claude-border/80 bg-claude-panel/90 px-4 py-3">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="text-xs font-semibold text-claude-text/90">
-            {language === 'en' ? 'Subagents' : '서브에이전트'}
+            {t('subagent.title')}
           </div>
           <div className="flex items-center gap-2 text-[11px] text-claude-muted">
-            {runningCount > 0 ? <span>{language === 'en' ? `${runningCount} running` : `${runningCount}개 실행 중`}</span> : null}
-            {completedCount > 0 ? <span>{language === 'en' ? `${completedCount} done` : `${completedCount}개 완료`}</span> : null}
+            {runningCount > 0 ? <span>{t('subagent.runningCount', { count: runningCount })}</span> : null}
+            {completedCount > 0 ? <span>{t('subagent.doneCount', { count: completedCount })}</span> : null}
           </div>
         </div>
 

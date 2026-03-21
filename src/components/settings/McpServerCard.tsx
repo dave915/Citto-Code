@@ -31,7 +31,7 @@ export function McpServerCard({
   onDeleteConfirm: () => void
   onDeleteCancel: () => void
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const typeColor = 'text-claude-muted bg-claude-panel border-claude-border'
 
   return (
@@ -44,14 +44,14 @@ export function McpServerCard({
         <div className="flex items-center gap-2">
           {server.type && (
             <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${typeColor}`}>
-              {server.type}{server.type === 'sse' ? (language === 'en' ? ' (deprecated)' : ' (지원 중단)') : ''}
+              {server.type}{server.type === 'sse' ? ` (${t('settings.mcp.deprecated')})` : ''}
             </span>
           )}
           <button
             onClick={onEditToggle}
             className="rounded-lg border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-panel hover:text-claude-text"
           >
-            {editing ? (language === 'en' ? 'Close' : '닫기') : (language === 'en' ? 'Edit' : '수정')}
+            {editing ? t('common.close') : t('common.edit')}
           </button>
           {confirmDelete ? (
             <>
@@ -59,13 +59,13 @@ export function McpServerCard({
                 onClick={onDeleteConfirm}
                 className="rounded-lg bg-red-500 px-2.5 py-1 text-xs text-white transition-colors hover:bg-red-600"
               >
-                {language === 'en' ? 'Confirm delete' : '삭제 확인'}
+                {t('settings.mcp.confirmDelete')}
               </button>
               <button
                 onClick={onDeleteCancel}
                 className="rounded-lg border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-panel hover:text-claude-text"
               >
-                {language === 'en' ? 'Cancel' : '취소'}
+                {t('common.cancel')}
               </button>
             </>
           ) : (
@@ -73,7 +73,7 @@ export function McpServerCard({
               onClick={onDeleteRequest}
               className="rounded-lg border border-red-900/40 px-2.5 py-1 text-xs text-red-300 transition-colors hover:bg-red-950/30"
             >
-              {language === 'en' ? 'Delete' : '삭제'}
+              {t('common.delete')}
             </button>
           )}
         </div>
@@ -111,11 +111,11 @@ export function McpServerCard({
       {editing && (
         <div className="mt-3">
           <McpServerForm
-            title={language === 'en' ? 'Edit MCP server' : 'MCP 서버 수정'}
+            title={t('settings.mcp.editServer')}
             form={editForm}
             error={editError}
             saving={editSaving}
-            submitLabel={language === 'en' ? 'Save changes' : '변경 저장'}
+            submitLabel={t('settings.mcp.saveChanges')}
             onChange={onEditFormChange}
             onSubmit={onEditSave}
             onCancel={onEditCancel}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
+import { pickLocalized } from '../../../lib/i18n'
 import { THEME_PRESETS, applyTheme, type ThemeId } from '../../../lib/theme'
 
 type ThemeOption = {
@@ -169,7 +170,10 @@ export function ThemeSection({ themeId, onChange }: Props) {
                       <div className="min-w-0">
                         <div className="text-sm font-medium">{theme.label}</div>
                         <div className="mt-0.5 text-xs leading-relaxed text-claude-muted">
-                          {language === 'en' ? THEME_PRESETS[theme.id].descriptionEn : theme.description}
+                          {pickLocalized(language, {
+                            ko: theme.description,
+                            en: THEME_PRESETS[theme.id].descriptionEn,
+                          })}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -198,7 +202,10 @@ export function ThemeSection({ themeId, onChange }: Props) {
           </div>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-claude-muted">
-          {language === 'en' ? THEME_PRESETS[activeThemeId].descriptionEn : THEME_PRESETS[activeThemeId].description}
+          {pickLocalized(language, {
+            ko: THEME_PRESETS[activeThemeId].description,
+            en: THEME_PRESETS[activeThemeId].descriptionEn,
+          })}
         </p>
       </div>
     </div>

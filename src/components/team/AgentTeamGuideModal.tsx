@@ -2,13 +2,18 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import guideMarkdown from '../../content/agent-team-guide-app.md?raw'
+import guideMarkdownKo from '../../content/agent-team-guide-app.md?raw'
+import guideMarkdownEn from '../../content/agent-team-guide-app.en.md?raw'
+import { useI18n } from '../../hooks/useI18n'
+import { pickLocalized } from '../../lib/i18n'
 
 type Props = {
   onClose: () => void
 }
 
 export function AgentTeamGuideModal({ onClose }: Props) {
+  const { language, t } = useI18n()
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -23,21 +28,24 @@ export function AgentTeamGuideModal({ onClose }: Props) {
 
   if (typeof document === 'undefined') return null
 
+  const guideMarkdown = pickLocalized(language, { ko: guideMarkdownKo, en: guideMarkdownEn })
+  const closeLabel = t('team.guideModal.close')
+
   return createPortal(
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
       <button
         type="button"
         onClick={onClose}
         className="absolute inset-0"
-        aria-label="에이전트 팀 가이드 닫기"
+        aria-label={closeLabel}
       />
 
       <div className="relative z-10 flex h-[min(86vh,52rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[16px] border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
         <div className="flex shrink-0 items-center justify-between border-b border-claude-border/90 px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-claude-text">에이전트 팀 가이드</h2>
+            <h2 className="text-lg font-semibold text-claude-text">{t('team.guideModal.title')}</h2>
             <p className="text-sm text-claude-text">
-              언제 팀 기능을 쓰면 좋은지, 어떤 조합이 실용적인지 빠르게 볼 수 있습니다
+              {t('team.guideModal.description')}
             </p>
           </div>
 
@@ -45,7 +53,7 @@ export function AgentTeamGuideModal({ onClose }: Props) {
             type="button"
             onClick={onClose}
             className="rounded-lg p-2 text-claude-text transition-colors hover:bg-claude-bg-hover"
-            aria-label="에이전트 팀 가이드 닫기"
+            aria-label={closeLabel}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M2 2L14 14M14 2L2 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { codeToTokens } from 'shiki'
+import { useI18n } from '../../hooks/useI18n'
 import { inferLanguageFromPath, type AskAboutSelectionPayload } from '../../lib/toolCallUtils'
 import { SelectionActionBar } from './SelectionActionBar'
 import { buildSelectionPayload, summarizeLineRange } from './selectionUtils'
@@ -23,6 +24,7 @@ export function CodePreview({
   startLine?: number
   onAskAboutSelection?: (payload: AskAboutSelectionPayload) => void
 }) {
+  const { language } = useI18n()
   const [highlightReady, setHighlightReady] = useState(false)
   const [tokenLines, setTokenLines] = useState<TokenLine[]>([])
   const [anchorLine, setAnchorLine] = useState<number | null>(null)
@@ -206,7 +208,7 @@ export function CodePreview({
       </div>
       {selectedPayload && onAskAboutSelection && (
         <SelectionActionBar
-          label={summarizeLineRange(selectedPayload.startLine, selectedPayload.endLine)}
+          label={summarizeLineRange(selectedPayload.startLine, selectedPayload.endLine, language)}
           onAskAgain={() => onAskAboutSelection(selectedPayload)}
           onOpenComment={() => setCommentOpen(true)}
           commentOpen={commentOpen}

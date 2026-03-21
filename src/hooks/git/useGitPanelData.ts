@@ -15,7 +15,7 @@ export function useGitPanelData({
   cwd: string
   gitPanelOpen: boolean
 }) {
-  const { language } = useI18n()
+  const { t } = useI18n()
   const selectedGitEntryPathRef = useRef<string | null>(null)
   const selectedGitCommitHashRef = useRef<string | null>(null)
   const gitPanelRefreshInFlightRef = useRef(false)
@@ -168,7 +168,7 @@ export function useGitPanelData({
       const nextDiff = await window.claude.getGitDiff({ cwd: cwd || '~', filePath: entry.path })
       setGitDiff(nextDiff)
     } catch {
-      setGitDiff({ ok: false, diff: '', error: language === 'en' ? 'Failed to load the diff.' : 'diff를 불러오지 못했습니다.' })
+      setGitDiff({ ok: false, diff: '', error: t('git.error.loadDiff') })
     } finally {
       setGitDiffLoading(false)
     }
@@ -192,7 +192,7 @@ export function useGitPanelData({
       const nextDiff = await window.claude.getGitCommitDiff({ cwd: cwd || '~', commitHash: entry.hash })
       setGitDiff(nextDiff)
     } catch {
-      setGitDiff({ ok: false, diff: '', error: language === 'en' ? 'Failed to load the commit diff.' : '커밋 diff를 불러오지 못했습니다.' })
+      setGitDiff({ ok: false, diff: '', error: t('git.error.loadCommitDiff') })
     } finally {
       setGitDiffLoading(false)
     }
@@ -232,7 +232,7 @@ export function useGitPanelData({
           const nextDiff = {
             ok: false as const,
             diff: '',
-            error: language === 'en' ? 'Failed to load the diff.' : 'diff를 불러오지 못했습니다.',
+            error: t('git.error.loadDiff'),
           }
           setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
         } finally {
@@ -268,7 +268,7 @@ export function useGitPanelData({
           const nextDiff = {
             ok: false as const,
             diff: '',
-            error: language === 'en' ? 'Failed to load the commit diff.' : '커밋 diff를 불러오지 못했습니다.',
+            error: t('git.error.loadCommitDiff'),
           }
           setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
         } finally {
