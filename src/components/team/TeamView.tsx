@@ -201,10 +201,14 @@ function AgentMessageCard({
   message,
   color,
   roundIndex,
+  highlighted = false,
+  containerRef,
 }: {
   message: AgentMessage
   color: string
   roundIndex: number
+  highlighted?: boolean
+  containerRef?: (node: HTMLDivElement | null) => void
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -224,7 +228,14 @@ function AgentMessageCard({
   }, [message.text])
 
   return (
-    <div className="space-y-2 rounded-2xl bg-claude-bg-base/50 p-4">
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      className={`space-y-2 rounded-2xl bg-claude-bg-base/50 p-4 outline-none transition-all duration-300 ${
+        highlighted ? 'bg-claude-surface/80' : ''
+      }`}
+      style={highlighted ? { boxShadow: `0 0 0 1px ${color}66, inset 0 0 0 1px ${color}22` } : undefined}
+    >
       <div className="flex items-center gap-2 text-xs text-claude-text-muted">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
         <span>Round {roundIndex + 1}</span>
@@ -418,6 +429,34 @@ function SelectedAgentPanel({
 }) {
   const latestMessage = agent.messages.at(-1)
   const preview = latestMessage?.text?.trim() || latestMessage?.thinking?.trim() || ''
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  useEffect(() => {
+    setHighlightedMessageId(null)
+    messageRefs.current = {}
+  }, [agent.id])
+
+  useEffect(() => {
+    if (!highlightedMessageId) return
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedMessageId(null)
+    }, 1800)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [highlightedMessageId])
+
+  const focusMessage = useCallback((messageId: string) => {
+    const node = messageRefs.current[messageId]
+    if (!node) return
+
+    setHighlightedMessageId(messageId)
+    node.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    requestAnimationFrame(() => {
+      node.focus({ preventScroll: true })
+    })
+  }, [])
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-[28px] border border-claude-border bg-claude-bg-base/70 backdrop-blur-sm">
@@ -476,13 +515,17 @@ function SelectedAgentPanel({
           </span>
         </div>
 
-        {preview && (
-          <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+        {preview && latestMessage && (
+          <button
+            type="button"
+            onClick={() => focusMessage(latestMessage.id)}
+            className="mt-4 block w-full rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-left transition-colors hover:bg-black/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+          >
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/45">
               Latest cue
             </p>
             <p className="line-clamp-3 text-sm leading-relaxed text-white/80">{preview}</p>
-          </div>
+          </button>
         )}
 
       </div>
@@ -506,6 +549,14 @@ function SelectedAgentPanel({
                 message={message}
                 color={agent.color}
                 roundIndex={index}
+                highlighted={message.id === highlightedMessageId}
+                containerRef={(node) => {
+                  if (node) {
+                    messageRefs.current[message.id] = node
+                  } else {
+                    delete messageRefs.current[message.id]
+                  }
+                }}
               />
             ))}
 
@@ -544,6 +595,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isComposingRef = useRef(false)
+  const escapePressedAtRef = useRef(0)
   const detailPanelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   const activeTeam = activeTeamId ? teams.find((t) => t.id === activeTeamId) ?? null : null
@@ -630,6 +682,32 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
       window.removeEventListener('pointercancel', handlePointerEnd)
     }
   }, [isResizingDetailPanel])
+
+  useEffect(() => {
+    if (activeTeam?.status !== 'running') {
+      escapePressedAtRef.current = 0
+      return
+    }
+
+    const onKeyDownCapture = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+
+      const now = Date.now()
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (now - escapePressedAtRef.current < 600) {
+        escapePressedAtRef.current = 0
+        void abortDiscussion(activeTeam.id)
+        return
+      }
+
+      escapePressedAtRef.current = now
+    }
+
+    window.addEventListener('keydown', onKeyDownCapture, true)
+    return () => window.removeEventListener('keydown', onKeyDownCapture, true)
+  }, [activeTeam, abortDiscussion])
 
   const handleDetailPanelResizeStart = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -995,7 +1073,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                           ? '토론이 진행 중입니다...'
                           : displayActiveTeam.currentTask
                           ? '새 토론 주제를 입력하세요...'
-                          : '토론 주제를 입력하세요... Shift+Enter: 줄바꿈 · Enter: 전송'
+                          : '토론 주제를 입력하세요...'
                       }
                       rows={1}
                       disabled={activeTeam.status === 'running'}
