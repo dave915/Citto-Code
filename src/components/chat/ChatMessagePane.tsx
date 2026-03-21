@@ -104,9 +104,9 @@ export function ChatMessagePane({
     >
       <div className={`mx-auto w-full max-w-[860px] ${isNewSession ? 'min-h-full' : ''}`}>
         {fileConflict && fileConflictLabel && (
-          <div className="mb-4 rounded-2xl border border-red-900/35 bg-red-950/15 px-4 py-3 text-sm text-red-100">
+          <div className="chat-danger-banner mb-4 rounded-2xl px-4 py-3 text-sm">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl bg-red-950/30 text-red-200/80">
+              <span className="chat-danger-icon mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl">
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 17h.01" />
@@ -114,8 +114,8 @@ export function ChatMessagePane({
                 </svg>
               </span>
               <div className="min-w-0">
-                <p className="font-medium text-red-100">{language === 'en' ? 'The same file is being edited in another session.' : '같은 파일을 다른 세션에서도 수정 중입니다.'}</p>
-                <p className="mt-1 text-[13px] leading-5 text-red-100/75">
+                <p className="chat-danger-title font-medium">{language === 'en' ? 'The same file is being edited in another session.' : '같은 파일을 다른 세션에서도 수정 중입니다.'}</p>
+                <p className="chat-danger-description mt-1 text-[13px] leading-5">
                   {fileConflictLabel} · {conflictSessionLabel}
                 </p>
               </div>
@@ -145,14 +145,14 @@ export function ChatMessagePane({
               <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text">
                 C
               </div>
-              <div className="rounded-[22px] rounded-tl-md border border-red-900/60 bg-red-950/30 px-4 py-3.5">
-                <div className="mb-1 flex items-center gap-2 font-medium text-red-200">
+              <div className="chat-error-card rounded-[22px] rounded-tl-md px-4 py-3.5">
+                <div className="chat-error-card-title mb-1 flex items-center gap-2 font-medium">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                   {language === 'en' ? 'Error' : '오류 발생'}
                 </div>
-                <p className="whitespace-pre-wrap font-mono text-xs text-red-100">{session.error}</p>
+                <p className="chat-error-card-message whitespace-pre-wrap font-mono text-xs">{session.error}</p>
               </div>
             </div>
           </div>

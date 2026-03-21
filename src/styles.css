@@ -48,6 +48,13 @@
   --claude-diff-code-delete-bg: 69 10 10 / 0.62;
   --claude-diff-code-insert-edit-bg: 34 197 94 / 0.18;
   --claude-diff-code-delete-edit-bg: 248 113 113 / 0.18;
+  --claude-danger-bg: color-mix(in srgb, rgb(var(--claude-surface)) 86%, rgb(239 68 68) 14%);
+  --claude-danger-border: color-mix(in srgb, rgb(var(--claude-border)) 72%, rgb(185 28 28) 28%);
+  --claude-danger-strong: color-mix(in srgb, rgb(var(--claude-text)) 76%, rgb(153 27 27) 24%);
+  --claude-danger-text: color-mix(in srgb, rgb(var(--claude-text)) 84%, rgb(127 29 29) 16%);
+  --claude-danger-muted: color-mix(in srgb, rgb(var(--claude-muted)) 74%, rgb(127 29 29) 26%);
+  --claude-danger-icon-bg: color-mix(in srgb, rgb(var(--claude-surface-2)) 80%, rgb(239 68 68) 20%);
+  --claude-danger-icon-text: color-mix(in srgb, rgb(var(--claude-text)) 72%, rgb(220 38 38) 28%);
 }
 
 :root[data-theme='graphite'] {
@@ -610,6 +617,38 @@ a:focus-visible,
   border: 1px solid rgb(185 28 28 / 0.28);
   background: color-mix(in srgb, rgb(var(--claude-surface)) 88%, rgb(185 28 28 / 0.08));
   color: rgb(var(--claude-text));
+}
+
+.chat-danger-banner {
+  border: 1px solid var(--claude-danger-border);
+  background: var(--claude-danger-bg);
+  color: var(--claude-danger-text);
+}
+
+.chat-danger-icon {
+  background: var(--claude-danger-icon-bg);
+  color: var(--claude-danger-icon-text);
+}
+
+.chat-danger-title {
+  color: var(--claude-danger-strong);
+}
+
+.chat-danger-description {
+  color: var(--claude-danger-muted);
+}
+
+.chat-error-card {
+  border: 1px solid var(--claude-danger-border);
+  background: var(--claude-danger-bg);
+}
+
+.chat-error-card-title {
+  color: var(--claude-danger-strong);
+}
+
+.chat-error-card-message {
+  color: var(--claude-danger-text);
 }
 
 .tool-code-review {
