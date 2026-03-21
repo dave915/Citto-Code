@@ -1,4 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useTeamStore } from '../../store/teamStore'
 import { useAgentTeamStream } from '../../hooks/useAgentTeam'
@@ -35,6 +42,23 @@ const MODE_OPTIONS: { value: DiscussionMode; label: string; icon: string; desc: 
     desc: '여러 라운드 맞대응하며 합의 도출',
   },
 ]
+
+const DETAIL_PANEL_DEFAULT_WIDTH = 420
+const DETAIL_PANEL_MIN_WIDTH = 320
+const DETAIL_PANEL_MAX_WIDTH = 640
+const TEAM_TASK_TEXTAREA_MAX_HEIGHT = 140
+
+function clampDetailPanelWidth(width: number) {
+  const viewportMax =
+    typeof window === 'undefined'
+      ? DETAIL_PANEL_MAX_WIDTH
+      : Math.max(
+          DETAIL_PANEL_MIN_WIDTH,
+          Math.min(DETAIL_PANEL_MAX_WIDTH, window.innerWidth - 460),
+        )
+
+  return Math.min(viewportMax, Math.max(DETAIL_PANEL_MIN_WIDTH, width))
+}
 
 function ModeSelector({
   mode,
@@ -150,6 +174,23 @@ function AgentMessageCard({
   color: string
   roundIndex: number
 }) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return
+
+    const timeoutId = window.setTimeout(() => setCopied(false), 1400)
+    return () => window.clearTimeout(timeoutId)
+  }, [copied])
+
+  const handleCopy = useCallback(() => {
+    if (!message.text?.trim()) return
+
+    void navigator.clipboard.writeText(message.text).then(() => {
+      setCopied(true)
+    })
+  }, [message.text])
+
   return (
     <div className="space-y-2 rounded-2xl border border-claude-border bg-claude-bg-base/50 p-4">
       <div className="flex items-center gap-2 text-xs text-claude-text-muted">
@@ -160,11 +201,32 @@ function AgentMessageCard({
       {message.thinking && <ThinkingBubble text={message.thinking} />}
 
       <div
-        className="rounded-2xl border px-4 py-3 text-sm leading-relaxed text-claude-text"
+        className="group/message relative rounded-2xl border px-4 py-3 text-sm leading-relaxed text-claude-text"
         style={{ borderColor: `${color}44`, backgroundColor: `${color}10` }}
       >
+        {message.text?.trim() && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="pointer-events-auto absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted opacity-0 transition-all hover:bg-claude-surface-2 hover:text-claude-text group-hover/message:opacity-100 focus:outline-none focus-visible:opacity-100"
+            title={copied ? '복사됨' : '복사'}
+            aria-label={copied ? '복사됨' : '복사'}
+          >
+            {copied ? (
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <rect x="9" y="9" width="10" height="10" rx="2" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 9V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2" />
+              </svg>
+            )}
+          </button>
+        )}
+
         {message.text ? (
-          <div className="prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+          <div className="prose prose-sm prose-invert max-w-none break-words pr-10 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
             <ReactMarkdown>{message.text}</ReactMarkdown>
           </div>
         ) : (
@@ -212,8 +274,8 @@ function AgentSeat({
   const row = Math.floor(index / Math.max(columns, 1))
   const xStart = columns === 1 ? 50 : columns === 2 ? 36 : columns === 3 ? 24 : 20
   const xEnd = 100 - xStart
-  const yStart = rows === 1 ? 54 : rows === 2 ? 43 : 35
-  const yEnd = rows === 1 ? 54 : rows === 2 ? 67 : 73
+  const yStart = rows === 1 ? 56 : rows === 2 ? 41 : 36
+  const yEnd = rows === 1 ? 56 : rows === 2 ? 73 : 78
   const xBase =
     columns === 1
       ? 50
@@ -475,8 +537,11 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const [showSetup, setShowSetup] = useState(false)
   const [task, setTask] = useState('')
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
+  const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH)
+  const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isComposingRef = useRef(false)
+  const detailPanelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   const activeTeam = activeTeamId ? teams.find((t) => t.id === activeTeamId) ?? null : null
   const displayActiveTeam = activeTeam
@@ -498,6 +563,9 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const carpetInsets = displayActiveTeam
     ? getOfficeCarpetInsets(displayActiveTeam.agents.length)
     : { outer: '15.5%', inner: '18.5%' }
+  const detailPanelStyle: CSSProperties = {
+    ['--team-detail-width' as string]: `${detailPanelWidth}px`,
+  }
 
   useEffect(() => {
     if (!displayActiveTeam) {
@@ -513,6 +581,66 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
       setFocusedAgentId(displayActiveTeam.agents[0]?.id ?? null)
     }
   }, [displayActiveTeam, focusedAgentId])
+
+  useEffect(() => {
+    setDetailPanelWidth((current) => clampDetailPanelWidth(current))
+
+    const handleWindowResize = () => {
+      setDetailPanelWidth((current) => clampDetailPanelWidth(current))
+    }
+
+    window.addEventListener('resize', handleWindowResize)
+    return () => window.removeEventListener('resize', handleWindowResize)
+  }, [])
+
+  useEffect(() => {
+    if (!isResizingDetailPanel) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const resizeState = detailPanelResizeStateRef.current
+      if (!resizeState) return
+
+      const deltaX = event.clientX - resizeState.startX
+      setDetailPanelWidth(clampDetailPanelWidth(resizeState.startWidth - deltaX))
+    }
+
+    const handlePointerEnd = () => {
+      detailPanelResizeStateRef.current = null
+      setIsResizingDetailPanel(false)
+    }
+
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerEnd)
+    window.addEventListener('pointercancel', handlePointerEnd)
+
+    return () => {
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerEnd)
+      window.removeEventListener('pointercancel', handlePointerEnd)
+    }
+  }, [isResizingDetailPanel])
+
+  const handleDetailPanelResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return
+
+      detailPanelResizeStateRef.current = {
+        startX: event.clientX,
+        startWidth: detailPanelWidth,
+      }
+      setIsResizingDetailPanel(true)
+      event.preventDefault()
+    },
+    [detailPanelWidth],
+  )
 
   function handleCreateTeam(
     teamName: string,
@@ -550,7 +678,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const syncTextareaHeight = useCallback((value: string) => {
     if (!textareaRef.current) return
     textareaRef.current.style.height = 'auto'
-    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, TEAM_TASK_TEXTAREA_MAX_HEIGHT)}px`
     if (value.length === 0) {
       textareaRef.current.style.height = 'auto'
     }
@@ -764,12 +892,12 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             {/* Roundtable */}
             <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row">
               <section
-                className={`flex min-h-[420px] min-w-0 items-center justify-center rounded-[30px] border border-claude-border bg-[linear-gradient(180deg,#d9e1e8_0%,#d4dce4_19%,#bfc8d1_19%,#b8c1cb_100%)] p-5 transition-all duration-300 ${
+                className={`flex min-h-[360px] min-w-0 items-center justify-center overflow-hidden rounded-[30px] border border-claude-border bg-[linear-gradient(180deg,#d9e1e8_0%,#d4dce4_19%,#bfc8d1_19%,#b8c1cb_100%)] px-5 py-3 transition-all duration-300 ${
                   focusedAgent ? 'lg:flex-[1.05]' : 'flex-1'
                 }`}
               >
                 <div
-                  className="relative mx-auto aspect-[5/4] w-full max-w-[860px] min-w-0 overflow-hidden rounded-[18px] border-2 border-[#8c98a4] shadow-[0_18px_40px_rgba(38,52,68,0.18)]"
+                  className="relative mx-auto aspect-[5/4] h-full max-h-full w-auto max-w-full min-w-0 overflow-hidden rounded-[18px] border-2 border-[#8c98a4] shadow-[0_18px_40px_rgba(38,52,68,0.18)]"
                   style={{
                     backgroundImage: [
                       'linear-gradient(180deg, #eef3f7 0%, #e7edf3 28%, #c5cdd6 28%, #bcc5ce 100%)',
@@ -823,13 +951,28 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
               </section>
 
               {focusedAgent && (
-                <section className="min-h-0 min-w-0 lg:w-[420px] lg:max-w-[420px]">
-                  <SelectedAgentPanel
-                    agent={focusedAgent}
-                    isFirst={displayActiveTeam.agents[0]?.id === focusedAgent.id}
-                    roundNumber={displayActiveTeam.roundNumber}
-                  />
-                </section>
+                <div className="relative min-h-0 min-w-0 lg:shrink-0" style={detailPanelStyle}>
+                  <button
+                    type="button"
+                    onPointerDown={handleDetailPanelResizeStart}
+                    className="absolute bottom-0 left-[-12px] top-0 z-20 hidden w-6 cursor-col-resize items-center justify-center lg:flex"
+                    aria-label="에이전트 상세 패널 너비 조절"
+                    title="드래그해서 상세 패널 너비 조절"
+                  >
+                    <span className="relative h-full w-px bg-white/10">
+                      <span className="absolute left-1/2 top-1/2 h-14 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-claude-border bg-claude-bg-base shadow-[0_4px_12px_rgba(0,0,0,0.22)]" />
+                      <span className="absolute left-1/2 top-1/2 h-6 w-px -translate-x-1/2 -translate-y-1/2 bg-claude-text-muted/60" />
+                    </span>
+                  </button>
+
+                  <section className="min-h-0 min-w-0 lg:h-full lg:w-[var(--team-detail-width)] lg:min-w-[var(--team-detail-width)] lg:max-w-[var(--team-detail-width)]">
+                    <SelectedAgentPanel
+                      agent={focusedAgent}
+                      isFirst={displayActiveTeam.agents[0]?.id === focusedAgent.id}
+                      roundNumber={displayActiveTeam.roundNumber}
+                    />
+                  </section>
+                </div>
               )}
             </div>
 
@@ -854,7 +997,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                       }
                       rows={1}
                       disabled={activeTeam.status === 'running'}
-                      className="chat-input-textarea min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
+                      className="chat-input-textarea min-h-[28px] max-h-[140px] w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-[15px] leading-7 text-claude-text outline-none [overflow-wrap:anywhere] placeholder:text-claude-muted disabled:opacity-50"
                     />
                   </div>
 
