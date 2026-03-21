@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
+import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import { useTeamStore } from '../../store/teamStore'
 import { useAgentTeamStream } from '../../hooks/useAgentTeam'
@@ -189,6 +190,109 @@ function SystemPromptHoverCard({ prompt }: { prompt: string }) {
         </div>
       </div>
     </>
+  )
+}
+
+function TaskPopover({
+  task,
+  onClose,
+}: {
+  task?: string
+  onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return
+
+    const timeoutId = window.setTimeout(() => setCopied(false), 1400)
+    return () => window.clearTimeout(timeoutId)
+  }, [copied])
+
+  useEffect(() => {
+    const handleKeyDownCapture = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDownCapture, true)
+    return () => window.removeEventListener('keydown', handleKeyDownCapture, true)
+  }, [onClose])
+
+  const handleCopy = useCallback(() => {
+    const nextTask = task?.trim()
+    if (!nextTask) return
+
+    void navigator.clipboard.writeText(nextTask).then(() => {
+      setCopied(true)
+    })
+  }, [task])
+
+  if (typeof document === 'undefined' || !task?.trim()) return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[140] flex items-center justify-center p-6">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
+        aria-label="현재 주제 팝오버 닫기"
+      />
+
+      <div className="relative z-10 flex max-h-[min(76vh,48rem)] w-[min(44rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[24px] border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] shadow-[0_18px_42px_rgba(38,52,68,0.24)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#d3dbe3] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#607080]">
+              Current Task
+            </p>
+            <p className="mt-1 text-xs text-[#6f8090]">
+              전체 주제를 다시 확인할 수 있습니다
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-lg p-1.5 text-[#607080] transition-colors hover:bg-[#dfe7ef] hover:text-[#41515e]"
+            aria-label="현재 주제 팝오버 닫기"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="group/task relative min-h-0 flex-1 overflow-hidden">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="invisible absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-[#c8d2dc] bg-white/95 text-[#41515e] opacity-0 shadow-sm transition-all hover:bg-[#f4f7fa] group-hover/task:visible group-hover/task:opacity-100 group-focus-within/task:visible group-focus-within/task:opacity-100"
+            title={copied ? '복사됨' : '복사'}
+            aria-label={copied ? '복사됨' : '복사'}
+          >
+            {copied ? (
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                <rect x="9" y="9" width="10" height="10" rx="2" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 9V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2" />
+              </svg>
+            )}
+          </button>
+
+          <div className="h-full overflow-y-auto px-5 py-4">
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#41515e]">
+              {task}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -593,6 +697,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH)
   const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false)
+  const [isTaskPopoverOpen, setIsTaskPopoverOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isComposingRef = useRef(false)
   const escapePressedAtRef = useRef(0)
@@ -625,6 +730,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   useEffect(() => {
     if (!displayActiveTeam) {
       setFocusedAgentId(null)
+      setIsTaskPopoverOpen(false)
       return
     }
 
@@ -636,6 +742,10 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
       setFocusedAgentId(displayActiveTeam.agents[0]?.id ?? null)
     }
   }, [displayActiveTeam, focusedAgentId])
+
+  useEffect(() => {
+    setIsTaskPopoverOpen(false)
+  }, [displayActiveTeam?.id, displayActiveTeam?.currentTask])
 
   useEffect(() => {
     setDetailPanelWidth((current) => clampDetailPanelWidth(current))
@@ -684,7 +794,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   }, [isResizingDetailPanel])
 
   useEffect(() => {
-    if (activeTeam?.status !== 'running') {
+    if (activeTeam?.status !== 'running' || isTaskPopoverOpen) {
       escapePressedAtRef.current = 0
       return
     }
@@ -707,7 +817,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
 
     window.addEventListener('keydown', onKeyDownCapture, true)
     return () => window.removeEventListener('keydown', onKeyDownCapture, true)
-  }, [activeTeam, abortDiscussion])
+  }, [activeTeam, abortDiscussion, isTaskPopoverOpen])
 
   const handleDetailPanelResizeStart = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -998,14 +1108,18 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
 
                   <div className="absolute inset-x-0 top-[28%] h-[2px] bg-[#a4afba]/70" />
 
-                  <div className="absolute left-1/2 top-[7%] w-[20%] min-w-[164px] -translate-x-1/2 border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] px-4 py-3 text-center shadow-[0_4px_0_#c7d0d9]">
+                  <button
+                    type="button"
+                    onClick={() => setIsTaskPopoverOpen((current) => !current)}
+                    className="absolute left-1/2 top-[7%] z-10 w-[20%] min-w-[164px] -translate-x-1/2 border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] px-4 py-3 text-center shadow-[0_4px_0_#c7d0d9] transition-transform hover:-translate-y-[1px]"
+                  >
                     <span className="inline-flex border border-[#cfd8e1] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#607080]">
                       Task
                     </span>
                     <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[#4c5a67]">
                       {displayActiveTeam.currentTask || '아직 토론 주제가 없습니다'}
                     </p>
-                  </div>
+                  </button>
 
                   <div
                     className="absolute top-[34%] bottom-[10%] rounded-[18px] border border-white/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.07))]"
@@ -1055,6 +1169,13 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                 </div>
               )}
             </div>
+
+            {isTaskPopoverOpen && (
+              <TaskPopover
+                task={displayActiveTeam.currentTask}
+                onClose={() => setIsTaskPopoverOpen(false)}
+              />
+            )}
 
             {/* Input area */}
             <div className="shrink-0 border-t border-claude-border bg-claude-chat-bg px-4 py-4">
