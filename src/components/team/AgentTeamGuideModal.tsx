@@ -32,7 +32,7 @@ export function AgentTeamGuideModal({ onClose }: Props) {
         aria-label="에이전트 팀 가이드 닫기"
       />
 
-      <div className="relative z-10 flex h-[min(86vh,52rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[28px] border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
+      <div className="relative z-10 flex h-[min(86vh,52rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[16px] border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
         <div className="flex shrink-0 items-center justify-between border-b border-claude-border/90 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-claude-text">에이전트 팀 가이드</h2>

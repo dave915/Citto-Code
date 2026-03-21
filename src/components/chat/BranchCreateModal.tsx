@@ -28,7 +28,7 @@ export function BranchCreateModal({
       onMouseDown={onClose}
     >
       <div
-        className="w-full max-w-[312px] rounded-[18px] border border-claude-border bg-claude-panel p-3"
+        className="w-full max-w-[312px] rounded-[10px] border border-claude-border bg-claude-panel p-3"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">

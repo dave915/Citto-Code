@@ -44,7 +44,7 @@ export function ScheduledTaskDetails({
   return (
     <section className="min-h-0 flex-1 overflow-y-auto bg-claude-bg">
       <div className="mx-auto flex max-w-5xl flex-col gap-5 p-5">
-        <div className="rounded-[28px] border border-claude-border bg-claude-panel px-5 py-5">
+        <div className="rounded-[16px] border border-claude-border bg-claude-panel px-5 py-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -108,7 +108,7 @@ export function ScheduledTaskDetails({
             </div>
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-claude-border bg-claude-bg px-4 py-4">
+          <div className="mt-5 rounded-[12px] border border-claude-border bg-claude-bg px-4 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-claude-muted">Prompt</p>
             <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-7 text-claude-text">
               {selectedTask.prompt}
@@ -116,7 +116,7 @@ export function ScheduledTaskDetails({
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-claude-border bg-claude-panel px-5 py-5">
+        <div className="rounded-[16px] border border-claude-border bg-claude-panel px-5 py-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-base font-semibold text-claude-text">{language === 'en' ? 'Run history' : '실행 기록'}</p>
@@ -125,7 +125,7 @@ export function ScheduledTaskDetails({
           </div>
 
           {selectedTask.runHistory.length === 0 ? (
-            <div className="mt-4 rounded-[24px] border border-dashed border-claude-border bg-claude-bg px-6 py-10 text-center">
+            <div className="mt-4 rounded-[12px] border border-dashed border-claude-border bg-claude-bg px-6 py-10 text-center">
               <p className="text-sm font-medium text-claude-text">{language === 'en' ? 'No run history yet' : '아직 실행 기록이 없습니다'}</p>
               <p className="mt-1 text-xs text-claude-muted">{language === 'en' ? 'History appears here after a scheduled run or a manual run.' : '예약 실행 또는 지금 실행 후 여기에 기록이 쌓입니다.'}</p>
             </div>
@@ -133,7 +133,7 @@ export function ScheduledTaskDetails({
             <div className="mt-4 space-y-2">
               {selectedTask.runHistory.map((record) => {
                 const canOpenSession = Boolean(record.sessionTabId && sessionIds.has(record.sessionTabId))
-                const rowClassName = `flex w-full flex-wrap items-center gap-3 rounded-[22px] border border-claude-border bg-claude-bg px-4 py-3 text-left ${
+                const rowClassName = `flex w-full flex-wrap items-center gap-3 rounded-[12px] border border-claude-border bg-claude-bg px-4 py-3 text-left ${
                   canOpenSession ? 'transition-colors hover:bg-claude-surface/70' : ''
                 }`
 

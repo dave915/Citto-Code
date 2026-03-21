@@ -105,7 +105,7 @@ export function ScheduledTaskForm({
   }
 
   return (
-    <div className="flex max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel p-5 shadow-2xl">
+    <div className="flex max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[12px] border border-claude-border bg-claude-panel p-5 shadow-2xl">
       <div className="mb-4 flex flex-shrink-0 items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-claude-text">{title}</h3>

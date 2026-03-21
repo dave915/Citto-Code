@@ -19,7 +19,7 @@ export function ScheduledTasksHeader({
       <div className="draggable-region flex h-14 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel px-5">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-claude-text">Schedule</h2>
-          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600/90">
             Beta
           </span>
           <span className="rounded-full border border-claude-border bg-claude-surface px-2 py-0.5 text-[11px] text-claude-muted">
@@ -50,7 +50,7 @@ export function ScheduledTasksHeader({
       </div>
 
       <div className="border-b border-claude-border bg-claude-panel/80 px-5 py-3">
-        <div className="rounded-[22px] border border-claude-border bg-claude-surface px-4 py-3">
+        <div className="rounded-[12px] border border-claude-border bg-claude-surface px-4 py-3">
           <p className="text-xs font-semibold text-claude-text">{language === 'en' ? 'Before you use it' : '사용 전 유의사항'}</p>
           <ul className="mt-2 space-y-1 text-xs leading-relaxed text-claude-muted">
             <li>{language === 'en' ? 'The app must stay open for scheduled tasks to run.' : '앱이 켜져 있어야 예약 작업이 실행됩니다.'}</li>

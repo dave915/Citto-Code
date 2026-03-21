@@ -35,7 +35,7 @@ export function ScheduledTaskSidebar({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         {tasks.length === 0 ? (
-          <div className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-claude-border bg-claude-bg px-6 py-8 text-center">
+          <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-claude-border bg-claude-bg px-6 py-8 text-center">
             <div>
               <p className="text-sm font-semibold text-claude-text">{language === 'en' ? 'No scheduled tasks' : '예약 작업이 없습니다'}</p>
               <p className="mt-1 text-xs leading-relaxed text-claude-muted">
@@ -68,7 +68,7 @@ export function ScheduledTaskSidebar({
                       onSelect(task.id)
                     }
                   }}
-                  className={`w-full rounded-[22px] border px-3.5 py-3 text-left transition-colors ${
+                  className={`w-full rounded-[12px] border px-3.5 py-3 text-left transition-colors ${
                     selected
                       ? 'border-claude-border bg-claude-surface'
                       : 'border-transparent bg-claude-bg hover:border-claude-border hover:bg-claude-surface/70'
@@ -78,7 +78,7 @@ export function ScheduledTaskSidebar({
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-claude-text">{task.name}</p>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                       task.enabled
-                        ? 'bg-emerald-500/15 text-emerald-200'
+                        ? 'bg-emerald-500/15 text-emerald-600'
                         : 'bg-claude-panel text-claude-muted'
                     }`}>
                       {task.enabled ? 'ON' : 'OFF'}
@@ -95,7 +95,7 @@ export function ScheduledTaskSidebar({
                         event.stopPropagation()
                         onDelete(task.id)
                       }}
-                      className="rounded-lg border border-red-500/25 px-2 py-1 text-[11px] text-red-300 transition-colors hover:bg-red-500/10"
+                      className="rounded-lg border border-red-500/40 px-2 py-1 text-[11px] text-red-500 transition-colors hover:bg-red-500/10"
                     >
                       {language === 'en' ? 'Delete' : '삭제'}
                     </button>

@@ -63,14 +63,14 @@ export function InputComposer({
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        className={`relative overflow-hidden rounded-[24px] border bg-claude-panel transition-all ${
+        className={`relative overflow-hidden rounded-[12px] border bg-claude-panel transition-all ${
           isDragOver
             ? 'border-white/25 ring-1 ring-white/12'
             : 'border-claude-border'
         }`}
       >
         {isDragOver && (
-          <div className="pointer-events-none absolute inset-0 z-20 rounded-[24px] border border-white/10 bg-white/[0.03]" />
+          <div className="pointer-events-none absolute inset-0 z-20 rounded-[12px] border border-white/10 bg-white/[0.03]" />
         )}
 
         <div className="px-5 pb-3 pt-4">

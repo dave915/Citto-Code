@@ -101,7 +101,7 @@ export function GitStatusPanel({
           </button>
 
           {filterOpen && (
-            <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-[20px] border border-claude-border bg-claude-panel p-1.5">
+            <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-[10px] border border-claude-border bg-claude-panel p-1.5">
               {[
                 { key: 'unstaged' as const, label: language === 'en' ? 'Unstaged' : '스테이징되지 않음', count: unstagedEntries.length },
                 { key: 'staged' as const, label: language === 'en' ? 'Staged' : '스테이징됨', count: stagedEntries.length },

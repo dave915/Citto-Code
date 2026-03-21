@@ -62,7 +62,7 @@ function MessageList({
         }
         delete messageRefs.current[message.id]
       }}
-      className={`-mx-2 rounded-[26px] px-2 py-1 transition-all ${
+      className={`-mx-2 rounded-[8px] px-2 py-1 transition-all ${
         highlightedMessageId === message.id
           ? 'bg-amber-500/10 ring-1 ring-amber-300/35'
           : 'bg-transparent ring-1 ring-transparent'
@@ -145,7 +145,7 @@ export function ChatMessagePane({
               <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text">
                 C
               </div>
-              <div className="chat-error-card rounded-[22px] rounded-tl-md px-4 py-3.5">
+              <div className="chat-error-card rounded-[12px] rounded-tl-md px-4 py-3.5">
                 <div className="chat-error-card-title mb-1 flex items-center gap-2 font-medium">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />

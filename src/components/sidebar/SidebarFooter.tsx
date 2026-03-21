@@ -57,7 +57,7 @@ export function SidebarFooter({
         </svg>
         <span className="min-w-0 flex items-baseline gap-1 text-left">
           <span className="truncate">Schedule</span>
-          <span className="text-[11px] font-medium lowercase tracking-[0.04em] text-amber-200/90">
+          <span className="text-[11px] font-medium lowercase tracking-[0.04em] text-amber-500/80">
             beta
           </span>
         </span>

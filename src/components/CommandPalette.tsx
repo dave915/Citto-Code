@@ -146,7 +146,7 @@ export function CommandPalette({
         className="absolute inset-0 cursor-default"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[28px] border border-claude-border bg-claude-panel shadow-2xl">
+      <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[16px] border border-claude-border bg-claude-panel shadow-2xl">
         <div className="border-b border-claude-border bg-claude-surface px-4 py-3">
           <input
             ref={inputRef}

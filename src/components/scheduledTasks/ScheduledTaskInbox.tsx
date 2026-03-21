@@ -72,7 +72,7 @@ export function ScheduledTaskInbox({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {inboxItems.length === 0 ? (
-            <div className="rounded-[24px] border border-dashed border-claude-border bg-claude-bg px-6 py-8 text-center">
+            <div className="rounded-[12px] border border-dashed border-claude-border bg-claude-bg px-6 py-8 text-center">
               <p className="text-sm font-medium text-claude-text">{language === 'en' ? 'No results yet' : '아직 도착한 결과가 없습니다'}</p>
               <p className="mt-1 text-xs text-claude-muted">{language === 'en' ? 'Result cards appear here after a scheduled run or a manual run.' : '예약 실행이나 지금 실행이 끝나면 여기에 결과 카드가 쌓입니다.'}</p>
             </div>
@@ -85,7 +85,7 @@ export function ScheduledTaskInbox({
                 return (
                   <div
                     key={`${item.taskId}:${item.record.id}`}
-                    className="rounded-[24px] border border-claude-border bg-claude-surface px-4 py-4"
+                    className="rounded-[12px] border border-claude-border bg-claude-surface px-4 py-4"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">

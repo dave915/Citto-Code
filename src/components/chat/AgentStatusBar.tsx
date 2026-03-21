@@ -160,7 +160,7 @@ function AgentDetailModal({
       <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
       <div className="absolute inset-0 flex items-center justify-center px-6 py-8">
         <div
-          className="relative flex max-h-full max-w-full flex-col overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel shadow-2xl"
+          className="relative flex max-h-full max-w-full flex-col overflow-hidden rounded-[12px] border border-claude-border bg-claude-panel shadow-2xl"
           style={{ width: `${modalWidth}px`, height: `${modalHeight}px` }}
           onClick={(event) => event.stopPropagation()}
         >
@@ -305,7 +305,7 @@ export function AgentStatusBar({ session }: Props) {
 
   return (
     <>
-      <div className="mb-3 rounded-[22px] border border-claude-border/80 bg-claude-panel/90 px-4 py-3">
+      <div className="mb-3 rounded-[12px] border border-claude-border/80 bg-claude-panel/90 px-4 py-3">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="text-xs font-semibold text-claude-text/90">
             {language === 'en' ? 'Subagents' : '서브에이전트'}

@@ -164,7 +164,7 @@ function AgentSpeechBubble({
 
   return (
     <div className="pointer-events-none absolute left-1/2 top-[-40px] z-30 w-[152px] -translate-x-1/2">
-      <div className="rounded-[14px] border border-[#d7c7b7] bg-[linear-gradient(180deg,#fffaf4_0%,#f9f0e6_100%)] px-3 py-2 text-left text-[11px] leading-[1.35] text-[#4b3c30] shadow-[0_3px_0_#d8ccb9,0_10px_18px_rgba(69,53,40,0.18)]">
+      <div className="rounded-[8px] border border-[#d7c7b7] bg-[linear-gradient(180deg,#fffaf4_0%,#f9f0e6_100%)] px-3 py-2 text-left text-[11px] leading-[1.35] text-[#4b3c30] shadow-[0_3px_0_#d8ccb9,0_10px_18px_rgba(69,53,40,0.18)]">
         <div ref={viewportRef} className="relative flex max-h-[74px] items-end overflow-hidden">
           {isOverflowing && (
             <div className="absolute inset-x-0 top-0 h-5 bg-gradient-to-b from-[#fffaf4] to-transparent opacity-95" />
@@ -263,7 +263,7 @@ function TaskPopover({
         aria-label="현재 주제 팝오버 닫기"
       />
 
-      <div className="relative z-10 flex max-h-[min(76vh,48rem)] w-[min(44rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[24px] border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] shadow-[0_18px_42px_rgba(38,52,68,0.24)]">
+      <div className="relative z-10 flex max-h-[min(76vh,48rem)] w-[min(44rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[12px] border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] shadow-[0_18px_42px_rgba(38,52,68,0.24)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#d3dbe3] px-5 py-4">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#607080]">
@@ -608,9 +608,9 @@ function SelectedAgentPanel({
   }, [])
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-[28px] border border-claude-border bg-claude-bg-base/70 backdrop-blur-sm">
+    <div className="flex h-full min-h-0 flex-col rounded-[16px] border border-claude-border bg-claude-bg-base/70 backdrop-blur-sm">
       <div
-        className="shrink-0 rounded-t-[28px] border-b border-claude-border px-4 py-5"
+        className="shrink-0 rounded-t-[16px] border-b border-claude-border px-4 py-5"
         style={{ background: `linear-gradient(160deg, ${agent.color}20 0%, transparent 70%)` }}
       >
         <div className="flex items-start gap-4">
@@ -1175,12 +1175,12 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             {/* Roundtable */}
             <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row">
               <section
-                className={`flex min-h-[360px] min-w-0 items-center justify-center overflow-hidden rounded-[30px] border border-claude-border bg-[linear-gradient(180deg,#d9e1e8_0%,#d4dce4_19%,#bfc8d1_19%,#b8c1cb_100%)] px-5 py-3 transition-all duration-300 ${
+                className={`flex min-h-[360px] min-w-0 items-center justify-center overflow-hidden rounded-[16px] border border-claude-border bg-[linear-gradient(180deg,#d9e1e8_0%,#d4dce4_19%,#bfc8d1_19%,#b8c1cb_100%)] px-5 py-3 transition-all duration-300 ${
                   focusedAgent ? 'lg:flex-[1.05]' : 'flex-1'
                 }`}
               >
                 <div
-                  className="relative mx-auto aspect-[5/4] h-full max-h-full w-auto max-w-full min-w-0 overflow-hidden rounded-[18px] border-2 border-[#8c98a4] shadow-[0_18px_40px_rgba(38,52,68,0.18)]"
+                  className="relative mx-auto aspect-[5/4] h-full max-h-full w-auto max-w-full min-w-0 overflow-hidden rounded-[10px] border-2 border-[#8c98a4] shadow-[0_18px_40px_rgba(38,52,68,0.18)]"
                   style={{
                     backgroundImage: [
                       'linear-gradient(180deg, #eef3f7 0%, #e7edf3 28%, #c5cdd6 28%, #bcc5ce 100%)',
@@ -1215,11 +1215,11 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                   </button>
 
                   <div
-                    className="absolute top-[34%] bottom-[10%] rounded-[18px] border border-white/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.07))]"
+                    className="absolute top-[34%] bottom-[10%] rounded-[10px] border border-white/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.07))]"
                     style={{ left: carpetInsets.outer, right: carpetInsets.outer }}
                   />
                   <div
-                    className="absolute top-[36%] bottom-[12%] rounded-[14px] border border-[#aeb8c2]/40 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.03)_0_28px,rgba(139,151,163,0.09)_28px_29px),repeating-linear-gradient(0deg,rgba(255,255,255,0.02)_0_28px,rgba(139,151,163,0.08)_28px_29px)]"
+                    className="absolute top-[36%] bottom-[12%] rounded-[8px] border border-[#aeb8c2]/40 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.03)_0_28px,rgba(139,151,163,0.09)_28px_29px),repeating-linear-gradient(0deg,rgba(255,255,255,0.02)_0_28px,rgba(139,151,163,0.08)_28px_29px)]"
                     style={{ left: carpetInsets.inner, right: carpetInsets.inner }}
                   />
 
@@ -1283,7 +1283,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                 />
 
                 <div
-                  className={`relative overflow-hidden rounded-[24px] border bg-claude-panel transition-colors ${
+                  className={`relative overflow-hidden rounded-[12px] border bg-claude-panel transition-colors ${
                     isDragOver
                       ? 'border-blue-500/60 ring-1 ring-blue-500/20'
                       : 'border-claude-border'

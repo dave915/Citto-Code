@@ -13,7 +13,7 @@ export function ClaudeInstallModal({
   const { t } = useI18n()
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 px-6 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-[28px] border border-claude-border bg-claude-panel p-5">
+      <div className="w-full max-w-md rounded-[16px] border border-claude-border bg-claude-panel p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-base font-semibold text-claude-text">{t('install.title')}</p>

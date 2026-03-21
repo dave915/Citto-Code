@@ -23,6 +23,16 @@ module.exports = {
           muted: 'rgb(var(--claude-muted) / <alpha-value>)',
         }
       },
+      borderRadius: {
+        sm: '1px',
+        DEFAULT: '2px',
+        md: '3px',
+        lg: '4px',
+        xl: '6px',
+        '2xl': '8px',
+        '3xl': '12px',
+        full: '9999px',
+      },
       fontFamily: {
         sans: ['"SF Pro Display"', 'Pretendard Variable', 'Pretendard', '"Apple SD Gothic Neo"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace']

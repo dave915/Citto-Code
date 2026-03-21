@@ -193,8 +193,8 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
       <div className="mt-2 flex w-full max-w-2xl flex-col items-center">
         <div className="relative mt-2 h-56 w-full max-w-[460px] overflow-hidden">
           <div className="pointer-events-none absolute bottom-8 left-1/2 h-[138px] w-[min(82vw,420px)] -translate-x-1/2">
-            <div className="absolute inset-0 rounded-[18px] border border-claude-border/65 bg-claude-surface/50 opacity-45 [transform:translateY(10px)_rotate(-2.6deg)]" />
-            <div className="absolute inset-0 rounded-[18px] border border-claude-border/75 bg-claude-surface/65 opacity-70 [transform:translateY(5px)_rotate(1.6deg)]" />
+            <div className="absolute inset-0 rounded-[10px] border border-claude-border/65 bg-claude-surface/50 opacity-45 [transform:translateY(10px)_rotate(-2.6deg)]" />
+            <div className="absolute inset-0 rounded-[10px] border border-claude-border/75 bg-claude-surface/65 opacity-70 [transform:translateY(5px)_rotate(1.6deg)]" />
           </div>
           <div className="absolute bottom-10 left-1/2 z-10 h-[172px] w-[min(82vw,420px)] -translate-x-1/2">
             {showActiveCard && (
@@ -202,7 +202,7 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
                 key={`active-${activeCard.key}`}
                 type="button"
                 onClick={() => onStartPrompt(displayActiveChip.prompt)}
-                className="absolute bottom-0 left-0 z-10 w-full overflow-hidden rounded-[18px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm transition-colors hover:bg-claude-surface-2"
+                className="absolute bottom-0 left-0 z-10 w-full overflow-hidden rounded-[10px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm transition-colors hover:bg-claude-surface-2"
                 style={{ animation: `welcome-card-enter ${WELCOME_CARD_ENTER_MS}ms cubic-bezier(0.22, 1, 0.36, 1) forwards` }}
               >
                 <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{displayActiveChip.title}</div>
@@ -215,7 +215,7 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
             {displayExitingChip && exitingCard && (
               <div
                 key={`exit-${exitingCard.key}`}
-                className="pointer-events-none absolute bottom-0 left-0 z-20 w-full rounded-[18px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm"
+                className="pointer-events-none absolute bottom-0 left-0 z-20 w-full rounded-[10px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm"
                 style={{ animation: `welcome-card-exit ${WELCOME_CARD_EXIT_MS}ms cubic-bezier(0.4, 0, 0.6, 1) forwards` }}
               >
                 <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{displayExitingChip.title}</div>

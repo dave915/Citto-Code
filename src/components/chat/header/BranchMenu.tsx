@@ -64,7 +64,7 @@ export function BranchMenu({
         </button>
 
         {branchMenuOpen && (
-          <div className="absolute left-0 top-full z-50 mt-2 w-[268px] rounded-[18px] border border-claude-border bg-claude-panel p-2 shadow-2xl">
+          <div className="absolute left-0 top-full z-50 mt-2 w-[268px] rounded-[10px] border border-claude-border bg-claude-panel p-2 shadow-2xl">
             <div className="flex items-center gap-1.5">
               <div className="relative min-w-0 flex-1">
                 <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
