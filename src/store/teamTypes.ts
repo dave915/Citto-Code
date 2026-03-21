@@ -1,4 +1,5 @@
 import type { AgentIconType } from '../components/team/AgentPixelIcon'
+import type { AttachedFile } from './sessionTypes'
 
 export type AgentMessage = {
   id: string
@@ -41,6 +42,8 @@ export type AgentTeam = {
   agents: TeamAgent[]
   status: TeamStatus
   currentTask: string
+  currentTaskPrompt: string
+  currentTaskAttachments: AttachedFile[]
   roundNumber: number
   mode: DiscussionMode
   maxRounds: number
@@ -56,7 +59,7 @@ export type TeamStore = {
   updateTeamName: (teamId: string, name: string) => void
   setTeamCwd: (teamId: string, cwd: string) => void
   setTeamStatus: (teamId: string, status: TeamStatus) => void
-  setTeamTask: (teamId: string, task: string) => void
+  setTeamTask: (teamId: string, task: string, prompt?: string, attachments?: AttachedFile[]) => void
   setTeamMode: (teamId: string, mode: DiscussionMode) => void
   setMaxRounds: (teamId: string, maxRounds: number) => void
   incrementRound: (teamId: string) => void

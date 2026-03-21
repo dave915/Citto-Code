@@ -8,6 +8,7 @@ import {
   resolveEnvVarsForModel,
   shouldAutoGenerateHtmlPreview,
 } from '../../lib/claudeRuntime'
+import { buildPromptWithAttachments, formatAttachedFilesSummary, toAttachedFiles } from '../../lib/attachmentPrompts'
 import { useSessionsStore, type Session } from '../../store/sessions'
 import type {
   ClaudeSessionHandlerDeps,
@@ -64,20 +65,7 @@ export function createClaudeSessionHandlers({
     if (!session || session.isStreaming) return
     runtime.abortedTabIdsRef.current.delete(sessionId)
 
-    let fullPrompt = text
-    if (files.length > 0) {
-      const fileSections = files
-        .map((file) => {
-          if (file.fileType === 'image') {
-            return `<file path="${file.path}" type="image">\n[${isEnglishUi() ? 'Image file' : '이미지 파일'}: ${file.name} (${file.size} bytes) - ${isEnglishUi() ? 'check it directly from the path' : '경로에서 직접 확인하세요'}]\n</file>`
-          }
-          return `<file path="${file.path}">\n${file.content}\n</file>`
-        })
-        .join('\n\n')
-      fullPrompt = files.length > 0 && text
-        ? `${fileSections}\n\n${text}`
-        : fileSections || text
-    }
+    let fullPrompt = buildPromptWithAttachments(text, files, isEnglishUi() ? 'en' : 'ko')
 
     if (shouldAutoGenerateHtmlPreview(text, files)) {
       const autoPreviewInstruction = buildAutoHtmlPreviewInstruction(
@@ -89,14 +77,11 @@ export function createClaudeSessionHandlers({
         : autoPreviewInstruction
     }
 
-    const visibleFiles = files.map(({ dataUrl: _dataUrl, ...file }) => ({
-      ...file,
-      id: file.path,
-    }))
+    const visibleFiles = toAttachedFiles(files)
 
     runtime.storeRef.current.addUserMessage(
       sessionId,
-      options?.visibleTextOverride ?? (text || (isEnglishUi() ? `(${files.length} attached files)` : `(파일 ${files.length}개 첨부)`)),
+      options?.visibleTextOverride ?? (text || formatAttachedFilesSummary(files.length, isEnglishUi() ? 'en' : 'ko')),
       visibleFiles.length > 0 ? visibleFiles : undefined,
     )
 

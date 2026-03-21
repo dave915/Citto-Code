@@ -10,11 +10,18 @@ import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import { useTeamStore } from '../../store/teamStore'
 import { useAgentTeamStream } from '../../hooks/useAgentTeam'
+import { useInputAttachments } from '../../hooks/useInputAttachments'
+import { useI18n } from '../../hooks/useI18n'
 import { TeamSetupModal } from './TeamSetupModal'
+import { AgentTeamGuideModal } from './AgentTeamGuideModal'
 import type { AgentIconType } from './AgentPixelIcon'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import type { DiscussionMode, TeamAgent, AgentMessage } from '../../store/teamTypes'
 import { resolveAgentColor } from '../../lib/teamAgentPresets'
+import type { AttachedFile } from '../../store/sessionTypes'
+import { AttachmentList } from '../input/AttachmentList'
+import { formatBytes } from '../input/inputUtils'
+import { buildAttachmentCopyText, formatAttachedFilesSummary } from '../../lib/attachmentPrompts'
 
 type Props = {
   defaultCwd: string
@@ -48,6 +55,17 @@ const DETAIL_PANEL_DEFAULT_WIDTH = 420
 const DETAIL_PANEL_MIN_WIDTH = 320
 const DETAIL_PANEL_MAX_WIDTH = 640
 const TEAM_TASK_TEXTAREA_MAX_HEIGHT = 140
+
+function formatTeamTaskSummary(
+  task: string,
+  attachedFiles: AttachedFile[],
+  language: 'ko' | 'en',
+) {
+  const trimmed = task.trim()
+  if (trimmed) return trimmed
+  if (attachedFiles.length > 0) return formatAttachedFilesSummary(attachedFiles.length, language)
+  return language === 'en' ? 'No discussion topic yet' : '아직 토론 주제가 없습니다'
+}
 
 function clampDetailPanelWidth(width: number) {
   const viewportMax =
@@ -113,11 +131,11 @@ function StatusBadge({ status }: { status: string }) {
 function ThinkingBubble({ text }: { text: string }) {
   if (!text?.trim()) return null
   return (
-    <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-2">
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-300/90">
+    <div className="rounded-xl border border-blue-500/25 bg-blue-500/8 px-3 py-2">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-500">
         Thinking
       </p>
-      <p className="line-clamp-4 text-xs leading-relaxed text-blue-100/75">{text}</p>
+      <p className="line-clamp-4 text-xs leading-relaxed text-claude-text/90">{text}</p>
     </div>
   )
 }
@@ -195,9 +213,13 @@ function SystemPromptHoverCard({ prompt }: { prompt: string }) {
 
 function TaskPopover({
   task,
+  attachedFiles,
+  language,
   onClose,
 }: {
   task?: string
+  attachedFiles: AttachedFile[]
+  language: 'ko' | 'en'
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -222,15 +244,15 @@ function TaskPopover({
   }, [onClose])
 
   const handleCopy = useCallback(() => {
-    const nextTask = task?.trim()
-    if (!nextTask) return
+    const nextText = buildAttachmentCopyText(task ?? '', attachedFiles, language)
+    if (!nextText.trim()) return
 
-    void navigator.clipboard.writeText(nextTask).then(() => {
+    void navigator.clipboard.writeText(nextText).then(() => {
       setCopied(true)
     })
-  }, [task])
+  }, [attachedFiles, language, task])
 
-  if (typeof document === 'undefined' || !task?.trim()) return null
+  if (typeof document === 'undefined' || (!task?.trim() && attachedFiles.length === 0)) return null
 
   return createPortal(
     <div className="fixed inset-0 z-[140] flex items-center justify-center p-6">
@@ -248,7 +270,7 @@ function TaskPopover({
               Current Task
             </p>
             <p className="mt-1 text-xs text-[#6f8090]">
-              전체 주제를 다시 확인할 수 있습니다
+              전체 주제와 첨부 파일을 다시 확인할 수 있습니다
             </p>
           </div>
 
@@ -285,9 +307,32 @@ function TaskPopover({
           </button>
 
           <div className="h-full overflow-y-auto px-5 py-4">
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#41515e]">
-              {task}
-            </p>
+            {attachedFiles.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                {attachedFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex items-center gap-1.5 rounded-xl border border-[#c8d2dc] bg-white/85 px-3 py-1.5 text-xs text-[#41515e]"
+                  >
+                    <svg className="h-3.5 w-3.5 flex-shrink-0 text-[#607080]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="max-w-[240px] truncate font-medium">{file.name}</span>
+                    <span className="text-[#6f8090]">{formatBytes(file.size)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {task?.trim() ? (
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#41515e]">
+                {task}
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-[#6f8090]">
+                {language === 'en' ? 'Only files are attached.' : '첨부 파일만 포함된 주제입니다.'}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -590,7 +635,14 @@ function SelectedAgentPanel({
               <h3 className="text-lg font-semibold text-claude-text">{agent.name}</h3>
               {agent.systemPrompt && <SystemPromptHoverCard prompt={agent.systemPrompt} />}
               {isFirst && (
-                <span className="rounded-full bg-blue-500/15 px-2 py-1 text-[11px] font-medium text-blue-300">
+                <span
+                  className="rounded-full border px-2 py-1 text-[11px] font-medium"
+                  style={{
+                    backgroundColor: 'rgba(59, 130, 246, 0.14)',
+                    borderColor: 'rgba(59, 130, 246, 0.28)',
+                    color: '#2f6fe4',
+                  }}
+                >
                   선발 에이전트
                 </span>
               )}
@@ -623,12 +675,12 @@ function SelectedAgentPanel({
           <button
             type="button"
             onClick={() => focusMessage(latestMessage.id)}
-            className="mt-4 block w-full rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-left transition-colors hover:bg-black/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+            className="mt-4 block w-full rounded-2xl border border-claude-border bg-claude-surface/80 px-4 py-3 text-left transition-colors hover:bg-claude-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-border"
           >
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/45">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-claude-text/65">
               Latest cue
             </p>
-            <p className="line-clamp-3 text-sm leading-relaxed text-white/80">{preview}</p>
+            <p className="line-clamp-3 text-sm leading-relaxed text-claude-text">{preview}</p>
           </button>
         )}
 
@@ -677,6 +729,7 @@ function SelectedAgentPanel({
 }
 
 export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Props) {
+  const { language } = useI18n()
   const {
     teams,
     activeTeamId,
@@ -693,6 +746,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   )
 
   const [showSetup, setShowSetup] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
   const [task, setTask] = useState('')
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH)
@@ -702,11 +756,27 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const isComposingRef = useRef(false)
   const escapePressedAtRef = useRef(0)
   const detailPanelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
-
   const activeTeam = activeTeamId ? teams.find((t) => t.id === activeTeamId) ?? null : null
+  const {
+    attachedFiles,
+    isAttaching,
+    isDragOver,
+    setAttachedFiles,
+    skippedFiles,
+    handleAttachFiles,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+  } = useInputAttachments({
+    disabled: activeTeam?.status === 'running',
+    isStreaming: activeTeam?.status === 'running',
+  })
   const displayActiveTeam = activeTeam
     ? {
         ...activeTeam,
+        currentTaskPrompt: activeTeam.currentTaskPrompt ?? activeTeam.currentTask,
+        currentTaskAttachments: activeTeam.currentTaskAttachments ?? [],
         agents: activeTeam.agents.map((agent) => ({
           ...agent,
           color: resolveAgentColor(agent.iconType, agent.color),
@@ -720,6 +790,10 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
     displayActiveTeam?.agents.find((agent) => agent.id === focusedAgentId)
     ?? displayActiveTeam?.agents[0]
     ?? null
+  const taskSummary = displayActiveTeam
+    ? formatTeamTaskSummary(displayActiveTeam.currentTask, displayActiveTeam.currentTaskAttachments, language)
+    : ''
+  const canSubmitTask = (task.trim().length > 0 || attachedFiles.length > 0) && activeTeam?.status !== 'running'
   const carpetInsets = displayActiveTeam
     ? getOfficeCarpetInsets(displayActiveTeam.agents.length)
     : { outer: '15.5%', inner: '18.5%' }
@@ -745,7 +819,12 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
 
   useEffect(() => {
     setIsTaskPopoverOpen(false)
-  }, [displayActiveTeam?.id, displayActiveTeam?.currentTask])
+  }, [
+    displayActiveTeam?.id,
+    displayActiveTeam?.currentTask,
+    displayActiveTeam?.currentTaskPrompt,
+    displayActiveTeam?.currentTaskAttachments?.length,
+  ])
 
   useEffect(() => {
     setDetailPanelWidth((current) => clampDetailPanelWidth(current))
@@ -880,11 +959,12 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   }, [syncTextareaHeight, task])
 
   const handleStart = useCallback(async () => {
-    if (!activeTeam || !task.trim() || activeTeam.status === 'running') return
-    await startDiscussion(activeTeam.id, task.trim())
+    if (!activeTeam || (!task.trim() && attachedFiles.length === 0) || activeTeam.status === 'running') return
+    await startDiscussion(activeTeam.id, task.trim(), attachedFiles)
     setTask('')
+    setAttachedFiles([])
     requestAnimationFrame(() => syncTextareaHeight(''))
-  }, [activeTeam, startDiscussion, syncTextareaHeight, task])
+  }, [activeTeam, attachedFiles, setAttachedFiles, startDiscussion, syncTextareaHeight, task])
 
   const handleContinue = useCallback(async () => {
     if (!activeTeam) return
@@ -900,7 +980,8 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
     if (!activeTeam) return
     resetDiscussion(activeTeam.id)
     setTask('')
-  }, [activeTeam, resetDiscussion])
+    setAttachedFiles([])
+  }, [activeTeam, resetDiscussion, setAttachedFiles])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey) return
@@ -998,6 +1079,18 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
           </div>
 
           <button
+            type="button"
+            onClick={() => setShowGuide(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-xs font-medium text-claude-text shadow-sm transition-colors hover:bg-claude-bg-hover"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="8" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v5m0-8h.01" />
+            </svg>
+            가이드
+          </button>
+
+          <button
             onClick={() => setShowSetup(true)}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600/20 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-600/30"
           >
@@ -1050,9 +1143,9 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                 })}
               </div>
 
-              {displayActiveTeam.currentTask && (
+              {(displayActiveTeam.currentTask || displayActiveTeam.currentTaskAttachments.length > 0) && (
                 <p className="max-w-xs truncate text-xs text-claude-text-muted">
-                  "{displayActiveTeam.currentTask}"
+                  "{taskSummary}"
                 </p>
               )}
 
@@ -1117,7 +1210,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                       Task
                     </span>
                     <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[#4c5a67]">
-                      {displayActiveTeam.currentTask || '아직 토론 주제가 없습니다'}
+                      {taskSummary}
                     </p>
                   </button>
 
@@ -1173,14 +1266,35 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             {isTaskPopoverOpen && (
               <TaskPopover
                 task={displayActiveTeam.currentTask}
+                attachedFiles={displayActiveTeam.currentTaskAttachments}
+                language={language}
                 onClose={() => setIsTaskPopoverOpen(false)}
               />
             )}
 
             {/* Input area */}
-            <div className="shrink-0 border-t border-claude-border bg-claude-chat-bg px-4 py-4">
-              <div className="mx-auto w-full max-w-[980px]">
-                <div className="relative overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel">
+            <div className="shrink-0 border-t border-claude-border/60 bg-claude-bg px-4 py-4">
+              <div className="w-full">
+                <AttachmentList
+                  attachedFiles={attachedFiles}
+                  skippedFiles={skippedFiles}
+                  language={language}
+                  onRemoveFile={(path) => setAttachedFiles((current) => current.filter((file) => file.path !== path))}
+                />
+
+                <div
+                  className={`relative overflow-hidden rounded-[24px] border bg-claude-panel transition-colors ${
+                    isDragOver
+                      ? 'border-blue-500/60 ring-1 ring-blue-500/20'
+                      : 'border-claude-border'
+                  }`}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(event) => {
+                    void handleDrop(event)
+                  }}
+                >
                   <div className="px-5 pb-3 pt-4">
                     <textarea
                       ref={textareaRef}
@@ -1203,6 +1317,26 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 border-t border-claude-border/70 px-4 pb-3 pt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleAttachFiles()
+                      }}
+                      disabled={activeTeam.status === 'running' || isAttaching}
+                      title={language === 'en' ? 'Attach files' : '파일 첨부'}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text disabled:opacity-30"
+                    >
+                      {isAttaching ? (
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                      )}
+                    </button>
+
                     <span className="text-xs text-claude-text-muted">
                       {activeTeam.status === 'running'
                         ? (() => {
@@ -1249,7 +1383,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
 
                         <button
                           onClick={handleStart}
-                          disabled={!task.trim()}
+                          disabled={!canSubmitTask}
                           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-claude-panel disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
                           title={activeTeam.status === 'done' ? '새 주제 전송 (Enter)' : '토론 시작 (Enter)'}
                         >
@@ -1274,6 +1408,8 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
           onClose={() => setShowSetup(false)}
         />
       )}
+
+      {showGuide && <AgentTeamGuideModal onClose={() => setShowGuide(false)} />}
     </>
   )
 }

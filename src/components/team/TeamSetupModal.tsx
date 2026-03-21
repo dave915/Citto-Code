@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { createPortal } from 'react-dom'
 import { AgentPixelIcon, type AgentIconType } from './AgentPixelIcon'
+import { AgentTeamGuideModal } from './AgentTeamGuideModal'
 import {
   AGENT_PRESETS,
   PRESET_CATEGORIES,
@@ -141,8 +142,8 @@ function AgentPresetCard({
         ${selected
           ? 'border-blue-500 bg-blue-500/10'
           : disabled
-          ? 'cursor-not-allowed border-claude-border bg-claude-bg opacity-50'
-          : 'border-claude-border bg-claude-bg hover:border-claude-border-hover hover:bg-claude-bg-hover'
+          ? 'cursor-not-allowed border-claude-border bg-claude-surface opacity-50'
+          : 'border-claude-border bg-claude-surface hover:border-claude-border-hover hover:bg-claude-surface-2/45'
         }
       `}
     >
@@ -183,7 +184,7 @@ function AgentPresetCard({
             {preset.role}
           </span>
         </div>
-        <p className="mt-0.5 text-xs text-claude-text-muted truncate">{preset.description}</p>
+        <p className="mt-0.5 text-xs text-claude-text/80 truncate">{preset.description}</p>
       </div>
     </div>
   )
@@ -283,6 +284,7 @@ function SelectedAgentBadge({
 
 export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
   const [step, setStep] = useState<'select' | 'custom'>('select')
+  const [showGuide, setShowGuide] = useState(false)
   const [teamName, setTeamName] = useState('새 에이전트 팀')
   const [cwd, setCwd] = useState(defaultCwd)
   const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>([])
@@ -384,25 +386,38 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="flex h-[90vh] w-[860px] max-w-[95vw] flex-col overflow-hidden rounded-2xl border border-claude-border bg-claude-bg-base shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
+      <div className="flex h-[90vh] w-[860px] max-w-[95vw] flex-col overflow-hidden rounded-2xl border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-claude-border px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-claude-text">에이전트 팀 구성</h2>
-            <p className="text-sm text-claude-text-muted">
+            <p className="text-sm text-claude-text">
               함께 토론할 에이전트들을 선택하세요
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 2L14 14M14 2L2 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowGuide(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-xs font-medium text-claude-text shadow-sm transition-colors hover:bg-claude-bg-hover"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="8" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v5m0-8h.01" />
+              </svg>
+              가이드
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-2 text-claude-text transition-colors hover:bg-claude-bg-hover"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 2L14 14M14 2L2 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
@@ -416,7 +431,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 className={`flex-1 py-3 text-sm font-medium transition-colors ${
                   step === 'select'
                     ? 'border-b-2 border-blue-500 text-blue-500'
-                    : 'text-claude-text-muted hover:text-claude-text'
+                    : 'text-claude-text/75 hover:bg-claude-surface/40 hover:text-claude-text'
                 }`}
               >
                 에이전트
@@ -426,7 +441,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 className={`flex-1 py-3 text-sm font-medium transition-colors ${
                   step === 'custom'
                     ? 'border-b-2 border-blue-500 text-blue-500'
-                    : 'text-claude-text-muted hover:text-claude-text'
+                    : 'text-claude-text/75 hover:bg-claude-surface/40 hover:text-claude-text'
                 }`}
               >
                 커스텀 에이전트
@@ -437,7 +452,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               <div className="flex-1 overflow-y-auto p-4 space-y-5">
                 {/* Quick categories */}
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text-muted">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
                     빠른 팀 구성
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -449,7 +464,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                         className={`rounded-lg border px-3 py-1.5 text-sm transition-all ${
                           isCategorySelected(cat)
                             ? 'border-blue-500 bg-blue-500/10 text-blue-400'
-                            : 'border-claude-border text-claude-text-muted hover:border-claude-border-hover hover:text-claude-text disabled:cursor-not-allowed disabled:opacity-40'
+                            : 'border-claude-border bg-claude-surface/55 text-claude-text hover:border-claude-border-hover hover:bg-claude-surface hover:text-claude-text disabled:cursor-not-allowed disabled:opacity-40'
                         }`}
                       >
                         {cat.label}
@@ -460,7 +475,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
                 {customAgentPresets.length > 0 && (
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text-muted">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
                       저장한 커스텀 에이전트 ({customAgentPresets.length})
                     </p>
                     <div className="grid grid-cols-1 gap-2">
@@ -489,7 +504,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
                 {/* All presets */}
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text-muted">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
                     기본 에이전트 ({AGENT_PRESETS.length})
                   </p>
                   <div className="grid grid-cols-1 gap-2">
@@ -517,12 +532,12 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
             ) : (
               /* Custom agent form */
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <p className="text-sm text-claude-text-muted">
+                <p className="text-sm text-claude-text">
                   직접 에이전트를 만들어 팀에 추가하세요
                 </p>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-claude-text-muted">
+                  <label className="mb-1 block text-xs font-medium text-claude-text">
                     이름 *
                   </label>
                   <input
@@ -534,7 +549,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-claude-text-muted">
+                  <label className="mb-1 block text-xs font-medium text-claude-text">
                     역할
                   </label>
                   <input
@@ -546,7 +561,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-claude-text-muted">
+                  <label className="mb-1 block text-xs font-medium text-claude-text">
                     설명
                   </label>
                   <input
@@ -558,7 +573,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-claude-text-muted">
+                  <label className="mb-1 block text-xs font-medium text-claude-text">
                     시스템 프롬프트 (선택)
                   </label>
                   <textarea
@@ -571,7 +586,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-xs font-medium text-claude-text-muted">
+                  <label className="mb-2 block text-xs font-medium text-claude-text">
                     색상
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -610,7 +625,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
               {/* Team name */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-claude-text-muted">
+                <label className="mb-1 block text-xs font-medium text-claude-text">
                   팀 이름
                 </label>
                 <input
@@ -622,7 +637,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
               {/* Project path */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-claude-text-muted">
+                <label className="mb-1 block text-xs font-medium text-claude-text">
                   작업 경로
                 </label>
                 <div className="flex gap-2">
@@ -634,7 +649,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                   <button
                     type="button"
                     onClick={() => void handleSelectFolder()}
-                    className="shrink-0 rounded-lg border border-claude-border px-3 py-2 text-sm text-claude-text-muted transition-colors hover:border-claude-border-hover hover:text-claude-text"
+                    className="shrink-0 rounded-lg border border-claude-border bg-claude-surface/55 px-3 py-2 text-sm text-claude-text transition-colors hover:border-claude-border-hover hover:bg-claude-surface"
                   >
                     폴더 선택
                   </button>
@@ -644,10 +659,10 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               {/* Selected agents */}
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-claude-text-muted">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-claude-text">
                     선택된 에이전트
                   </p>
-                  <span className="text-xs text-claude-text-muted">
+                  <span className="text-xs text-claude-text/80">
                     {selectedAgents.length}명
                     {selectedAgents.length < 2
                       ? ' (최소 2명 필요)'
@@ -659,7 +674,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
                 {selectedAgents.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-claude-border p-6 text-center">
-                    <p className="text-sm text-claude-text-muted">
+                    <p className="text-sm text-claude-text/80">
                       왼쪽에서 에이전트를 선택하세요
                     </p>
                   </div>
@@ -680,16 +695,16 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
 
               {/* Discussion preview */}
               {selectedAgents.length >= 2 && (
-                <div className="rounded-xl border border-claude-border bg-claude-bg p-3">
-                  <p className="mb-2 text-xs font-medium text-claude-text-muted">토론 순서</p>
+                <div className="rounded-xl border border-claude-border bg-claude-surface/55 p-3">
+                  <p className="mb-2 text-xs font-medium text-claude-text">토론 순서</p>
                   <div className="space-y-1">
                     {selectedAgents.map((agent, i) => (
                       <div key={agent.id} className="flex items-center gap-2">
-                        <span className="text-xs text-claude-text-muted w-4">{i + 1}.</span>
+                        <span className="w-4 text-xs text-claude-text/80">{i + 1}.</span>
                         <AgentPixelIcon type={agent.iconType} size={20} color={agent.color} />
                         <span className="text-xs text-claude-text">{agent.name}</span>
                         {i > 0 && (
-                          <span className="text-xs text-claude-text-muted">
+                          <span className="text-xs text-claude-text/80">
                             (앞 {i}명 응답 참고)
                           </span>
                         )}
@@ -712,7 +727,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
               </button>
               <button
                 onClick={onClose}
-                className="w-full rounded-xl py-2 text-sm text-claude-text-muted hover:text-claude-text"
+                className="w-full rounded-xl py-2 text-sm text-claude-text transition-colors hover:bg-claude-surface/35"
               >
                 취소
               </button>
@@ -722,6 +737,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
       </div>
 
       <PresetHoverCard hoverState={step === 'select' ? hoveredPreset : null} />
+      {showGuide && <AgentTeamGuideModal onClose={() => setShowGuide(false)} />}
     </div>
   )
 }

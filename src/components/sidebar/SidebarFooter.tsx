@@ -27,7 +27,7 @@ export function SidebarFooter({
         onClick={onOpenTeam}
         className={`flex w-full items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
           teamOpen
-            ? 'bg-blue-600/20 text-blue-400'
+            ? 'bg-claude-surface text-claude-text'
             : 'text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
         }`}
         title="에이전트 팀"

@@ -26,6 +26,8 @@ export const useTeamStore = create<TeamStore>((set) => ({
           agents: teamAgents,
           status: 'idle',
           currentTask: '',
+          currentTaskPrompt: '',
+          currentTaskAttachments: [],
           roundNumber: 1,
           mode,
           maxRounds: 3,
@@ -75,9 +77,18 @@ export const useTeamStore = create<TeamStore>((set) => ({
       teams: state.teams.map((t) => (t.id !== teamId ? t : { ...t, status })),
     })),
 
-  setTeamTask: (teamId, task) =>
+  setTeamTask: (teamId, task, prompt = task, attachments = []) =>
     set((state) => ({
-      teams: state.teams.map((t) => (t.id !== teamId ? t : { ...t, currentTask: task })),
+      teams: state.teams.map((t) => (
+        t.id !== teamId
+          ? t
+          : {
+              ...t,
+              currentTask: task,
+              currentTaskPrompt: prompt,
+              currentTaskAttachments: attachments,
+            }
+      )),
     })),
 
   setTeamMode: (teamId, mode: DiscussionMode) =>
@@ -106,6 +117,8 @@ export const useTeamStore = create<TeamStore>((set) => ({
               ...t,
               status: 'idle',
               currentTask: '',
+              currentTaskPrompt: '',
+              currentTaskAttachments: [],
               roundNumber: 1,
               agents: t.agents.map((a) => ({
                 ...a,
