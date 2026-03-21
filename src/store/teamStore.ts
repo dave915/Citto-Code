@@ -37,10 +37,26 @@ export const useTeamStore = create<TeamStore>((set) => ({
   },
 
   removeTeam: (id) =>
-    set((state) => ({
-      teams: state.teams.filter((t) => t.id !== id),
-      activeTeamId: state.activeTeamId === id ? null : state.activeTeamId,
-    })),
+    set((state) => {
+      const removedIndex = state.teams.findIndex((team) => team.id === id)
+      const remainingTeams = state.teams.filter((team) => team.id !== id)
+
+      if (state.activeTeamId !== id) {
+        return {
+          teams: remainingTeams,
+          activeTeamId: state.activeTeamId,
+        }
+      }
+
+      const fallbackIndex = removedIndex < 0
+        ? 0
+        : Math.min(removedIndex, remainingTeams.length - 1)
+
+      return {
+        teams: remainingTeams,
+        activeTeamId: remainingTeams[fallbackIndex]?.id ?? null,
+      }
+    }),
 
   setActiveTeam: (id) => set({ activeTeamId: id }),
 

@@ -169,14 +169,18 @@ function SystemPromptHoverCard({ prompt }: { prompt: string }) {
         type="button"
         className="peer/prompt flex h-7 w-7 items-center justify-center rounded-full text-claude-text-muted transition-colors hover:bg-white/5 hover:text-claude-text"
         aria-label="시스템 프롬프트 보기"
-        title="시스템 프롬프트"
       >
         <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <circle cx="12" cy="12" r="8" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v5m0-8h.01" />
         </svg>
       </button>
-      <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-[min(24rem,calc(var(--team-detail-width)-3rem),calc(100vw-5rem))] rounded-2xl border border-claude-border bg-claude-panel/95 p-3 opacity-0 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-opacity peer-hover/prompt:opacity-100 peer-focus-visible/prompt:opacity-100">
+      <div
+        className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[24rem] rounded-2xl border border-claude-border bg-claude-panel/95 p-3 opacity-0 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-opacity peer-hover/prompt:opacity-100 peer-focus-visible/prompt:opacity-100"
+        style={{
+          maxWidth: 'min(calc(100vw - 5rem), calc(var(--team-detail-width) - 3rem), 100%)',
+        }}
+      >
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
           시스템 프롬프트
         </p>
@@ -805,39 +809,16 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             ))}
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            {activeTeam && (
-              <>
-                <button
-                  onClick={handleReset}
-                  disabled={activeTeam.status === 'running'}
-                  className="rounded-lg px-3 py-1.5 text-xs text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  초기화
-                </button>
-                <button
-                  onClick={() => removeTeam(activeTeam.id)}
-                  disabled={activeTeam.status === 'running'}
-                  className="rounded-lg p-1.5 text-claude-text-muted hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="팀 삭제"
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => setShowSetup(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600/20 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-600/30"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              새 팀
-            </button>
-          </div>
+          <button
+            onClick={() => setShowSetup(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600/20 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-600/30"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            새 팀
+          </button>
+
         </div>
 
         {displayActiveTeam && (
@@ -885,6 +866,28 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                 <p className="max-w-xs truncate text-xs text-claude-text-muted">
                   "{displayActiveTeam.currentTask}"
                 </p>
+              )}
+
+              {activeTeam && (
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={handleReset}
+                    disabled={activeTeam.status === 'running'}
+                    className="rounded-lg px-3 py-1.5 text-xs text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    초기화
+                  </button>
+                  <button
+                    onClick={() => removeTeam(activeTeam.id)}
+                    disabled={activeTeam.status === 'running'}
+                    className="rounded-lg p-1.5 text-claude-text-muted hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    title="팀 삭제"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
               )}
             </div>
 

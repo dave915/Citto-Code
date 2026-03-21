@@ -134,19 +134,24 @@ export const AGENT_PRESETS: AgentPreset[] = [
 // Category groups for the setup modal
 export const PRESET_CATEGORIES = [
   {
-    label: '개발팀',
-    description: '소프트웨어 개발을 위한 기본 구성',
-    presetIds: ['architect', 'developer', 'critic'],
+    label: '기능 설계팀',
+    description: '설계, 구현, 반론, 테스트 관점으로 기능 구조를 검토합니다',
+    presetIds: ['architect', 'developer', 'critic', 'tester'],
   },
   {
-    label: '품질 보증팀',
-    description: '코드 품질과 신뢰성 확보',
-    presetIds: ['tester', 'critic', 'security'],
+    label: '제품 개선팀',
+    description: '제품, 디자인, 구현, 반론 관점으로 UX를 개선합니다',
+    presetIds: ['architect', 'designer', 'developer', 'critic'],
   },
   {
-    label: '풀스택팀',
-    description: '설계부터 구현, 최적화까지',
-    presetIds: ['architect', 'developer', 'optimizer'],
+    label: '출시 점검팀',
+    description: '배포 전 버그, 보안, 예외 케이스를 집중 점검합니다',
+    presetIds: ['developer', 'tester', 'security', 'critic'],
+  },
+  {
+    label: '성능 최적화팀',
+    description: '병목, 효율, 회귀 위험을 함께 검토합니다',
+    presetIds: ['developer', 'optimizer', 'critic', 'tester'],
   },
 ]
 
