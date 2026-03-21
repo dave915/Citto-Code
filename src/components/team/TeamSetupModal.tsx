@@ -5,6 +5,8 @@ import { AgentPixelIcon, type AgentIconType } from './AgentPixelIcon'
 import {
   AGENT_PRESETS,
   PRESET_CATEGORIES,
+  normalizeCustomAgentColor,
+  resolveAgentColor,
   type AgentPreset,
 } from '../../lib/teamAgentPresets'
 import { normalizeSelectedFolder } from '../../lib/claudeRuntime'
@@ -28,7 +30,7 @@ function createSelectedAgentFromPreset(preset: AgentPreset): SelectedAgent {
     name: preset.name,
     role: preset.role,
     description: preset.description,
-    color: preset.color,
+    color: resolveAgentColor(preset.iconType, preset.color),
     iconType: preset.iconType,
     isCustom: preset.presetId.startsWith('custom-'),
     systemPrompt: preset.systemPrompt,
@@ -47,11 +49,11 @@ type PresetHoverState = {
 } | null
 
 const CUSTOM_AGENT_PRESETS_STORAGE_KEY = 'agent-team-custom-presets-v1'
+const MAX_TEAM_AGENTS = 8
 
 const COLOR_PALETTE = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B',
-  '#8B5CF6', '#F97316', '#EC4899', '#0EA5E9',
-  '#14B8A6', '#84CC16',
+  '#8B5CF6', '#F97316', '#EC4899', '#14B8A6', '#84CC16',
 ]
 
 function loadCustomAgentPresets(): AgentPreset[] {
@@ -83,7 +85,7 @@ function loadCustomAgentPresets(): AgentPreset[] {
         name: candidate.name,
         role: candidate.role,
         description: candidate.description,
-        color: candidate.color,
+        color: normalizeCustomAgentColor(candidate.color),
         iconType: candidate.iconType as AgentIconType,
         systemPrompt: candidate.systemPrompt,
         tags: Array.isArray(candidate.tags)
@@ -99,6 +101,7 @@ function loadCustomAgentPresets(): AgentPreset[] {
 function AgentPresetCard({
   preset,
   selected,
+  disabled,
   onClick,
   onHoverStart,
   onHoverEnd,
@@ -106,6 +109,7 @@ function AgentPresetCard({
 }: {
   preset: AgentPreset
   selected: boolean
+  disabled?: boolean
   onClick: () => void
   onHoverStart: (rect: DOMRect) => void
   onHoverEnd: () => void
@@ -115,8 +119,12 @@ function AgentPresetCard({
     <div
       role="button"
       tabIndex={0}
-      onClick={onClick}
+      onClick={() => {
+        if (disabled) return
+        onClick()
+      }}
       onKeyDown={(event) => {
+        if (disabled) return
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onClick()
@@ -127,10 +135,13 @@ function AgentPresetCard({
       onMouseLeave={onHoverEnd}
       onFocus={(event) => onHoverStart(event.currentTarget.getBoundingClientRect())}
       onBlur={onHoverEnd}
+      aria-disabled={disabled}
       className={`
         relative flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all
         ${selected
           ? 'border-blue-500 bg-blue-500/10'
+          : disabled
+          ? 'cursor-not-allowed border-claude-border bg-claude-bg opacity-50'
           : 'border-claude-border bg-claude-bg hover:border-claude-border-hover hover:bg-claude-bg-hover'
         }
       `}
@@ -292,12 +303,17 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
   const isCategorySelected = (category: typeof PRESET_CATEGORIES[number]) => (
     category.presetIds.every((presetId) => selectedAgents.some((agent) => agent.presetId === presetId))
   )
+  const isPresetSelected = (presetId: string) => (
+    selectedAgents.some((agent) => agent.presetId === presetId)
+  )
+  const remainingSlots = Math.max(0, MAX_TEAM_AGENTS - selectedAgents.length)
 
   function togglePreset(preset: AgentPreset) {
     const exists = selectedAgents.find((a) => a.presetId === preset.presetId)
     if (exists) {
       setSelectedAgents((prev) => prev.filter((a) => a.presetId !== preset.presetId))
     } else {
+      if (selectedAgents.length >= MAX_TEAM_AGENTS) return
       setSelectedAgents((prev) => [
         ...prev,
         createSelectedAgentFromPreset(preset),
@@ -317,8 +333,10 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
       .map((id) => AGENT_PRESETS.find((preset) => preset.presetId === id))
       .filter((preset): preset is AgentPreset => Boolean(preset))
       .filter((preset) => !selectedAgents.some((agent) => agent.presetId === preset.presetId))
+      .slice(0, remainingSlots)
       .map((preset) => createSelectedAgentFromPreset(preset))
 
+    if (newAgents.length === 0) return
     setSelectedAgents((prev) => [...prev, ...newAgents])
     setTeamName(category.label)
   }
@@ -330,7 +348,7 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
       name: customName.trim(),
       role: customRole.trim() || '에이전트',
       description: customDesc.trim(),
-      color: customColor,
+      color: normalizeCustomAgentColor(customColor),
       iconType: 'custom',
       systemPrompt: customSystemPrompt.trim() || `당신은 ${customRole || '에이전트'}입니다. ${customDesc}`,
       tags: ['커스텀'],
@@ -427,10 +445,11 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                       <button
                         key={cat.label}
                         onClick={() => applyCategory(cat)}
+                        disabled={!isCategorySelected(cat) && remainingSlots === 0}
                         className={`rounded-lg border px-3 py-1.5 text-sm transition-all ${
                           isCategorySelected(cat)
                             ? 'border-blue-500 bg-blue-500/10 text-blue-400'
-                            : 'border-claude-border text-claude-text-muted hover:border-claude-border-hover hover:text-claude-text'
+                            : 'border-claude-border text-claude-text-muted hover:border-claude-border-hover hover:text-claude-text disabled:cursor-not-allowed disabled:opacity-40'
                         }`}
                       >
                         {cat.label}
@@ -445,11 +464,14 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                       저장한 커스텀 에이전트 ({customAgentPresets.length})
                     </p>
                     <div className="grid grid-cols-1 gap-2">
-                      {customAgentPresets.map((preset) => (
+                      {customAgentPresets.map((preset) => {
+                        const isSelected = isPresetSelected(preset.presetId)
+                        return (
                         <AgentPresetCard
                           key={preset.presetId}
                           preset={preset}
-                          selected={!!selectedAgents.find((agent) => agent.presetId === preset.presetId)}
+                          selected={isSelected}
+                          disabled={!isSelected && remainingSlots === 0}
                           onClick={() => togglePreset(preset)}
                           onHoverStart={(rect) => setHoveredPreset({ preset, rect })}
                           onHoverEnd={() => {
@@ -459,7 +481,8 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                           }}
                           onDelete={() => deleteCustomAgent(preset.presetId)}
                         />
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -470,11 +493,14 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                     기본 에이전트 ({AGENT_PRESETS.length})
                   </p>
                   <div className="grid grid-cols-1 gap-2">
-                    {AGENT_PRESETS.map((preset) => (
+                    {AGENT_PRESETS.map((preset) => {
+                      const isSelected = isPresetSelected(preset.presetId)
+                      return (
                       <AgentPresetCard
                         key={preset.presetId}
                         preset={preset}
-                        selected={!!selectedAgents.find((a) => a.presetId === preset.presetId)}
+                        selected={isSelected}
+                        disabled={!isSelected && remainingSlots === 0}
                         onClick={() => togglePreset(preset)}
                         onHoverStart={(rect) => setHoveredPreset({ preset, rect })}
                         onHoverEnd={() => {
@@ -483,7 +509,8 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                           ))
                         }}
                       />
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               </div>
@@ -621,7 +648,12 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                     선택된 에이전트
                   </p>
                   <span className="text-xs text-claude-text-muted">
-                    {selectedAgents.length}명 {selectedAgents.length < 2 && '(최소 2명 필요)'}
+                    {selectedAgents.length}명
+                    {selectedAgents.length < 2
+                      ? ' (최소 2명 필요)'
+                      : selectedAgents.length >= MAX_TEAM_AGENTS
+                      ? ` (최대 ${MAX_TEAM_AGENTS}명)`
+                      : ` / 최대 ${MAX_TEAM_AGENTS}명`}
                   </span>
                 </div>
 

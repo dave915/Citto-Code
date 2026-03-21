@@ -6,6 +6,7 @@ import { TeamSetupModal } from './TeamSetupModal'
 import type { AgentIconType } from './AgentPixelIcon'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import type { DiscussionMode, TeamAgent, AgentMessage } from '../../store/teamTypes'
+import { resolveAgentColor } from '../../lib/teamAgentPresets'
 
 type Props = {
   defaultCwd: string
@@ -100,6 +101,46 @@ function StreamingCursor() {
   return <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse align-middle bg-current" />
 }
 
+function AgentSpeechBubble({
+  text,
+}: {
+  text: string
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLSpanElement>(null)
+  const [isOverflowing, setIsOverflowing] = useState(false)
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const content = contentRef.current
+    if (!viewport || !content) return
+
+    const nextOverflowing = content.offsetHeight > viewport.clientHeight + 1
+    setIsOverflowing(nextOverflowing)
+  }, [text])
+
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-[-40px] z-30 w-[152px] -translate-x-1/2">
+      <div className="rounded-[14px] border border-[#d7c7b7] bg-[linear-gradient(180deg,#fffaf4_0%,#f9f0e6_100%)] px-3 py-2 text-left text-[11px] leading-[1.35] text-[#4b3c30] shadow-[0_3px_0_#d8ccb9,0_10px_18px_rgba(69,53,40,0.18)]">
+        <div ref={viewportRef} className="relative flex max-h-[74px] items-end overflow-hidden">
+          {isOverflowing && (
+            <div className="absolute inset-x-0 top-0 h-5 bg-gradient-to-b from-[#fffaf4] to-transparent opacity-95" />
+          )}
+          <span ref={contentRef} className="block w-full whitespace-pre-wrap break-words">
+            {text}
+          </span>
+        </div>
+      </div>
+      <span className="absolute left-1/2 top-[100%] h-3 w-3 -translate-x-1/2 -translate-y-[5px] rotate-45 border-b border-r border-[#d7c7b7] bg-[#f9f0e6]" />
+    </div>
+  )
+}
+
+function getAgentSpeechPreview(agent: TeamAgent) {
+  if (!agent.isStreaming) return null
+  return `${agent.name}가 발언중입니다.`
+}
+
 function AgentMessageCard({
   message,
   color,
@@ -133,6 +174,21 @@ function AgentMessageCard({
       </div>
     </div>
   )
+}
+
+function getOfficeCarpetInsets(agentCount: number) {
+  const columns = agentCount <= 3 ? agentCount : agentCount <= 4 ? 2 : agentCount <= 6 ? 3 : 4
+
+  switch (columns) {
+    case 1:
+      return { outer: '34%', inner: '37%' }
+    case 2:
+      return { outer: '25%', inner: '28%' }
+    case 3:
+      return { outer: '15.5%', inner: '18.5%' }
+    default:
+      return { outer: '10.5%', inner: '13.5%' }
+  }
 }
 
 function AgentSeat({
@@ -170,33 +226,36 @@ function AgentSeat({
     : isFocused
     ? 'border-[#3958a8] bg-[#eef3ff] text-[#1b2950]'
     : 'border-[#8a7868] bg-[#f3e9dc] text-[#43342a]'
+  const speechPreview = getAgentSpeechPreview(agent)
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="absolute flex w-[116px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center transition-all duration-200 hover:scale-[1.03]"
+      className="absolute flex w-[116px] -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center transition-all duration-200 hover:scale-[1.03]"
       style={{
         left: `${x}%`,
         top: `${y}%`,
       }}
     >
-      <span
-        className={`mb-2 max-w-full truncate rounded-sm border px-2 py-1 text-[10px] font-semibold ${nameTone}`}
-        style={{
-          boxShadow: isFocused ? '0 2px 0 rgba(57,88,168,0.2)' : '0 2px 0 rgba(76,60,49,0.12)',
-        }}
-      >
-        {agent.name}
-      </span>
-
       <div className="relative h-[108px] w-[104px]">
+        {speechPreview && <AgentSpeechBubble text={speechPreview} />}
+
+        <span
+          className={`absolute left-1/2 top-[84px] z-20 max-w-[84px] -translate-x-1/2 truncate rounded-sm border px-2 py-0.5 text-[10px] font-semibold ${nameTone}`}
+          style={{
+            boxShadow: isFocused ? '0 2px 0 rgba(57,88,168,0.2)' : '0 2px 0 rgba(76,60,49,0.12)',
+          }}
+        >
+          {agent.name}
+        </span>
+
         <span className="absolute left-1/2 top-[81px] h-[8px] w-[48px] -translate-x-1/2 bg-black/8 blur-sm" />
         <span className="absolute left-1/2 top-[88px] h-[16px] w-[12px] -translate-x-1/2 bg-[#524236]" />
         <span className="absolute left-1/2 top-[98px] h-[8px] w-[30px] -translate-x-1/2 border border-[#6b5e53] bg-[#b5a89a]" />
 
         <div
-          className="absolute left-1/2 top-[10px] h-[24px] w-[38px] -translate-x-1/2 border-2 border-[#34414f] bg-[linear-gradient(180deg,#6d7f99_0%,#4a596c_100%)]"
+          className="absolute left-1/2 top-[14px] h-[24px] w-[38px] -translate-x-1/2 border-2 border-[#34414f] bg-[linear-gradient(180deg,#6d7f99_0%,#4a596c_100%)]"
           style={{
             boxShadow: isActive
               ? `0 0 0 2px ${agent.color}55, 0 0 12px ${agent.color}30, 0 3px 0 #283240`
@@ -211,7 +270,7 @@ function AgentSeat({
         </div>
 
         <div
-          className="absolute left-1/2 top-[36px] flex h-[30px] w-[86px] -translate-x-1/2 items-start justify-center border-2 border-[#56402f] bg-[linear-gradient(180deg,#89664b_0%,#6b4d39_100%)]"
+          className="absolute left-1/2 top-[40px] flex h-[30px] w-[86px] -translate-x-1/2 items-start justify-center border-2 border-[#56402f] bg-[linear-gradient(180deg,#89664b_0%,#6b4d39_100%)]"
           style={{
             boxShadow: isFocused
               ? `0 0 0 2px ${agent.color}40, 0 4px 0 #5b412f`
@@ -237,12 +296,12 @@ function AgentSeat({
           )}
         </div>
 
-        <div className="absolute left-1/2 top-[67px] h-[18px] w-[38px] -translate-x-1/2 border-2 border-[#774a29] bg-[linear-gradient(180deg,#cc8753_0%,#a35e35_100%)]">
+        <div className="absolute left-1/2 top-[74px] h-[18px] w-[38px] -translate-x-1/2 border-2 border-[#774a29] bg-[linear-gradient(180deg,#cc8753_0%,#a35e35_100%)]">
           <span className="absolute inset-x-[6px] top-[4px] h-[4px] bg-white/8" />
         </div>
 
         {agent.error && (
-          <span className="absolute right-[2px] top-[26px] border border-red-900 bg-red-500 px-1 py-0.5 text-[9px] font-bold text-white shadow-lg">
+          <span className="absolute right-[2px] top-[30px] border border-red-900 bg-red-500 px-1 py-0.5 text-[9px] font-bold text-white shadow-lg">
             !
           </span>
         )}
@@ -258,12 +317,10 @@ function SelectedAgentPanel({
   agent,
   isFirst,
   roundNumber,
-  onClose,
 }: {
   agent: TeamAgent
   isFirst: boolean
   roundNumber: number
-  onClose: () => void
 }) {
   const [showMeta, setShowMeta] = useState(false)
   const latestMessage = agent.messages.at(-1)
@@ -314,13 +371,6 @@ function SelectedAgentPanel({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-claude-border px-3 py-1 text-xs text-claude-text-muted transition-colors hover:border-claude-border-hover hover:text-claude-text"
-          >
-            닫기
-          </button>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -426,23 +476,43 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const [task, setTask] = useState('')
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isComposingRef = useRef(false)
 
   const activeTeam = activeTeamId ? teams.find((t) => t.id === activeTeamId) ?? null : null
+  const displayActiveTeam = activeTeam
+    ? {
+        ...activeTeam,
+        agents: activeTeam.agents.map((agent) => ({
+          ...agent,
+          color: resolveAgentColor(agent.iconType, agent.color),
+        })),
+      }
+    : null
 
   // Determine which agent is currently active (streaming)
   const activeAgentId = activeTeam?.agents.find((a) => a.isStreaming)?.id ?? null
-  const focusedAgent = activeTeam?.agents.find((agent) => agent.id === focusedAgentId) ?? null
+  const focusedAgent =
+    displayActiveTeam?.agents.find((agent) => agent.id === focusedAgentId)
+    ?? displayActiveTeam?.agents[0]
+    ?? null
+  const carpetInsets = displayActiveTeam
+    ? getOfficeCarpetInsets(displayActiveTeam.agents.length)
+    : { outer: '15.5%', inner: '18.5%' }
 
   useEffect(() => {
-    if (!activeTeam) {
+    if (!displayActiveTeam) {
       setFocusedAgentId(null)
       return
     }
 
-    if (focusedAgentId && !activeTeam.agents.some((agent) => agent.id === focusedAgentId)) {
-      setFocusedAgentId(null)
+    const hasFocusedAgent = focusedAgentId
+      ? displayActiveTeam.agents.some((agent) => agent.id === focusedAgentId)
+      : false
+
+    if (!hasFocusedAgent) {
+      setFocusedAgentId(displayActiveTeam.agents[0]?.id ?? null)
     }
-  }, [activeTeam, focusedAgentId])
+  }, [displayActiveTeam, focusedAgentId])
 
   function handleCreateTeam(
     teamName: string,
@@ -477,10 +547,25 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
     setTask('')
   }
 
+  const syncTextareaHeight = useCallback((value: string) => {
+    if (!textareaRef.current) return
+    textareaRef.current.style.height = 'auto'
+    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    if (value.length === 0) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }, [])
+
+  useEffect(() => {
+    syncTextareaHeight(task)
+  }, [syncTextareaHeight, task])
+
   const handleStart = useCallback(async () => {
     if (!activeTeam || !task.trim() || activeTeam.status === 'running') return
     await startDiscussion(activeTeam.id, task.trim())
-  }, [activeTeam, task, startDiscussion])
+    setTask('')
+    requestAnimationFrame(() => syncTextareaHeight(''))
+  }, [activeTeam, startDiscussion, syncTextareaHeight, task])
 
   const handleContinue = useCallback(async () => {
     if (!activeTeam) return
@@ -498,11 +583,11 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
     setTask('')
   }, [activeTeam, resetDiscussion])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault()
-      void handleStart()
-    }
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey) return
+    if (e.nativeEvent.isComposing || isComposingRef.current) return
+    e.preventDefault()
+    void handleStart()
   }
 
   // Empty state (no teams yet)
@@ -521,7 +606,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                 <AgentPixelIcon
                   type={type}
                   size={i === 1 ? 64 : 48}
-                  color={i === 0 ? '#3B82F6' : i === 1 ? '#EF4444' : '#10B981'}
+                  color={i === 0 ? '#F97316' : i === 1 ? '#EF4444' : '#10B981'}
                 />
               </div>
             ))}
@@ -628,23 +713,23 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
           </div>
         </div>
 
-        {activeTeam && (
+        {displayActiveTeam && (
           <>
             {/* Team info bar */}
             <div className="flex shrink-0 items-center gap-3 border-b border-claude-border bg-claude-bg-base/50 px-4 py-2">
               {/* Mode selector */}
               <ModeSelector
-                mode={activeTeam.mode ?? 'sequential'}
-                disabled={activeTeam.status === 'running'}
-                onChange={(m) => setTeamMode(activeTeam.id, m)}
+                mode={displayActiveTeam.mode ?? 'sequential'}
+                disabled={activeTeam?.status === 'running'}
+                onChange={(m) => setTeamMode(displayActiveTeam.id, m)}
               />
 
               <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
                 <span className="text-xs text-claude-text-muted shrink-0">Round</span>
-                <span className="text-xs font-bold text-claude-text shrink-0">{activeTeam.roundNumber}</span>
+                <span className="text-xs font-bold text-claude-text shrink-0">{displayActiveTeam.roundNumber}</span>
                 <span className="mx-1 text-claude-border shrink-0">·</span>
-                {activeTeam.agents.map((agent, i) => {
-                  const isParallel = (activeTeam.mode ?? 'sequential') === 'parallel'
+                {displayActiveTeam.agents.map((agent, i) => {
+                  const isParallel = (displayActiveTeam.mode ?? 'sequential') === 'parallel'
                   return (
                     <div key={agent.id} className="flex items-center gap-1 shrink-0">
                       {i > 0 && (
@@ -669,9 +754,9 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                 })}
               </div>
 
-              {activeTeam.currentTask && (
+              {displayActiveTeam.currentTask && (
                 <p className="max-w-xs truncate text-xs text-claude-text-muted">
-                  "{activeTeam.currentTask}"
+                  "{displayActiveTeam.currentTask}"
                 </p>
               )}
             </div>
@@ -679,43 +764,59 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             {/* Roundtable */}
             <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row">
               <section
-                className={`flex min-h-[420px] min-w-0 items-center justify-center rounded-[30px] border border-claude-border bg-[linear-gradient(180deg,#302a28_0%,#2a2423_20%,#d5c2ad_20%,#cfbba5_100%)] p-5 transition-all duration-300 ${
+                className={`flex min-h-[420px] min-w-0 items-center justify-center rounded-[30px] border border-claude-border bg-[linear-gradient(180deg,#d9e1e8_0%,#d4dce4_19%,#bfc8d1_19%,#b8c1cb_100%)] p-5 transition-all duration-300 ${
                   focusedAgent ? 'lg:flex-[1.05]' : 'flex-1'
                 }`}
               >
                 <div
-                  className="relative mx-auto aspect-[5/4] w-full max-w-[860px] min-w-0 overflow-hidden rounded-[18px] border-2 border-[#5d4d45] shadow-[0_18px_40px_rgba(0,0,0,0.25)]"
+                  className="relative mx-auto aspect-[5/4] w-full max-w-[860px] min-w-0 overflow-hidden rounded-[18px] border-2 border-[#8c98a4] shadow-[0_18px_40px_rgba(38,52,68,0.18)]"
                   style={{
                     backgroundImage: [
-                      'linear-gradient(180deg, #473c39 0%, #3a3130 29%, #cfb79c 29%, #d8c5b1 100%)',
-                      'repeating-linear-gradient(90deg, transparent 0 39px, rgba(106,82,59,0.06) 39px 40px)',
-                      'repeating-linear-gradient(0deg, transparent 0 39px, rgba(106,82,59,0.06) 39px 40px)',
+                      'linear-gradient(180deg, #eef3f7 0%, #e7edf3 28%, #c5cdd6 28%, #bcc5ce 100%)',
+                      'repeating-linear-gradient(90deg, transparent 0 43px, rgba(118,132,147,0.08) 43px 44px)',
+                      'repeating-linear-gradient(0deg, transparent 0 43px, rgba(118,132,147,0.08) 43px 44px)',
                     ].join(', '),
                   }}
                 >
-                  <div className="absolute left-1/2 top-[7%] w-[20%] min-w-[164px] -translate-x-1/2 border-2 border-[#7a695c] bg-[linear-gradient(180deg,#fffaf2,#eadbc8)] px-4 py-3 text-center shadow-[0_4px_0_#c7b39a]">
-                    <span className="inline-flex border border-[#cfb9a1] bg-white/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7d624f]">
+                  <div className="absolute left-[7%] top-[6%] h-[16%] w-[24%] rounded-[6px] border-2 border-[#93a7bc] bg-[linear-gradient(180deg,#d4ecff_0%,#c3ddf7_100%)] shadow-[0_4px_0_#a6b6c6]">
+                    <span className="absolute inset-x-[6px] top-1/2 h-px -translate-y-1/2 bg-white/70" />
+                    <span className="absolute inset-y-[6px] left-1/2 w-px -translate-x-1/2 bg-white/60" />
+                  </div>
+
+                  <div className="absolute right-[7%] top-[6%] h-[16%] w-[24%] rounded-[6px] border-2 border-[#93a7bc] bg-[linear-gradient(180deg,#d4ecff_0%,#c3ddf7_100%)] shadow-[0_4px_0_#a6b6c6]">
+                    <span className="absolute inset-x-[6px] top-1/2 h-px -translate-y-1/2 bg-white/70" />
+                    <span className="absolute inset-y-[6px] left-1/2 w-px -translate-x-1/2 bg-white/60" />
+                  </div>
+
+                  <div className="absolute inset-x-0 top-[28%] h-[2px] bg-[#a4afba]/70" />
+
+                  <div className="absolute left-1/2 top-[7%] w-[20%] min-w-[164px] -translate-x-1/2 border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] px-4 py-3 text-center shadow-[0_4px_0_#c7d0d9]">
+                    <span className="inline-flex border border-[#cfd8e1] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#607080]">
                       Task
                     </span>
-                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[#4f3d30]">
-                      {activeTeam.currentTask || '아직 토론 주제가 없습니다'}
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[#4c5a67]">
+                      {displayActiveTeam.currentTask || '아직 토론 주제가 없습니다'}
                     </p>
                   </div>
 
-                  <div className="absolute inset-x-[27%] top-[23%] bottom-[9%] bg-white/6" />
-                  <div className="absolute inset-y-[23%] left-[50%] w-px -translate-x-1/2 bg-[#bfa98f]/30" />
+                  <div
+                    className="absolute top-[34%] bottom-[10%] rounded-[18px] border border-white/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.07))]"
+                    style={{ left: carpetInsets.outer, right: carpetInsets.outer }}
+                  />
+                  <div
+                    className="absolute top-[36%] bottom-[12%] rounded-[14px] border border-[#aeb8c2]/40 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.03)_0_28px,rgba(139,151,163,0.09)_28px_29px),repeating-linear-gradient(0deg,rgba(255,255,255,0.02)_0_28px,rgba(139,151,163,0.08)_28px_29px)]"
+                    style={{ left: carpetInsets.inner, right: carpetInsets.inner }}
+                  />
 
-                  {activeTeam.agents.map((agent, index) => (
+                  {displayActiveTeam.agents.map((agent, index) => (
                     <AgentSeat
                       key={agent.id}
                       agent={agent}
                       index={index}
-                      total={activeTeam.agents.length}
+                      total={displayActiveTeam.agents.length}
                       isFocused={agent.id === focusedAgent?.id}
                       isActive={agent.id === activeAgentId}
-                      onSelect={() =>
-                        setFocusedAgentId((current) => (current === agent.id ? null : agent.id))
-                      }
+                      onSelect={() => setFocusedAgentId(agent.id)}
                     />
                   ))}
                 </div>
@@ -725,110 +826,98 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                 <section className="min-h-0 min-w-0 lg:w-[420px] lg:max-w-[420px]">
                   <SelectedAgentPanel
                     agent={focusedAgent}
-                    isFirst={activeTeam.agents[0]?.id === focusedAgent.id}
-                    roundNumber={activeTeam.roundNumber}
-                    onClose={() => setFocusedAgentId(null)}
+                    isFirst={displayActiveTeam.agents[0]?.id === focusedAgent.id}
+                    roundNumber={displayActiveTeam.roundNumber}
                   />
                 </section>
               )}
             </div>
 
             {/* Input area */}
-            <div className="shrink-0 border-t border-claude-border p-4">
-              <div className="flex gap-3">
-                <div className="relative flex-1">
-                  <textarea
-                    ref={textareaRef}
-                    className="w-full resize-none rounded-xl border border-claude-border bg-claude-bg px-4 py-3 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
-                    placeholder="에이전트들이 토론할 작업이나 질문을 입력하세요..."
-                    rows={2}
-                    value={task}
-                    onChange={(e) => setTask(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    disabled={activeTeam.status === 'running'}
-                  />
-                  <span className="absolute bottom-2 right-3 text-xs text-claude-text-muted opacity-50">
-                    ⌘↵
-                  </span>
-                </div>
+            <div className="shrink-0 border-t border-claude-border bg-claude-chat-bg px-4 py-4">
+              <div className="mx-auto w-full max-w-[980px]">
+                <div className="relative overflow-hidden rounded-[24px] border border-claude-border bg-claude-panel">
+                  <div className="px-5 pb-3 pt-4">
+                    <textarea
+                      ref={textareaRef}
+                      value={task}
+                      onChange={(e) => setTask(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onCompositionStart={() => { isComposingRef.current = true }}
+                      onCompositionEnd={() => { isComposingRef.current = false }}
+                      placeholder={
+                        activeTeam.status === 'running'
+                          ? '토론이 진행 중입니다...'
+                          : displayActiveTeam.currentTask
+                          ? '새 토론 주제를 입력하세요...'
+                          : '토론 주제를 입력하세요... Shift+Enter: 줄바꿈 · Enter: 전송'
+                      }
+                      rows={1}
+                      disabled={activeTeam.status === 'running'}
+                      className="chat-input-textarea min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
+                    />
+                  </div>
 
-                <div className="flex flex-col gap-2">
-                  {activeTeam.status === 'running' ? (
-                    <button
-                      onClick={handleAbort}
-                      className="flex items-center gap-2 rounded-xl bg-red-600/20 px-4 py-2.5 text-sm font-medium text-red-400 hover:bg-red-600/30"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <rect x="2" y="2" width="8" height="8" fill="currentColor" rx="1" />
-                      </svg>
-                      중단
-                    </button>
-                  ) : activeTeam.status === 'done' ? (
-                    <>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-claude-border/70 px-4 pb-3 pt-2.5">
+                    <span className="text-xs text-claude-text-muted">
+                      {activeTeam.status === 'running'
+                        ? (() => {
+                            const mode = activeTeam.mode ?? 'sequential'
+                            const streamingAgents = activeTeam.agents.filter((a) => a.isStreaming)
+                            if (mode === 'parallel' && streamingAgents.length > 1) {
+                              return `${streamingAgents.length}명이 동시 응답 중...`
+                            }
+                            if (mode === 'meeting') {
+                              const name = streamingAgents[0]?.name ?? '에이전트'
+                              return `회의 Round ${activeTeam.roundNumber} — ${name} 발언 중...`
+                            }
+                            return `${streamingAgents[0]?.name ?? '에이전트'}가 응답 중...`
+                          })()
+                        : 'Shift+Enter: 줄바꿈 · Enter: 전송'}
+                    </span>
+
+                    <div className="flex-1" />
+
+                    {activeTeam.status === 'running' ? (
                       <button
-                        onClick={handleContinue}
-                        className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                        onClick={handleAbort}
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90"
+                        title="중단"
                       >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <path d="M2 6h8M6 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="6" width="12" height="12" rx="2.5" />
                         </svg>
-                        {activeTeam.mode === 'meeting'
-                          ? `Round ${activeTeam.roundNumber + 1} 진행`
-                          : activeTeam.mode === 'parallel'
-                          ? '다음 라운드'
-                          : '계속 토론'}
                       </button>
-                      <button
-                        onClick={handleStart}
-                        disabled={!task.trim()}
-                        className="flex items-center gap-2 rounded-xl border border-claude-border px-4 py-2 text-sm text-claude-text-muted hover:text-claude-text disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        새 주제
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleStart}
-                      disabled={!task.trim()}
-                      className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M2 7C2 7 4 2 7 2s5 5 5 5-2 5-5 5S2 7 2 7Z" stroke="currentColor" strokeWidth="1.5" />
-                        <circle cx="7" cy="7" r="1.5" fill="currentColor" />
-                      </svg>
-                      토론 시작
-                    </button>
-                  )}
+                    ) : (
+                      <>
+                        {activeTeam.status === 'done' && (
+                          <button
+                            onClick={handleContinue}
+                            className="rounded-xl border border-claude-border px-3 py-1.5 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                          >
+                            {activeTeam.mode === 'meeting'
+                              ? `Round ${activeTeam.roundNumber + 1} 진행`
+                              : activeTeam.mode === 'parallel'
+                              ? '다음 라운드'
+                              : '계속 토론'}
+                          </button>
+                        )}
+
+                        <button
+                          onClick={handleStart}
+                          disabled={!task.trim()}
+                          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-claude-panel disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
+                          title={activeTeam.status === 'done' ? '새 주제 전송 (Enter)' : '토론 시작 (Enter)'}
+                        >
+                          <svg className="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m-7 7l7-7 7 7" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-
-              {activeTeam.status === 'running' && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex gap-1">
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500"
-                        style={{ animationDelay: `${i * 150}ms` }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-xs text-claude-text-muted">
-                    {(() => {
-                      const mode = activeTeam.mode ?? 'sequential'
-                      const streamingAgents = activeTeam.agents.filter((a) => a.isStreaming)
-                      if (mode === 'parallel' && streamingAgents.length > 1) {
-                        return `${streamingAgents.length}명이 동시 응답 중...`
-                      }
-                      if (mode === 'meeting') {
-                        const name = streamingAgents[0]?.name ?? '에이전트'
-                        return `회의 Round ${activeTeam.roundNumber} — ${name} 발언 중...`
-                      }
-                      return `${streamingAgents[0]?.name ?? '에이전트'}가 응답 중...`
-                    })()}
-                  </span>
-                </div>
-              )}
             </div>
           </>
         )}
