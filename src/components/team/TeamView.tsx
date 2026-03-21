@@ -884,8 +884,8 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                         className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90"
                         title="중단"
                       >
-                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <rect x="6" y="6" width="12" height="12" rx="2.5" />
+                        <svg className="h-[17px] w-[17px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="5.25" y="5.25" width="13.5" height="13.5" rx="2.85" />
                         </svg>
                       </button>
                     ) : (
