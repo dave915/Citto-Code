@@ -24,6 +24,8 @@ export function InputToolbar({
   onAbort,
   handleSend,
   canSend,
+  onOpenTeam,
+  hasLinkedTeam,
 }: {
   isStreaming: boolean
   language: AppLanguage
@@ -44,6 +46,8 @@ export function InputToolbar({
   onAbort: () => void
   handleSend: () => void
   canSend: boolean
+  onOpenTeam?: () => void
+  hasLinkedTeam?: boolean
 }) {
   const permissionOptions = getPermissionOptions(language)
   const bypassOption = permissionOptions.find((option) => option.value === 'bypassPermissions')
@@ -66,6 +70,25 @@ export function InputToolbar({
           </svg>
         )}
       </button>
+
+      {onOpenTeam && (
+        <button
+          onClick={onOpenTeam}
+          title={translate(language, 'team.openTeam')}
+          className={`flex h-8 flex-shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium transition-colors ${
+            hasLinkedTeam
+              ? 'text-blue-400 hover:bg-claude-surface'
+              : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
+          }`}
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="9" cy="7" r="3" />
+            <circle cx="17" cy="7" r="3" />
+            <path strokeLinecap="round" d="M3 20c0-3.314 2.686-6 6-6h6c3.314 0 6 2.686 6 6" />
+          </svg>
+          {translate(language, 'team.openTeam')}
+        </button>
+      )}
 
       <div className="h-4 w-px flex-shrink-0 bg-claude-border" />
 

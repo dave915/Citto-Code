@@ -202,6 +202,8 @@ export function ChatHeader({
             </svg>
           </HeaderToggleButton>
         )}
+
+
       </div>
     </div>
   )

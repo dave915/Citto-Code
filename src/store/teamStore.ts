@@ -1,8 +1,11 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { nanoid } from 'nanoid'
 import type { AgentTeam, TeamAgent, TeamStore, DiscussionMode } from './teamTypes'
 
-export const useTeamStore = create<TeamStore>((set) => ({
+export const useTeamStore = create<TeamStore>()(
+  persist(
+    (set) => ({
   teams: [],
   activeTeamId: null,
 
@@ -292,4 +295,23 @@ export const useTeamStore = create<TeamStore>((set) => ({
             },
       ),
     })),
-}))
+  }),
+  {
+    name: 'claude-ui-teams',
+    storage: createJSONStorage(() => localStorage),
+    partialize: (state) => ({
+      teams: state.teams.map((team) => ({
+        ...team,
+        // 스트리밍 상태는 리셋하여 저장
+        status: team.status === 'running' ? 'idle' : team.status,
+        agents: team.agents.map((agent) => ({
+          ...agent,
+          isStreaming: false,
+          currentMsgId: null,
+          claudeSessionId: null,
+        })),
+      })),
+      activeTeamId: state.activeTeamId,
+    }),
+  },
+))
