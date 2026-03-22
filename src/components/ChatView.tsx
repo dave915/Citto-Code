@@ -67,6 +67,7 @@ type Props = {
   onModelChange: (model: string | null) => void
   permissionShortcutLabel: string
   bypassShortcutLabel: string
+  onOpenTeam?: () => void
 }
 
 const INITIAL_RIGHT_PANEL_WIDTH = 290
@@ -90,6 +91,7 @@ export function ChatView({
   session, fileConflict, jumpToMessageId, jumpToMessageToken, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel,
   onPermissionModeChange, onPlanModeChange, onModelChange, permissionShortcutLabel, bypassShortcutLabel,
+  onOpenTeam,
 }: Props) {
   const { language, t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -638,6 +640,8 @@ export function ChatView({
           bypassShortcutLabel={bypassShortcutLabel}
           externalDraft={externalDraft}
           topSlot={<AgentStatusBar session={session} />}
+          onOpenTeam={onOpenTeam}
+          hasLinkedTeam={Boolean(session.linkedTeamId)}
         />
       </div>
 

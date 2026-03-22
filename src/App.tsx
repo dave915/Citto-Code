@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChatView } from './components/ChatView'
 import { CommandPalette } from './components/CommandPalette'
 import { ScheduledTasksView } from './components/ScheduledTasksView'
@@ -7,6 +7,7 @@ import { Sidebar } from './components/Sidebar'
 import { ClaudeInstallModal } from './components/app/ClaudeInstallModal'
 import { EmptyMainState } from './components/app/EmptyMainState'
 import { TeamView } from './components/team/TeamView'
+import { useTeamStore } from './store/teamStore'
 import { useI18n } from './hooks/useI18n'
 import { useClaudeStream } from './hooks/useClaudeStream'
 import { useAppDesktopEffects } from './hooks/useAppDesktopEffects'
@@ -51,6 +52,7 @@ export default function App() {
     setPlanMode,
     setModel,
     commitStreamEnd,
+    setLinkedTeamId,
     envVars,
     themeId,
     notificationMode,
@@ -61,9 +63,13 @@ export default function App() {
     claudeBinaryPath,
   } = useSessionsStore()
 
+  const { setActiveTeam } = useTeamStore()
+
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [teamOpen, setTeamOpen] = useState(false)
+  /** 현재 세션과 연결된 팀 패널 열기 (ChatView 내 Team 버튼으로 진입) */
+  const [sessionTeamOpen, setSessionTeamOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [messageJumpTarget, setMessageJumpTarget] = useState<{
     sessionId: string
@@ -186,6 +192,7 @@ export default function App() {
     setSettingsOpen(false)
     setScheduleOpen(false)
     setTeamOpen(false)
+    setSessionTeamOpen(false)
     setCommandPaletteOpen(false)
   }
 
@@ -207,8 +214,30 @@ export default function App() {
     setSettingsOpen(false)
     setScheduleOpen(false)
     setCommandPaletteOpen(false)
+    setSessionTeamOpen(false)
     setTeamOpen(true)
   }
+
+  /** ChatView 헤더의 Team 버튼 → 현재 세션과 연결된 팀 패널 열기 */
+  const openSessionTeamPanel = useCallback(() => {
+    if (!activeSession) return
+    setSettingsOpen(false)
+    setScheduleOpen(false)
+    setTeamOpen(false)
+    setCommandPaletteOpen(false)
+    // 세션에 연결된 팀이 있으면 해당 팀을 활성화
+    if (activeSession.linkedTeamId) {
+      setActiveTeam(activeSession.linkedTeamId)
+    }
+    setSessionTeamOpen(true)
+  }, [activeSession, setActiveTeam])
+
+  /** 팀 토론 완료 후 결과 요약을 현재 세션에 주입 */
+  const handleInjectTeamSummary = useCallback((summary: string) => {
+    if (!activeSession) return
+    setSessionTeamOpen(false)
+    handleSend(summary, [])
+  }, [activeSession, handleSend])
 
   async function handleNewSession(cwdOverride?: string): Promise<string> {
     closeOverlayPanels()
@@ -286,9 +315,7 @@ export default function App() {
             onSelectFolder={(sessionId) => handleSelectFolder(sessionId)}
             onOpenSchedule={openSchedulePanel}
             onOpenSettings={openSettingsPanel}
-            onOpenTeam={openTeamPanel}
             scheduleOpen={scheduleOpen}
-            teamOpen={teamOpen}
             newSessionShortcutLabel={getShortcutLabel(shortcutConfig, 'newSession', shortcutPlatform)}
             settingsShortcutLabel={getShortcutLabel(shortcutConfig, 'openSettings', shortcutPlatform)}
           />
@@ -306,6 +333,16 @@ export default function App() {
             envVars={sanitizedEnvVars}
             claudeBinaryPath={claudeBinaryPath || undefined}
             onClose={() => setTeamOpen(false)}
+          />
+        ) : sessionTeamOpen && activeSession ? (
+          <TeamView
+            defaultCwd={activeSession.cwd}
+            envVars={sanitizedEnvVars}
+            claudeBinaryPath={claudeBinaryPath || undefined}
+            embedded
+            onClose={() => setSessionTeamOpen(false)}
+            onInjectSummary={handleInjectTeamSummary}
+            onTeamLinked={(teamId) => setLinkedTeamId(activeSession.id, teamId)}
           />
         ) : scheduleOpen ? (
           <ScheduledTasksView
@@ -341,6 +378,7 @@ export default function App() {
             onQuestionResponse={handleQuestionResponse}
             permissionShortcutLabel={getShortcutLabel(shortcutConfig, 'cyclePermissionMode', shortcutPlatform)}
             bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
+            onOpenTeam={openSessionTeamPanel}
           />
         ) : (
           <EmptyMainState sidebarMode={sidebarMode} onNewSession={() => { void handleNewSession() }} />

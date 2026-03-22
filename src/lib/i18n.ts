@@ -870,6 +870,12 @@ const TRANSLATIONS = {
     'team.setup.placeholder.customRole': '예: Data Analyst',
     'team.setup.placeholder.customDescription': '이 에이전트가 하는 일',
     'team.setup.placeholder.customSystemPrompt': '에이전트의 역할과 행동 방식을 자세히 설명하세요...',
+    'team.injectToChat': '채팅에 결과 주입',
+    'team.injectToChatDone': '주입됨',
+    'team.openTeam': '에이전트 팀',
+    'team.backToChat': '채팅으로 돌아가기',
+    'team.injectSummaryHeading': ({ teamName }) => `[에이전트 팀 토론 결과 — ${teamName}]`,
+    'team.injectSummaryAgentLine': ({ name, role, text }) => `**${name}** (${role}):\n${text}`,
   },
   en: {
     'app.selectProjectFolderTitle': 'Select project folder',
@@ -1733,7 +1739,13 @@ const TRANSLATIONS = {
     'team.setup.placeholder.customName': 'Example: Data analyst',
     'team.setup.placeholder.customRole': 'Example: Data Analyst',
     'team.setup.placeholder.customDescription': 'What this agent does',
-    'team.setup.placeholder.customSystemPrompt': 'Describe this agent’s role and behavior in detail...',
+    'team.setup.placeholder.customSystemPrompt': "Describe this agent's role and behavior in detail...",
+    'team.injectToChat': 'Send results to chat',
+    'team.injectToChatDone': 'Sent',
+    'team.openTeam': 'Agent Team',
+    'team.backToChat': 'Back to chat',
+    'team.injectSummaryHeading': ({ teamName }) => `[Agent Team Discussion Results — ${teamName}]`,
+    'team.injectSummaryAgentLine': ({ name, role, text }) => `**${name}** (${role}):\n${text}`,
   },
 } as const satisfies Record<AppLanguage, Record<string, TranslationEntry>>
 

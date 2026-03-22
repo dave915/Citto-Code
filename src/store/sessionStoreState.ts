@@ -46,6 +46,12 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     quickPanelEnabled: true,
     shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
+    setLinkedTeamId: (sessionId, teamId) => set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id !== sessionId ? s : { ...s, linkedTeamId: teamId },
+      ),
+    })),
+
     setEnvVar: (key, value) => set((state) => ({
       envVars: { ...state.envVars, [key]: value },
     })),

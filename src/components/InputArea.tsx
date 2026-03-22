@@ -32,6 +32,8 @@ type Props = {
   bypassShortcutLabel: string
   externalDraft?: { id: number; text: string } | null
   topSlot?: ReactNode
+  onOpenTeam?: () => void
+  hasLinkedTeam?: boolean
 }
 
 export function InputArea({
@@ -55,6 +57,8 @@ export function InputArea({
   bypassShortcutLabel,
   externalDraft,
   topSlot,
+  onOpenTeam,
+  hasLinkedTeam,
 }: Props) {
   const { language } = useI18n()
   const envVars = useSessionsStore((state) => state.envVars)
@@ -316,6 +320,8 @@ export function InputArea({
             onAbort,
             handleSend,
             canSend,
+            onOpenTeam,
+            hasLinkedTeam,
           }}
         />
       </div>

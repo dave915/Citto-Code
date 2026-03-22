@@ -99,6 +99,7 @@ export type Session = {
   permissionMode: PermissionMode
   planMode: boolean
   model: string | null
+  linkedTeamId?: string | null
 }
 
 export type ImportedToolCall = Omit<ToolCallBlock, 'id'>
@@ -175,6 +176,7 @@ export type SessionsStore = {
   setPermissionMode: (tabId: string, mode: PermissionMode) => void
   setPlanMode: (tabId: string, value: boolean) => void
   setModel: (tabId: string, model: string | null) => void
+  setLinkedTeamId: (sessionId: string, teamId: string | null) => void
   setEnvVar: (key: string, value: string) => void
   removeEnvVar: (key: string) => void
 }

@@ -29,6 +29,12 @@ type Props = {
   envVars: Record<string, string>
   claudeBinaryPath?: string
   onClose: () => void
+  /** 세션 내 embedded 모드: 헤더 Back 버튼을 'Chat으로 돌아가기' 형태로 표시 */
+  embedded?: boolean
+  /** 팀 토론 완료 후 결과를 채팅에 주입할 때 호출 */
+  onInjectSummary?: (text: string) => void
+  /** 팀이 생성/선택되었을 때 호출 (세션 linkedTeamId 업데이트용) */
+  onTeamLinked?: (teamId: string) => void
 }
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 420
@@ -744,7 +750,7 @@ function SelectedAgentPanel({
   )
 }
 
-export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Props) {
+export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embedded, onInjectSummary, onTeamLinked }: Props) {
   const { language, t } = useI18n()
   const {
     teams,
@@ -766,6 +772,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const [showGuide, setShowGuide] = useState(false)
   const [task, setTask] = useState('')
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
+  const [injected, setInjected] = useState(false)
   const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH)
   const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false)
   const [isTaskPopoverOpen, setIsTaskPopoverOpen] = useState(false)
@@ -818,6 +825,10 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
   const detailPanelStyle: CSSProperties = {
     ['--team-detail-width' as string]: `${detailPanelWidth}px`,
   }
+
+  useEffect(() => {
+    setInjected(false)
+  }, [activeTeamId])
 
   useEffect(() => {
     if (!displayActiveTeam) {
@@ -945,7 +956,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
       systemPrompt: string
     }>,
   ) {
-    addTeam(
+    const teamId = addTeam(
       cwd,
       teamName,
       selectedAgents.map((a) => ({
@@ -961,6 +972,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
         isCustom: a.isCustom,
       })),
     )
+    onTeamLinked?.(teamId)
     setShowSetup(false)
     setTask('')
   }
@@ -1001,7 +1013,32 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
     resetDiscussion(activeTeam.id)
     setTask('')
     setAttachedFiles([])
+    setInjected(false)
   }, [activeTeam, resetDiscussion, setAttachedFiles])
+
+  const handleInjectSummary = useCallback(() => {
+    if (!displayActiveTeam || !onInjectSummary) return
+    const lines: string[] = [
+      t('team.injectSummaryHeading', { teamName: displayActiveTeam.name }),
+      '',
+    ]
+    for (const agent of displayActiveTeam.agents) {
+      const lastMsg = agent.messages.at(-1)
+      if (!lastMsg?.text?.trim()) continue
+      lines.push(
+        t('team.injectSummaryAgentLine', {
+          name: agent.name,
+          role: agent.role,
+          text: lastMsg.text.trim(),
+        }),
+      )
+      lines.push('')
+    }
+    const summary = lines.join('\n').trim()
+    if (!summary) return
+    onInjectSummary(summary)
+    setInjected(true)
+  }, [displayActiveTeam, onInjectSummary, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey) return
@@ -1070,12 +1107,15 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
           {/* Back / close */}
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text"
-            title={t('settings.close')}
+            className="flex items-center gap-1.5 rounded-lg p-1.5 text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text"
+            title={embedded ? t('team.backToChat') : t('settings.close')}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
+            {embedded && (
+              <span className="text-xs font-medium">{t('team.backToChat')}</span>
+            )}
           </button>
 
           {/* Team selector */}
@@ -1083,7 +1123,10 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
             {teams.map((team) => (
               <button
                 key={team.id}
-                onClick={() => setActiveTeam(team.id)}
+                onClick={() => {
+                  setActiveTeam(team.id)
+                  onTeamLinked?.(team.id)
+                }}
                 className={`
                   flex min-w-0 max-w-[220px] items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors
                   ${team.id === activeTeamId
@@ -1389,16 +1432,45 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose }: Pro
                     ) : (
                       <>
                         {activeTeam.status === 'done' && (
-                          <button
-                            onClick={handleContinue}
-                            className="rounded-xl border border-claude-border px-3 py-1.5 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-                          >
-                            {activeTeam.mode === 'meeting'
-                              ? t('team.continue.meeting', { round: activeTeam.roundNumber + 1 })
-                              : activeTeam.mode === 'parallel'
-                              ? t('team.continue.parallel')
-                              : t('team.continue.sequential')}
-                          </button>
+                          <>
+                            <button
+                              onClick={handleContinue}
+                              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+                            >
+                              {activeTeam.mode === 'meeting'
+                                ? t('team.continue.meeting', { round: activeTeam.roundNumber + 1 })
+                                : activeTeam.mode === 'parallel'
+                                ? t('team.continue.parallel')
+                                : t('team.continue.sequential')}
+                            </button>
+                            {onInjectSummary && (
+                              <button
+                                onClick={handleInjectSummary}
+                                disabled={injected}
+                                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                  injected
+                                    ? 'border-green-500/40 bg-green-500/10 text-green-400 cursor-default'
+                                    : 'border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+                                }`}
+                              >
+                                {injected ? (
+                                  <>
+                                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    {t('team.injectToChatDone')}
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5m-9 4h14a2 2 0 002-2V8l-6-6H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    {t('team.injectToChat')}
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </>
                         )}
 
                         <button
