@@ -1,20 +1,24 @@
 import type { Session, ScheduledTask } from '../persistence-types'
 
+type ClaudeStreamEventMeta = {
+  requestId?: string
+}
+
 export type ClaudeStreamEvent =
-  | { type: 'stream-start'; sessionId: string; cwd: string }
-  | { type: 'token-usage'; sessionId: string; inputTokens: number }
-  | { type: 'thinking-chunk'; sessionId: string; text: string }
-  | { type: 'text-chunk'; sessionId: string; text: string }
-  | {
+  | (ClaudeStreamEventMeta & { type: 'stream-start'; sessionId: string; cwd: string })
+  | (ClaudeStreamEventMeta & { type: 'token-usage'; sessionId: string; inputTokens: number })
+  | (ClaudeStreamEventMeta & { type: 'thinking-chunk'; sessionId: string; text: string })
+  | (ClaudeStreamEventMeta & { type: 'text-chunk'; sessionId: string; text: string })
+  | (ClaudeStreamEventMeta & {
       type: 'tool-start'
       sessionId: string
       toolUseId: string
       toolName: string
       toolInput: unknown
       fileSnapshotBefore?: string | null
-    }
-  | { type: 'tool-result'; sessionId: string; toolUseId: string; content: unknown; isError: boolean }
-  | {
+    })
+  | (ClaudeStreamEventMeta & { type: 'tool-result'; sessionId: string; toolUseId: string; content: unknown; isError: boolean })
+  | (ClaudeStreamEventMeta & {
       type: 'result'
       sessionId: string
       costUsd: number
@@ -23,9 +27,9 @@ export type ClaudeStreamEvent =
       durationMs: number
       resultText?: string
       permissionDenials?: Array<{ toolName: string; toolUseId: string; toolInput: unknown }>
-    }
-  | { type: 'stream-end'; sessionId: string | null; exitCode: number | null }
-  | { type: 'error'; sessionId: string | null; error: string }
+    })
+  | (ClaudeStreamEventMeta & { type: 'stream-end'; sessionId: string | null; exitCode: number | null })
+  | (ClaudeStreamEventMeta & { type: 'error'; sessionId: string | null; error: string })
 
 export type SelectedFile = {
   name: string
@@ -284,6 +288,7 @@ export type ClaudeAPI = {
     prompt: string
     attachments?: SelectedFile[]
     cwd: string
+    requestId?: string
     claudePath?: string
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     planMode?: boolean

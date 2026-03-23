@@ -17,7 +17,6 @@ import {
   resolveTeamAgentStrings,
 } from '../../lib/teamAgentPresets'
 import type { AppLanguage } from '../../lib/i18n'
-import { normalizeSelectedFolder } from '../../lib/claudeRuntime'
 
 type SelectedAgent = {
   id: string
@@ -46,8 +45,7 @@ function createSelectedAgentFromPreset(preset: AgentPreset): SelectedAgent {
 }
 
 type Props = {
-  defaultCwd: string
-  onConfirm: (teamName: string, cwd: string, agents: SelectedAgent[]) => void
+  onConfirm: (teamName: string, agents: SelectedAgent[]) => void
   onClose: () => void
 }
 
@@ -293,12 +291,11 @@ function SelectedAgentBadge({
   )
 }
 
-export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
+export function TeamSetupModal({ onConfirm, onClose }: Props) {
   const { language, t } = useI18n()
   const [step, setStep] = useState<'select' | 'custom'>('select')
   const [showGuide, setShowGuide] = useState(false)
   const [teamName, setTeamName] = useState(() => t('team.setup.defaultTeamName'))
-  const [cwd, setCwd] = useState(defaultCwd)
   const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>([])
   const [customAgentPresets, setCustomAgentPresets] = useState<AgentPreset[]>(() => loadCustomAgentPresets(language))
   const [hoveredPreset, setHoveredPreset] = useState<PresetHoverState>(null)
@@ -395,20 +392,10 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
     ))
   }
 
-  async function handleSelectFolder() {
-    const selected = normalizeSelectedFolder(await window.claude.selectFolder({
-      defaultPath: cwd || defaultCwd,
-      title: t('team.setup.selectFolderDialogTitle'),
-    }))
-    if (!selected) return
-    setCwd(selected)
-  }
-
   function handleConfirm() {
     if (selectedAgents.length < 2) return
     onConfirm(
       teamName,
-      cwd,
       selectedAgents.map((agent) => ({
         ...agent,
         ...localizeSelectedAgent(agent),
@@ -664,27 +651,6 @@ export function TeamSetupModal({ defaultCwd, onConfirm, onClose }: Props) {
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                 />
-              </div>
-
-              {/* Project path */}
-              <div>
-                <label className="mb-1 block text-xs font-medium text-claude-text">
-                  {t('team.setup.field.workingPath')}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    className="min-w-0 flex-1 rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text font-mono focus:border-blue-500 focus:outline-none"
-                    value={cwd}
-                    onChange={(e) => setCwd(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleSelectFolder()}
-                    className="shrink-0 rounded-lg border border-claude-border bg-claude-surface/55 px-3 py-2 text-sm text-claude-text transition-colors hover:border-claude-border-hover hover:bg-claude-surface"
-                  >
-                    {t('team.setup.chooseFolder')}
-                  </button>
-                </div>
               </div>
 
               {/* Selected agents */}

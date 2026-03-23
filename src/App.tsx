@@ -10,6 +10,7 @@ import { TeamView } from './components/team/TeamView'
 import { useTeamStore } from './store/teamStore'
 import { useI18n } from './hooks/useI18n'
 import { useClaudeStream } from './hooks/useClaudeStream'
+import { useAgentTeamStream } from './hooks/useAgentTeam'
 import { useAppDesktopEffects } from './hooks/useAppDesktopEffects'
 import { useInstallationCheck } from './hooks/useInstallationCheck'
 import { useSidebarLayout } from './hooks/useSidebarLayout'
@@ -19,6 +20,15 @@ import { getShortcutLabel, getCurrentPlatform } from './lib/shortcuts'
 import { buildSessionFileLockState } from './lib/sessionLocks'
 import { useScheduledTasksStore } from './store/scheduledTasks'
 import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode } from './store/sessions'
+
+function normalizeProjectKey(path: string): string {
+  const trimmed = path.trim()
+  if (!trimmed || trimmed === '~') return '~'
+
+  const normalized = trimmed.replace(/\\/g, '/')
+  if (normalized === '/') return normalized
+  return normalized.replace(/\/+$/, '').toLowerCase()
+}
 
 export default function App() {
   const { language, t } = useI18n()
@@ -63,7 +73,7 @@ export default function App() {
     claudeBinaryPath,
   } = useSessionsStore()
 
-  const { setActiveTeam } = useTeamStore()
+  const { setActiveTeam, teams: agentTeams } = useTeamStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -168,6 +178,16 @@ export default function App() {
     removeSession,
   })
 
+  const {
+    startDiscussion: startTeamDiscussion,
+    continueDiscussion: continueTeamDiscussion,
+    abortDiscussion: abortTeamDiscussion,
+  } = useAgentTeamStream(
+    sanitizedEnvVars,
+    claudeBinaryPath || undefined,
+    language,
+  )
+
   useSubagentStreams({
     sessions,
     appendSubagentText,
@@ -225,12 +245,16 @@ export default function App() {
     setScheduleOpen(false)
     setTeamOpen(false)
     setCommandPaletteOpen(false)
-    // 세션에 연결된 팀이 있으면 해당 팀을 활성화
-    if (activeSession.linkedTeamId) {
-      setActiveTeam(activeSession.linkedTeamId)
-    }
+    const linkedTeam = activeSession.linkedTeamId
+      ? agentTeams.find((team) => team.id === activeSession.linkedTeamId) ?? null
+      : null
+    const isSameProject = linkedTeam
+      ? normalizeProjectKey(linkedTeam.cwd) === normalizeProjectKey(activeSession.cwd)
+      : false
+
+    setActiveTeam(isSameProject ? linkedTeam?.id ?? null : null)
     setSessionTeamOpen(true)
-  }, [activeSession, setActiveTeam])
+  }, [activeSession, agentTeams, setActiveTeam])
 
   /** 팀 토론 완료 후 결과 요약을 현재 세션에 주입 */
   const handleInjectTeamSummary = useCallback((summary: string) => {
@@ -330,15 +354,17 @@ export default function App() {
         {teamOpen ? (
           <TeamView
             defaultCwd={activeSession?.cwd ?? defaultProjectPath}
-            envVars={sanitizedEnvVars}
-            claudeBinaryPath={claudeBinaryPath || undefined}
+            startDiscussion={startTeamDiscussion}
+            continueDiscussion={continueTeamDiscussion}
+            abortDiscussion={abortTeamDiscussion}
             onClose={() => setTeamOpen(false)}
           />
         ) : sessionTeamOpen && activeSession ? (
           <TeamView
             defaultCwd={activeSession.cwd}
-            envVars={sanitizedEnvVars}
-            claudeBinaryPath={claudeBinaryPath || undefined}
+            startDiscussion={startTeamDiscussion}
+            continueDiscussion={continueTeamDiscussion}
+            abortDiscussion={abortTeamDiscussion}
             embedded
             onClose={() => setSessionTeamOpen(false)}
             onInjectSummary={handleInjectTeamSummary}

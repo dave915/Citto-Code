@@ -37,6 +37,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function sendClaudeEvent(
+  sender: WebContents,
+  channel: string,
+  payload: Record<string, unknown>,
+  requestId?: string,
+) {
+  sender.send(channel, requestId ? { ...payload, requestId } : payload)
+}
+
 function readUsageTokenCount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
@@ -84,6 +93,7 @@ export function handleClaudeEvent(
   data: Record<string, unknown>,
   sessionId: string | null,
   onSessionId: (sid: string) => void,
+  requestId?: string,
 ) {
   const type = data.type as string
 
@@ -91,7 +101,7 @@ export function handleClaudeEvent(
     const sid = data.session_id as string | undefined
     if (sid) {
       onSessionId(sid)
-      sender.send('claude:stream-start', { sessionId: sid, cwd: data.cwd })
+      sendClaudeEvent(sender, 'claude:stream-start', { sessionId: sid, cwd: data.cwd }, requestId)
     }
     return
   }
@@ -107,7 +117,7 @@ export function handleClaudeEvent(
       resetStreamedAssistantState(sid)
       const inputTokens = extractInputTokens(event)
       if (inputTokens !== null) {
-        sender.send('claude:token-usage', { sessionId: sid, inputTokens })
+        sendClaudeEvent(sender, 'claude:token-usage', { sessionId: sid, inputTokens }, requestId)
       }
       return
     }
@@ -126,7 +136,7 @@ export function handleClaudeEvent(
       const text = typeof delta.thinking === 'string' ? delta.thinking : ''
       if (!text) return
       getStreamedAssistantState(sid).sawThinkingDelta = true
-      sender.send('claude:thinking-chunk', { sessionId: sid, text })
+      sendClaudeEvent(sender, 'claude:thinking-chunk', { sessionId: sid, text }, requestId)
       return
     }
 
@@ -134,7 +144,7 @@ export function handleClaudeEvent(
       const text = typeof delta.text === 'string' ? delta.text : ''
       if (!text) return
       getStreamedAssistantState(sid).sawTextDelta = true
-      sender.send('claude:text-chunk', { sessionId: sid, text })
+      sendClaudeEvent(sender, 'claude:text-chunk', { sessionId: sid, text }, requestId)
     }
     return
   }
@@ -151,25 +161,25 @@ export function handleClaudeEvent(
       if ((block.type as string) === 'thinking') {
         if (streamedState?.sawThinkingDelta) continue
         const text = String(block.thinking ?? block.text ?? '')
-        sender.send('claude:thinking-chunk', { sessionId: sid, text })
+        sendClaudeEvent(sender, 'claude:thinking-chunk', { sessionId: sid, text }, requestId)
       } else if ((block.type as string) === 'text') {
         if (streamedState?.sawTextDelta) continue
         const text = String(block.text ?? '')
         textBlocks.push(text)
-        sender.send('claude:text-chunk', { sessionId: sid, text })
+        sendClaudeEvent(sender, 'claude:text-chunk', { sessionId: sid, text }, requestId)
       } else if ((block.type as string) === 'tool_use') {
-        sender.send('claude:tool-start', {
+        sendClaudeEvent(sender, 'claude:tool-start', {
           sessionId: sid,
           toolUseId: block.id as string,
           toolName: block.name as string,
           toolInput: block.input,
           fileSnapshotBefore: getToolFileSnapshotBefore(block.name as string, block.input),
-        })
+        }, requestId)
       }
     }
 
     if (typeof data.error === 'string' && textBlocks.join('').trim()) {
-      sender.send('claude:error', { sessionId: sid, error: textBlocks.join('').trim() })
+      sendClaudeEvent(sender, 'claude:error', { sessionId: sid, error: textBlocks.join('').trim() }, requestId)
     }
     return
   }
@@ -182,12 +192,12 @@ export function handleClaudeEvent(
     if (!Array.isArray(content)) return
     for (const block of content) {
       if ((block.type as string) === 'tool_result') {
-        sender.send('claude:tool-result', {
+        sendClaudeEvent(sender, 'claude:tool-result', {
           sessionId: sid,
           toolUseId: block.tool_use_id,
           content: block.content,
           isError: block.is_error ?? false,
-        })
+        }, requestId)
       }
     }
     return
@@ -196,19 +206,19 @@ export function handleClaudeEvent(
   if (type === 'tool_result') {
     const sid = (data.session_id as string) || sessionId
     if (sid) onSessionId(sid)
-    sender.send('claude:tool-result', {
+    sendClaudeEvent(sender, 'claude:tool-result', {
       sessionId: sid,
       toolUseId: data.tool_use_id,
       content: buildToolResultPayload(data),
       isError: data.is_error ?? false,
-    })
+    }, requestId)
     return
   }
 
   if (type === 'result') {
     const sid = (data.session_id as string) || sessionId
     if (sid) streamedAssistantStateBySession.delete(sid)
-    sender.send('claude:result', {
+    sendClaudeEvent(sender, 'claude:result', {
       sessionId: sid,
       costUsd: data.cost_usd,
       totalCostUsd: data.total_cost_usd,
@@ -224,7 +234,7 @@ export function handleClaudeEvent(
               toolInput: item.tool_input,
             }))
         : undefined,
-    })
+    }, requestId)
 
     if (data.is_error) {
       const resultText = typeof data.result === 'string' && data.result.trim()
@@ -237,7 +247,7 @@ export function handleClaudeEvent(
         const message = typeof data.error === 'string' && data.error.trim()
           ? data.error.trim()
           : 'Claude Code 요청이 실패했습니다.'
-        sender.send('claude:error', { sessionId: sid, error: message })
+        sendClaudeEvent(sender, 'claude:error', { sessionId: sid, error: message }, requestId)
       }
     }
   }

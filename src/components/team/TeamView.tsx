@@ -8,8 +8,8 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
+import type { SelectedFile } from '../../../electron/preload'
 import { useTeamStore } from '../../store/teamStore'
-import { useAgentTeamStream } from '../../hooks/useAgentTeam'
 import { useInputAttachments } from '../../hooks/useInputAttachments'
 import { useI18n } from '../../hooks/useI18n'
 import { translate, type AppLanguage } from '../../lib/i18n'
@@ -26,8 +26,9 @@ import { buildAttachmentCopyText, formatAttachedFilesSummary } from '../../lib/a
 
 type Props = {
   defaultCwd: string
-  envVars: Record<string, string>
-  claudeBinaryPath?: string
+  startDiscussion: (teamId: string, task: string, files?: SelectedFile[]) => Promise<void>
+  continueDiscussion: (teamId: string) => Promise<void>
+  abortDiscussion: (teamId: string) => Promise<void>
   onClose: () => void
   /** 세션 내 embedded 모드: 헤더 Back 버튼을 'Chat으로 돌아가기' 형태로 표시 */
   embedded?: boolean
@@ -86,6 +87,15 @@ function clampDetailPanelWidth(width: number) {
         )
 
   return Math.min(viewportMax, Math.max(DETAIL_PANEL_MIN_WIDTH, width))
+}
+
+function normalizeTeamProjectKey(path: string): string {
+  const trimmed = path.trim()
+  if (!trimmed || trimmed === '~') return '~'
+
+  const normalized = trimmed.replace(/\\/g, '/')
+  if (normalized === '/') return normalized
+  return normalized.replace(/\/+$/, '').toLowerCase()
 }
 
 function ModeSelector({
@@ -750,7 +760,16 @@ function SelectedAgentPanel({
   )
 }
 
-export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embedded, onInjectSummary, onTeamLinked }: Props) {
+export function TeamView({
+  defaultCwd,
+  startDiscussion,
+  continueDiscussion,
+  abortDiscussion,
+  onClose,
+  embedded,
+  onInjectSummary,
+  onTeamLinked,
+}: Props) {
   const { language, t } = useI18n()
   const {
     teams,
@@ -761,12 +780,6 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
     setTeamMode,
     resetDiscussion,
   } = useTeamStore()
-
-  const { startDiscussion, continueDiscussion, abortDiscussion } = useAgentTeamStream(
-    envVars,
-    claudeBinaryPath,
-    language,
-  )
 
   const [showSetup, setShowSetup] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
@@ -780,7 +793,11 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
   const isComposingRef = useRef(false)
   const escapePressedAtRef = useRef(0)
   const detailPanelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
-  const activeTeam = activeTeamId ? teams.find((t) => t.id === activeTeamId) ?? null : null
+  const projectKey = normalizeTeamProjectKey(defaultCwd)
+  const projectTeams = teams.filter((team) => normalizeTeamProjectKey(team.cwd) === projectKey)
+  const scopedActiveTeam = activeTeamId ? projectTeams.find((team) => team.id === activeTeamId) ?? null : null
+  const activeTeam = scopedActiveTeam ?? projectTeams[0] ?? null
+  const resolvedActiveTeamId = activeTeam?.id ?? null
   const {
     attachedFiles,
     isAttaching,
@@ -829,7 +846,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
 
   useEffect(() => {
     setInjected(false)
-  }, [activeTeamId])
+  }, [resolvedActiveTeamId])
 
   useEffect(() => {
     if (!displayActiveTeam) {
@@ -944,7 +961,6 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
 
   function handleCreateTeam(
     teamName: string,
-    cwd: string,
     selectedAgents: Array<{
       id: string
       presetId: string | null
@@ -958,7 +974,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
     }>,
   ) {
     const teamId = addTeam(
-      cwd,
+      defaultCwd.trim() || '~',
       teamName,
       selectedAgents.map((a) => ({
         id: a.id,
@@ -1049,7 +1065,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
   }
 
   // Empty state (no teams yet)
-  if (teams.length === 0) {
+  if (projectTeams.length === 0) {
     return (
       <>
         <div className="flex h-full flex-col items-center justify-center gap-6 bg-claude-bg">
@@ -1091,7 +1107,6 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
 
         {showSetup && (
           <TeamSetupModal
-            defaultCwd={defaultCwd}
             onConfirm={handleCreateTeam}
             onClose={() => setShowSetup(false)}
           />
@@ -1121,7 +1136,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
 
           {/* Team selector */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            {teams.map((team) => (
+            {projectTeams.map((team) => (
               <button
                 key={team.id}
                 onClick={() => {
@@ -1130,7 +1145,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
                 }}
                 className={`
                   flex min-w-0 max-w-[220px] items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors
-                  ${team.id === activeTeamId
+                  ${team.id === resolvedActiveTeamId
                     ? 'bg-claude-bg-hover text-claude-text font-medium'
                     : 'text-claude-text-muted hover:text-claude-text'
                   }
@@ -1499,7 +1514,6 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
 
       {showSetup && (
         <TeamSetupModal
-          defaultCwd={defaultCwd}
           onConfirm={handleCreateTeam}
           onClose={() => setShowSetup(false)}
         />

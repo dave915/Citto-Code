@@ -25,6 +25,7 @@ type SendMessageParams = {
   prompt: string
   attachments?: SelectedFile[]
   cwd: string
+  requestId?: string
   claudePath?: string
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
   planMode?: boolean
@@ -154,7 +155,7 @@ export function registerClaudeIpcHandlers({
   })
 
   ipcMain.handle('claude:send-message', async (event, params: SendMessageParams) => {
-    const { sessionId, prompt, attachments = [], cwd, claudePath, permissionMode, planMode, model, envVars } = params
+    const { sessionId, prompt, attachments = [], cwd, requestId, claudePath, permissionMode, planMode, model, envVars } = params
 
     if (sessionId && activeProcesses.has(sessionId)) {
       const existingProc = activeProcesses.get(sessionId)
@@ -250,7 +251,7 @@ export function registerClaudeIpcHandlers({
                 activeProcesses.delete(tempKey)
               }
             }
-          })
+          }, requestId)
         } catch (error) {
           appendClaudeResponseLog({
             source: 'stdout',
@@ -287,7 +288,7 @@ export function registerClaudeIpcHandlers({
         eventType: 'stream-end',
         exitCode: code,
       })
-      event.sender.send('claude:stream-end', { sessionId: resolvedSessionId, exitCode: code })
+      event.sender.send('claude:stream-end', { sessionId: resolvedSessionId, exitCode: code, requestId })
     })
 
     proc.on('error', (error) => {
@@ -298,7 +299,7 @@ export function registerClaudeIpcHandlers({
         eventType: 'process-error',
         error: error.message,
       })
-      event.sender.send('claude:error', { sessionId: resolvedSessionId, error: error.message })
+      event.sender.send('claude:error', { sessionId: resolvedSessionId, error: error.message, requestId })
     })
 
     return { tempKey }
