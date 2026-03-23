@@ -77,6 +77,89 @@ export function getBuiltinSlashCommands(language: AppLanguage = 'ko'): SlashComm
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico', 'heic', 'heif'])
+const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/gif': 'gif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/svg+xml': 'svg',
+  'image/webp': 'webp',
+  'image/x-icon': 'ico',
+}
+
+function createSyntheticAttachmentName(file: File, source: 'drop' | 'clipboard', ext: string, isImage: boolean): string {
+  const rawName = file.name.trim()
+  if (rawName) return rawName
+
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const prefix = source === 'clipboard'
+    ? (isImage ? 'pasted-image' : 'pasted-file')
+    : (isImage ? 'attached-image' : 'attached-file')
+  return ext ? `${prefix}-${suffix}.${ext}` : `${prefix}-${suffix}`
+}
+
+function toBase64(bytes: Uint8Array): string {
+  const chunkSize = 0x8000
+  let binary = ''
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+
+  return btoa(binary)
+}
+
+function getFileExtension(file: File): string {
+  const fromName = file.name.split('.').pop()?.toLowerCase() ?? ''
+  if (fromName) return fromName
+  return IMAGE_MIME_EXTENSIONS[file.type] ?? ''
+}
+
+async function readBrowserFiles(files: File[], source: 'drop' | 'clipboard'): Promise<SelectedFile[]> {
+  const selectedFiles: Array<SelectedFile | null> = await Promise.all(
+    files.map(async (file) => {
+      try {
+        const ext = getFileExtension(file)
+        const isImage = IMAGE_EXTENSIONS.has(ext) || file.type.startsWith('image/')
+        const fallbackName = createSyntheticAttachmentName(file, source, ext, isImage)
+        const filePath = window.claude.getPathForFile(file)
+        const resolvedPath = filePath.trim().length > 0
+          ? filePath
+          : `${source}://${fallbackName}`
+
+        if (isImage) {
+          const buffer = await file.arrayBuffer()
+          const base64 = toBase64(new Uint8Array(buffer))
+          return {
+            name: fallbackName,
+            path: resolvedPath,
+            content: '',
+            size: file.size,
+            fileType: 'image' as const,
+            dataUrl: `data:${file.type || 'application/octet-stream'};base64,${base64}`,
+          }
+        }
+
+        const content = await file.text()
+        return {
+          name: fallbackName,
+          path: resolvedPath,
+          content,
+          size: file.size,
+          fileType: 'text' as const,
+        }
+      } catch (error) {
+        console.warn(`[readBrowserFiles] Failed to read ${source} file:`, file.name, error)
+        return null
+      }
+    }),
+  )
+
+  return selectedFiles.filter((file): file is SelectedFile => file !== null)
+}
 
 export function getPermissionOptions(language: AppLanguage = 'ko'): { value: PermissionMode; label: string; title: string }[] {
   return [
@@ -140,50 +223,17 @@ export function formatBytes(bytes: number): string {
 }
 
 export async function readDroppedFiles(dataTransfer: DataTransfer): Promise<SelectedFile[]> {
-  const files = Array.from(dataTransfer.files)
-  const selectedFiles: Array<SelectedFile | null> = await Promise.all(
-    files.map(async (file) => {
-      try {
-        const filePath = window.claude.getPathForFile(file)
-        const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return readBrowserFiles(Array.from(dataTransfer.files), 'drop')
+}
 
-        if (IMAGE_EXTENSIONS.has(ext)) {
-          const buffer = await file.arrayBuffer()
-          const bytes = new Uint8Array(buffer)
-          const chunkSize = 0x8000
-          let binary = ''
+export async function readPastedFiles(dataTransfer: DataTransfer): Promise<SelectedFile[]> {
+  const itemFiles = Array.from(dataTransfer.items)
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null)
 
-          for (let index = 0; index < bytes.length; index += chunkSize) {
-            binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
-          }
-
-          const base64 = btoa(binary)
-          return {
-            name: file.name,
-            path: filePath.trim().length > 0 ? filePath : file.name,
-            content: '',
-            size: file.size,
-            fileType: 'image' as const,
-            dataUrl: `data:${file.type || 'application/octet-stream'};base64,${base64}`,
-          }
-        }
-
-        const content = await file.text()
-        return {
-          name: file.name,
-          path: filePath.trim().length > 0 ? filePath : file.name,
-          content,
-          size: file.size,
-          fileType: 'text' as const,
-        }
-      } catch (error) {
-        console.warn('[readDroppedFiles] Failed to read file:', file.name, error)
-        return null
-      }
-    })
-  )
-
-  return selectedFiles.filter((file): file is SelectedFile => file !== null)
+  const files = itemFiles.length > 0 ? itemFiles : Array.from(dataTransfer.files)
+  return readBrowserFiles(files, 'clipboard')
 }
 
 export function cycleClaudeCodeMode(

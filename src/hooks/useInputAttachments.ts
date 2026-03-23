@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type ClipboardEvent as ReactClipboardEvent } from 'react'
 import type { SelectedFile } from '../../electron/preload'
-import { readDroppedFiles } from '../components/input/inputUtils'
+import { readDroppedFiles, readPastedFiles } from '../components/input/inputUtils'
 
 type Params = {
   disabled?: boolean
@@ -14,16 +14,22 @@ export function useInputAttachments({ disabled, isStreaming }: Params) {
   const [isDragOver, setIsDragOver] = useState(false)
   const dragDepthRef = useRef(0)
 
+  const mergeAttachedFiles = useCallback((nextFiles: SelectedFile[]) => {
+    if (nextFiles.length === 0) return
+
+    setAttachedFiles((prev) => {
+      const existing = new Set(prev.map((file) => file.path))
+      return [...prev, ...nextFiles.filter((file) => !existing.has(file.path))]
+    })
+  }, [])
+
   const handleAttachFiles = useCallback(async () => {
     if (isAttaching || isStreaming) return
     setIsAttaching(true)
     try {
       const result = await window.claude.selectFiles()
       if (result?.files?.length > 0) {
-        setAttachedFiles((prev) => {
-          const existing = new Set(prev.map((file) => file.path))
-          return [...prev, ...result.files.filter((file) => !existing.has(file.path))]
-        })
+        mergeAttachedFiles(result.files)
       }
       if (result?.skipped?.length > 0) {
         setSkippedFiles(result.skipped)
@@ -32,22 +38,33 @@ export function useInputAttachments({ disabled, isStreaming }: Params) {
     } finally {
       setIsAttaching(false)
     }
-  }, [isAttaching, isStreaming])
+  }, [isAttaching, isStreaming, mergeAttachedFiles])
 
   const attachDroppedFiles = useCallback(async (dataTransfer: DataTransfer) => {
     setIsAttaching(true)
     try {
       const nextFiles = await readDroppedFiles(dataTransfer)
-      if (nextFiles.length === 0) return
-
-      setAttachedFiles((prev) => {
-        const existing = new Set(prev.map((file) => file.path))
-        return [...prev, ...nextFiles.filter((file) => !existing.has(file.path))]
-      })
+      mergeAttachedFiles(nextFiles)
     } finally {
       setIsAttaching(false)
     }
-  }, [])
+  }, [mergeAttachedFiles])
+
+  const handlePaste = useCallback(async (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    if (isStreaming || disabled || isAttaching) return
+
+    const hasFileItem = Array.from(event.clipboardData.items).some((item) => item.kind === 'file')
+    if (!hasFileItem) return
+
+    event.preventDefault()
+    setIsAttaching(true)
+    try {
+      const nextFiles = await readPastedFiles(event.clipboardData)
+      mergeAttachedFiles(nextFiles)
+    } finally {
+      setIsAttaching(false)
+    }
+  }, [disabled, isAttaching, isStreaming, mergeAttachedFiles])
 
   const handleDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     if (isStreaming || disabled) return
@@ -94,5 +111,6 @@ export function useInputAttachments({ disabled, isStreaming }: Params) {
     handleDragLeave,
     handleDragOver,
     handleDrop,
+    handlePaste,
   }
 }

@@ -792,6 +792,7 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
     handleDragLeave,
     handleDragOver,
     handleDrop,
+    handlePaste,
   } = useInputAttachments({
     disabled: activeTeam?.status === 'running',
     isStreaming: activeTeam?.status === 'running',
@@ -1364,6 +1365,9 @@ export function TeamView({ defaultCwd, envVars, claudeBinaryPath, onClose, embed
                       value={task}
                       onChange={(e) => setTask(e.target.value)}
                       onKeyDown={handleKeyDown}
+                      onPaste={(event) => {
+                        void handlePaste(event)
+                      }}
                       onCompositionStart={() => { isComposingRef.current = true }}
                       onCompositionEnd={() => { isComposingRef.current = false }}
                       placeholder={

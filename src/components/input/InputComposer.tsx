@@ -16,6 +16,7 @@ type Props = {
   questionInputMode: boolean
   onChange: ComponentProps<'textarea'>['onChange']
   onKeyDown: ComponentProps<'textarea'>['onKeyDown']
+  onPaste: ComponentProps<'textarea'>['onPaste']
   onSelect: ComponentProps<'textarea'>['onSelect']
   onBlur: () => void
   onCompositionStart: () => void
@@ -41,6 +42,7 @@ export function InputComposer({
   questionInputMode,
   onChange,
   onKeyDown,
+  onPaste,
   onSelect,
   onBlur,
   onCompositionStart,
@@ -79,6 +81,7 @@ export function InputComposer({
             value={text}
             onChange={onChange}
             onKeyDown={onKeyDown}
+            onPaste={onPaste}
             onSelect={onSelect}
             onBlur={onBlur}
             onCompositionStart={onCompositionStart}

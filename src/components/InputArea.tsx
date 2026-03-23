@@ -80,6 +80,7 @@ export function InputArea({
     handleDragLeave,
     handleDragOver,
     handleDrop,
+    handlePaste,
   } = useInputAttachments({ disabled, isStreaming })
   const { models, modelsLoading, slashCommands } = useInputModelData(sanitizedEnvVars, language)
 
@@ -259,6 +260,9 @@ export function InputArea({
           questionInputMode={questionInputMode}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
+          onPaste={(event) => {
+            void handlePaste(event)
+          }}
           onSelect={handleSelect}
           onBlur={() => setTimeout(() => { closeAtMention(); closeSlashMention() }, 150)}
           onCompositionStart={() => { isComposingRef.current = true }}
