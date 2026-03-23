@@ -14,10 +14,12 @@ import { useI18n } from '../hooks/useI18n'
 import { InputArea } from './InputArea'
 import { BranchCreateModal } from './chat/BranchCreateModal'
 import { AgentStatusBar } from './chat/AgentStatusBar'
+import { BtwOverlay } from './chat/BtwOverlay'
 import { ChatHeader } from './chat/ChatHeader'
 import { ChatMessagePane } from './chat/ChatMessagePane'
 import { ChatSidePanel } from './chat/ChatSidePanel'
 import type { GitDiffResult, GitLogEntry, GitStatusEntry, SelectedFile } from '../../electron/preload'
+import type { BtwState } from '../hooks/claudeStream/types'
 import {
   buildDefaultSavePath,
   buildSessionExportFileName,
@@ -53,6 +55,9 @@ type Props = {
   jumpToMessageId?: string | null
   jumpToMessageToken?: number
   onSend: (text: string, files: SelectedFile[]) => void
+  onSendBtw: (text: string, files: SelectedFile[]) => void
+  btwState?: BtwState | null
+  onDismissBtw: () => void
   onAbort: () => void
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
   onQuestionResponse: (answer: string | null) => void
@@ -88,7 +93,7 @@ const PERMISSION_CONTINUATION_TEXTS = new Set([
 ])
 
 export function ChatView({
-  session, fileConflict, jumpToMessageId, jumpToMessageToken, onSend, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
+  session, fileConflict, jumpToMessageId, jumpToMessageToken, onSend, onSendBtw, btwState, onDismissBtw, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel,
   onPermissionModeChange, onPlanModeChange, onModelChange, permissionShortcutLabel, bypassShortcutLabel,
   onOpenTeam,
@@ -624,6 +629,7 @@ export function ChatView({
           cwd={session.cwd}
           promptHistory={promptHistory}
           onSend={onSend}
+          onSendBtw={onSendBtw}
           onAbort={onAbort}
           isStreaming={session.isStreaming}
           pendingPermission={session.pendingPermission}
@@ -639,9 +645,15 @@ export function ChatView({
           permissionShortcutLabel={permissionShortcutLabel}
           bypassShortcutLabel={bypassShortcutLabel}
           externalDraft={externalDraft}
-          topSlot={<AgentStatusBar session={session} />}
+          topSlot={(
+            <>
+              <AgentStatusBar session={session} />
+              {btwState ? <BtwOverlay state={btwState} onClose={onDismissBtw} /> : null}
+            </>
+          )}
           onOpenTeam={onOpenTeam}
           hasLinkedTeam={Boolean(session.linkedTeamId)}
+          btwState={btwState}
         />
       </div>
 

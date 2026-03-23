@@ -289,6 +289,7 @@ export type ClaudeAPI = {
     attachments?: SelectedFile[]
     cwd: string
     requestId?: string
+    allowConcurrent?: boolean
     claudePath?: string
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     planMode?: boolean

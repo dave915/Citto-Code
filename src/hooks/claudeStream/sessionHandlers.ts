@@ -10,6 +10,7 @@ import {
 } from '../../lib/claudeRuntime'
 import { buildPromptWithAttachments, formatAttachedFilesSummary, toAttachedFiles } from '../../lib/attachmentPrompts'
 import { translate, type AppLanguage } from '../../lib/i18n'
+import { nanoid } from '../../store/nanoid'
 import { useSessionsStore, type Session } from '../../store/sessions'
 import type {
   ClaudeSessionHandlerDeps,
@@ -19,6 +20,16 @@ import type {
 
 function getUiLanguage(): AppLanguage {
   return typeof document !== 'undefined' && document.documentElement.lang.startsWith('en') ? 'en' : 'ko'
+}
+
+async function waitForClaudeSessionId(tabId: string, timeoutMs = 1500): Promise<string | null> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const sessionId = useSessionsStore.getState().sessions.find((item) => item.id === tabId)?.sessionId ?? null
+    if (sessionId) return sessionId
+    await new Promise((resolve) => window.setTimeout(resolve, 40))
+  }
+  return useSessionsStore.getState().sessions.find((item) => item.id === tabId)?.sessionId ?? null
 }
 
 async function cleanupSessionAutoPreviewDirectories(session: Session, remainingSessions: Session[]) {
@@ -67,11 +78,13 @@ export function createClaudeSessionHandlers({
     runtime.abortedTabIdsRef.current.delete(sessionId)
     const uiLanguage = getUiLanguage()
 
-    let fullPrompt = buildPromptWithAttachments(text, files, uiLanguage, {
-      includeImageReferences: false,
-    })
+    let fullPrompt = options?.skipAutoTransforms
+      ? text
+      : buildPromptWithAttachments(text, files, uiLanguage, {
+          includeImageReferences: false,
+        })
 
-    if (shouldAutoGenerateHtmlPreview(text, files)) {
+    if (!options?.skipAutoTransforms && shouldAutoGenerateHtmlPreview(text, files)) {
       const autoPreviewInstruction = buildAutoHtmlPreviewInstruction(
         text,
         session.cwd && session.cwd !== '~' ? session.cwd : '~',
@@ -129,6 +142,96 @@ export function createClaudeSessionHandlers({
       runtime.pendingProcessKeyByTabRef.current.delete(sessionId)
       runtime.pendingTabIdRef.current = null
       runtime.currentAsstMsgRef.current.delete(sessionId)
+    }
+  }
+
+  const handleBtwForSession = async (
+    sessionId: string,
+    text: string,
+    files: SelectedFile[],
+  ) => {
+    const session = useSessionsStore.getState().sessions.find((item) => item.id === sessionId)
+    if (!session) return
+
+    const activeBtw = runtime.btwRequestMapRef.current
+    for (const [requestId, context] of activeBtw.entries()) {
+      if (context.tabId !== sessionId) continue
+      activeBtw.delete(requestId)
+    }
+
+    runtime.clearBtwState(sessionId)
+
+    let effectiveClaudeSessionId = session.sessionId ?? null
+    if (session.isStreaming && !effectiveClaudeSessionId) {
+      effectiveClaudeSessionId = await waitForClaudeSessionId(sessionId)
+      if (!effectiveClaudeSessionId) {
+        runtime.setBtwState(sessionId, {
+          requestId: '',
+          prompt: text,
+          answer: '',
+          status: 'error',
+          error: translate(getUiLanguage(), 'input.btw.sessionUnavailable'),
+          sessionId: null,
+          processKey: null,
+        })
+        return
+      }
+    }
+
+    const requestId = nanoid()
+    runtime.btwRequestMapRef.current.set(requestId, {
+      requestId,
+      tabId: sessionId,
+      prompt: text,
+    })
+    runtime.setBtwState(sessionId, {
+      requestId,
+      prompt: text,
+      answer: '',
+      status: 'running',
+      error: null,
+      sessionId: effectiveClaudeSessionId,
+      processKey: null,
+    })
+
+    try {
+      const effectiveEnvVars = resolveEnvVarsForModel(
+        session.model,
+        Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : {},
+      )
+
+      const result = await window.claude.sendMessage({
+        sessionId: effectiveClaudeSessionId,
+        prompt: text,
+        attachments: files,
+        cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',
+        requestId,
+        allowConcurrent: true,
+        permissionMode: session.permissionMode,
+        planMode: session.planMode,
+        model: session.model ?? undefined,
+        envVars: effectiveEnvVars,
+        claudePath: claudeBinaryPath || undefined,
+      })
+
+      if (result?.tempKey) {
+        runtime.patchBtwState(sessionId, (current) => (
+          current.requestId === requestId
+            ? { ...current, processKey: result.tempKey }
+            : current
+        ))
+      }
+    } catch (error) {
+      runtime.btwRequestMapRef.current.delete(requestId)
+      runtime.setBtwState(sessionId, {
+        requestId,
+        prompt: text,
+        answer: '',
+        status: 'error',
+        error: String(error),
+        sessionId: effectiveClaudeSessionId,
+        processKey: null,
+      })
     }
   }
 
@@ -258,6 +361,7 @@ export function createClaudeSessionHandlers({
 
   return {
     handleAbort,
+    handleBtwForSession,
     handleModelChange,
     handlePermissionRequestAction,
     handleQuestionResponse,

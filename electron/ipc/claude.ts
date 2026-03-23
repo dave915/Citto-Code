@@ -26,6 +26,7 @@ type SendMessageParams = {
   attachments?: SelectedFile[]
   cwd: string
   requestId?: string
+  allowConcurrent?: boolean
   claudePath?: string
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
   planMode?: boolean
@@ -155,9 +156,21 @@ export function registerClaudeIpcHandlers({
   })
 
   ipcMain.handle('claude:send-message', async (event, params: SendMessageParams) => {
-    const { sessionId, prompt, attachments = [], cwd, requestId, claudePath, permissionMode, planMode, model, envVars } = params
+    const {
+      sessionId,
+      prompt,
+      attachments = [],
+      cwd,
+      requestId,
+      allowConcurrent = false,
+      claudePath,
+      permissionMode,
+      planMode,
+      model,
+      envVars,
+    } = params
 
-    if (sessionId && activeProcesses.has(sessionId)) {
+    if (!allowConcurrent && sessionId && activeProcesses.has(sessionId)) {
       const existingProc = activeProcesses.get(sessionId)
       if (existingProc) {
         existingProc.kill()
@@ -216,9 +229,9 @@ export function registerClaudeIpcHandlers({
           stdio: ['pipe', 'pipe', 'pipe'],
         })
 
-    const tempKey = `pending-${Date.now()}`
+    const tempKey = requestId ? `request-${requestId}` : `pending-${Date.now()}`
     activeProcesses.set(tempKey, proc)
-    if (sessionId) {
+    if (sessionId && !allowConcurrent) {
       activeProcesses.set(sessionId, proc)
     }
 
@@ -245,7 +258,7 @@ export function registerClaudeIpcHandlers({
           })
           handleClaudeEvent(event.sender, eventData, resolvedSessionId, (sid) => {
             resolvedSessionId = sid
-            if (sid) {
+            if (sid && !allowConcurrent) {
               activeProcesses.set(sid, proc)
               if (activeProcesses.get(tempKey) === proc) {
                 activeProcesses.delete(tempKey)

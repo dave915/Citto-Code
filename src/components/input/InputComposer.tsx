@@ -10,6 +10,7 @@ type Props = {
   text: string
   attachedFileCount: number
   isStreaming: boolean
+  allowStreamingInput?: boolean
   disabled?: boolean
   isDragOver: boolean
   showQuestionPrompt: boolean
@@ -36,6 +37,7 @@ export function InputComposer({
   text,
   attachedFileCount,
   isStreaming,
+  allowStreamingInput,
   disabled,
   isDragOver,
   showQuestionPrompt,
@@ -88,13 +90,13 @@ export function InputComposer({
             onCompositionEnd={onCompositionEnd}
             placeholder={
               isStreaming
-                ? translate(language, 'input.placeholder.waiting')
+                ? translate(language, allowStreamingInput ? 'input.placeholder.waitingWithBtw' : 'input.placeholder.waiting')
                 : attachedFileCount > 0
                   ? translate(language, 'input.placeholder.withFiles')
                   : translate(language, 'input.placeholder.default')
             }
             rows={1}
-            disabled={isStreaming || disabled}
+            disabled={(isStreaming && !allowStreamingInput) || disabled}
             readOnly={showQuestionPrompt && !questionInputMode}
             className="chat-input-textarea min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
           />

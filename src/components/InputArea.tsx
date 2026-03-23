@@ -8,13 +8,15 @@ import { useInputModelData } from '../hooks/useInputModelData'
 import { useInputPrompts } from '../hooks/useInputPrompts'
 import { AttachmentList } from './input/AttachmentList'
 import { InputComposer } from './input/InputComposer'
-import { sanitizeEnvVars } from './input/inputUtils'
+import { extractBtwQuestion, sanitizeEnvVars } from './input/inputUtils'
 import { useI18n } from '../hooks/useI18n'
+import type { BtwState } from '../hooks/claudeStream/types'
 
 type Props = {
   cwd: string
   promptHistory: string[]
   onSend: (text: string, files: SelectedFile[]) => void
+  onSendBtw: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
   pendingPermission: PendingPermissionRequest | null
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
@@ -34,12 +36,14 @@ type Props = {
   topSlot?: ReactNode
   onOpenTeam?: () => void
   hasLinkedTeam?: boolean
+  btwState?: BtwState | null
 }
 
 export function InputArea({
   cwd,
   promptHistory,
   onSend,
+  onSendBtw,
   onAbort,
   pendingPermission,
   onPermissionRequestAction,
@@ -59,6 +63,7 @@ export function InputArea({
   topSlot,
   onOpenTeam,
   hasLinkedTeam,
+  btwState,
 }: Props) {
   const { language } = useI18n()
   const envVars = useSessionsStore((state) => state.envVars)
@@ -191,17 +196,31 @@ export function InputArea({
     syncTextareaHeight(text)
   }, [syncTextareaHeight, text])
 
+  const btwQuestion = useMemo(() => extractBtwQuestion(text), [text])
+  const canSendBtw = btwQuestion !== null && btwQuestion.length > 0 && btwState?.status !== 'running'
+
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
-    if ((!trimmed && attachedFiles.length === 0) || isStreaming || disabled) return
+    if ((!trimmed && attachedFiles.length === 0) || disabled) return
+
+    if (btwQuestion !== null) {
+      if (btwQuestion.length === 0 || btwState?.status === 'running') return
+      onSendBtw(trimmed, attachedFiles)
+      resetComposer()
+      return
+    }
+
+    if (isStreaming) return
+
     onSend(trimmed, attachedFiles)
     resetComposer()
-  }, [attachedFiles, disabled, isStreaming, onSend, resetComposer, text])
+  }, [attachedFiles, btwQuestion, btwState?.status, disabled, isStreaming, onSend, onSendBtw, resetComposer, text])
 
   const { handleKeyDown } = useInputKeyboard({
     text,
     attachedFiles,
     isStreaming,
+    canSendWhileStreaming: canSendBtw,
     disabled,
     showQuestionPrompt,
     showPermissionPrompt,
@@ -234,7 +253,9 @@ export function InputArea({
     setHistoryIndex,
   })
 
-  const canSend = (text.trim().length > 0 || attachedFiles.length > 0) && !isStreaming && !disabled
+  const canSend = btwQuestion !== null
+    ? canSendBtw && !disabled
+    : (text.trim().length > 0 || attachedFiles.length > 0) && !isStreaming && !disabled
 
   return (
     <div className="bg-claude-chat-bg px-6 pt-4 pb-5">
@@ -254,6 +275,7 @@ export function InputArea({
           text={text}
           attachedFileCount={attachedFiles.length}
           isStreaming={isStreaming}
+          allowStreamingInput={isStreaming}
           disabled={disabled}
           isDragOver={isDragOver}
           showQuestionPrompt={showQuestionPrompt}
@@ -324,6 +346,7 @@ export function InputArea({
             onAbort,
             handleSend,
             canSend,
+            canSendWhileStreaming: canSendBtw,
             onOpenTeam,
             hasLinkedTeam,
           }}

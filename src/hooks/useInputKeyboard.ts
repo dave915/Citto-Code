@@ -6,6 +6,7 @@ type Params = {
   text: string
   attachedFiles: SelectedFile[]
   isStreaming: boolean
+  canSendWhileStreaming?: boolean
   disabled?: boolean
   showQuestionPrompt: boolean
   showPermissionPrompt: boolean
@@ -42,6 +43,7 @@ export function useInputKeyboard({
   text,
   attachedFiles,
   isStreaming,
+  canSendWhileStreaming,
   disabled,
   showQuestionPrompt,
   showPermissionPrompt,
@@ -314,7 +316,7 @@ export function useInputKeyboard({
     const native = event.nativeEvent as KeyboardEvent
     if (isImeKeyboardEvent(native)) return
 
-    if ((text.trim().length === 0 && attachedFiles.length === 0) || isStreaming || disabled) {
+    if ((text.trim().length === 0 && attachedFiles.length === 0) || disabled || (isStreaming && !canSendWhileStreaming)) {
       event.preventDefault()
       return
     }
@@ -337,6 +339,7 @@ export function useInputKeyboard({
     historyIndex,
     isImeKeyboardEvent,
     isStreaming,
+    canSendWhileStreaming,
     onAbort,
     onPermissionRequestAction,
     permissionActions,

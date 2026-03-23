@@ -43,6 +43,24 @@ export type ScheduledTaskRunMeta = {
   runAt: number
 }
 
+export type BtwStatus = 'running' | 'done' | 'error'
+
+export type BtwState = {
+  requestId: string
+  prompt: string
+  answer: string
+  status: BtwStatus
+  error: string | null
+  sessionId: string | null
+  processKey: string | null
+}
+
+export type BtwRequestContext = {
+  requestId: string
+  tabId: string
+  prompt: string
+}
+
 export type ClaudeStreamStoreSnapshot = StreamStoreActions & {
   activeSessionId: string | null
 }
@@ -56,14 +74,19 @@ export type ClaudeStreamRuntimeRefs = {
   scheduledTaskSessionByRunRef: MutableRefObject<Map<string, string>>
   scheduledTaskRunMetaBySessionRef: MutableRefObject<Map<string, ScheduledTaskRunMeta>>
   notifiedSessionEndsRef: MutableRefObject<Set<string>>
+  btwRequestMapRef: MutableRefObject<Map<string, BtwRequestContext>>
   notificationModeRef: MutableRefObject<NotificationMode>
   sessionsRef: MutableRefObject<Session[]>
   storeRef: MutableRefObject<ClaudeStreamStoreSnapshot>
+  setBtwState: (tabId: string, nextState: BtwState | null) => void
+  patchBtwState: (tabId: string, updater: (current: BtwState) => BtwState) => void
+  clearBtwState: (tabId: string) => void
 }
 
 export type HandleSendOptions = {
   permissionModeOverride?: PermissionMode
   visibleTextOverride?: string
+  skipAutoTransforms?: boolean
 }
 
 export type ClaudeSessionHandlerDeps = {

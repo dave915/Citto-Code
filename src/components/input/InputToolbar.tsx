@@ -6,6 +6,7 @@ import { getPermissionOptions } from './inputUtils'
 
 export function InputToolbar({
   isStreaming,
+  canSendWhileStreaming,
   language,
   disabled,
   isAttaching,
@@ -28,6 +29,7 @@ export function InputToolbar({
   hasLinkedTeam,
 }: {
   isStreaming: boolean
+  canSendWhileStreaming?: boolean
   language: AppLanguage
   disabled?: boolean
   isAttaching: boolean
@@ -167,7 +169,7 @@ export function InputToolbar({
 
       <div className="h-4 w-px flex-shrink-0 bg-claude-border" />
 
-      {showStreamingUi ? (
+      {showStreamingUi && !canSendWhileStreaming ? (
         <button
           onClick={onAbort}
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90"
@@ -182,7 +184,7 @@ export function InputToolbar({
           onClick={handleSend}
           disabled={!canSend}
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-claude-panel disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
-          title={translate(language, 'input.send')}
+          title={translate(language, canSendWhileStreaming ? 'input.btw.send' : 'input.send')}
         >
           <svg className="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m-7 7l7-7 7 7" />

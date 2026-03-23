@@ -11,7 +11,7 @@ import {
   type Session,
 } from '../../store/sessions'
 import { translate, type AppLanguage } from '../../lib/i18n'
-import type { ClaudeStreamRuntimeRefs } from './types'
+import type { BtwState, ClaudeStreamRuntimeRefs } from './types'
 
 export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
   const getUiLanguage = (): AppLanguage => (
@@ -79,8 +79,115 @@ export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
       ?? runtime.sessionsRef.current.find((session) => session.id === tabId)
   }
 
+  function resolveBtwContext(requestId?: string): { requestId: string; tabId: string; prompt: string } | null {
+    if (!requestId) return null
+    return runtime.btwRequestMapRef.current.get(requestId) ?? null
+  }
+
+  function patchBtwIfCurrent(
+    tabId: string,
+    requestId: string,
+    updater: (current: BtwState) => BtwState,
+  ) {
+    runtime.patchBtwState(tabId, (current) => {
+      if (current.requestId !== requestId) return current
+      return updater(current)
+    })
+  }
+
+  function clearBtwRequest(requestId?: string) {
+    if (!requestId) return
+    runtime.btwRequestMapRef.current.delete(requestId)
+  }
+
+  function handleBtwEvent(event: ClaudeStreamEvent): boolean {
+    const context = resolveBtwContext(event.requestId)
+    if (!context) return false
+
+    const { requestId, tabId } = context
+
+    if (event.type === 'stream-start') {
+      runtime.notifiedSessionEndsRef.current.delete(tabId)
+      runtime.claudeSessionToTabRef.current.set(event.sessionId, tabId)
+      runtime.storeRef.current.setClaudeSessionId(tabId, event.sessionId)
+      runtime.patchBtwState(tabId, (current) => (
+        current.requestId === requestId
+          ? { ...current, sessionId: event.sessionId }
+          : current
+      ))
+      return true
+    }
+
+    if (event.type === 'text-chunk') {
+      patchBtwIfCurrent(tabId, requestId, (current) => ({
+        ...current,
+        answer: current.answer + event.text,
+      }))
+      return true
+    }
+
+    if (event.type === 'thinking-chunk' || event.type === 'token-usage' || event.type === 'tool-start' || event.type === 'tool-result') {
+      return true
+    }
+
+    if (event.type === 'result') {
+      runtime.patchBtwState(tabId, (current) => {
+        if (current.requestId !== requestId) return current
+
+        const nextAnswer = current.answer.trim().length > 0
+          ? current.answer
+          : (event.resultText ?? '')
+
+        return {
+          ...current,
+          answer: nextAnswer,
+          status: event.isError ? 'error' : 'done',
+          error: event.isError
+            ? (event.resultText?.trim() || current.error || translate(getUiLanguage(), 'input.btw.failed'))
+            : null,
+        }
+      })
+      return true
+    }
+
+    if (event.type === 'error') {
+      runtime.patchBtwState(tabId, (current) => {
+        if (current.requestId !== requestId) return current
+        return {
+          ...current,
+          status: 'error',
+          error: event.error,
+        }
+      })
+      clearBtwRequest(requestId)
+      return true
+    }
+
+    if (event.type === 'stream-end') {
+      runtime.patchBtwState(tabId, (current) => {
+        if (current.requestId !== requestId) return current
+        if (current.status === 'running') {
+          return {
+            ...current,
+            status: current.answer.trim().length > 0 ? 'done' : 'error',
+            error: current.answer.trim().length > 0 ? null : translate(getUiLanguage(), 'input.btw.failed'),
+          }
+        }
+        return current
+      })
+      clearBtwRequest(requestId)
+      return true
+    }
+
+    return false
+  }
+
   return function handleClaudeEvent(event: ClaudeStreamEvent) {
     const store = runtime.storeRef.current
+
+    if (handleBtwEvent(event)) {
+      return
+    }
 
     if (event.type === 'stream-start') {
       const tabId = resolveEventTabId(event.sessionId)

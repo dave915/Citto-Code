@@ -119,10 +119,6 @@ export default function App() {
     })),
     [scheduledTasks],
   )
-  const hasUnsafeReloadState = useMemo(
-    () => sessions.some((session) => session.isStreaming || Boolean(session.pendingPermission) || Boolean(session.pendingQuestion)),
-    [sessions],
-  )
   const activeSessionConflict = activeSessionId ? sessionFileLockState[activeSessionId] : null
   const activeSessionConflictDetails = activeSessionConflict?.hasConflict
     ? {
@@ -141,7 +137,10 @@ export default function App() {
   } = useInstallationCheck(claudeBinaryPath)
 
   const {
+    btwBySession,
     handleAbort,
+    handleBtwDismiss,
+    handleBtwSend,
     handleModelChange,
     handlePermissionRequestAction,
     handleQuestionResponse,
@@ -177,6 +176,14 @@ export default function App() {
     commitStreamEnd,
     removeSession,
   })
+
+  const hasUnsafeReloadState = useMemo(
+    () => (
+      sessions.some((session) => session.isStreaming || Boolean(session.pendingPermission) || Boolean(session.pendingQuestion))
+      || Object.values(btwBySession).some((state) => state.status === 'running')
+    ),
+    [btwBySession, sessions],
+  )
 
   const {
     startDiscussion: startTeamDiscussion,
@@ -390,6 +397,9 @@ export default function App() {
             jumpToMessageId={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.messageId : null}
             jumpToMessageToken={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.token : 0}
             onSend={handleSend}
+            onSendBtw={handleBtwSend}
+            btwState={btwBySession[activeSession.id] ?? null}
+            onDismissBtw={() => { void handleBtwDismiss(activeSession.id) }}
             onAbort={handleAbort}
             sidebarMode={sidebarMode}
             sidebarCollapsed={sidebarCollapsed}

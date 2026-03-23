@@ -22,6 +22,7 @@ export type PermissionAction = {
 const BUILTIN_SLASH_COMMAND_KEYS = {
   'add-dir': 'input.slash.addDir',
   agents: 'input.slash.agents',
+  btw: 'input.slash.btw',
   bug: 'input.slash.bug',
   clear: 'input.slash.clear',
   compact: 'input.slash.compact',
@@ -47,6 +48,7 @@ export function getBuiltinSlashCommands(language: AppLanguage = 'ko'): SlashComm
   return [
     'add-dir',
     'agents',
+    'btw',
     'bug',
     'clear',
     'compact',
@@ -179,6 +181,17 @@ export function getPermissionOptions(language: AppLanguage = 'ko'): { value: Per
       title: translate(language, 'input.permission.bypass.title'),
     },
   ]
+}
+
+export function extractBtwQuestion(value: string): string | null {
+  const trimmedStart = value.trimStart()
+  if (!trimmedStart.startsWith('/btw')) return null
+
+  const remainder = trimmedStart.slice(4)
+  if (remainder.length === 0) return ''
+  if (!/^\s/.test(remainder)) return null
+
+  return remainder.trim()
 }
 
 export function getPermissionActions(language: AppLanguage = 'ko'): PermissionAction[] {
