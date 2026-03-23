@@ -282,6 +282,7 @@ export type ClaudeAPI = {
   sendMessage: (params: {
     sessionId: string | null
     prompt: string
+    attachments?: SelectedFile[]
     cwd: string
     claudePath?: string
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'

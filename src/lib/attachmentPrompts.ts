@@ -14,23 +14,47 @@ export function buildPromptWithAttachments(
   text: string,
   files: SelectedFile[],
   language?: AppLanguage,
+  options?: {
+    includeImageReferences?: boolean
+  },
 ) {
   if (files.length === 0) return text
 
   const resolvedLanguage = resolveLanguage(language)
+  const includeImageReferences = options?.includeImageReferences ?? true
+  const imageFiles = includeImageReferences
+    ? files.filter((file) => file.fileType === 'image')
+    : []
+  let imageIndex = 0
   const fileSections = files
     .map((file) => {
       if (file.fileType === 'image') {
-        return `<file path="${file.path}" type="image">\n[${translate(resolvedLanguage, 'attachment.imageFile')}: ${file.name} (${file.size} bytes) - ${translate(resolvedLanguage, 'attachment.checkPath')}]\n</file>`
+        if (!includeImageReferences) return ''
+        imageIndex += 1
+        return resolvedLanguage === 'en'
+          ? [
+              `Attached image ${imageIndex}: ${file.path}`,
+              `Filename: ${file.name} (${file.size} bytes)`,
+            ].join('\n')
+          : [
+              `첨부 이미지 ${imageIndex}: ${file.path}`,
+              `파일명: ${file.name} (${file.size} bytes)`,
+            ].join('\n')
       }
 
       return `<file path="${file.path}">\n${file.content}\n</file>`
     })
+    .filter((section) => section.trim().length > 0)
     .join('\n\n')
 
-  return text
-    ? `${fileSections}\n\n${text}`
-    : fileSections
+  const imageScopeReminder = imageFiles.length > 0
+    ? resolvedLanguage === 'en'
+      ? 'Use only the image attachments listed above as the visual context for this message unless the user explicitly refers to an earlier image.'
+      : '이번 메시지에서는 위에 적은 이미지 첨부만 현재 시각 문맥으로 사용하고, 사용자가 명시적으로 말하지 않으면 이전 메시지의 이미지를 기준으로 답하지 마세요.'
+    : ''
+
+  const sections = [fileSections, imageScopeReminder, text].filter((section) => section && section.trim().length > 0)
+  return sections.join('\n\n')
 }
 
 export function toAttachedFiles(files: SelectedFile[]): AttachedFile[] {

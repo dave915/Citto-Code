@@ -67,7 +67,9 @@ export function createClaudeSessionHandlers({
     runtime.abortedTabIdsRef.current.delete(sessionId)
     const uiLanguage = getUiLanguage()
 
-    let fullPrompt = buildPromptWithAttachments(text, files, uiLanguage)
+    let fullPrompt = buildPromptWithAttachments(text, files, uiLanguage, {
+      includeImageReferences: false,
+    })
 
     if (shouldAutoGenerateHtmlPreview(text, files)) {
       const autoPreviewInstruction = buildAutoHtmlPreviewInstruction(
@@ -111,6 +113,7 @@ export function createClaudeSessionHandlers({
       const result = await window.claude.sendMessage({
         sessionId: session.sessionId ?? null,
         prompt: fullPrompt,
+        attachments: files,
         cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',
         permissionMode: options?.permissionModeOverride ?? session.permissionMode,
         planMode: session.planMode,

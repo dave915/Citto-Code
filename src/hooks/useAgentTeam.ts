@@ -280,7 +280,12 @@ export function useAgentTeamStream(
   // Core: send one agent's message and await completion (sequential/meeting)
   // ---------------------------------------------------------------------------
 
-  async function sendToAgentAwaited(team: AgentTeam, agent: TeamAgent, prompt: string): Promise<void> {
+  async function sendToAgentAwaited(
+    team: AgentTeam,
+    agent: TeamAgent,
+    prompt: string,
+    attachments?: SelectedFile[],
+  ): Promise<void> {
     return new Promise((resolve) => {
       const msgId = storeRef.current.startAgentMessage(team.id, agent.id)
       pendingQueueRef.current.push({ teamId: team.id, agentId: agent.id, msgId })
@@ -289,6 +294,7 @@ export function useAgentTeamStream(
       void window.claude.sendMessage({
         sessionId: agent.claudeSessionId,
         prompt,
+        attachments,
         cwd: team.cwd,
         permissionMode: 'bypassPermissions',
         envVars: envVarsRef.current,
@@ -309,7 +315,12 @@ export function useAgentTeamStream(
   // Core: fire all agents simultaneously (parallel)
   // ---------------------------------------------------------------------------
 
-  async function sendAllParallel(team: AgentTeam, agents: TeamAgent[], prompts: string[]): Promise<void> {
+  async function sendAllParallel(
+    team: AgentTeam,
+    agents: TeamAgent[],
+    prompts: string[],
+    attachments?: SelectedFile[],
+  ): Promise<void> {
     return new Promise((resolve) => {
       parallelPendingCountRef.current = agents.length
       parallelDoneCallbackRef.current = resolve
@@ -321,6 +332,7 @@ export function useAgentTeamStream(
         void window.claude.sendMessage({
           sessionId: agent.claudeSessionId,
           prompt: prompts[i],
+          attachments,
           cwd: team.cwd,
           permissionMode: 'bypassPermissions',
           envVars: envVarsRef.current,
@@ -354,7 +366,7 @@ export function useAgentTeamStream(
         const currentTeam = teamsRef.current.find((t) => t.id === teamId)!
         const prior = currentTeam.agents.slice(0, index)
         const prompt = buildInitialPrompt(agent, taskPrompt, prior)
-        void sendToAgentAwaited(currentTeam, agent, prompt)
+        void sendToAgentAwaited(currentTeam, agent, prompt, files)
       })
     })
     enqueueExec(() => {
@@ -373,7 +385,7 @@ export function useAgentTeamStream(
 
     const agents = team.agents
     const prompts = agents.map((a) => buildParallelPrompt(a, taskPrompt))
-    await sendAllParallel(team, agents, prompts)
+    await sendAllParallel(team, agents, prompts, files)
     storeRef.current.setTeamStatus(teamId, 'done')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language])
@@ -390,7 +402,7 @@ export function useAgentTeamStream(
       enqueueExec(() => {
         const currentTeam = teamsRef.current.find((t) => t.id === teamId)!
         const prompt = buildMeetingPrompt(agent, taskPrompt, currentTeam.agents, 1)
-        void sendToAgentAwaited(currentTeam, agent, prompt)
+        void sendToAgentAwaited(currentTeam, agent, prompt, files)
       })
     })
     enqueueExec(() => {
