@@ -379,17 +379,20 @@ function AgentMessageCard({
   message,
   color,
   roundIndex,
+  agentName,
   highlighted = false,
   containerRef,
 }: {
   message: AgentMessage
   color: string
   roundIndex: number
+  agentName: string
   highlighted?: boolean
   containerRef?: (node: HTMLDivElement | null) => void
 }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
+  const [showPopup, setShowPopup] = useState(false)
 
   useEffect(() => {
     if (!copied) return
@@ -406,57 +409,206 @@ function AgentMessageCard({
     })
   }, [message.text])
 
+  const canOpenPopup = Boolean(message.text?.trim() || message.thinking?.trim())
+
   return (
-    <div
-      ref={containerRef}
-      tabIndex={-1}
-      className={`space-y-2 rounded-2xl bg-claude-bg-base/50 p-4 outline-none transition-all duration-300 ${
-        highlighted ? 'bg-claude-surface/80' : ''
-      }`}
-      style={highlighted ? { boxShadow: `0 0 0 1px ${color}66, inset 0 0 0 1px ${color}22` } : undefined}
-    >
-      <div className="flex items-center gap-2 text-xs text-claude-text-muted">
-        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-        <span>{t('team.roundWithNumber', { round: roundIndex + 1 })}</span>
-      </div>
-
-      {message.thinking && <ThinkingBubble text={message.thinking} />}
-
+    <>
       <div
-        className="group/message relative rounded-2xl border px-4 py-3 text-sm leading-relaxed text-claude-text"
-        style={{ borderColor: `${color}44`, backgroundColor: `${color}10` }}
+        ref={containerRef}
+        tabIndex={-1}
+        className={`space-y-2 rounded-2xl bg-claude-bg-base/50 p-4 outline-none transition-all duration-300 ${
+          highlighted ? 'bg-claude-surface/80' : ''
+        }`}
+        style={highlighted ? { boxShadow: `0 0 0 1px ${color}66, inset 0 0 0 1px ${color}22` } : undefined}
       >
-        {message.text?.trim() && (
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="pointer-events-auto absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted opacity-0 transition-all hover:bg-claude-surface-2 hover:text-claude-text group-hover/message:opacity-100 focus:outline-none focus-visible:opacity-100"
-            title={copied ? t('common.copied') : t('common.copy')}
-            aria-label={copied ? t('common.copied') : t('common.copy')}
-          >
-            {copied ? (
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-                <rect x="9" y="9" width="10" height="10" rx="2" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 9V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2" />
-              </svg>
-            )}
-          </button>
-        )}
+        <div className="flex items-center gap-2 text-xs text-claude-text-muted">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+          <span>{t('team.roundWithNumber', { round: roundIndex + 1 })}</span>
+        </div>
 
-        {message.text ? (
-          <div className="prose prose-sm prose-invert max-w-none break-words pr-10 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-            <ReactMarkdown>{message.text}</ReactMarkdown>
-          </div>
-        ) : (
-          <span className="text-xs text-claude-text-muted">{t('team.message.generating')}</span>
-        )}
-        {message.isStreaming && <StreamingCursor />}
+        {message.thinking && <ThinkingBubble text={message.thinking} />}
+
+        <div
+          className="group/message relative rounded-2xl border px-4 py-3 text-sm leading-relaxed text-claude-text"
+          style={{ borderColor: `${color}44`, backgroundColor: `${color}10` }}
+        >
+          {(canOpenPopup || message.text?.trim()) && (
+            <div className="pointer-events-auto absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-all group-hover/message:opacity-100 group-focus-within/message:opacity-100">
+              {canOpenPopup ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPopup(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted transition-all hover:bg-claude-surface-2 hover:text-claude-text focus:outline-none focus-visible:text-claude-text"
+                  title={t('team.message.openPopup')}
+                  aria-label={t('team.message.openPopup')}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 4H5a1 1 0 00-1 1v4m11-5h4a1 1 0 011 1v4M4 15v4a1 1 0 001 1h4m11-5v4a1 1 0 01-1 1h-4" />
+                  </svg>
+                </button>
+              ) : null}
+              {message.text?.trim() ? (
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-claude-border/70 bg-claude-panel/90 text-claude-muted transition-all hover:bg-claude-surface-2 hover:text-claude-text focus:outline-none focus-visible:text-claude-text"
+                  title={copied ? t('common.copied') : t('common.copy')}
+                  aria-label={copied ? t('common.copied') : t('common.copy')}
+                >
+                  {copied ? (
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                      <rect x="9" y="9" width="10" height="10" rx="2" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 9V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2" />
+                    </svg>
+                  )}
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {message.text ? (
+            <div className="prose prose-sm prose-invert max-w-none break-words pr-20 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <ReactMarkdown>{message.text}</ReactMarkdown>
+            </div>
+          ) : (
+            <span className="text-xs text-claude-text-muted">{t('team.message.generating')}</span>
+          )}
+          {message.isStreaming && <StreamingCursor />}
+        </div>
       </div>
-    </div>
+
+      {showPopup && (
+        <AgentMessagePopup
+          agentName={agentName}
+          message={message}
+          color={color}
+          roundIndex={roundIndex}
+          onClose={() => setShowPopup(false)}
+        />
+      )}
+    </>
+  )
+}
+
+function AgentMessagePopup({
+  agentName,
+  message,
+  color,
+  roundIndex,
+  onClose,
+}: {
+  agentName: string
+  message: AgentMessage
+  color: string
+  roundIndex: number
+  onClose: () => void
+}) {
+  const { t } = useI18n()
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const handleKeyDownCapture = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDownCapture, true)
+    return () => window.removeEventListener('keydown', handleKeyDownCapture, true)
+  }, [onClose])
+
+  useEffect(() => {
+    if (!copied) return
+    const timeoutId = window.setTimeout(() => setCopied(false), 1400)
+    return () => window.clearTimeout(timeoutId)
+  }, [copied])
+
+  const handleCopy = useCallback(() => {
+    if (!message.text?.trim()) return
+
+    void navigator.clipboard.writeText(message.text).then(() => {
+      setCopied(true)
+    })
+  }, [message.text])
+
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[145] flex items-center justify-center p-6">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        aria-label={t('common.close')}
+      />
+
+      <div className="relative z-10 flex max-h-[min(84vh,56rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[18px] border border-claude-border bg-claude-panel shadow-[0_26px_70px_rgba(0,0,0,0.34)]">
+        <div className="flex items-start justify-between gap-4 border-b border-claude-border/70 px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+              <h3 className="truncate text-base font-semibold text-claude-text">{agentName}</h3>
+              <span className="rounded-full border border-claude-border/70 px-2 py-0.5 text-[11px] text-claude-text-muted">
+                {t('team.roundWithNumber', { round: roundIndex + 1 })}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-claude-text-muted">{t('team.message.popupDescription')}</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {message.text?.trim() ? (
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-claude-border/70 bg-claude-surface px-3 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+              >
+                {copied ? t('common.copied') : t('common.copy')}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-9 items-center rounded-lg border border-claude-border/70 bg-claude-surface px-3 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+            >
+              {t('common.close')}
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          {message.thinking ? (
+            <div className="mb-4 rounded-2xl border border-blue-500/25 bg-blue-500/8 px-4 py-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-blue-400">
+                {t('team.thinking')}
+              </p>
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-claude-text/90">
+                {message.thinking}
+              </p>
+            </div>
+          ) : null}
+
+          <div
+            className="rounded-[20px] border px-5 py-4 text-[15px] leading-8 text-claude-text"
+            style={{ borderColor: `${color}44`, backgroundColor: `${color}12` }}
+          >
+            {message.text?.trim() ? (
+              <div className="prose prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <ReactMarkdown>{message.text}</ReactMarkdown>
+              </div>
+            ) : (
+              <span className="text-sm text-claude-text-muted">{t('team.message.generating')}</span>
+            )}
+            {message.isStreaming && <StreamingCursor />}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -737,6 +889,7 @@ function SelectedAgentPanel({
                 message={message}
                 color={agent.color}
                 roundIndex={index}
+                agentName={agent.name}
                 highlighted={message.id === highlightedMessageId}
                 containerRef={(node) => {
                   if (node) {
