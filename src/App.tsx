@@ -46,6 +46,9 @@ export default function App() {
     startAssistantMessage,
     appendThinkingChunk,
     appendTextChunk,
+    addBtwCard,
+    appendBtwCardChunk,
+    updateBtwCard,
     appendSubagentText,
     addToolCall,
     resolveToolCall,
@@ -137,9 +140,7 @@ export default function App() {
   } = useInstallationCheck(claudeBinaryPath)
 
   const {
-    btwBySession,
     handleAbort,
-    handleBtwDismiss,
     handleBtwSend,
     handleModelChange,
     handlePermissionRequestAction,
@@ -161,6 +162,9 @@ export default function App() {
     startAssistantMessage,
     appendThinkingChunk,
     appendTextChunk,
+    addBtwCard,
+    appendBtwCardChunk,
+    updateBtwCard,
     addToolCall,
     resolveToolCall,
     setStreaming,
@@ -180,9 +184,11 @@ export default function App() {
   const hasUnsafeReloadState = useMemo(
     () => (
       sessions.some((session) => session.isStreaming || Boolean(session.pendingPermission) || Boolean(session.pendingQuestion))
-      || Object.values(btwBySession).some((state) => state.status === 'running')
+      || sessions.some((session) =>
+        session.messages.some((message) => message.btwCards?.some((card) => card.isStreaming)),
+      )
     ),
-    [btwBySession, sessions],
+    [sessions],
   )
 
   const {
@@ -398,8 +404,6 @@ export default function App() {
             jumpToMessageToken={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.token : 0}
             onSend={handleSend}
             onSendBtw={handleBtwSend}
-            btwState={btwBySession[activeSession.id] ?? null}
-            onDismissBtw={() => { void handleBtwDismiss(activeSession.id) }}
             onAbort={handleAbort}
             sidebarMode={sidebarMode}
             sidebarCollapsed={sidebarCollapsed}

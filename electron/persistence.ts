@@ -46,6 +46,7 @@ export class AppPersistence {
       this.db = new SQL.Database(fileData)
       this.exec(SCHEMA_SQL)
       this.ensureSessionColumns()
+      this.ensureMessageColumns()
       this.flush()
     })()
 
@@ -144,6 +145,19 @@ export class AppPersistence {
 
     if (!columns.has('input_tokens')) {
       this.run('ALTER TABLE sessions ADD COLUMN input_tokens INTEGER')
+    }
+  }
+
+  private ensureMessageColumns(): void {
+    const rows = this.query<Record<string, SqlValue>>('PRAGMA table_info(messages)')
+    const columns = new Set(
+      rows
+        .map((row) => row.name)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    )
+
+    if (!columns.has('btw_cards_json')) {
+      this.run('ALTER TABLE messages ADD COLUMN btw_cards_json TEXT')
     }
   }
 

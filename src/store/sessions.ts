@@ -106,6 +106,7 @@ export const useSessionsStore = create<SessionsStore>()(
 
 export type {
   AttachedFile,
+  BtwCard,
   ImportedMessage,
   ImportedSessionData,
   ImportedToolCall,

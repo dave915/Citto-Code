@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import type {
   AttachedFile,
+  BtwCard,
   Message,
   PermissionMode,
   ScheduledTask,
@@ -143,6 +144,17 @@ function normalizeAttachment(value: unknown, index: number): AttachedFile {
   }
 }
 
+function normalizeBtwCard(value: unknown, index: number): BtwCard {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return {
+    id: toTrimmedString(input.id, `btw-${index}-${createId()}`),
+    question: toTrimmedString(input.question, ''),
+    answer: toStringSafe(input.answer),
+    isStreaming: false,
+    isOpen: typeof input.isOpen === 'boolean' ? input.isOpen : true,
+  }
+}
+
 function normalizeMessage(value: unknown, index: number): Message {
   const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const toolCalls = Array.isArray(input.toolCalls)
@@ -150,6 +162,9 @@ function normalizeMessage(value: unknown, index: number): Message {
     : []
   const attachedFiles = Array.isArray(input.attachedFiles)
     ? input.attachedFiles.map((file, fileIndex) => normalizeAttachment(file, fileIndex))
+    : undefined
+  const btwCards = Array.isArray(input.btwCards)
+    ? input.btwCards.map((card, cardIndex) => normalizeBtwCard(card, cardIndex))
     : undefined
 
   return {
@@ -159,6 +174,7 @@ function normalizeMessage(value: unknown, index: number): Message {
     thinking: toStringSafe(input.thinking),
     toolCalls,
     attachedFiles,
+    btwCards,
     createdAt: toFiniteNumber(input.createdAt, Date.now()),
   }
 }

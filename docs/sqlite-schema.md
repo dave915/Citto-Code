@@ -2,7 +2,7 @@
 
 이 앱은 대화/스케줄 데이터를 `app.getPath('userData')/storage/app.sqlite` 에 저장합니다.
 
-현재 스키마 버전: `1`
+현재 스키마 버전: `3`
 
 ## 목적
 
@@ -43,6 +43,7 @@
 | `role` | `TEXT NOT NULL` | `user/assistant` |
 | `text` | `TEXT NOT NULL` | 메시지 텍스트 |
 | `thinking` | `TEXT NOT NULL` | thinking 텍스트 |
+| `btw_cards_json` | `TEXT` | `/btw` 카드 배열 JSON |
 | `created_at` | `INTEGER NOT NULL` | epoch ms |
 | `seq` | `INTEGER NOT NULL` | 세션 내 순서 |
 

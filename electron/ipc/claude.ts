@@ -240,6 +240,7 @@ export function registerClaudeIpcHandlers({
 
     let resolvedSessionId: string | null = sessionId
     let buffer = ''
+    let fullResultText = ''
 
     const processOutputLines = (flush = false) => {
       const lines = buffer.split('\n')
@@ -250,6 +251,9 @@ export function registerClaudeIpcHandlers({
         if (!trimmed) continue
         try {
           const eventData = JSON.parse(trimmed)
+          if (requestId && eventData?.type === 'result' && typeof eventData.result === 'string') {
+            fullResultText = eventData.result
+          }
           appendClaudeResponseLog({
             source: 'stdout',
             sessionId: resolvedSessionId,
@@ -301,6 +305,9 @@ export function registerClaudeIpcHandlers({
         eventType: 'stream-end',
         exitCode: code,
       })
+      if (requestId && fullResultText.trim()) {
+        event.sender.send('btw:fallback-result', { requestId, text: fullResultText })
+      }
       event.sender.send('claude:stream-end', { sessionId: resolvedSessionId, exitCode: code, requestId })
     })
 

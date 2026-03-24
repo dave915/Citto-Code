@@ -30,6 +30,14 @@ export type AttachedFile = {
   fileType?: 'text' | 'image'
 }
 
+export type BtwCard = {
+  id: string
+  question: string
+  answer: string
+  isStreaming: boolean
+  isOpen: boolean
+}
+
 export type ToolCallBlock = {
   id: string
   toolUseId: string
@@ -48,6 +56,7 @@ export type Message = {
   thinking?: string
   toolCalls: ToolCallBlock[]
   attachedFiles?: AttachedFile[]
+  btwCards?: BtwCard[]
   createdAt: number
 }
 

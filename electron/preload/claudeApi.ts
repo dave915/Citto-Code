@@ -16,6 +16,7 @@ const claudeStreamChannels = [
   'claude:result',
   'claude:stream-end',
   'claude:error',
+  'btw:fallback-result',
 ] as const
 
 export const claudeAPI: ClaudeAPI = {
@@ -94,7 +95,11 @@ export const claudeAPI: ClaudeAPI = {
   onClaudeEvent: (handler) => {
     const listeners = claudeStreamChannels.map((channel) => {
       const listener = (_: Electron.IpcRendererEvent, data: unknown) => {
-        const eventType = channel.replace('claude:', '') as ClaudeStreamEvent['type']
+        const eventType = (
+          channel === 'btw:fallback-result'
+            ? 'btw-fallback-result'
+            : channel.replace('claude:', '')
+        ) as ClaudeStreamEvent['type']
         handler({ type: eventType, ...(data as object) } as ClaudeStreamEvent)
       }
       ipcRenderer.on(channel, listener)

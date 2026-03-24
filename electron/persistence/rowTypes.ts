@@ -33,6 +33,7 @@ export type PersistedMessageRow = {
   role: Message['role']
   text: string
   thinking: string
+  btw_cards_json: string | null
   created_at: number
   seq: number
 }

@@ -48,6 +48,14 @@ export type AttachedFile = {
   fileType?: 'text' | 'image'
 }
 
+export type BtwCard = {
+  id: string
+  question: string
+  answer: string
+  isStreaming: boolean
+  isOpen: boolean
+}
+
 export type Message = {
   id: string
   role: 'user' | 'assistant'
@@ -55,6 +63,7 @@ export type Message = {
   thinking?: string
   toolCalls: ToolCallBlock[]
   attachedFiles?: AttachedFile[]
+  btwCards?: BtwCard[]
   createdAt: number
 }
 
@@ -110,6 +119,7 @@ export type ImportedMessage = {
   thinking?: string
   toolCalls: ImportedToolCall[]
   attachedFiles?: AttachedFile[]
+  btwCards?: BtwCard[]
   createdAt: number
 }
 
@@ -161,6 +171,10 @@ export type SessionsStore = {
   startAssistantMessage: (sessionId: string) => string
   appendThinkingChunk: (sessionId: string, assistantMsgId: string, chunk: string) => void
   appendTextChunk: (sessionId: string, assistantMsgId: string, chunk: string) => void
+  addBtwCard: (tabId: string, cardId: string, question: string) => string
+  appendBtwCardChunk: (tabId: string, cardId: string, chunk: string) => void
+  updateBtwCard: (tabId: string, cardId: string, patch: Partial<BtwCard>) => void
+  toggleBtwCard: (tabId: string, cardId: string) => void
   appendSubagentText: (sessionId: string, toolUseId: string, chunk: string) => void
   addToolCall: (sessionId: string, assistantMsgId: string, toolCall: Omit<ToolCallBlock, 'id'>) => void
   resolveToolCall: (sessionId: string, toolUseId: string, result: unknown, isError: boolean) => void

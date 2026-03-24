@@ -152,47 +152,32 @@ export function createClaudeSessionHandlers({
   ) => {
     const session = useSessionsStore.getState().sessions.find((item) => item.id === sessionId)
     if (!session) return
-
-    const activeBtw = runtime.btwRequestMapRef.current
-    for (const [requestId, context] of activeBtw.entries()) {
-      if (context.tabId !== sessionId) continue
-      activeBtw.delete(requestId)
-    }
-
-    runtime.clearBtwState(sessionId)
+    const uiLanguage = getUiLanguage()
+    const fullPrompt = buildPromptWithAttachments(text, files, uiLanguage, {
+      includeImageReferences: false,
+    })
+    const requestId = nanoid()
+    const messageId = runtime.storeRef.current.addBtwCard(sessionId, requestId, text)
+    runtime.btwRequestMapRef.current.set(requestId, {
+      requestId,
+      messageId,
+      processKey: null,
+      prompt: text,
+      tabId: sessionId,
+    })
 
     let effectiveClaudeSessionId = session.sessionId ?? null
     if (session.isStreaming && !effectiveClaudeSessionId) {
       effectiveClaudeSessionId = await waitForClaudeSessionId(sessionId)
       if (!effectiveClaudeSessionId) {
-        runtime.setBtwState(sessionId, {
-          requestId: '',
-          prompt: text,
-          answer: '',
-          status: 'error',
-          error: translate(getUiLanguage(), 'input.btw.sessionUnavailable'),
-          sessionId: null,
-          processKey: null,
+        runtime.storeRef.current.updateBtwCard(sessionId, requestId, {
+          answer: translate(uiLanguage, 'input.btw.sessionUnavailable'),
+          isStreaming: false,
         })
+        runtime.btwRequestMapRef.current.delete(requestId)
         return
       }
     }
-
-    const requestId = nanoid()
-    runtime.btwRequestMapRef.current.set(requestId, {
-      requestId,
-      tabId: sessionId,
-      prompt: text,
-    })
-    runtime.setBtwState(sessionId, {
-      requestId,
-      prompt: text,
-      answer: '',
-      status: 'running',
-      error: null,
-      sessionId: effectiveClaudeSessionId,
-      processKey: null,
-    })
 
     try {
       const effectiveEnvVars = resolveEnvVarsForModel(
@@ -202,7 +187,7 @@ export function createClaudeSessionHandlers({
 
       const result = await window.claude.sendMessage({
         sessionId: effectiveClaudeSessionId,
-        prompt: text,
+        prompt: fullPrompt,
         attachments: files,
         cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',
         requestId,
@@ -215,22 +200,19 @@ export function createClaudeSessionHandlers({
       })
 
       if (result?.tempKey) {
-        runtime.patchBtwState(sessionId, (current) => (
-          current.requestId === requestId
-            ? { ...current, processKey: result.tempKey }
-            : current
-        ))
+        const current = runtime.btwRequestMapRef.current.get(requestId)
+        if (current) {
+          runtime.btwRequestMapRef.current.set(requestId, {
+            ...current,
+            processKey: result.tempKey,
+          })
+        }
       }
     } catch (error) {
       runtime.btwRequestMapRef.current.delete(requestId)
-      runtime.setBtwState(sessionId, {
-        requestId,
-        prompt: text,
-        answer: '',
-        status: 'error',
-        error: String(error),
-        sessionId: effectiveClaudeSessionId,
-        processKey: null,
+      runtime.storeRef.current.updateBtwCard(sessionId, requestId, {
+        answer: String(error),
+        isStreaming: false,
       })
     }
   }
@@ -249,6 +231,13 @@ export function createClaudeSessionHandlers({
     if (!session) return
 
     const remainingSessions = useSessionsStore.getState().sessions.filter((item) => item.id !== sessionId)
+
+    for (const [requestId, context] of runtime.btwRequestMapRef.current.entries()) {
+      if (context.tabId !== sessionId) continue
+      runtime.btwRequestMapRef.current.delete(requestId)
+      if (!context.processKey) continue
+      void window.claude.abort({ sessionId: context.processKey }).catch(() => undefined)
+    }
 
     if (session.sessionId) {
       runtime.claudeSessionToTabRef.current.delete(session.sessionId)

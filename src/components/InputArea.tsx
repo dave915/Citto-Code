@@ -10,7 +10,6 @@ import { AttachmentList } from './input/AttachmentList'
 import { InputComposer } from './input/InputComposer'
 import { extractBtwQuestion, sanitizeEnvVars } from './input/inputUtils'
 import { useI18n } from '../hooks/useI18n'
-import type { BtwState } from '../hooks/claudeStream/types'
 
 type Props = {
   cwd: string
@@ -36,7 +35,6 @@ type Props = {
   topSlot?: ReactNode
   onOpenTeam?: () => void
   hasLinkedTeam?: boolean
-  btwState?: BtwState | null
 }
 
 export function InputArea({
@@ -63,7 +61,6 @@ export function InputArea({
   topSlot,
   onOpenTeam,
   hasLinkedTeam,
-  btwState,
 }: Props) {
   const { language } = useI18n()
   const envVars = useSessionsStore((state) => state.envVars)
@@ -197,15 +194,15 @@ export function InputArea({
   }, [syncTextareaHeight, text])
 
   const btwQuestion = useMemo(() => extractBtwQuestion(text), [text])
-  const canSendBtw = btwQuestion !== null && btwQuestion.length > 0 && btwState?.status !== 'running'
+  const canSendBtw = btwQuestion !== null && btwQuestion.length > 0
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
     if ((!trimmed && attachedFiles.length === 0) || disabled) return
 
     if (btwQuestion !== null) {
-      if (btwQuestion.length === 0 || btwState?.status === 'running') return
-      onSendBtw(trimmed, attachedFiles)
+      if (btwQuestion.length === 0) return
+      onSendBtw(btwQuestion, attachedFiles)
       resetComposer()
       return
     }
@@ -214,7 +211,7 @@ export function InputArea({
 
     onSend(trimmed, attachedFiles)
     resetComposer()
-  }, [attachedFiles, btwQuestion, btwState?.status, disabled, isStreaming, onSend, onSendBtw, resetComposer, text])
+  }, [attachedFiles, btwQuestion, disabled, isStreaming, onSend, onSendBtw, resetComposer, text])
 
   const { handleKeyDown } = useInputKeyboard({
     text,

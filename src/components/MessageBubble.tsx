@@ -5,6 +5,7 @@ import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { useI18n } from '../hooks/useI18n'
 import type { Message } from '../store/sessions'
+import { BtwCardStack } from './input/BtwCardStack'
 import { HtmlPreview, ToolTimeline, extractHtmlPreviewCandidate } from './ToolCallBlock'
 
 type Props = {
@@ -21,6 +22,7 @@ type Props = {
     code: string
     prompt?: string
   }) => void
+  onToggleBtwCard?: (cardId: string) => void
 }
 
 function formatBytes(bytes: number): string {
@@ -142,6 +144,7 @@ export function MessageBubble({
   isStreaming,
   onAbort,
   onAskAboutSelection,
+  onToggleBtwCard,
 }: Props) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
@@ -150,7 +153,7 @@ export function MessageBubble({
   const [htmlPreviewLoading, setHtmlPreviewLoading] = useState(false)
   const showStreamingUi = Boolean(isStreaming)
   const hasThinking = Boolean(message.thinking?.trim())
-  const hasFinalAssistantText = Boolean(message.text.trim())
+  const hasBtwCards = Boolean(message.btwCards?.length)
   const showThinkingRow = hasThinking || showStreamingUi
   const showThinkingPanel = hasThinking && thinkingOpen
   const htmlPreviewCandidate = useMemo(
@@ -379,6 +382,14 @@ export function MessageBubble({
             </div>
           </div>
         )}
+
+        {hasBtwCards && onToggleBtwCard ? (
+          <BtwCardStack
+            cards={message.btwCards ?? []}
+            onToggle={onToggleBtwCard}
+            className={(message.text || hasThinking || showStreamingUi || message.toolCalls.length > 0) ? 'mt-2 max-w-[88%]' : 'max-w-[88%]'}
+          />
+        ) : null}
       </div>
     </div>
   )

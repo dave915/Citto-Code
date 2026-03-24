@@ -30,6 +30,7 @@ export type ClaudeStreamEvent =
     })
   | (ClaudeStreamEventMeta & { type: 'stream-end'; sessionId: string | null; exitCode: number | null })
   | (ClaudeStreamEventMeta & { type: 'error'; sessionId: string | null; error: string })
+  | { type: 'btw-fallback-result'; requestId: string; text: string }
 
 export type SelectedFile = {
   name: string

@@ -13,6 +13,9 @@ export type StreamStoreActions = Pick<
   | 'startAssistantMessage'
   | 'appendThinkingChunk'
   | 'appendTextChunk'
+  | 'addBtwCard'
+  | 'appendBtwCardChunk'
+  | 'updateBtwCard'
   | 'addToolCall'
   | 'resolveToolCall'
   | 'setStreaming'
@@ -43,22 +46,12 @@ export type ScheduledTaskRunMeta = {
   runAt: number
 }
 
-export type BtwStatus = 'running' | 'done' | 'error'
-
-export type BtwState = {
-  requestId: string
-  prompt: string
-  answer: string
-  status: BtwStatus
-  error: string | null
-  sessionId: string | null
-  processKey: string | null
-}
-
 export type BtwRequestContext = {
   requestId: string
-  tabId: string
+  messageId: string
+  processKey: string | null
   prompt: string
+  tabId: string
 }
 
 export type ClaudeStreamStoreSnapshot = StreamStoreActions & {
@@ -78,9 +71,6 @@ export type ClaudeStreamRuntimeRefs = {
   notificationModeRef: MutableRefObject<NotificationMode>
   sessionsRef: MutableRefObject<Session[]>
   storeRef: MutableRefObject<ClaudeStreamStoreSnapshot>
-  setBtwState: (tabId: string, nextState: BtwState | null) => void
-  patchBtwState: (tabId: string, updater: (current: BtwState) => BtwState) => void
-  clearBtwState: (tabId: string) => void
 }
 
 export type HandleSendOptions = {

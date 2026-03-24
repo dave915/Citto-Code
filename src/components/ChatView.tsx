@@ -14,12 +14,10 @@ import { useI18n } from '../hooks/useI18n'
 import { InputArea } from './InputArea'
 import { BranchCreateModal } from './chat/BranchCreateModal'
 import { AgentStatusBar } from './chat/AgentStatusBar'
-import { BtwOverlay } from './chat/BtwOverlay'
 import { ChatHeader } from './chat/ChatHeader'
 import { ChatMessagePane } from './chat/ChatMessagePane'
 import { ChatSidePanel } from './chat/ChatSidePanel'
 import type { GitDiffResult, GitLogEntry, GitStatusEntry, SelectedFile } from '../../electron/preload'
-import type { BtwState } from '../hooks/claudeStream/types'
 import {
   buildDefaultSavePath,
   buildSessionExportFileName,
@@ -56,8 +54,6 @@ type Props = {
   jumpToMessageToken?: number
   onSend: (text: string, files: SelectedFile[]) => void
   onSendBtw: (text: string, files: SelectedFile[]) => void
-  btwState?: BtwState | null
-  onDismissBtw: () => void
   onAbort: () => void
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
   onQuestionResponse: (answer: string | null) => void
@@ -93,7 +89,7 @@ const PERMISSION_CONTINUATION_TEXTS = new Set([
 ])
 
 export function ChatView({
-  session, fileConflict, jumpToMessageId, jumpToMessageToken, onSend, onSendBtw, btwState, onDismissBtw, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
+  session, fileConflict, jumpToMessageId, jumpToMessageToken, onSend, onSendBtw, onAbort, onPermissionRequestAction, onQuestionResponse, sidebarMode, sidebarCollapsed, onToggleSidebar,
   sidebarShortcutLabel, filesShortcutLabel, sessionInfoShortcutLabel,
   onPermissionModeChange, onPlanModeChange, onModelChange, permissionShortcutLabel, bypassShortcutLabel,
   onOpenTeam,
@@ -125,6 +121,7 @@ export function ChatView({
   const [sessionExportError, setSessionExportError] = useState<string | null>(null)
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
+  const toggleBtwCard = useSessionsStore((state) => state.toggleBtwCard)
   const fileExplorer = useFileExplorer({
     cwd: session.cwd || '~',
     filePanelOpen: rightPanel === 'files',
@@ -133,7 +130,13 @@ export function ChatView({
     cwd: session.cwd || '~',
     gitPanelOpen: rightPanel === 'git',
   })
-  const isNewSession = session.messages.length === 0
+  const isNewSession = !session.messages.some((message) => (
+    Boolean(message.text.trim())
+    || Boolean(message.thinking?.trim())
+    || message.toolCalls.length > 0
+    || (message.attachedFiles?.length ?? 0) > 0
+    || (message.btwCards?.length ?? 0) > 0
+  ))
   const showPreviewPane = fileExplorer.selectedEntry !== null
   const filePanelOpen = rightPanel === 'files'
   const sessionPanelOpen = rightPanel === 'session'
@@ -623,6 +626,7 @@ export function ChatView({
           onSend={(text) => onSend(text, [])}
           onAbort={onAbort}
           onAskAboutSelection={handleAskAboutSelection}
+          onToggleBtwCard={(cardId) => toggleBtwCard(session.id, cardId)}
         />
         {/* Input area, including the settings toolbar */}
         <InputArea
@@ -648,12 +652,10 @@ export function ChatView({
           topSlot={(
             <>
               <AgentStatusBar session={session} />
-              {btwState ? <BtwOverlay state={btwState} onClose={onDismissBtw} /> : null}
             </>
           )}
           onOpenTeam={onOpenTeam}
           hasLinkedTeam={Boolean(session.linkedTeamId)}
-          btwState={btwState}
         />
       </div>
 

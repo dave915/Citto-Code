@@ -29,6 +29,17 @@ type Props = {
     code: string
     prompt?: string
   }) => void
+  onToggleBtwCard: (cardId: string) => void
+}
+
+function hasVisibleMessageContent(message: Message): boolean {
+  return Boolean(
+    message.text.trim()
+    || message.thinking?.trim()
+    || message.toolCalls.length > 0
+    || (message.attachedFiles?.length ?? 0) > 0
+    || (message.btwCards?.length ?? 0) > 0,
+  )
 }
 
 function MessageList({
@@ -41,6 +52,7 @@ function MessageList({
   currentAssistantMsgId,
   onAbort,
   onAskAboutSelection,
+  onToggleBtwCard,
 }: {
   messages: Message[]
   messageRefs: MutableRefObject<Record<string, HTMLDivElement | null>>
@@ -51,8 +63,11 @@ function MessageList({
   currentAssistantMsgId: string | null
   onAbort: () => void
   onAskAboutSelection: Props['onAskAboutSelection']
+  onToggleBtwCard: Props['onToggleBtwCard']
 }) {
-  return messages.map((message) => (
+  return messages
+    .filter(hasVisibleMessageContent)
+    .map((message) => (
     <div
       key={message.id}
       ref={(node) => {
@@ -75,9 +90,10 @@ function MessageList({
         isStreaming={isStreaming && message.id === currentAssistantMsgId}
         onAbort={isStreaming && message.id === currentAssistantMsgId ? onAbort : undefined}
         onAskAboutSelection={onAskAboutSelection}
+        onToggleBtwCard={onToggleBtwCard}
       />
     </div>
-  ))
+    ))
 }
 
 export function ChatMessagePane({
@@ -95,6 +111,7 @@ export function ChatMessagePane({
   onSend,
   onAbort,
   onAskAboutSelection,
+  onToggleBtwCard,
 }: Props) {
   const { t } = useI18n()
   return (
@@ -136,6 +153,7 @@ export function ChatMessagePane({
             currentAssistantMsgId={session.currentAssistantMsgId}
             onAbort={onAbort}
             onAskAboutSelection={onAskAboutSelection}
+            onToggleBtwCard={onToggleBtwCard}
           />
         )}
 

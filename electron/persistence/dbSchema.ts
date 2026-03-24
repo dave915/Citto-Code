@@ -1,5 +1,5 @@
 export const DB_FILE_NAME = 'app.sqlite'
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 export const SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS messages (
   role TEXT NOT NULL,
   text TEXT NOT NULL,
   thinking TEXT NOT NULL DEFAULT '',
+  btw_cards_json TEXT,
   created_at INTEGER NOT NULL,
   seq INTEGER NOT NULL,
   FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE

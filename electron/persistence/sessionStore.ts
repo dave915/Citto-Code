@@ -57,6 +57,7 @@ export function loadSessionsFromStore(query: PersistenceQuery): Session[] {
   for (const row of messageRows) {
     const existing = messagesBySessionId.get(row.session_id) ?? []
     const attachedFiles = attachmentsByMessageId.get(row.id)
+    const btwCards = parseJsonValue(row.btw_cards_json)
     existing.push({
       id: row.id,
       role: parseMessageRole(row.role),
@@ -64,6 +65,9 @@ export function loadSessionsFromStore(query: PersistenceQuery): Session[] {
       thinking: row.thinking,
       toolCalls: toolCallsByMessageId.get(row.id) ?? [],
       attachedFiles: attachedFiles && attachedFiles.length > 0 ? attachedFiles : undefined,
+      btwCards: Array.isArray(btwCards)
+        ? btwCards as Message['btwCards']
+        : undefined,
       createdAt: row.created_at,
     })
     messagesBySessionId.set(row.session_id, existing)
@@ -162,6 +166,7 @@ export function saveSessionsToStore(
             role,
             text,
             thinking,
+            btw_cards_json,
             created_at,
             seq
           ) VALUES (
@@ -170,6 +175,7 @@ export function saveSessionsToStore(
             :role,
             :text,
             :thinking,
+            :btwCardsJson,
             :createdAt,
             :seq
           )`,
@@ -179,6 +185,7 @@ export function saveSessionsToStore(
             ':role': message.role,
             ':text': message.text,
             ':thinking': message.thinking ?? '',
+            ':btwCardsJson': stringifyJson(message.btwCards),
             ':createdAt': message.createdAt,
             ':seq': messageIndex,
           },

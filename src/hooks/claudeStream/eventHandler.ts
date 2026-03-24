@@ -8,10 +8,11 @@ import {
 import {
   findTabByClaudeSessionId,
   useSessionsStore,
+  type BtwCard,
   type Session,
 } from '../../store/sessions'
 import { translate, type AppLanguage } from '../../lib/i18n'
-import type { BtwState, ClaudeStreamRuntimeRefs } from './types'
+import type { ClaudeStreamRuntimeRefs } from './types'
 
 export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
   const getUiLanguage = (): AppLanguage => (
@@ -79,20 +80,21 @@ export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
       ?? runtime.sessionsRef.current.find((session) => session.id === tabId)
   }
 
-  function resolveBtwContext(requestId?: string): { requestId: string; tabId: string; prompt: string } | null {
+  function resolveBtwContext(requestId?: string) {
     if (!requestId) return null
     return runtime.btwRequestMapRef.current.get(requestId) ?? null
   }
 
-  function patchBtwIfCurrent(
-    tabId: string,
-    requestId: string,
-    updater: (current: BtwState) => BtwState,
-  ) {
-    runtime.patchBtwState(tabId, (current) => {
-      if (current.requestId !== requestId) return current
-      return updater(current)
-    })
+  function findBtwCard(tabId: string, requestId: string): BtwCard | null {
+    const session = getLatestSession(tabId)
+    if (!session) return null
+
+    for (const message of session.messages) {
+      const card = message.btwCards?.find((item) => item.id === requestId)
+      if (card) return card
+    }
+
+    return null
   }
 
   function clearBtwRequest(requestId?: string) {
@@ -110,19 +112,11 @@ export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
       runtime.notifiedSessionEndsRef.current.delete(tabId)
       runtime.claudeSessionToTabRef.current.set(event.sessionId, tabId)
       runtime.storeRef.current.setClaudeSessionId(tabId, event.sessionId)
-      runtime.patchBtwState(tabId, (current) => (
-        current.requestId === requestId
-          ? { ...current, sessionId: event.sessionId }
-          : current
-      ))
       return true
     }
 
     if (event.type === 'text-chunk') {
-      patchBtwIfCurrent(tabId, requestId, (current) => ({
-        ...current,
-        answer: current.answer + event.text,
-      }))
+      runtime.storeRef.current.appendBtwCardChunk(tabId, requestId, event.text)
       return true
     }
 
@@ -130,50 +124,50 @@ export function createClaudeEventHandler(runtime: ClaudeStreamRuntimeRefs) {
       return true
     }
 
+    if (event.type === 'btw-fallback-result') {
+      const currentCard = findBtwCard(tabId, requestId)
+      if (currentCard && !currentCard.answer.trim() && event.text.trim()) {
+        runtime.storeRef.current.updateBtwCard(tabId, requestId, { answer: event.text })
+      }
+      return true
+    }
+
     if (event.type === 'result') {
-      runtime.patchBtwState(tabId, (current) => {
-        if (current.requestId !== requestId) return current
+      const currentCard = findBtwCard(tabId, requestId)
+      const nextAnswer = currentCard?.answer.trim()
+        ? currentCard.answer
+        : (event.resultText?.trim() ?? '')
 
-        const nextAnswer = current.answer.trim().length > 0
-          ? current.answer
-          : (event.resultText ?? '')
-
-        return {
-          ...current,
-          answer: nextAnswer,
-          status: event.isError ? 'error' : 'done',
-          error: event.isError
-            ? (event.resultText?.trim() || current.error || translate(getUiLanguage(), 'input.btw.failed'))
-            : null,
-        }
+      runtime.storeRef.current.updateBtwCard(tabId, requestId, {
+        answer: nextAnswer,
+        isStreaming: event.isError ? false : currentCard?.isStreaming ?? true,
       })
+
+      if (event.isError) {
+        if (!nextAnswer) {
+          runtime.storeRef.current.updateBtwCard(tabId, requestId, {
+            answer: translate(getUiLanguage(), 'input.btw.failed'),
+          })
+        }
+        clearBtwRequest(requestId)
+      }
       return true
     }
 
     if (event.type === 'error') {
-      runtime.patchBtwState(tabId, (current) => {
-        if (current.requestId !== requestId) return current
-        return {
-          ...current,
-          status: 'error',
-          error: event.error,
-        }
+      runtime.storeRef.current.updateBtwCard(tabId, requestId, {
+        answer: event.error || translate(getUiLanguage(), 'input.btw.failed'),
+        isStreaming: false,
       })
       clearBtwRequest(requestId)
       return true
     }
 
     if (event.type === 'stream-end') {
-      runtime.patchBtwState(tabId, (current) => {
-        if (current.requestId !== requestId) return current
-        if (current.status === 'running') {
-          return {
-            ...current,
-            status: current.answer.trim().length > 0 ? 'done' : 'error',
-            error: current.answer.trim().length > 0 ? null : translate(getUiLanguage(), 'input.btw.failed'),
-          }
-        }
-        return current
+      const currentCard = findBtwCard(tabId, requestId)
+      runtime.storeRef.current.updateBtwCard(tabId, requestId, {
+        answer: currentCard?.answer.trim() || translate(getUiLanguage(), 'input.btw.failed'),
+        isStreaming: false,
       })
       clearBtwRequest(requestId)
       return true

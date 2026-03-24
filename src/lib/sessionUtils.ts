@@ -77,6 +77,7 @@ export function normalizeImportedMessage(message: ImportedMessage): Message {
     })),
     thinking: message.thinking ?? '',
     attachedFiles: message.attachedFiles,
+    btwCards: message.btwCards,
     createdAt: message.createdAt,
   }
 }
@@ -147,7 +148,11 @@ export function searchSessions(sessions: Session[], query: string): Session[] {
       session.name,
       session.cwd,
       session.sessionId ?? '',
-      ...session.messages.flatMap((message) => [message.text, message.thinking ?? '']),
+      ...session.messages.flatMap((message) => [
+        message.text,
+        message.thinking ?? '',
+        ...(message.btwCards?.flatMap((card) => [card.question, card.answer]) ?? []),
+      ]),
     ]
       .join('\n')
       .replace(/\s+/g, ' ')
@@ -172,7 +177,12 @@ export function searchSessionMessages(
 
     for (let index = session.messages.length - 1; index >= 0; index -= 1) {
       const message = session.messages[index]
-      const normalizedText = normalizeSearchText(message.text)
+      const searchableText = [
+        message.text,
+        message.thinking ?? '',
+        ...(message.btwCards?.flatMap((card) => [card.question, card.answer]) ?? []),
+      ].join('\n')
+      const normalizedText = normalizeSearchText(searchableText)
       if (!normalizedText) continue
       if (!normalizedText.toLowerCase().includes(trimmed)) continue
 
@@ -182,7 +192,7 @@ export function searchSessionMessages(
         cwd: session.cwd,
         messageId: message.id,
         role: message.role,
-        preview: buildSearchPreview(message.text, query),
+        preview: buildSearchPreview(searchableText, query),
         createdAt: message.createdAt,
       })
       collectedForSession += 1

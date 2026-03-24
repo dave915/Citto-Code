@@ -92,6 +92,14 @@ export function buildSessionMarkdownExport(session: Session, language: AppLangua
       }
     }
 
+    if (message.btwCards?.length) {
+      lines.push('', '### /btw')
+      for (const card of message.btwCards) {
+        lines.push(`- Q: ${card.question}`)
+        lines.push(`  A: ${card.answer.trim() || t('sessionExport.noContent')}`)
+      }
+    }
+
     if (message.thinking?.trim()) {
       lines.push('', `### ${t('chat.message.thinking')}`, '```text', message.thinking.trim(), '```')
     }

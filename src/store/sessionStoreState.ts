@@ -15,7 +15,7 @@ import {
 } from '../lib/sessionUtils'
 import { extractSubagentRuntimeInfo, isSubagentToolName } from '../lib/agent-subcalls'
 import { nanoid } from './nanoid'
-import type { Session, SessionsStore, ToolCallBlock } from './sessionTypes'
+import type { BtwCard, Message, Session, SessionsStore, ToolCallBlock } from './sessionTypes'
 
 type StoreSet = Parameters<StateCreator<SessionsStore>>[0]
 
@@ -23,6 +23,18 @@ const GENERIC_CLAUDE_ERRORS = new Set([
   translate('ko', 'session.genericClaudeError'),
   translate('en', 'session.genericClaudeError'),
 ])
+
+function createBtwAnchorMessage(card: BtwCard): Message {
+  return {
+    id: nanoid(),
+    role: 'assistant',
+    text: '',
+    thinking: '',
+    toolCalls: [],
+    btwCards: [card],
+    createdAt: Date.now(),
+  }
+}
 
 export function createSessionStoreState(set: StoreSet): SessionsStore {
   const firstSession = makeDefaultSession(
@@ -237,6 +249,107 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
                 ),
               }
             : session,
+        ),
+      }))
+    },
+
+    addBtwCard: (tabId, cardId, question) => {
+      const card: BtwCard = {
+        id: cardId,
+        question,
+        answer: '',
+        isStreaming: true,
+        isOpen: true,
+      }
+      let targetMessageId = ''
+
+      set((state) => ({
+        sessions: state.sessions.map((session) => {
+          if (session.id !== tabId) return session
+
+          const lastMessage = session.messages[session.messages.length - 1]
+          if (!lastMessage) {
+            const anchorMessage = createBtwAnchorMessage(card)
+            targetMessageId = anchorMessage.id
+            return {
+              ...session,
+              messages: [...session.messages, anchorMessage],
+            }
+          }
+
+          targetMessageId = lastMessage.id
+          return {
+            ...session,
+            messages: session.messages.map((message) =>
+              message.id === lastMessage.id
+                ? { ...message, btwCards: [...(message.btwCards ?? []), card] }
+                : message,
+            ),
+          }
+        }),
+      }))
+
+      return targetMessageId
+    },
+
+    appendBtwCardChunk: (tabId, cardId, chunk) => {
+      if (!chunk) return
+
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id !== tabId
+            ? session
+            : {
+                ...session,
+                messages: session.messages.map((message) => ({
+                  ...message,
+                  btwCards: message.btwCards?.map((card) =>
+                    card.id === cardId
+                      ? { ...card, answer: card.answer + chunk }
+                      : card,
+                  ),
+                })),
+              },
+        ),
+      }))
+    },
+
+    updateBtwCard: (tabId, cardId, patch) => {
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id !== tabId
+            ? session
+            : {
+                ...session,
+                messages: session.messages.map((message) => ({
+                  ...message,
+                  btwCards: message.btwCards?.map((card) =>
+                    card.id === cardId
+                      ? { ...card, ...patch }
+                      : card,
+                  ),
+                })),
+              },
+        ),
+      }))
+    },
+
+    toggleBtwCard: (tabId, cardId) => {
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id !== tabId
+            ? session
+            : {
+                ...session,
+                messages: session.messages.map((message) => ({
+                  ...message,
+                  btwCards: message.btwCards?.map((card) =>
+                    card.id === cardId
+                      ? { ...card, isOpen: !card.isOpen }
+                      : card,
+                  ),
+                })),
+              },
         ),
       }))
     },
