@@ -144,6 +144,7 @@ export const claudeAPI: ClaudeAPI = {
         tabId: string
         toolUseId: string
         transcriptPath: string | null
+        subagentSessionId?: string | null
         chunk: string
         done?: boolean
         error?: string

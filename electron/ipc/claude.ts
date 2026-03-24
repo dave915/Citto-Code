@@ -22,6 +22,7 @@ type RegisterClaudeIpcHandlersOptions = {
 
 type SendMessageParams = {
   sessionId: string | null
+  tabId?: string
   prompt: string
   attachments?: SelectedFile[]
   cwd: string
@@ -111,6 +112,28 @@ function buildStreamJsonUserMessage(prompt: string, attachments: SelectedFile[] 
   })
 }
 
+const SUBAGENT_TOOL_NAMES = new Set(['task', 'agent', 'call_omo_agent'])
+
+function isSubagentToolName(name: unknown): boolean {
+  return typeof name === 'string' && SUBAGENT_TOOL_NAMES.has(name.trim().toLowerCase())
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function extractAssistantText(eventData: Record<string, unknown>): string {
+  const message = isRecord(eventData.message) ? eventData.message : null
+  const content = Array.isArray(message?.content) ? message.content : []
+
+  return content
+    .flatMap((block) => {
+      if (!isRecord(block) || block.type !== 'text' || typeof block.text !== 'string') return []
+      return [block.text]
+    })
+    .join('')
+}
+
 const activeProcesses = new Map<string, ChildProcess>()
 let modelsCache: { list: ModelInfo[]; fetchedAt: number; cacheKey: string } | null = null
 const CACHE_TTL = 5 * 60 * 1000
@@ -158,6 +181,7 @@ export function registerClaudeIpcHandlers({
   ipcMain.handle('claude:send-message', async (event, params: SendMessageParams) => {
     const {
       sessionId,
+      tabId,
       prompt,
       attachments = [],
       cwd,
@@ -241,6 +265,147 @@ export function registerClaudeIpcHandlers({
     let resolvedSessionId: string | null = sessionId
     let buffer = ''
     let fullResultText = ''
+    let lastSubagentToolUseId: string | null = null
+    const subSessionToToolUse = new Map<string, string>()
+    const streamedSubagentTextBySession = new Map<string, { sawTextDelta: boolean }>()
+
+    const sendSubagentChunk = (
+      toolUseId: string,
+      payload: {
+        chunk?: string
+        done?: boolean
+        error?: string
+        subagentSessionId?: string | null
+      } = {},
+    ) => {
+      if (!tabId) return
+      event.sender.send('subagent:text-chunk', {
+        tabId,
+        toolUseId,
+        transcriptPath: null,
+        subagentSessionId: payload.subagentSessionId,
+        chunk: payload.chunk ?? '',
+        done: payload.done,
+        error: payload.error,
+      })
+    }
+
+    const captureParentSubagentToolUse = (eventData: Record<string, unknown>) => {
+      const sid = typeof eventData.session_id === 'string' ? eventData.session_id : null
+      if (!resolvedSessionId || sid !== resolvedSessionId) return
+
+      const message = isRecord(eventData.message) ? eventData.message : null
+      const content = Array.isArray(message?.content) ? message.content : []
+      for (const block of content) {
+        if (!isRecord(block) || block.type !== 'tool_use' || !isSubagentToolName(block.name)) continue
+        lastSubagentToolUseId = typeof block.id === 'string' ? block.id : null
+      }
+    }
+
+    const routeSubagentEvent = (eventData: Record<string, unknown>): boolean => {
+      const type = typeof eventData.type === 'string' ? eventData.type : ''
+      const sid = typeof eventData.session_id === 'string' ? eventData.session_id : null
+      const parentToolUseId = typeof eventData.parent_tool_use_id === 'string' && eventData.parent_tool_use_id.trim()
+        ? eventData.parent_tool_use_id.trim()
+        : null
+      const eventToolUseId = typeof eventData.tool_use_id === 'string' && eventData.tool_use_id.trim()
+        ? eventData.tool_use_id.trim()
+        : null
+
+      if (type === 'system') {
+        if (!sid || sid === resolvedSessionId) return false
+
+        const mappedToolUseId = parentToolUseId ?? eventToolUseId ?? lastSubagentToolUseId
+        if (!mappedToolUseId) {
+          // The first unresolved system event claims the main session ID.
+          if (!resolvedSessionId) return false
+          return true
+        }
+
+        subSessionToToolUse.set(sid, mappedToolUseId)
+        streamedSubagentTextBySession.delete(sid)
+        sendSubagentChunk(mappedToolUseId, {
+          subagentSessionId: sid,
+        })
+        lastSubagentToolUseId = null
+        return true
+      }
+
+      if (!sid || sid === resolvedSessionId) {
+        if (type === 'assistant') {
+          captureParentSubagentToolUse(eventData)
+        }
+        return false
+      }
+
+      const toolUseId = subSessionToToolUse.get(sid) ?? parentToolUseId ?? null
+      if (toolUseId && !subSessionToToolUse.has(sid)) {
+        subSessionToToolUse.set(sid, toolUseId)
+      }
+      if (!toolUseId) return true
+
+      if (type === 'stream_event') {
+        const streamEvent = isRecord(eventData.event) ? eventData.event : null
+        const streamType = typeof streamEvent?.type === 'string' ? streamEvent.type : ''
+
+        if (streamType === 'message_start') {
+          streamedSubagentTextBySession.set(sid, { sawTextDelta: false })
+          return true
+        }
+
+        if (streamType === 'message_stop') {
+          streamedSubagentTextBySession.delete(sid)
+          return true
+        }
+
+        if (streamType !== 'content_block_delta') return true
+
+        const delta = isRecord(streamEvent?.delta) ? streamEvent.delta : null
+        if (!delta || delta.type !== 'text_delta' || typeof delta.text !== 'string' || !delta.text) {
+          return true
+        }
+
+        const currentStreamState = streamedSubagentTextBySession.get(sid) ?? { sawTextDelta: false }
+        currentStreamState.sawTextDelta = true
+        streamedSubagentTextBySession.set(sid, currentStreamState)
+        sendSubagentChunk(toolUseId, { chunk: delta.text })
+        return true
+      }
+
+      if (type === 'assistant') {
+        const currentStreamState = streamedSubagentTextBySession.get(sid)
+        if (currentStreamState?.sawTextDelta) return true
+
+        const text = extractAssistantText(eventData)
+        if (text) {
+          sendSubagentChunk(toolUseId, { chunk: text })
+        }
+        return true
+      }
+
+      if (type === 'result') {
+        streamedSubagentTextBySession.delete(sid)
+        sendSubagentChunk(toolUseId, {
+          done: !Boolean(eventData.is_error),
+          error: eventData.is_error ? 'Subagent run failed.' : undefined,
+        })
+        subSessionToToolUse.delete(sid)
+        return true
+      }
+
+      if (type === 'error') {
+        streamedSubagentTextBySession.delete(sid)
+        sendSubagentChunk(toolUseId, {
+          error: typeof eventData.error === 'string' && eventData.error.trim()
+            ? eventData.error.trim()
+            : 'Subagent run failed.',
+        })
+        subSessionToToolUse.delete(sid)
+        return true
+      }
+
+      return true
+    }
 
     const processOutputLines = (flush = false) => {
       const lines = buffer.split('\n')
@@ -251,6 +416,15 @@ export function registerClaudeIpcHandlers({
         if (!trimmed) continue
         try {
           const eventData = JSON.parse(trimmed)
+          if (isRecord(eventData) && routeSubagentEvent(eventData)) {
+            appendClaudeResponseLog({
+              source: 'stdout',
+              sessionId: resolvedSessionId,
+              eventType: typeof eventData.type === 'string' ? `subagent:${eventData.type}` : 'subagent:unknown',
+              payload: eventData,
+            })
+            continue
+          }
           if (requestId && eventData?.type === 'result' && typeof eventData.result === 'string') {
             fullResultText = eventData.result
           }

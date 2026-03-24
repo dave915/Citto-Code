@@ -246,6 +246,7 @@ export type SubagentTextChunkEvent = {
   tabId: string
   toolUseId: string
   transcriptPath: string | null
+  subagentSessionId?: string | null
   chunk: string
   done?: boolean
   error?: string
@@ -286,6 +287,7 @@ export type ClaudeAPI = {
   saveScheduledTasksSnapshot: (params: { tasks: ScheduledTask[] }) => Promise<{ ok: boolean; error?: string }>
   sendMessage: (params: {
     sessionId: string | null
+    tabId?: string
     prompt: string
     attachments?: SelectedFile[]
     cwd: string

@@ -581,6 +581,11 @@ const TRANSLATIONS = {
     'subagent.resizeModal': '모달 크기 조절',
     'subagent.runningCount': ({ count }) => `${count}개 실행 중`,
     'subagent.doneCount': ({ count }) => `${count}개 완료`,
+    'subagent.expand': '펼치기',
+    'subagent.collapse': '접기',
+    'subagent.backToChat': '채팅으로 돌아가기',
+    'subagent.replyToMain': '이 서브에이전트 결과를 바탕으로 메인 채팅에 후속 요청을 보낼 수 있습니다.',
+    'subagent.replyWhenDone': '서브에이전트가 완료되면 메인 채팅에 후속 요청을 보낼 수 있습니다.',
 
     'commandPalette.close': '커맨드 팔레트 닫기',
     'commandPalette.searchPlaceholder': '세션, 대화 내용 검색 또는 명령 실행',
@@ -1464,6 +1469,11 @@ const TRANSLATIONS = {
     'subagent.resizeModal': 'Resize modal',
     'subagent.runningCount': ({ count }) => `${count} running`,
     'subagent.doneCount': ({ count }) => `${count} done`,
+    'subagent.expand': 'Expand',
+    'subagent.collapse': 'Collapse',
+    'subagent.backToChat': 'Back to chat',
+    'subagent.replyToMain': 'Send a follow-up to the main chat using this subagent result.',
+    'subagent.replyWhenDone': 'You can send a follow-up to the main chat after the subagent finishes.',
 
     'commandPalette.close': 'Close command palette',
     'commandPalette.searchPlaceholder': 'Search sessions, messages, or run a command',

@@ -125,6 +125,7 @@ export function createClaudeSessionHandlers({
 
       const result = await window.claude.sendMessage({
         sessionId: session.sessionId ?? null,
+        tabId: sessionId,
         prompt: fullPrompt,
         attachments: files,
         cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',
@@ -187,6 +188,7 @@ export function createClaudeSessionHandlers({
 
       const result = await window.claude.sendMessage({
         sessionId: effectiveClaudeSessionId,
+        tabId: sessionId,
         prompt: fullPrompt,
         attachments: files,
         cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',

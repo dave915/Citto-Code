@@ -12,6 +12,7 @@ import { useFileExplorer } from '../hooks/useFileExplorer'
 import { useGitPanel } from '../hooks/useGitPanel'
 import { useI18n } from '../hooks/useI18n'
 import { InputArea } from './InputArea'
+import { SubagentDrilldownView } from './SubagentDrilldownView'
 import { BranchCreateModal } from './chat/BranchCreateModal'
 import { AgentStatusBar } from './chat/AgentStatusBar'
 import { ChatHeader } from './chat/ChatHeader'
@@ -119,6 +120,7 @@ export function ChatView({
   const [copyingFormat, setCopyingFormat] = useState<SessionExportFormat | null>(null)
   const [sessionExportStatus, setSessionExportStatus] = useState<string | null>(null)
   const [sessionExportError, setSessionExportError] = useState<string | null>(null)
+  const [drillTarget, setDrillTarget] = useState<{ toolUseId: string; title: string } | null>(null)
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
   const toggleBtwCard = useSessionsStore((state) => state.toggleBtwCard)
@@ -356,6 +358,7 @@ export function ChatView({
     setCopyingFormat(null)
     setSessionExportStatus(null)
     setSessionExportError(null)
+    setDrillTarget(null)
   }, [session.id])
 
   useEffect(() => {
@@ -611,52 +614,75 @@ export function ChatView({
           onHeaderDoubleClick={handleHeaderDoubleClick}
         />
 
-        <ChatMessagePane
-          session={session}
-          isNewSession={isNewSession}
-          fileConflict={fileConflict}
-          fileConflictLabel={fileConflictLabel}
-          conflictSessionLabel={conflictSessionLabel}
-          highlightedMessageId={highlightedMessageId}
-          activeHtmlPreviewMessageId={activeHtmlPreviewMessageId}
-          hideHtmlPreview={hideHtmlPreview}
-          showErrorCard={showErrorCard}
-          messageRefs={messageRefs}
-          bottomRef={bottomRef}
-          onSend={(text) => onSend(text, [])}
-          onAbort={onAbort}
-          onAskAboutSelection={handleAskAboutSelection}
-          onToggleBtwCard={(cardId) => toggleBtwCard(session.id, cardId)}
-        />
-        {/* Input area, including the settings toolbar */}
-        <InputArea
-          cwd={session.cwd}
-          promptHistory={promptHistory}
-          onSend={onSend}
-          onSendBtw={onSendBtw}
-          onAbort={onAbort}
-          isStreaming={session.isStreaming}
-          pendingPermission={session.pendingPermission}
-          onPermissionRequestAction={onPermissionRequestAction}
-          pendingQuestion={session.pendingQuestion}
-          onQuestionResponse={onQuestionResponse}
-          permissionMode={session.permissionMode}
-          planMode={session.planMode}
-          model={session.model}
-          onPermissionModeChange={onPermissionModeChange}
-          onPlanModeChange={onPlanModeChange}
-          onModelChange={onModelChange}
-          permissionShortcutLabel={permissionShortcutLabel}
-          bypassShortcutLabel={bypassShortcutLabel}
-          externalDraft={externalDraft}
-          topSlot={(
-            <>
-              <AgentStatusBar session={session} />
-            </>
-          )}
-          onOpenTeam={onOpenTeam}
-          hasLinkedTeam={Boolean(session.linkedTeamId)}
-        />
+        {drillTarget ? (
+          <SubagentDrilldownView
+            session={session}
+            toolUseId={drillTarget.toolUseId}
+            title={drillTarget.title}
+            onBack={() => setDrillTarget(null)}
+            onSendToMain={onSend}
+            onSendBtwToMain={onSendBtw}
+            permissionMode={session.permissionMode}
+            planMode={session.planMode}
+            model={session.model}
+            onPermissionModeChange={onPermissionModeChange}
+            onPlanModeChange={onPlanModeChange}
+            onModelChange={onModelChange}
+            permissionShortcutLabel={permissionShortcutLabel}
+            bypassShortcutLabel={bypassShortcutLabel}
+            onOpenTeam={onOpenTeam}
+            hasLinkedTeam={Boolean(session.linkedTeamId)}
+          />
+        ) : (
+          <>
+            <ChatMessagePane
+              session={session}
+              isNewSession={isNewSession}
+              fileConflict={fileConflict}
+              fileConflictLabel={fileConflictLabel}
+              conflictSessionLabel={conflictSessionLabel}
+              highlightedMessageId={highlightedMessageId}
+              activeHtmlPreviewMessageId={activeHtmlPreviewMessageId}
+              hideHtmlPreview={hideHtmlPreview}
+              showErrorCard={showErrorCard}
+              messageRefs={messageRefs}
+              bottomRef={bottomRef}
+              onSend={(text) => onSend(text, [])}
+              onAbort={onAbort}
+              onAskAboutSelection={handleAskAboutSelection}
+              onToggleBtwCard={(cardId) => toggleBtwCard(session.id, cardId)}
+            />
+            <InputArea
+              cwd={session.cwd}
+              promptHistory={promptHistory}
+              onSend={onSend}
+              onSendBtw={onSendBtw}
+              onAbort={onAbort}
+              isStreaming={session.isStreaming}
+              pendingPermission={session.pendingPermission}
+              onPermissionRequestAction={onPermissionRequestAction}
+              pendingQuestion={session.pendingQuestion}
+              onQuestionResponse={onQuestionResponse}
+              permissionMode={session.permissionMode}
+              planMode={session.planMode}
+              model={session.model}
+              onPermissionModeChange={onPermissionModeChange}
+              onPlanModeChange={onPlanModeChange}
+              onModelChange={onModelChange}
+              permissionShortcutLabel={permissionShortcutLabel}
+              bypassShortcutLabel={bypassShortcutLabel}
+              externalDraft={externalDraft}
+              topSlot={(
+                <AgentStatusBar
+                  session={session}
+                  onDrillDown={(target) => setDrillTarget(target)}
+                />
+              )}
+              onOpenTeam={onOpenTeam}
+              hasLinkedTeam={Boolean(session.linkedTeamId)}
+            />
+          </>
+        )}
       </div>
 
       {rightPanel !== 'none' && (

@@ -202,7 +202,6 @@ export default function App() {
   )
 
   useSubagentStreams({
-    sessions,
     appendSubagentText,
     updateSubagent,
   })
