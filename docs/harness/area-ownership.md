@@ -7,6 +7,7 @@
 - 파일:
   - `src/main.tsx`
   - `src/App.tsx`
+  - `src/hooks/useAppController.ts`
   - `src/components/app/AppMainContent.tsx`
   - `src/hooks/useAppPanels.ts`
   - `src/components/Sidebar.tsx`
@@ -14,7 +15,9 @@
   - 앱 부트스트랩
   - 전역 패널 열림 상태
   - 세션/설정/예약 작업 상위 조합
-  - `App.tsx`는 store/hook 조합과 상위 액션 연결을 유지하고, 메인 화면 분기는 `AppMainContent.tsx`, 단일 패널 상태는 `useAppPanels.ts`에 둔다.
+  - `App.tsx`는 루트 레이아웃 렌더링만 유지한다.
+  - `useAppController.ts`는 store/hook 조합, 세션 선택/점프, 팀 연동, 데스크톱 effect wiring을 담당한다.
+  - 메인 화면 분기는 `AppMainContent.tsx`, 단일 패널 상태는 `useAppPanels.ts`에 둔다.
 - 흔한 회귀:
   - hydration 후 active session 누락
   - 사이드바/메인 패널 상태 꼬임
@@ -75,6 +78,8 @@
 
 - 파일:
   - `src/components/ChatView.tsx`
+  - `src/components/chat/ChatViewMainContent.tsx`
+  - `src/hooks/useChatViewController.ts`
   - `src/hooks/useChatViewLayout.ts`
   - `src/hooks/useChatViewJumpState.ts`
   - `src/components/ChatMessagePane.tsx`
@@ -84,6 +89,9 @@
   - 메인 채팅 UX
   - 파일/Git/세션 사이드 패널
   - export, preview, selection actions
+  - `ChatView.tsx`는 헤더/사이드패널 wiring과 상위 액션 연결만 유지한다.
+  - `useChatViewController.ts`는 우측 패널 상태, export/copy 상태, Git draft/selection draft 생성, drilldown 전환 상태를 담당한다.
+  - `ChatViewMainContent.tsx`는 drilldown과 기본 메시지+입력 흐름 분기만 담당한다.
 - 흔한 회귀:
   - 레이아웃 상태 충돌
   - preview pane가 잘못 열리거나 닫히지 않음
