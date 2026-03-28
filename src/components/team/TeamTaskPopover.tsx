@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { buildAttachmentCopyText } from '../../lib/attachmentPrompts'
 import { translate, type AppLanguage } from '../../lib/i18n'
 import type { AttachedFile } from '../../store/sessionTypes'
 import { formatBytes } from '../input/inputUtils'
+import { TeamOverlayPortal, useCopyFeedback, useEscapeToClose } from './teamOverlayShared'
 
 type Props = {
   task?: string
@@ -13,49 +12,22 @@ type Props = {
 }
 
 export function TeamTaskPopover({ task, attachedFiles, language, onClose }: Props) {
-  const [copied, setCopied] = useState(false)
+  const copyText = buildAttachmentCopyText(task ?? '', attachedFiles, language)
+  const { copied, copy } = useCopyFeedback(copyText)
   const copyLabel = copied ? translate(language, 'common.copied') : translate(language, 'common.copy')
   const closeLabel = translate(language, 'team.taskPopover.close')
 
-  useEffect(() => {
-    if (!copied) return
+  useEscapeToClose(onClose)
 
-    const timeoutId = window.setTimeout(() => setCopied(false), 1400)
-    return () => window.clearTimeout(timeoutId)
-  }, [copied])
+  if (!task?.trim() && attachedFiles.length === 0) return null
 
-  useEffect(() => {
-    const handleKeyDownCapture = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      event.stopPropagation()
-      onClose()
-    }
-
-    window.addEventListener('keydown', handleKeyDownCapture, true)
-    return () => window.removeEventListener('keydown', handleKeyDownCapture, true)
-  }, [onClose])
-
-  const handleCopy = useCallback(() => {
-    const nextText = buildAttachmentCopyText(task ?? '', attachedFiles, language)
-    if (!nextText.trim()) return
-
-    void navigator.clipboard.writeText(nextText).then(() => {
-      setCopied(true)
-    })
-  }, [attachedFiles, language, task])
-
-  if (typeof document === 'undefined' || (!task?.trim() && attachedFiles.length === 0)) return null
-
-  return createPortal(
-    <div className="fixed inset-0 z-[140] flex items-center justify-center p-6">
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-        aria-label={closeLabel}
-      />
-
+  return (
+    <TeamOverlayPortal
+      backdropClassName="bg-black/30 backdrop-blur-[1px]"
+      closeLabel={closeLabel}
+      onClose={onClose}
+      overlayClassName="z-[140]"
+    >
       <div className="relative z-10 flex max-h-[min(76vh,48rem)] w-[min(44rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[12px] border-2 border-[#96a3b0] bg-[linear-gradient(180deg,#ffffff,#edf2f6)] shadow-[0_18px_42px_rgba(38,52,68,0.24)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#d3dbe3] px-5 py-4">
           <div className="min-w-0">
@@ -82,7 +54,7 @@ export function TeamTaskPopover({ task, attachedFiles, language, onClose }: Prop
         <div className="group/task relative min-h-0 flex-1 overflow-hidden">
           <button
             type="button"
-            onClick={handleCopy}
+            onClick={copy}
             className="invisible absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-[#c8d2dc] bg-white/95 text-[#41515e] opacity-0 shadow-sm transition-all hover:bg-[#f4f7fa] group-hover/task:visible group-hover/task:opacity-100 group-focus-within/task:visible group-focus-within/task:opacity-100"
             title={copyLabel}
             aria-label={copyLabel}
@@ -129,7 +101,6 @@ export function TeamTaskPopover({ task, attachedFiles, language, onClose }: Prop
           </div>
         </div>
       </div>
-    </div>,
-    document.body,
+    </TeamOverlayPortal>
   )
 }

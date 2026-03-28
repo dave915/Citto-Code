@@ -118,7 +118,11 @@
   - `src/components/team/TeamViewComposer.tsx`
   - `src/components/team/TeamAgentSeat.tsx`
   - `src/components/team/TeamSelectedAgentPanel.tsx`
+  - `src/components/team/TeamSelectedAgentMessageCard.tsx`
+  - `src/components/team/TeamSelectedAgentMessagePopup.tsx`
   - `src/components/team/TeamTaskPopover.tsx`
+  - `src/components/team/teamSelectedAgentShared.tsx`
+  - `src/components/team/teamOverlayShared.tsx`
   - `src/components/team/TeamSetupSelectionPane.tsx`
   - `src/components/team/TeamSetupCustomAgentForm.tsx`
   - `src/components/team/TeamSetupPreviewPane.tsx`
@@ -133,6 +137,8 @@
   - `useTeamViewController.ts`는 Team 화면의 로컬 UI 상태, resize/escape cleanup, 입력/첨부 흐름을 담당한다.
   - `TeamViewHeader.tsx`, `TeamViewWorkspace.tsx`, `TeamViewComposer.tsx`는 화면 섹션을 나눠 렌더링한다.
   - `TeamAgentSeat.tsx`, `TeamSelectedAgentPanel.tsx`, `TeamTaskPopover.tsx`는 seat/detail/task popup 조각을 나눠 갖고, `TeamViewParts.tsx`는 공용 selector/util과 re-export만 유지한다.
+  - `TeamSelectedAgentPanel.tsx`는 선택된 agent header, message highlight 이동, empty/error 상태만 유지하고, message card/popup 렌더링은 `TeamSelectedAgentMessageCard.tsx`, `TeamSelectedAgentMessagePopup.tsx`, `teamSelectedAgentShared.tsx`로 분리한다.
+  - 팀 overlay popup의 escape/copy feedback cleanup은 `teamOverlayShared.tsx`에서 공통으로 관리한다.
   - `TeamSetupModal.tsx`는 선택 상태와 저장만 유지한다.
   - `teamSetupShared.ts`는 setup 공용 타입/로컬 저장/프리셋 변환을 담당하고, `TeamSetupSelectionPane.tsx`, `TeamSetupCustomAgentForm.tsx`, `TeamSetupPreviewPane.tsx`는 각 화면 조각을 담당한다.
   - `TeamSetupModalParts.tsx`는 setup 서브모듈 re-export 레이어만 유지한다.
