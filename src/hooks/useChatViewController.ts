@@ -1,23 +1,11 @@
 import {
-  useEffect,
   useMemo,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
 } from 'react'
-import type {
-  GitDiffResult,
-  GitLogEntry,
-  GitStatusEntry,
-} from '../../electron/preload'
-import { buildGitDraft, type GitDraftAction } from '../lib/gitUtils'
 import { getCurrentPlatform } from '../lib/shortcuts'
-import {
-  buildDefaultSavePath,
-  buildSessionExportFileName,
-  type SessionExportFormat,
-} from '../lib/sessionExport'
 import { useChatOpenWith } from './useChatOpenWith'
+import { useChatViewActions } from './chatView/useChatViewActions'
 import { useChatViewJumpState } from './useChatViewJumpState'
 import {
   useChatViewLayout,
@@ -28,10 +16,7 @@ import { useGitPanel } from './useGitPanel'
 import { useSessionsStore } from '../store/sessions'
 import type { Session } from '../store/sessions'
 import {
-  buildAskAboutSelectionDraft,
   buildChatViewDerivedState,
-  buildSessionExportContent,
-  type AskAboutSelectionPayload,
   type FileConflict,
 } from '../components/chat/chatViewUtils'
 import type { AppLanguage, TranslationKey } from '../lib/i18n'
@@ -64,12 +49,6 @@ export function useChatViewController({
 }: Params) {
   const openWithMenuRef = useRef<HTMLDivElement>(null)
   const [rightPanel, setRightPanel] = useState<ChatViewRightPanel>('none')
-  const [externalDraft, setExternalDraft] = useState<{ id: number; text: string } | null>(null)
-  const [exportingFormat, setExportingFormat] = useState<SessionExportFormat | null>(null)
-  const [copyingFormat, setCopyingFormat] = useState<SessionExportFormat | null>(null)
-  const [sessionExportStatus, setSessionExportStatus] = useState<string | null>(null)
-  const [sessionExportError, setSessionExportError] = useState<string | null>(null)
-  const [drillTarget, setDrillTarget] = useState<{ toolUseId: string; title: string } | null>(null)
 
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
@@ -142,6 +121,24 @@ export function useChatViewController({
   const openTargetPath = session.cwd || '~'
   const effectiveMainPaneWidth = mainPaneWidth || Number.POSITIVE_INFINITY
   const {
+    copyingFormat,
+    drillTarget,
+    exportError,
+    exportStatus,
+    exportingFormat,
+    externalDraft,
+    handleAskAboutSelection,
+    handleCopySessionExport,
+    handleCreateGitDraft,
+    handleExportSession,
+    handleHeaderDoubleClick,
+    setDrillTarget,
+  } = useChatViewActions({
+    language,
+    session,
+    t,
+  })
+  const {
     openWithMenuOpen,
     openWithApps,
     openWithLoading,
@@ -169,14 +166,6 @@ export function useChatViewController({
       ? 'Git'
       : t('sidePanel.sessionInfo')
 
-  useEffect(() => {
-    setExportingFormat(null)
-    setCopyingFormat(null)
-    setSessionExportStatus(null)
-    setSessionExportError(null)
-    setDrillTarget(null)
-  }, [session.id])
-
   const handleToggleBranchMenu = () => {
     gitPanel.setBranchMenuOpen((open) => {
       const nextOpen = !open
@@ -192,81 +181,6 @@ export function useChatViewController({
     void gitPanel.handleSwitchGitBranch(name)
   }
 
-  const handleAskAboutSelection = (payload: AskAboutSelectionPayload) => {
-    setExternalDraft({
-      id: Date.now(),
-      text: buildAskAboutSelectionDraft(payload, t),
-    })
-  }
-
-  const handleExportSession = async (format: SessionExportFormat) => {
-    const suggestedName = buildSessionExportFileName(session, format)
-    const content = buildSessionExportContent(format, session, language)
-
-    setExportingFormat(format)
-    setSessionExportStatus(null)
-    setSessionExportError(null)
-
-    try {
-      const result = await window.claude.saveTextFile({
-        suggestedName,
-        defaultPath: buildDefaultSavePath(session.cwd, suggestedName),
-        content,
-        filters: format === 'markdown'
-          ? [{ name: 'Markdown', extensions: ['md'] }]
-          : [{ name: 'JSON', extensions: ['json'] }],
-      })
-
-      if (result.ok) {
-        setSessionExportStatus(result.path ? t('chatView.savedPath', { path: result.path }) : t('chatView.sessionSaved'))
-        return
-      }
-
-      if (!result.canceled) {
-        setSessionExportError(result.error ?? t('chatView.exportFailed'))
-      }
-    } catch {
-      setSessionExportError(t('chatView.exportFailed'))
-    } finally {
-      setExportingFormat(null)
-    }
-  }
-
-  const handleCopySessionExport = async (format: SessionExportFormat) => {
-    const content = buildSessionExportContent(format, session, language)
-
-    setCopyingFormat(format)
-    setSessionExportStatus(null)
-    setSessionExportError(null)
-
-    try {
-      await navigator.clipboard.writeText(content)
-      setSessionExportStatus(t('chatView.clipboardCopied', { format: format === 'markdown' ? 'Markdown' : 'JSON' }))
-    } catch {
-      setSessionExportError(t('chatView.clipboardFailed'))
-    } finally {
-      setCopyingFormat(null)
-    }
-  }
-
-  const handleCreateGitDraft = (
-    action: GitDraftAction,
-    payload: {
-      entry: GitStatusEntry | null
-      commit: GitLogEntry | null
-      gitDiff: GitDiffResult | null
-    },
-  ) => {
-    const draft = buildGitDraft(action, payload, language)
-    if (!draft) return
-    setExternalDraft({ id: Date.now(), text: draft })
-  }
-
-  const handleHeaderDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('button, a, input, textarea, select, [data-no-drag="true"]')) return
-    void window.claude.toggleWindowMaximize()
-  }
-
   return {
     activeHtmlPreviewMessageId,
     assistantMessageCount,
@@ -278,8 +192,8 @@ export function useChatViewController({
     defaultOpenWithApp,
     drillTarget,
     explorerWidth,
-    exportError: sessionExportError,
-    exportStatus: sessionExportStatus,
+    exportError,
+    exportStatus,
     exportingFormat,
     externalDraft,
     fileConflictLabel,

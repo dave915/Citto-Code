@@ -83,6 +83,7 @@
   - `src/components/ChatView.tsx`
   - `src/components/chat/ChatViewMainContent.tsx`
   - `src/hooks/useChatViewController.ts`
+  - `src/hooks/chatView/*`
   - `src/hooks/useChatViewLayout.ts`
   - `src/hooks/useChatViewJumpState.ts`
   - `src/components/ChatMessagePane.tsx`
@@ -102,6 +103,7 @@
   - `MessageBubble.tsx`는 메시지 종류 분기와 공통 copy 상태만 유지하고, 사용자/어시스턴트 bubble 렌더와 HTML preview 로더는 `src/components/message/*`로 분리한다.
   - `ChatView.tsx`는 헤더/사이드패널 wiring과 상위 액션 연결만 유지한다.
   - `useChatViewController.ts`는 우측 패널 상태, export/copy 상태, Git draft/selection draft 생성, drilldown 전환 상태를 담당한다.
+  - `src/hooks/chatView/useChatViewActions.ts`는 session export/copy, selection/git draft 생성, drilldown 상태를 담당한다.
   - `ChatViewMainContent.tsx`는 drilldown과 기본 메시지+입력 흐름 분기만 담당한다.
   - `AgentStatusBar.tsx`는 subagent summary/list 선택 상태만 유지하고, 상세 modal/transcript load/copy feedback/status helper는 `AgentDetailModal.tsx`, `AgentStatusCopyButton.tsx`, `agentStatusShared.ts`로 분리한다.
 - 흔한 회귀:
