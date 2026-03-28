@@ -1,9 +1,11 @@
-import { type McpForm, type McpServer } from './shared'
-import { McpServerForm } from './McpServerForm'
 import { useI18n } from '../../hooks/useI18n'
+import type { McpHealthCheckResult } from '../../../electron/preload'
+import { McpServerForm } from './McpServerForm'
+import { type McpForm, type McpServer } from './shared'
 
 export function McpServerCard({
   server,
+  health,
   editing,
   confirmDelete,
   editForm,
@@ -18,6 +20,7 @@ export function McpServerCard({
   onDeleteCancel,
 }: {
   server: McpServer
+  health?: McpHealthCheckResult
   editing: boolean
   confirmDelete: boolean
   editForm: McpForm
@@ -33,13 +36,48 @@ export function McpServerCard({
 }) {
   const { t } = useI18n()
   const typeColor = 'text-claude-muted bg-claude-panel border-claude-border'
+  const healthStatus = health?.status ?? 'checking'
+  const healthLabel = healthStatus === 'ok'
+    ? t('settings.mcp.health.ok')
+    : healthStatus === 'auth-required'
+      ? t('settings.mcp.health.authRequired')
+      : healthStatus === 'missing-command'
+        ? t('settings.mcp.health.missingCommand')
+        : healthStatus === 'error'
+          ? t('settings.mcp.health.error')
+          : t('settings.mcp.health.checking')
+  const healthTone = healthStatus === 'ok'
+    ? {
+        dot: 'bg-emerald-400',
+        badge: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200',
+      }
+    : healthStatus === 'auth-required'
+      ? {
+          dot: 'bg-amber-400',
+          badge: 'border-amber-500/25 bg-amber-500/10 text-amber-200',
+        }
+      : healthStatus === 'missing-command' || healthStatus === 'error'
+        ? {
+            dot: 'bg-rose-400',
+            badge: 'border-rose-500/25 bg-rose-500/10 text-rose-200',
+          }
+        : {
+            dot: 'bg-claude-muted',
+            badge: 'border-claude-border bg-claude-panel text-claude-muted',
+          }
+  const detailMessage = healthStatus === 'ok' || healthStatus === 'checking'
+    ? ''
+    : health?.message?.trim() ?? ''
 
   return (
     <div className="rounded-xl border border-claude-border bg-claude-bg p-4">
       <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" />
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${healthTone.dot}`} />
           <span className="text-sm font-semibold text-claude-text">{server.name}</span>
+          <span className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${healthTone.badge}`}>
+            {healthLabel}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {server.type && (
@@ -106,6 +144,11 @@ export function McpServerCard({
             </span>
           ))}
         </div>
+      )}
+      {detailMessage && (
+        <p className="mt-2 text-xs text-claude-muted">
+          {detailMessage}
+        </p>
       )}
 
       {editing && (

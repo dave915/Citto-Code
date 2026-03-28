@@ -90,6 +90,7 @@ export function loadSessionsFromStore(query: PersistenceQuery): Session[] {
     permissionMode: parsePermissionMode(row.permission_mode),
     planMode: Boolean(row.plan_mode),
     model: row.model,
+    modelSwitchNotice: null,
   }))
 }
 

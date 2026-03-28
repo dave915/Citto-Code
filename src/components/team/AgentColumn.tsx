@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import { useI18n } from '../../hooks/useI18n'
 import type { TeamAgent, AgentMessage } from '../../store/teamTypes'
@@ -62,8 +63,10 @@ function MessageBubble({
         style={{ borderColor: `${agentColor}44`, backgroundColor: `${agentColor}08` }}
       >
         {message.text ? (
-          <div className="prose prose-sm prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-            <ReactMarkdown>{message.text}</ReactMarkdown>
+          <div className="overflow-x-auto">
+            <div className="prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_td]:border [&_td]:border-white/10 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-white/10 [&_th]:bg-white/5 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+            </div>
           </div>
         ) : (
           <span className="text-xs text-claude-text-muted">{t('team.message.generating')}</span>
@@ -137,6 +140,11 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
             <p className="mt-0.5 truncate whitespace-nowrap text-xs text-claude-text-muted">
               {agent.role}
             </p>
+            {agent.model && (
+              <span className="mt-1 inline-flex rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-300">
+                {agent.model}
+              </span>
+            )}
             {agent.description && (
               <p className="mt-1 truncate whitespace-nowrap text-[11px] leading-relaxed text-claude-text-muted">
                 {agent.description}

@@ -208,6 +208,7 @@ export function normalizeInput(input: ScheduledTaskInput): ScheduledTaskInput {
     name: input.name.trim(),
     prompt: input.prompt.trim(),
     projectPath: input.projectPath.trim(),
+    model: input.model?.trim() ? input.model.trim() : null,
     hour: clampHour(input.hour),
     minute: clampMinute(input.minute),
     weeklyDay: input.weeklyDay,

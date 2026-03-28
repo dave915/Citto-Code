@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { useRef, useState, type RefObject } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
 import type { Skill, SkillFile } from './useSkillTabState'
 import { SkillFileEditor } from './SkillFileEditor'
@@ -18,10 +18,13 @@ type SkillFilesPanelProps = {
   onCreateFile: () => void | Promise<void>
   onEditFile: (file: SkillFile) => void | Promise<void>
   onOpenFile: (path: string) => void
+  onImportFiles: (files: FileList | File[]) => void | Promise<void>
   onRequestAddFile: () => void
   onResetAddFile: () => void
   onResetEditingFile: () => void
   onSaveFile: () => void | Promise<void>
+  importError: string
+  importingFiles: boolean
   saveError: string
   saving: boolean
   skill: Skill
@@ -42,15 +45,20 @@ export function SkillFilesPanel({
   onCreateFile,
   onEditFile,
   onOpenFile,
+  onImportFiles,
   onRequestAddFile,
   onResetAddFile,
   onResetEditingFile,
   onSaveFile,
+  importError,
+  importingFiles,
   saveError,
   saving,
   skill,
 }: SkillFilesPanelProps) {
   const { t } = useI18n()
+  const [isDragOver, setIsDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="border-t border-claude-border bg-claude-panel">
@@ -115,6 +123,44 @@ export function SkillFilesPanel({
         />
       ) : (
         <div className="border-t border-claude-border/40 px-4 pb-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              if (!event.target.files) return
+              void onImportFiles(event.target.files)
+              event.currentTarget.value = ''
+            }}
+          />
+          <div
+            onDragOver={(event) => {
+              event.preventDefault()
+              setIsDragOver(true)
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(event) => {
+              event.preventDefault()
+              setIsDragOver(false)
+              void onImportFiles(event.dataTransfer.files)
+            }}
+            className={`mt-3 rounded-xl border border-dashed px-3 py-3 transition-colors ${
+              isDragOver ? 'border-claude-text/50 bg-claude-bg' : 'border-claude-border bg-claude-bg/60'
+            }`}
+          >
+            <p className="text-xs font-medium text-claude-text">{t('settings.skill.importFiles')}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-claude-muted">{t('settings.skill.importHint')}</p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-2 rounded-lg border border-claude-border px-2.5 py-1.5 text-xs text-claude-text transition-colors hover:bg-claude-panel"
+            >
+              {importingFiles ? t('common.loading') : t('settings.skill.importFiles')}
+            </button>
+            {importError && <p className="mt-2 text-xs text-red-400">{importError}</p>}
+          </div>
+
           {addFileFor?.name === skill.name ? (
             <div className="space-y-2 pt-2">
               <p className="text-xs font-medium text-claude-text">{t('settings.skill.addFile')}</p>

@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useI18n } from '../../hooks/useI18n'
 import type { AgentMessage } from '../../store/teamTypes'
 import { TeamOverlayPortal, useCopyFeedback, useEscapeToClose } from './teamOverlayShared'
@@ -30,9 +31,9 @@ export function TeamSelectedAgentMessagePopup({
       backdropClassName="bg-black/40 backdrop-blur-[2px]"
       closeLabel={t('common.close')}
       onClose={onClose}
-      overlayClassName="z-[145]"
+      overlayClassName="z-[190]"
     >
-      <div className="relative z-10 flex max-h-[min(84vh,56rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[18px] border border-claude-border bg-claude-panel shadow-[0_26px_70px_rgba(0,0,0,0.34)]">
+      <div className="relative z-10 flex max-h-[min(88vh,60rem)] w-[min(72rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-claude-border bg-claude-panel shadow-[0_26px_70px_rgba(0,0,0,0.34)]">
         <div className="flex items-start justify-between gap-4 border-b border-claude-border/70 px-5 py-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -74,8 +75,10 @@ export function TeamSelectedAgentMessagePopup({
             style={{ borderColor: `${color}44`, backgroundColor: `${color}12` }}
           >
             {message.text.trim() ? (
-              <div className="prose prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                <ReactMarkdown>{message.text}</ReactMarkdown>
+              <div className="overflow-x-auto">
+                <div className="prose prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_td]:border [&_td]:border-white/10 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-white/10 [&_th]:bg-white/5 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                </div>
               </div>
             ) : (
               <span className="text-sm text-claude-text-muted">{t('team.message.generating')}</span>

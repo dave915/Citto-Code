@@ -17,6 +17,7 @@ export type TeamSetupSelectedAgent = {
   name: string
   role: string
   description: string
+  model: string | null
   color: string
   iconType: AgentIconType
   isCustom: boolean
@@ -61,6 +62,7 @@ export function createSelectedAgentFromPreset(preset: AgentPreset): TeamSetupSel
     name: preset.name,
     role: preset.role,
     description: preset.description,
+    model: null,
     color: resolveAgentColor(preset.iconType, preset.color),
     iconType: preset.iconType,
     isCustom: preset.presetId.startsWith('custom-'),

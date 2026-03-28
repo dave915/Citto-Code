@@ -75,6 +75,7 @@ export type ClaudeStreamRuntimeRefs = {
 
 export type HandleSendOptions = {
   permissionModeOverride?: PermissionMode
+  planModeOverride?: boolean
   visibleTextOverride?: string
   skipAutoTransforms?: boolean
 }

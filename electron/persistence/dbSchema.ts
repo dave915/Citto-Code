@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
   name TEXT NOT NULL,
   prompt TEXT NOT NULL,
   project_path TEXT NOT NULL,
+  model TEXT,
   permission_mode TEXT NOT NULL,
   frequency TEXT NOT NULL,
   enabled INTEGER NOT NULL DEFAULT 1,

@@ -58,6 +58,16 @@ async function cleanupSessionAutoPreviewDirectories(session: Session, remainingS
   )
 }
 
+function sessionHasConversationHistory(session: Session) {
+  return session.messages.some((message) => (
+    Boolean(message.text.trim())
+    || Boolean(message.thinking?.trim())
+    || message.toolCalls.length > 0
+    || (message.attachedFiles?.length ?? 0) > 0
+    || (message.btwCards?.length ?? 0) > 0
+  ))
+}
+
 export function createClaudeSessionHandlers({
   activeSession,
   activeSessionId,
@@ -84,7 +94,8 @@ export function createClaudeSessionHandlers({
           includeImageReferences: false,
         })
 
-    if (!options?.skipAutoTransforms && shouldAutoGenerateHtmlPreview(text, files)) {
+    const autoHtmlPreviewEnabled = useSessionsStore.getState().autoHtmlPreview
+    if (!options?.skipAutoTransforms && shouldAutoGenerateHtmlPreview(text, files, autoHtmlPreviewEnabled)) {
       const autoPreviewInstruction = buildAutoHtmlPreviewInstruction(
         text,
         session.cwd && session.cwd !== '~' ? session.cwd : '~',
@@ -106,6 +117,7 @@ export function createClaudeSessionHandlers({
     runtime.storeRef.current.setError(sessionId, null)
     runtime.storeRef.current.setPendingPermission(sessionId, null)
     runtime.storeRef.current.setPendingQuestion(sessionId, null)
+    runtime.storeRef.current.updateSession(sessionId, () => ({ modelSwitchNotice: null }))
     runtime.storeRef.current.setStreaming(sessionId, true)
 
     const assistantMessageId = runtime.storeRef.current.startAssistantMessage(sessionId)
@@ -122,6 +134,7 @@ export function createClaudeSessionHandlers({
         session.model,
         Object.keys(sanitizedEnvVars).length > 0 ? sanitizedEnvVars : {},
       )
+      const effectivePlanMode = options?.planModeOverride ?? session.planMode
 
       const result = await window.claude.sendMessage({
         sessionId: session.sessionId ?? null,
@@ -130,7 +143,7 @@ export function createClaudeSessionHandlers({
         attachments: files,
         cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',
         permissionMode: options?.permissionModeOverride ?? session.permissionMode,
-        planMode: session.planMode,
+        planMode: effectivePlanMode,
         model: session.model ?? undefined,
         envVars: effectiveEnvVars,
         claudePath: claudeBinaryPath || undefined,
@@ -261,12 +274,9 @@ export function createClaudeSessionHandlers({
   const handleModelChange = (sessionId: string, nextModel: string | null) => {
     const session = useSessionsStore.getState().sessions.find((item) => item.id === sessionId)
     if (!session) return
+    if (session.model === nextModel) return
 
     const backendChanged = isLocalModelSelection(session.model) !== isLocalModelSelection(nextModel)
-    if (!backendChanged) {
-      runtime.storeRef.current.setModel(sessionId, nextModel)
-      return
-    }
 
     if (session.sessionId) {
       runtime.claudeSessionToTabRef.current.delete(session.sessionId)
@@ -276,6 +286,14 @@ export function createClaudeSessionHandlers({
       model: nextModel,
       sessionId: null,
       error: null,
+      modelSwitchNotice: backendChanged && (session.sessionId !== null || sessionHasConversationHistory(session))
+        ? {
+            kind: 'backend',
+            fromModel: session.model,
+            toModel: nextModel,
+            createdAt: Date.now(),
+          }
+        : null,
     }))
   }
 
@@ -314,6 +332,7 @@ export function createClaudeSessionHandlers({
       [],
       {
         permissionModeOverride: nextPermissionMode,
+        planModeOverride: false,
         visibleTextOverride: action === 'always'
           ? translate(uiLanguage, 'claudeStream.permissionContinue')
           : translate(uiLanguage, 'claudeStream.permissionContinueOnce'),

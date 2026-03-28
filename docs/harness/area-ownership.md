@@ -204,10 +204,12 @@
 - 책임:
   - 설정 파일/프로젝트 설정/Claude 디렉터리 읽기 쓰기
   - MCP/Skill 목록과 편집
+  - MCP 서버별 헬스 체크, 인증 필요 상태 감지, 설정 탭과 채팅 입력창 사이의 런타임 경고 상태 연결
   - 큰 settings 탭은 파일 I/O 상태와 로컬 편집 상태를 해당 하위 폴더 helper로 분리한다.
   - `McpTab.tsx`는 scope panel, add form, server list 렌더링만 유지하고, project path 탐색과 read/write/delete/reset 흐름은 `useMcpTabState.ts`에서 관리한다.
   - `SkillTab.tsx`는 intro/add/list 조합만 유지하고, skill 카드와 file editor/add-file UI는 `src/components/settings/skill/*` 하위 컴포넌트로 분리한다.
   - `AgentTab.tsx`는 intro/add/list 조합만 유지하고, agent 파일 로드/생성/삭제/편집 상태와 file card/editor UI는 `src/components/settings/agent/*`로 분리한다.
 - 흔한 회귀:
   - scope 혼동으로 잘못된 파일 위치에 저장
+  - 헬스 체크 결과와 입력창 인증 경고 상태 불일치
   - renderer와 persisted 설정 불일치

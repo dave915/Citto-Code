@@ -4,11 +4,14 @@ type ModelInfo = {
   id: string
   displayName: string
   family: string
+  provider: 'anthropic' | 'ollama' | 'custom'
+  isLocal: boolean
 }
 
 const CACHE_TTL = 5 * 60 * 1000
 
 let modelsCache: { list: ModelInfo[]; fetchedAt: number; cacheKey: string } | null = null
+let modelsInFlight: { promise: Promise<ModelInfo[]>; cacheKey: string } | null = null
 
 function buildModelsCacheKey(envVars?: Record<string, string>) {
   return JSON.stringify({
@@ -34,7 +37,21 @@ export async function getCachedClaudeModels(
     return modelsCache.list
   }
 
-  const list = await fetchModelsFromApi(envVars)
-  modelsCache = { list, fetchedAt: now, cacheKey }
-  return list
+  if (modelsInFlight && modelsInFlight.cacheKey === cacheKey) {
+    return modelsInFlight.promise
+  }
+
+  const promise = fetchModelsFromApi(envVars)
+    .then((list) => {
+      modelsCache = { list, fetchedAt: Date.now(), cacheKey }
+      return list
+    })
+    .finally(() => {
+      if (modelsInFlight?.promise === promise) {
+        modelsInFlight = null
+      }
+    })
+
+  modelsInFlight = { promise, cacheKey }
+  return promise
 }

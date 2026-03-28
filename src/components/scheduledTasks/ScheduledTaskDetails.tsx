@@ -81,7 +81,7 @@ export function ScheduledTaskDetails({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
               <p className="text-xs text-claude-muted">{t('scheduled.details.nextRun')}</p>
               <p className="mt-1 text-sm font-medium text-claude-text">{formatDateTime(selectedTask.nextRunAt, language)}</p>
@@ -89,6 +89,12 @@ export function ScheduledTaskDetails({
             <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
               <p className="text-xs text-claude-muted">{t('scheduled.details.lastRun')}</p>
               <p className="mt-1 text-sm font-medium text-claude-text">{formatDateTime(selectedTask.lastRunAt, language)}</p>
+            </div>
+            <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
+              <p className="text-xs text-claude-muted">{t('scheduled.details.model')}</p>
+              <p className="mt-1 text-sm font-medium text-claude-text">
+                {selectedTask.model ?? t('input.modelPicker.defaultModel')}
+              </p>
             </div>
             <div className="rounded-2xl border border-claude-border bg-claude-bg px-4 py-3">
               <p className="text-xs text-claude-muted">{t('scheduled.details.permissionMode')}</p>

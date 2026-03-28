@@ -204,6 +204,7 @@ function normalizeSession(value: unknown, index: number): Session {
     permissionMode: parsePermissionMode(input.permissionMode),
     planMode: Boolean(input.planMode),
     model: toNullableString(input.model),
+    modelSwitchNotice: null,
   }
 }
 
@@ -251,6 +252,7 @@ function normalizeScheduledTask(value: unknown, index: number): ScheduledTask {
     name: toTrimmedString(input.name, `작업 ${index + 1}`),
     prompt: toStringSafe(input.prompt),
     projectPath: toTrimmedString(input.projectPath, '~'),
+    model: toNullableString(input.model),
     permissionMode: parsePermissionMode(input.permissionMode),
     frequency: parseScheduledTaskFrequency(input.frequency),
     enabled: Boolean(input.enabled),

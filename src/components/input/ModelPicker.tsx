@@ -68,6 +68,7 @@ export function ModelPicker({
   }
 
   const currentFamily = current?.family ?? (model ? model.toLowerCase() : 'sonnet')
+  const currentIsLocal = current?.isLocal ?? false
   const emptyState = loading
     ? translate(language, 'input.modelPicker.loading')
     : translate(language, 'input.modelPicker.noModels')
@@ -116,7 +117,14 @@ export function ModelPicker({
               {familyBadge(entry.family)}
             </span>
             <div className="min-w-0 flex-1">
-              <p className={`font-medium ${familyColor(entry.family)}`}>{entry.displayName}</p>
+              <div className="flex items-center gap-1.5">
+                <p className={`font-medium ${familyColor(entry.family)}`}>{entry.displayName}</p>
+                {entry.isLocal && (
+                  <span className="rounded-full border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-300">
+                    LOCAL
+                  </span>
+                )}
+              </div>
               <p className="truncate text-xs text-claude-muted">{entry.id}</p>
             </div>
             {model === entry.id && <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
@@ -143,7 +151,7 @@ export function ModelPicker({
         title={translate(language, 'input.modelPicker.choose')}
         className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
           model
-            ? `${familyColor(currentFamily)} border border-claude-border bg-claude-surface`
+            ? `${familyColor(currentFamily)} border ${currentIsLocal ? 'border-orange-500/45 bg-orange-500/10' : 'border-claude-border bg-claude-surface'}`
             : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
         }`}
       >
@@ -152,6 +160,11 @@ export function ModelPicker({
           <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
         </svg>
         <span>{label}</span>
+        {currentIsLocal && (
+          <span className="rounded-full border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-300">
+            LOCAL
+          </span>
+        )}
         <svg className={`h-2.5 w-2.5 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>

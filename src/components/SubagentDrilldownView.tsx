@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { SelectedFile } from '../../electron/preload'
 import { useI18n } from '../hooks/useI18n'
-import type { PermissionMode, Session } from '../store/sessions'
+import type { ModelSwitchNotice, PermissionMode, Session } from '../store/sessions'
 import { MessageBubble } from './MessageBubble'
 import { InputArea } from './InputArea'
 import { SubagentDrilldownHeader } from './subagentDrilldown/SubagentDrilldownHeader'
@@ -17,9 +17,11 @@ type Props = {
   permissionMode: PermissionMode
   planMode: boolean
   model: string | null
+  modelSwitchNotice: ModelSwitchNotice | null
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
+  onDismissModelSwitchNotice: () => void
   permissionShortcutLabel: string
   bypassShortcutLabel: string
   onOpenTeam?: () => void
@@ -36,9 +38,11 @@ export function SubagentDrilldownView({
   permissionMode,
   planMode,
   model,
+  modelSwitchNotice,
   onPermissionModeChange,
   onPlanModeChange,
   onModelChange,
+  onDismissModelSwitchNotice,
   permissionShortcutLabel,
   bypassShortcutLabel,
   onOpenTeam,
@@ -160,9 +164,11 @@ export function SubagentDrilldownView({
         permissionMode={permissionMode}
         planMode={planMode}
         model={model}
+        modelSwitchNotice={modelSwitchNotice}
         onPermissionModeChange={onPermissionModeChange}
         onPlanModeChange={onPlanModeChange}
         onModelChange={onModelChange}
+        onDismissModelSwitchNotice={onDismissModelSwitchNotice}
         permissionShortcutLabel={permissionShortcutLabel}
         bypassShortcutLabel={bypassShortcutLabel}
         topSlot={(

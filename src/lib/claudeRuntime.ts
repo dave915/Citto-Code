@@ -36,6 +36,15 @@ const AUTO_HTML_PREVIEW_TRIGGER_PATTERNS = [
   /\bmockup\b/i,
   /\bsimulat(?:e|ion)\b/i,
 ]
+const AUTO_HTML_PREVIEW_EXPLICIT_PATTERNS = [
+  /\bhtml\b.*\bpreview\b/i,
+  /\bpreview\b.*\bhtml\b/i,
+  /\blive\s+preview\b/i,
+  /\binteractive\s+demo\b/i,
+  /html\s*미리보기/i,
+  /미리보기\s*(를|로)?\s*(만들|생성|보여)/,
+  /데모\s*(를|로)?\s*(만들|생성|보여)/,
+]
 const AUTO_HTML_PREVIEW_SKIP_PATTERNS = [
   /설명만/,
   /텍스트만/,
@@ -141,6 +150,9 @@ export function resolveEnvVarsForModel(
     if (!resolved.ANTHROPIC_BASE_URL) resolved.ANTHROPIC_BASE_URL = DEFAULT_OLLAMA_BASE_URL
     if (!resolved.ANTHROPIC_AUTH_TOKEN) resolved.ANTHROPIC_AUTH_TOKEN = 'ollama'
     resolved.ANTHROPIC_API_KEY = ''
+    resolved.CLAUDE_CODE_USE_BEDROCK = ''
+    resolved.ANTHROPIC_BEDROCK_BASE_URL = ''
+    resolved.CLAUDE_CODE_SKIP_BEDROCK_AUTH = ''
   }
 
   return Object.keys(resolved).length > 0 ? resolved : undefined
@@ -174,12 +186,18 @@ export function normalizeSelectedFolder(value: unknown): string | null {
   return null
 }
 
-export function shouldAutoGenerateHtmlPreview(text: string, files: SelectedFile[]): boolean {
+export function shouldAutoGenerateHtmlPreview(
+  text: string,
+  files: SelectedFile[],
+  autoPreviewEnabled = true,
+): boolean {
   const normalized = text.trim()
   if (!normalized) return false
   if (normalized.length > 3000) return false
   if (files.some((file) => file.fileType === 'image')) return false
   if (AUTO_HTML_PREVIEW_SKIP_PATTERNS.some((pattern) => pattern.test(normalized))) return false
+  if (AUTO_HTML_PREVIEW_EXPLICIT_PATTERNS.some((pattern) => pattern.test(normalized))) return true
+  if (!autoPreviewEnabled) return false
   return AUTO_HTML_PREVIEW_TRIGGER_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 

@@ -179,6 +179,7 @@ export function useTeamViewController({
           name: agent.name,
           role: agent.role,
           description: agent.description,
+          model: agent.model,
           color: agent.color,
           iconType: agent.iconType,
           emoji: '',

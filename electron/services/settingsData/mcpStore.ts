@@ -1,11 +1,12 @@
+import { spawn } from 'child_process'
 import { join } from 'path'
-import type { McpConfigScope, McpReadResult } from '../../preload'
+import type { McpConfigScope, McpHealthCheckResult, McpReadResult } from '../../preload'
 import {
   isRecord,
-  readJsonObject,
+  readJsonObjectAsync,
   sanitizeMcpServerConfig,
   sanitizeMcpServers,
-  writeJsonObject,
+  writeJsonObjectAsync,
 } from './shared'
 
 type CreateMcpStoreOptions = {
@@ -27,8 +28,8 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     return join(getHomePath(), '.claude.json')
   }
 
-  function listProjectPaths() {
-    const root = readJsonObject(getClaudeJsonPath())
+  async function listProjectPaths(): Promise<string[]> {
+    const root = await readJsonObjectAsync(getClaudeJsonPath())
     const projects = isRecord(root.projects) ? root.projects : {}
     return Array.from(new Set(
       Object.keys(projects)
@@ -37,12 +38,12 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     )).sort((a, b) => a.localeCompare(b))
   }
 
-  function readMcpServersForScope(scope: McpConfigScope, cwd?: string | null): McpReadResult {
+  async function readMcpServersForScope(scope: McpConfigScope, cwd?: string | null): Promise<McpReadResult> {
     const claudeJsonPath = getClaudeJsonPath()
     const projectPath = normalizeMcpProjectPath(cwd)
 
     if (scope === 'user') {
-      const root = readJsonObject(claudeJsonPath)
+      const root = await readJsonObjectAsync(claudeJsonPath)
       return {
         scope,
         available: true,
@@ -64,7 +65,7 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     }
 
     if (scope === 'local') {
-      const root = readJsonObject(claudeJsonPath)
+      const root = await readJsonObjectAsync(claudeJsonPath)
       const projects = isRecord(root.projects) ? root.projects : {}
       const projectEntry = isRecord(projects[projectPath]) ? projects[projectPath] : {}
       return {
@@ -77,7 +78,7 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     }
 
     const projectConfigPath = join(projectPath, '.mcp.json')
-    const root = readJsonObject(projectConfigPath)
+    const root = await readJsonObjectAsync(projectConfigPath)
     return {
       scope,
       available: true,
@@ -87,13 +88,17 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     }
   }
 
-  function writeMcpServersForScope(scope: McpConfigScope, cwd: string | null | undefined, mcpServers: unknown) {
+  async function writeMcpServersForScope(
+    scope: McpConfigScope,
+    cwd: string | null | undefined,
+    mcpServers: unknown,
+  ): Promise<{ ok: boolean; error?: string }> {
     const servers = sanitizeMcpServers(mcpServers)
     const claudeJsonPath = getClaudeJsonPath()
 
     if (scope === 'user') {
-      const root = readJsonObject(claudeJsonPath)
-      writeJsonObject(claudeJsonPath, { ...root, mcpServers: servers })
+      const root = await readJsonObjectAsync(claudeJsonPath)
+      await writeJsonObjectAsync(claudeJsonPath, { ...root, mcpServers: servers })
       return { ok: true }
     }
 
@@ -103,32 +108,135 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     }
 
     if (scope === 'local') {
-      const root = readJsonObject(claudeJsonPath)
+      const root = await readJsonObjectAsync(claudeJsonPath)
       const projects = isRecord(root.projects) ? { ...root.projects } : {}
       const currentProject = isRecord(projects[projectPath]) ? { ...projects[projectPath] } : {}
       projects[projectPath] = { ...currentProject, mcpServers: servers }
-      writeJsonObject(claudeJsonPath, { ...root, projects })
+      await writeJsonObjectAsync(claudeJsonPath, { ...root, projects })
       return { ok: true }
     }
 
     const projectConfigPath = join(projectPath, '.mcp.json')
-    const root = readJsonObject(projectConfigPath)
-    writeJsonObject(projectConfigPath, { ...root, mcpServers: servers })
+    const root = await readJsonObjectAsync(projectConfigPath)
+    await writeJsonObjectAsync(projectConfigPath, { ...root, mcpServers: servers })
     return { ok: true }
   }
 
-  function readProjectMcpServers(projectPath: string): McpReadResult {
+  async function checkMcpServerHealth(_name: string, config: unknown): Promise<McpHealthCheckResult> {
+    const normalizedConfig = sanitizeMcpServerConfig(config)
+    const type = normalizedConfig.type === 'stdio' ? 'stdio' : 'http'
+
+    if (type === 'stdio') {
+      const command = typeof normalizedConfig.command === 'string' ? normalizedConfig.command.trim() : ''
+      if (!command) {
+        return { status: 'error', message: 'Missing command', checkedAt: Date.now() }
+      }
+
+      return await new Promise((resolve) => {
+        let settled = false
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+        const child = spawn(command, ['--version'], {
+          stdio: 'ignore',
+          windowsHide: true,
+        })
+
+        const finish = (result: Omit<McpHealthCheckResult, 'checkedAt'>) => {
+          if (settled) return
+          settled = true
+          if (timeoutId) clearTimeout(timeoutId)
+          resolve({
+            ...result,
+            checkedAt: Date.now(),
+          })
+        }
+
+        child.once('error', (error) => {
+          const code = 'code' in error ? error.code : undefined
+          finish({
+            status: code === 'ENOENT' ? 'missing-command' : 'error',
+            message: error.message,
+          })
+        })
+
+        child.once('spawn', () => {
+          finish({
+            status: 'ok',
+            message: 'Command available',
+          })
+          child.kill()
+        })
+
+        timeoutId = setTimeout(() => {
+          finish({
+            status: 'error',
+            message: 'Command check timed out',
+          })
+          child.kill()
+        }, 3000)
+      })
+    }
+
+    const rawUrl = typeof normalizedConfig.url === 'string' ? normalizedConfig.url.trim() : ''
+    if (!rawUrl) {
+      return { status: 'error', message: 'Missing URL', checkedAt: Date.now() }
+    }
+
+    const headers = isRecord(normalizedConfig.headers)
+      ? Object.fromEntries(
+          Object.entries(normalizedConfig.headers)
+            .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0),
+        )
+      : {}
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 4000)
+
+    try {
+      const response = await fetch(rawUrl, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json, text/event-stream',
+          ...headers,
+        },
+        signal: controller.signal,
+      })
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          status: 'auth-required',
+          message: `HTTP ${response.status}`,
+          checkedAt: Date.now(),
+        }
+      }
+
+      return {
+        status: response.ok ? 'ok' : 'error',
+        message: `HTTP ${response.status}`,
+        checkedAt: Date.now(),
+      }
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error),
+        checkedAt: Date.now(),
+      }
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  async function readProjectMcpServers(projectPath: string): Promise<McpReadResult> {
     return readMcpServersForScope('local', projectPath)
   }
 
-  function writeProjectMcpServer(projectPath: string, name: string, config: unknown) {
+  async function writeProjectMcpServer(projectPath: string, name: string, config: unknown): Promise<{ ok: boolean; error?: string }> {
     const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
     if (!normalizedProjectPath) {
       return { ok: false, error: '현재 프로젝트 경로가 없어 저장할 수 없습니다.' }
     }
 
     const claudeJsonPath = getClaudeJsonPath()
-    const root = readJsonObject(claudeJsonPath)
+    const root = await readJsonObjectAsync(claudeJsonPath)
     const projects = isRecord(root.projects) ? { ...root.projects } : {}
     const currentProject = isRecord(projects[normalizedProjectPath]) ? { ...projects[normalizedProjectPath] } : {}
     const currentServers = sanitizeMcpServers(currentProject.mcpServers)
@@ -141,18 +249,18 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
       },
     }
 
-    writeJsonObject(claudeJsonPath, { ...root, projects })
+    await writeJsonObjectAsync(claudeJsonPath, { ...root, projects })
     return { ok: true }
   }
 
-  function deleteProjectMcpServer(projectPath: string, name: string) {
+  async function deleteProjectMcpServer(projectPath: string, name: string): Promise<{ ok: boolean; error?: string }> {
     const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
     if (!normalizedProjectPath) {
       return { ok: false, error: '현재 프로젝트 경로가 없어 삭제할 수 없습니다.' }
     }
 
     const claudeJsonPath = getClaudeJsonPath()
-    const root = readJsonObject(claudeJsonPath)
+    const root = await readJsonObjectAsync(claudeJsonPath)
     const projects = isRecord(root.projects) ? { ...root.projects } : {}
     const currentProject = isRecord(projects[normalizedProjectPath]) ? { ...projects[normalizedProjectPath] } : {}
     const currentServers = sanitizeMcpServers(currentProject.mcpServers)
@@ -163,24 +271,24 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
       mcpServers: rest,
     }
 
-    writeJsonObject(claudeJsonPath, { ...root, projects })
+    await writeJsonObjectAsync(claudeJsonPath, { ...root, projects })
     return { ok: true }
   }
 
-  function readDotMcpServers(projectPath: string): McpReadResult {
+  async function readDotMcpServers(projectPath: string): Promise<McpReadResult> {
     return readMcpServersForScope('project', projectPath)
   }
 
-  function writeDotMcpServer(projectPath: string, name: string, config: unknown) {
+  async function writeDotMcpServer(projectPath: string, name: string, config: unknown): Promise<{ ok: boolean; error?: string }> {
     const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
     if (!normalizedProjectPath) {
       return { ok: false, error: '현재 프로젝트 경로가 없어 저장할 수 없습니다.' }
     }
 
     const projectConfigPath = join(normalizedProjectPath, '.mcp.json')
-    const root = readJsonObject(projectConfigPath)
+    const root = await readJsonObjectAsync(projectConfigPath)
     const currentServers = sanitizeMcpServers(root.mcpServers)
-    writeJsonObject(projectConfigPath, {
+    await writeJsonObjectAsync(projectConfigPath, {
       ...root,
       mcpServers: {
         ...currentServers,
@@ -190,17 +298,17 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     return { ok: true }
   }
 
-  function deleteDotMcpServer(projectPath: string, name: string) {
+  async function deleteDotMcpServer(projectPath: string, name: string): Promise<{ ok: boolean; error?: string }> {
     const normalizedProjectPath = normalizeMcpProjectPath(projectPath)
     if (!normalizedProjectPath) {
       return { ok: false, error: '현재 프로젝트 경로가 없어 삭제할 수 없습니다.' }
     }
 
     const projectConfigPath = join(normalizedProjectPath, '.mcp.json')
-    const root = readJsonObject(projectConfigPath)
+    const root = await readJsonObjectAsync(projectConfigPath)
     const currentServers = sanitizeMcpServers(root.mcpServers)
     const { [name]: _removed, ...rest } = currentServers
-    writeJsonObject(projectConfigPath, { ...root, mcpServers: rest })
+    await writeJsonObjectAsync(projectConfigPath, { ...root, mcpServers: rest })
     return { ok: true }
   }
 
@@ -208,6 +316,7 @@ export function createMcpStore({ getHomePath }: CreateMcpStoreOptions) {
     deleteDotMcpServer,
     deleteProjectMcpServer,
     getClaudeJsonPath,
+    checkMcpServerHealth,
     listProjectPaths,
     normalizeMcpProjectPath,
     readDotMcpServers,

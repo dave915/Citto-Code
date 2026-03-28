@@ -67,6 +67,7 @@ export type PersistedScheduledTaskRow = {
   name: string
   prompt: string
   project_path: string
+  model: string | null
   permission_mode: PermissionMode
   frequency: ScheduledTaskFrequency
   enabled: number

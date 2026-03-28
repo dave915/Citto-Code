@@ -20,6 +20,8 @@ type ModelInfo = {
   id: string
   displayName: string
   family: string
+  provider: 'anthropic' | 'ollama' | 'custom'
+  isLocal: boolean
 }
 
 type RegisterClaudeIpcHandlersOptions = {
@@ -54,8 +56,8 @@ export function registerClaudeIpcHandlers({
     return getCachedClaudeModels(fetchModelsFromApi, envVars)
   })
 
-  ipcMain.handle('claude:check-installation', (_event, { claudePath }: { claudePath?: string }) => {
-    return detectClaudeInstallation(claudePath, getUserHomePath)
+  ipcMain.handle('claude:check-installation', async (_event, { claudePath }: { claudePath?: string }) => {
+    return await detectClaudeInstallation(claudePath, getUserHomePath)
   })
 
   ipcMain.handle('claude:send-message', async (event, params: SendMessageParams) => {

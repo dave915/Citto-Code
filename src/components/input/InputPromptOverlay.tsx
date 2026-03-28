@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react'
+import { useEffect, useState, type MutableRefObject } from 'react'
 
 import { translate, type AppLanguage } from '../../lib/i18n'
 import type { PendingPermissionRequest, PendingQuestionRequest } from '../../store/sessions'
@@ -33,6 +33,16 @@ export function InputPromptOverlay({
   onQuestionOptionSelect: (label: string) => void
   onPermissionAction: (action: PermissionAction['action']) => void
 }) {
+  const [permissionCollapsed, setPermissionCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (!showPermissionPrompt || !pendingPermission) {
+      setPermissionCollapsed(false)
+      return
+    }
+    setPermissionCollapsed(false)
+  }, [pendingPermission, showPermissionPrompt])
+
   if (showQuestionPrompt && pendingQuestion) {
     return (
       <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel">
@@ -92,8 +102,20 @@ export function InputPromptOverlay({
               {pendingPermission.toolName} {permissionPreview}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setPermissionCollapsed((current) => !current)}
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-claude-border/70 bg-claude-surface px-2.5 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+            title={permissionCollapsed ? translate(language, 'common.expand') : translate(language, 'common.collapse')}
+          >
+            <span>{permissionCollapsed ? translate(language, 'common.expand') : translate(language, 'common.collapse')}</span>
+            <svg className={`h-3.5 w-3.5 transition-transform ${permissionCollapsed ? '' : 'rotate-180'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
-        <div className="py-1">
+        {!permissionCollapsed && (
+          <div className="py-1">
           {permissionActions.map((item, index) => (
             <button
               key={item.action}
@@ -115,7 +137,8 @@ export function InputPromptOverlay({
               </div>
             </button>
           ))}
-        </div>
+          </div>
+        )}
       </div>
     )
   }

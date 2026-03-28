@@ -1,3 +1,4 @@
+import type { ModelInfo } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import {
@@ -7,29 +8,62 @@ import {
 
 function SelectedAgentBadge({
   agent,
+  models,
+  modelsLoading,
+  onModelChange,
   onRemove,
 }: {
   agent: TeamSetupSelectedAgent
+  models: ModelInfo[]
+  modelsLoading: boolean
+  onModelChange: (value: string | null) => void
   onRemove: () => void
 }) {
+  const { t } = useI18n()
+  const selectedModelMissing = Boolean(agent.model && !models.some((entry) => entry.id === agent.model))
+
   return (
     <div
-      className="flex items-center gap-2 rounded-lg border border-claude-border bg-claude-bg px-2 py-1.5"
+      className="space-y-2 rounded-lg border border-claude-border bg-claude-bg px-2 py-2"
       style={{ borderColor: `${agent.color}66` }}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <AgentPixelIcon type={agent.iconType} size={24} color={agent.color} />
-        <span className="truncate text-sm text-claude-text">{agent.name}</span>
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <AgentPixelIcon type={agent.iconType} size={24} color={agent.color} />
+          <span className="truncate text-sm text-claude-text">{agent.name}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="ml-1 rounded p-0.5 text-claude-text-muted hover:text-red-400"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="ml-1 rounded p-0.5 text-claude-text-muted hover:text-red-400"
-      >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </button>
+
+      <label className="block">
+        <span className="mb-1 block text-[11px] font-medium text-claude-text/70">{t('team.setup.field.model')}</span>
+        <select
+          value={agent.model ?? ''}
+          onChange={(event) => onModelChange(event.target.value || null)}
+          className="h-9 w-full rounded-lg border border-claude-border bg-claude-panel px-2.5 text-xs text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+        >
+          <option value="">{t('input.modelPicker.defaultModel')}</option>
+          {selectedModelMissing ? <option value={agent.model ?? ''}>{agent.model}</option> : null}
+          {models.map((entry) => (
+            <option key={entry.id} value={entry.id}>{entry.displayName}{entry.isLocal ? ' · LOCAL' : ''}</option>
+          ))}
+        </select>
+        <p className="mt-1 text-[11px] text-claude-text/60">
+          {modelsLoading
+            ? t('input.modelPicker.loading')
+            : models.length > 0
+              ? t('team.setup.modelHint')
+              : t('input.modelPicker.ollamaHint')}
+        </p>
+      </label>
     </div>
   )
 }
@@ -37,8 +71,11 @@ function SelectedAgentBadge({
 type Props = {
   teamName: string
   onTeamNameChange: (teamName: string) => void
+  models: ModelInfo[]
+  modelsLoading: boolean
   selectedAgents: TeamSetupSelectedAgent[]
   selectedCountLabel: string
+  onAgentModelChange: (agentId: string, model: string | null) => void
   onRemoveAgent: (agentId: string) => void
   onConfirm: () => void
   onClose: () => void
@@ -47,8 +84,11 @@ type Props = {
 export function TeamSetupPreviewPane({
   teamName,
   onTeamNameChange,
+  models,
+  modelsLoading,
   selectedAgents,
   selectedCountLabel,
+  onAgentModelChange,
   onRemoveAgent,
   onConfirm,
   onClose,
@@ -91,6 +131,9 @@ export function TeamSetupPreviewPane({
                 <SelectedAgentBadge
                   key={agent.id}
                   agent={{ ...agent, ...localizeTeamSetupSelectedAgent(agent, language) }}
+                  models={models}
+                  modelsLoading={modelsLoading}
+                  onModelChange={(model) => onAgentModelChange(agent.id, model)}
                   onRemove={() => onRemoveAgent(agent.id)}
                 />
               ))}

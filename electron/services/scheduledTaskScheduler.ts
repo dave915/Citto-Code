@@ -9,6 +9,7 @@ export type ScheduledTaskSyncItem = {
   name: string
   prompt: string
   projectPath: string
+  model: string | null
   permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
   frequency: ScheduledTaskFrequency
   enabled: boolean
@@ -48,6 +49,7 @@ export function normalizeScheduledTasks(tasks: ScheduledTaskSyncItem[]): Schedul
       name: typeof task.name === 'string' ? task.name.trim() : '',
       prompt: typeof task.prompt === 'string' ? task.prompt : '',
       projectPath: typeof task.projectPath === 'string' ? task.projectPath : '',
+      model: typeof task.model === 'string' && task.model.trim() ? task.model.trim() : null,
       permissionMode: task.permissionMode === 'acceptEdits' || task.permissionMode === 'bypassPermissions'
         ? task.permissionMode
         : 'default',
@@ -78,6 +80,7 @@ export function mapPersistedScheduledTaskToSyncItem(task: PersistedScheduledTask
     name: task.name,
     prompt: task.prompt,
     projectPath: task.projectPath,
+    model: task.model,
     permissionMode: task.permissionMode,
     frequency: task.frequency,
     enabled: task.enabled,
@@ -194,6 +197,7 @@ export function createScheduledTaskScheduler({
       name: task.name || getProjectNameFromPath(task.projectPath),
       prompt: task.prompt,
       cwd: task.projectPath,
+      model: task.model,
       permissionMode: task.permissionMode,
       firedAt,
       catchUp,

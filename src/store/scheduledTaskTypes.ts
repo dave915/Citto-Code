@@ -24,6 +24,7 @@ export type ScheduledTask = {
   name: string
   prompt: string
   projectPath: string
+  model: string | null
   permissionMode: PermissionMode
   frequency: ScheduledTaskFrequency
   enabled: boolean

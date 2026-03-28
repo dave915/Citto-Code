@@ -26,6 +26,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
     handleEditSave,
     handleEditStart,
     handleSave,
+    healthByServer,
     listLabel,
     loading,
     saving,
@@ -106,6 +107,7 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
             <McpServerCard
               key={server.name}
               server={server}
+              health={healthByServer[server.name]}
               editing={editingServer === server.name}
               confirmDelete={confirmDelete === server.name}
               editForm={editForm}

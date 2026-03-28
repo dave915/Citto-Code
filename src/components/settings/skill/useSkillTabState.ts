@@ -32,6 +32,8 @@ export function useSkillTabState() {
   const [newFileName, setNewFileName] = useState('')
   const [fileFormError, setFileFormError] = useState('')
   const [creatingFile, setCreatingFile] = useState(false)
+  const [importingSkillName, setImportingSkillName] = useState<string | null>(null)
+  const [importErrorBySkill, setImportErrorBySkill] = useState<Record<string, string>>({})
   const fileNameRef = useRef<HTMLInputElement>(null)
 
   const [editingFile, setEditingFile] = useState<SkillFile | null>(null)
@@ -174,6 +176,35 @@ export function useSkillTabState() {
     }
   }
 
+  const handleImportFiles = async (skill: Skill, files: FileList | File[]) => {
+    const entries = Array.from(files)
+    if (entries.length === 0) return
+
+    setImportingSkillName(skill.name)
+    setImportErrorBySkill((current) => ({ ...current, [skill.name]: '' }))
+
+    try {
+      for (const file of entries) {
+        const relativePath = file.webkitRelativePath || file.name
+        const filePath = `${skill.dir}/${relativePath}`
+        const content = await file.text()
+        const result = await window.claude.writeFileAbs({ filePath, content })
+        if (!result.ok) {
+          throw new Error(result.error ?? t('settings.skill.importFailed'))
+        }
+      }
+
+      loadSkillFiles(skill)
+    } catch (error) {
+      setImportErrorBySkill((current) => ({
+        ...current,
+        [skill.name]: error instanceof Error ? error.message : t('settings.skill.importFailed'),
+      }))
+    } finally {
+      setImportingSkillName((current) => (current === skill.name ? null : current))
+    }
+  }
+
   return {
     skills,
     pluginSkills,
@@ -190,6 +221,8 @@ export function useSkillTabState() {
     newFileName,
     fileFormError,
     creatingFile,
+    importingSkillName,
+    importErrorBySkill,
     fileNameRef,
     editingFile,
     editContent,
@@ -212,5 +245,6 @@ export function useSkillTabState() {
     handleSaveFile,
     handleCreate,
     handleCreateFile,
+    handleImportFiles,
   }
 }

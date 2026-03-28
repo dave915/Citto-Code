@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { McpConfigScope, McpReadResult } from '../../../electron/preload'
+import type { McpConfigScope, McpHealthCheckResult, McpReadResult } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import { translate, type AppLanguage } from '../../lib/i18n'
+import { useMcpRuntimeStore } from '../../store/mcpRuntime'
 import { getProjectNameFromPath, useSessionsStore } from '../../store/sessions'
 import {
   EMPTY_MCP_FORM,
@@ -34,10 +35,27 @@ function validateMcpForm(form: McpForm, language: AppLanguage): string {
   return ''
 }
 
+function createCheckingHealth(language: AppLanguage): McpHealthCheckResult {
+  return {
+    status: 'checking',
+    message: translate(language, 'settings.mcp.health.checking'),
+    checkedAt: Date.now(),
+  }
+}
+
+function buildAuthNoticeId(scope: McpConfigScope, projectPath: string | null, serverName: string) {
+  return `${scope}:${projectPath ?? ''}:${serverName}`
+}
+
 export function useMcpTabState(projectPath: string | null) {
   const { language, t } = useI18n()
   const sessions = useSessionsStore((state) => state.sessions)
   const defaultProjectPath = useSessionsStore((state) => state.defaultProjectPath)
+  const authNotice = useMcpRuntimeStore((state) => state.authNotice)
+  const setAuthNotice = useMcpRuntimeStore((state) => state.setAuthNotice)
+  const clearAuthNotice = useMcpRuntimeStore((state) => state.clearAuthNotice)
+  const authNoticeRef = useRef(authNotice)
+
   const currentProjectPath = useMemo(() => {
     const activePath = normalizeProjectPath(projectPath ?? '')
     if (activePath) return activePath
@@ -52,12 +70,16 @@ export function useMcpTabState(projectPath: string | null) {
   ), [sessions])
 
   const [scope, setScope] = useState<McpConfigScope>('user')
-  const [selectedProjectPath, setSelectedProjectPath] = useState(currentProjectPath ?? '')
+  const [selectedProjectPaths, setSelectedProjectPaths] = useState<{ local: string; project: string }>({
+    local: currentProjectPath ?? '',
+    project: currentProjectPath ?? '',
+  })
   const [availableProjectPaths, setAvailableProjectPaths] = useState<string[]>([])
   const [servers, setServers] = useState<McpServer[]>([])
   const [loading, setLoading] = useState(true)
   const [rawMcp, setRawMcp] = useState<Record<string, unknown>>({})
   const [scopeInfo, setScopeInfo] = useState<McpReadResult | null>(null)
+  const [healthByServer, setHealthByServer] = useState<Record<string, McpHealthCheckResult>>({})
 
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState<McpForm>(EMPTY_MCP_FORM)
@@ -73,6 +95,14 @@ export function useMcpTabState(projectPath: string | null) {
 
   const mountedRef = useRef(true)
   const loadRequestIdRef = useRef(0)
+  const healthRequestIdRef = useRef(0)
+  const notifiedAuthNoticeIdsRef = useRef<Set<string>>(new Set())
+
+  const selectedProjectPath = scope === 'project'
+    ? selectedProjectPaths.project
+    : scope === 'local'
+      ? selectedProjectPaths.local
+      : ''
 
   useEffect(() => {
     return () => {
@@ -81,10 +111,16 @@ export function useMcpTabState(projectPath: string | null) {
   }, [])
 
   useEffect(() => {
-    if (!selectedProjectPath.trim() && currentProjectPath) {
-      setSelectedProjectPath(currentProjectPath)
-    }
-  }, [currentProjectPath, selectedProjectPath])
+    authNoticeRef.current = authNotice
+  }, [authNotice])
+
+  useEffect(() => {
+    if (!currentProjectPath) return
+    setSelectedProjectPaths((current) => ({
+      local: current.local || currentProjectPath,
+      project: current.project || currentProjectPath,
+    }))
+  }, [currentProjectPath])
 
   useEffect(() => {
     let cancelled = false
@@ -118,10 +154,31 @@ export function useMcpTabState(projectPath: string | null) {
   }, [currentProjectPath, sessionProjectPaths])
 
   useEffect(() => {
+    setSelectedProjectPaths((current) => {
+      const fallback = currentProjectPath ?? availableProjectPaths[0] ?? ''
+      let changed = false
+      const next = { ...current }
+
+      for (const key of ['local', 'project'] as const) {
+        if (next[key] && availableProjectPaths.includes(next[key])) continue
+        if (next[key] !== fallback) {
+          next[key] = fallback
+          changed = true
+        }
+      }
+
+      return changed ? next : current
+    })
+  }, [availableProjectPaths, currentProjectPath])
+
+  const setSelectedProjectPath = useCallback((projectPathValue: string) => {
     if (scope === 'user') return
-    if (selectedProjectPath && availableProjectPaths.includes(selectedProjectPath)) return
-    setSelectedProjectPath(currentProjectPath ?? availableProjectPaths[0] ?? '')
-  }, [availableProjectPaths, currentProjectPath, scope, selectedProjectPath])
+    setSelectedProjectPaths((current) => (
+      scope === 'local'
+        ? { ...current, local: projectPathValue }
+        : { ...current, project: projectPathValue }
+    ))
+  }, [scope])
 
   const effectiveProjectPath = normalizeProjectPath(selectedProjectPath)
   const canManageScope = scope === 'user'
@@ -145,10 +202,90 @@ export function useMcpTabState(projectPath: string | null) {
     setConfirmDelete(null)
   }, [])
 
+  const runHealthChecks = useCallback((
+    nextServers: McpServer[],
+    rawServers: Record<string, unknown>,
+    scopeValue: McpConfigScope,
+    projectPathValue: string | null,
+  ) => {
+    const requestId = healthRequestIdRef.current + 1
+    healthRequestIdRef.current = requestId
+    const noticeIds = nextServers.map((server) => buildAuthNoticeId(scopeValue, projectPathValue, server.name))
+    const currentAuthNotice = authNoticeRef.current
+
+    if (
+      currentAuthNotice
+      && currentAuthNotice.scope === scopeValue
+      && currentAuthNotice.projectPath === projectPathValue
+      && !noticeIds.includes(currentAuthNotice.id)
+    ) {
+      notifiedAuthNoticeIdsRef.current.delete(currentAuthNotice.id)
+      clearAuthNotice(currentAuthNotice.id)
+    }
+
+    if (nextServers.length === 0) {
+      setHealthByServer({})
+      return
+    }
+
+    setHealthByServer(Object.fromEntries(
+      nextServers.map((server) => [server.name, createCheckingHealth(language)]),
+    ))
+
+    nextServers.forEach((server) => {
+      const noticeId = buildAuthNoticeId(scopeValue, projectPathValue, server.name)
+
+      void window.claude.checkMcpServerHealth({
+        name: server.name,
+        config: rawServers[server.name] as Record<string, unknown> ?? {},
+      }).then((health) => {
+        if (!mountedRef.current || requestId !== healthRequestIdRef.current) return
+
+        setHealthByServer((current) => ({ ...current, [server.name]: health }))
+
+        if (health.status === 'auth-required') {
+          setAuthNotice({
+            id: noticeId,
+            serverName: server.name,
+            scope: scopeValue,
+            projectPath: projectPathValue,
+            message: health.message ?? '',
+          })
+
+          if (!notifiedAuthNoticeIdsRef.current.has(noticeId)) {
+            notifiedAuthNoticeIdsRef.current.add(noticeId)
+            void window.claude.notify({
+              title: t('settings.mcp.authNotificationTitle'),
+              body: t('settings.mcp.authNotificationBody', { serverName: server.name }),
+            })
+          }
+          return
+        }
+
+        notifiedAuthNoticeIdsRef.current.delete(noticeId)
+        clearAuthNotice(noticeId)
+      }).catch((error) => {
+        if (!mountedRef.current || requestId !== healthRequestIdRef.current) return
+
+        setHealthByServer((current) => ({
+          ...current,
+          [server.name]: {
+            status: 'error',
+            message: error instanceof Error ? error.message : String(error),
+            checkedAt: Date.now(),
+          },
+        }))
+        notifiedAuthNoticeIdsRef.current.delete(noticeId)
+        clearAuthNotice(noticeId)
+      })
+    })
+  }, [clearAuthNotice, language, setAuthNotice, t])
+
   const loadServers = useCallback(async () => {
     const requestId = loadRequestIdRef.current + 1
     loadRequestIdRef.current = requestId
     setLoading(true)
+    const currentAuthNotice = authNoticeRef.current
 
     if (scope !== 'user' && !effectiveProjectPath) {
       if (!mountedRef.current || requestId !== loadRequestIdRef.current) return
@@ -156,6 +293,11 @@ export function useMcpTabState(projectPath: string | null) {
       setScopeInfo(buildUnavailableScopeInfo(scope, null, t('settings.mcp.chooseProjectBeforeEdit')))
       setRawMcp({})
       setServers([])
+      setHealthByServer({})
+      if (currentAuthNotice?.scope === scope && currentAuthNotice.projectPath === null) {
+        notifiedAuthNoticeIdsRef.current.delete(currentAuthNotice.id)
+        clearAuthNotice(currentAuthNotice.id)
+      }
       setLoading(false)
       return
     }
@@ -170,21 +312,28 @@ export function useMcpTabState(projectPath: string | null) {
       const result = await request
       if (!mountedRef.current || requestId !== loadRequestIdRef.current) return
 
+      const mappedServers = mapMcpServers(result.mcpServers)
       setScopeInfo(result)
       setRawMcp(result.mcpServers)
-      setServers(mapMcpServers(result.mcpServers))
+      setServers(mappedServers)
+      runHealthChecks(mappedServers, result.mcpServers, scope, result.projectPath ?? effectiveProjectPath)
     } catch {
       if (!mountedRef.current || requestId !== loadRequestIdRef.current) return
 
       setScopeInfo(buildUnavailableScopeInfo(scope, effectiveProjectPath, t('settings.mcp.loadFailed')))
       setRawMcp({})
       setServers([])
+      setHealthByServer({})
+      if (currentAuthNotice?.scope === scope && currentAuthNotice.projectPath === effectiveProjectPath) {
+        notifiedAuthNoticeIdsRef.current.delete(currentAuthNotice.id)
+        clearAuthNotice(currentAuthNotice.id)
+      }
     } finally {
       if (mountedRef.current && requestId === loadRequestIdRef.current) {
         setLoading(false)
       }
     }
-  }, [effectiveProjectPath, scope, t])
+  }, [clearAuthNotice, effectiveProjectPath, runHealthChecks, scope, t])
 
   useEffect(() => {
     resetEditorState()
@@ -332,6 +481,7 @@ export function useMcpTabState(projectPath: string | null) {
     handleEditSave,
     handleEditStart,
     handleSave,
+    healthByServer,
     listLabel,
     loading,
     saving,

@@ -2,6 +2,13 @@ export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 
 export type ToolCallStatus = 'running' | 'done' | 'error'
 
+export type ModelSwitchNotice = {
+  kind: 'backend'
+  fromModel: string | null
+  toModel: string | null
+  createdAt: number
+}
+
 export type PendingPermissionRequest = {
   toolName: string
   toolUseId: string
@@ -77,6 +84,7 @@ export type Session = {
   permissionMode: PermissionMode
   planMode: boolean
   model: string | null
+  modelSwitchNotice: ModelSwitchNotice | null
 }
 
 export type ScheduledTaskFrequency = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly'
@@ -103,6 +111,7 @@ export type ScheduledTask = {
   name: string
   prompt: string
   projectPath: string
+  model: string | null
   permissionMode: PermissionMode
   frequency: ScheduledTaskFrequency
   enabled: boolean

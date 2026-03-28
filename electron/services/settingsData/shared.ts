@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { access, mkdir, readFile, stat, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -21,6 +22,26 @@ export function writeJsonObject(filePath: string, value: Record<string, unknown>
   writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8')
 }
 
+export async function readJsonObjectAsync(filePath: string): Promise<Record<string, unknown>> {
+  try {
+    await access(filePath)
+  } catch {
+    return {}
+  }
+
+  try {
+    const parsed = JSON.parse(await readFile(filePath, 'utf-8'))
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export async function writeJsonObjectAsync(filePath: string, value: Record<string, unknown>) {
+  await mkdir(dirname(filePath), { recursive: true })
+  await writeFile(filePath, JSON.stringify(value, null, 2), 'utf-8')
+}
+
 export function sanitizeMcpServers(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {}
 }
@@ -32,6 +53,25 @@ export function sanitizeMcpServerConfig(value: unknown): Record<string, unknown>
 export function parseJsonlFile(filePath: string): Array<Record<string, unknown>> {
   try {
     return readFileSync(filePath, 'utf-8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>
+        } catch {
+          return null
+        }
+      })
+      .filter((record): record is Record<string, unknown> => record !== null)
+  } catch {
+    return []
+  }
+}
+
+export async function parseJsonlFileAsync(filePath: string): Promise<Array<Record<string, unknown>>> {
+  try {
+    return (await readFile(filePath, 'utf-8'))
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean)
@@ -79,6 +119,27 @@ export function getToolFileSnapshotBefore(toolName: string, toolInput: unknown):
 
   try {
     return readFileSync(filePath, 'utf-8')
+  } catch {
+    return null
+  }
+}
+
+export async function getToolFileSnapshotBeforeAsync(toolName: string, toolInput: unknown): Promise<string | null> {
+  if (!toolInput || typeof toolInput !== 'object') return null
+  if (!['Edit', 'MultiEdit', 'Write'].includes(toolName)) return null
+
+  const filePath = (toolInput as { file_path?: unknown }).file_path
+  if (typeof filePath !== 'string' || !filePath.trim()) return null
+
+  try {
+    const fileStat = await stat(filePath)
+    if (!fileStat.isFile()) return null
+  } catch {
+    return null
+  }
+
+  try {
+    return await readFile(filePath, 'utf-8')
   } catch {
     return null
   }

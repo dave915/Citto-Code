@@ -21,6 +21,7 @@ export default function App() {
             onRenameSession={(id, name) => controller.updateSession(id, () => ({ name }))}
             onToggleFavorite={(id) => controller.updateSession(id, (session) => ({ favorite: !session.favorite }))}
             onNewSession={controller.handleNewSession}
+            onReorderSessions={controller.reorderSessions}
             onRemoveSession={controller.handleRemoveSession}
             onSelectFolder={(sessionId) => controller.handleSelectFolder(sessionId)}
             onOpenSchedule={controller.openSchedulePanel}
@@ -63,6 +64,7 @@ export default function App() {
           onSend={controller.handleSend}
           onSendBtw={controller.handleBtwSend}
           onAbort={controller.handleAbort}
+          onDismissModelSwitchNotice={controller.dismissActiveSessionModelSwitchNotice}
           onPermissionModeChange={controller.setActiveSessionPermissionMode}
           onPlanModeChange={controller.setActiveSessionPlanMode}
           onModelChange={controller.setActiveSessionModel}

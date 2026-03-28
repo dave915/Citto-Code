@@ -24,6 +24,8 @@ export function SkillTab() {
     newFileName,
     fileFormError,
     creatingFile,
+    importingSkillName,
+    importErrorBySkill,
     fileNameRef,
     editingFile,
     editContent,
@@ -45,6 +47,7 @@ export function SkillTab() {
     handleSaveFile,
     handleCreate,
     handleCreateFile,
+    handleImportFiles,
   } = useSkillTabState()
 
   if (loading) return <LoadingPlaceholder />
@@ -108,6 +111,7 @@ export function SkillTab() {
                 onCreateFile={handleCreateFile}
                 onEditFile={handleEditFile}
                 onOpenFile={(path) => window.claude.openFile(path)}
+                onOpenFolder={() => window.claude.openFile(skill.dir)}
                 onRequestAddFile={() => {
                   setAddFileFor({ name: skill.name, dir: skill.dir })
                   setNewFileName('')
@@ -118,7 +122,10 @@ export function SkillTab() {
                 onResetConfirmDelete={() => setConfirmDelete(null)}
                 onResetEditingFile={() => setEditingFile(null)}
                 onSaveFile={handleSaveFile}
+                onImportFiles={(files) => handleImportFiles(skill, files)}
                 onToggleExpand={() => handleExpand(skill)}
+                importError={importErrorBySkill[skill.name] ?? ''}
+                importingFiles={importingSkillName === skill.name}
                 saveError={saveError}
                 saving={saving}
                 skill={skill}

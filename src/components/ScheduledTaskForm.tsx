@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
 import type { PermissionMode } from '../store/sessions'
+import { useSessionsStore } from '../store/sessions'
 import {
   type ScheduledTask,
   type ScheduledTaskDay,
   type ScheduledTaskFrequency,
   type ScheduledTaskInput,
 } from '../store/scheduledTasks'
+import { useInputModelData } from '../hooks/useInputModelData'
 import { useI18n } from '../hooks/useI18n'
+import { sanitizeEnvVars } from '../lib/claudeRuntime'
 import { TaskBasicsSection } from './scheduledTaskForm/TaskBasicsSection'
 import { TaskScheduleSection } from './scheduledTaskForm/TaskScheduleSection'
 import { getFrequencyOptions, MINUTE_OPTIONS, normalizeSelectedFolder } from './scheduledTaskForm/utils'
@@ -28,6 +31,7 @@ export function ScheduledTaskForm({
   const [name, setName] = useState(initialTask?.name ?? '')
   const [prompt, setPrompt] = useState(initialTask?.prompt ?? '')
   const [projectPath, setProjectPath] = useState(initialTask?.projectPath ?? defaultProjectPath)
+  const [model, setModel] = useState<string | null>(initialTask?.model ?? null)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(initialTask?.permissionMode ?? 'default')
   const [frequency, setFrequency] = useState<ScheduledTaskFrequency>(initialTask?.frequency ?? 'daily')
   const [enabled, setEnabled] = useState(initialTask?.enabled ?? true)
@@ -39,6 +43,9 @@ export function ScheduledTaskForm({
   const [quietHoursEnd, setQuietHoursEnd] = useState(initialTask?.quietHoursEnd ?? null)
   const [minuteManual, setMinuteManual] = useState(initialTask ? !MINUTE_OPTIONS.includes(initialTask.minute) : false)
   const [error, setError] = useState('')
+  const envVars = useSessionsStore((state) => state.envVars)
+  const sanitizedEnvVars = useMemo(() => sanitizeEnvVars(envVars), [envVars])
+  const { models, modelsLoading } = useInputModelData(sanitizedEnvVars, language)
 
   const title = initialTask ? t('scheduled.form.editTitle') : t('scheduled.form.addTitle')
   const selectedFrequency = useMemo(
@@ -90,6 +97,7 @@ export function ScheduledTaskForm({
       name: name.trim(),
       prompt: prompt.trim(),
       projectPath: projectPath.trim(),
+      model,
       permissionMode,
       frequency,
       enabled,
@@ -130,12 +138,16 @@ export function ScheduledTaskForm({
             prompt={prompt}
             projectPath={projectPath}
             defaultProjectPath={defaultProjectPath}
+            model={model}
+            models={models}
+            modelsLoading={modelsLoading}
             frequency={frequency}
             permissionMode={permissionMode}
             selectedFrequencyDescription={selectedFrequency?.description}
             onNameChange={setName}
             onPromptChange={setPrompt}
             onProjectPathChange={setProjectPath}
+            onModelChange={setModel}
             onSelectFolder={handleSelectFolder}
             onFrequencyChange={setFrequency}
             onPermissionModeChange={setPermissionMode}

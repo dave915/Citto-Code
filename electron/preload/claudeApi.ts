@@ -60,6 +60,7 @@ export const claudeAPI: ClaudeAPI = {
   writeSettings: (settings) => ipcRenderer.invoke('claude:write-settings', { settings }),
   readMcpServers: (params) => ipcRenderer.invoke('claude:read-mcp-servers', params),
   writeMcpServers: (params) => ipcRenderer.invoke('claude:write-mcp-servers', params),
+  checkMcpServerHealth: (params) => ipcRenderer.invoke('claude:check-mcp-server-health', params),
   listProjectPaths: () => ipcRenderer.invoke('claude:list-project-paths'),
   readProjectMcpServers: (projectPath) => ipcRenderer.invoke('claude:read-project-mcp-servers', { projectPath }),
   writeProjectMcpServer: (params) => ipcRenderer.invoke('claude:write-project-mcp-server', params),

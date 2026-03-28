@@ -17,6 +17,7 @@ type Props = {
   onRenameSession: (id: string, name: string) => void
   onToggleFavorite: (id: string) => void
   onNewSession: (cwd?: string) => void
+  onReorderSessions: (sessionIds: string[]) => void
   onRemoveSession: (id: string) => void
   onSelectFolder: (sessionId: string) => void
   onOpenSchedule: () => void
@@ -35,6 +36,7 @@ export function Sidebar({
   onRenameSession,
   onToggleFavorite,
   onNewSession,
+  onReorderSessions,
   onRemoveSession,
   onSelectFolder: _onSelectFolder,
   onOpenSchedule,
@@ -84,6 +86,51 @@ export function Sidebar({
     })
   }, [sidebarMode, projectGroups])
 
+  const commitNonFavoriteOrder = (orderedNonFavoriteIds: string[]) => {
+    const reorderedNonFavoriteIds = new Set(orderedNonFavoriteIds)
+    const nextNonFavoriteIds = [
+      ...orderedNonFavoriteIds,
+      ...sessions.filter((session) => !session.favorite && !reorderedNonFavoriteIds.has(session.id)).map((session) => session.id),
+    ]
+    let nonFavoriteIndex = 0
+    const nextOrder = sessions.map((session) => {
+      if (session.favorite) return session.id
+      const nextId = nextNonFavoriteIds[nonFavoriteIndex]
+      nonFavoriteIndex += 1
+      return nextId
+    })
+    onReorderSessions(nextOrder)
+  }
+
+  const handleReorderSession = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return
+    const currentIds = nonFavoriteSessions.map((session) => session.id)
+    const sourceIndex = currentIds.indexOf(sourceId)
+    const targetIndex = currentIds.indexOf(targetId)
+    if (sourceIndex < 0 || targetIndex < 0) return
+    const nextIds = [...currentIds]
+    const [moved] = nextIds.splice(sourceIndex, 1)
+    nextIds.splice(targetIndex, 0, moved)
+    commitNonFavoriteOrder(nextIds)
+  }
+
+  const handleReorderProject = (sourceCwd: string, targetCwd: string) => {
+    if (sourceCwd === targetCwd) return
+    const currentGroupOrder = projectGroups.map((group) => group.cwd)
+    const sourceIndex = currentGroupOrder.indexOf(sourceCwd)
+    const targetIndex = currentGroupOrder.indexOf(targetCwd)
+    if (sourceIndex < 0 || targetIndex < 0) return
+
+    const nextGroupOrder = [...currentGroupOrder]
+    const [moved] = nextGroupOrder.splice(sourceIndex, 1)
+    nextGroupOrder.splice(targetIndex, 0, moved)
+
+    const orderedSessionIds = nextGroupOrder.flatMap((cwd) => (
+      projectGroups.find((group) => group.cwd === cwd)?.sessions.map((session) => session.id) ?? []
+    ))
+    commitNonFavoriteOrder(orderedSessionIds)
+  }
+
   return (
     <aside className="flex h-full w-full flex-shrink-0 select-none flex-col border-r border-white/5 bg-claude-sidebar">
       <div className="pt-10 pb-2 draggable-region" />
@@ -117,6 +164,8 @@ export function Sidebar({
         onToggleFavorite={onToggleFavorite}
         onRemoveSession={onRemoveSession}
         onNewSession={onNewSession}
+        onReorderSession={handleReorderSession}
+        onReorderProject={handleReorderProject}
         onToggleProject={(cwd) => {
           setCollapsedProjects((prev) => ({ ...prev, [cwd]: !prev[cwd] }))
         }}

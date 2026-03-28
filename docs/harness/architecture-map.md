@@ -56,8 +56,9 @@
 ### Settings And Claude Files
 
 1. 설정 UI는 `src/components/settings/*`에 있다.
-2. 렌더러는 `window.claude`를 통해 설정, MCP, Skill, plugin 파일 IO를 요청한다.
+2. 렌더러는 `window.claude`를 통해 설정, MCP, Skill, plugin 파일 IO와 MCP 헬스 체크를 요청한다.
 3. `electron/ipc/settings.ts`와 `electron/services/settingsDataService.ts`가 실제 읽기/쓰기 정책을 담당한다.
+4. MCP 인증 필요 상태는 `src/components/settings/useMcpTabState.ts`에서 감지하고 `src/store/mcpRuntime.ts`를 통해 `src/components/InputArea.tsx`의 슬림 경고 바와 OS 알림으로 전달한다.
 
 ## High-Risk Integration Seams
 

@@ -47,6 +47,7 @@ export class AppPersistence {
       this.exec(SCHEMA_SQL)
       this.ensureSessionColumns()
       this.ensureMessageColumns()
+      this.ensureScheduledTaskColumns()
       this.flush()
     })()
 
@@ -158,6 +159,19 @@ export class AppPersistence {
 
     if (!columns.has('btw_cards_json')) {
       this.run('ALTER TABLE messages ADD COLUMN btw_cards_json TEXT')
+    }
+  }
+
+  private ensureScheduledTaskColumns(): void {
+    const rows = this.query<Record<string, SqlValue>>('PRAGMA table_info(scheduled_tasks)')
+    const columns = new Set(
+      rows
+        .map((row) => row.name)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    )
+
+    if (!columns.has('model')) {
+      this.run('ALTER TABLE scheduled_tasks ADD COLUMN model TEXT')
     }
   }
 

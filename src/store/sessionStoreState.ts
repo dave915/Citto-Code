@@ -56,6 +56,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     appLanguage: DEFAULT_APP_LANGUAGE,
     defaultProjectPath: DEFAULT_PROJECT_PATH,
     envVars: {},
+    autoHtmlPreview: true,
     sidebarMode: 'session',
     claudeBinaryPath: '',
     preferredOpenWithAppId: '',
@@ -71,6 +72,8 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     setEnvVar: (key, value) => set((state) => ({
       envVars: { ...state.envVars, [key]: value },
     })),
+
+    setAutoHtmlPreview: (autoHtmlPreview) => set({ autoHtmlPreview }),
 
     removeEnvVar: (key) => set((state) => {
       const { [key]: _ignored, ...rest } = state.envVars
@@ -104,6 +107,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
         permissionMode: data.permissionMode ?? 'default',
         planMode: data.planMode ?? false,
         model: data.model ?? null,
+        modelSwitchNotice: null,
       }
 
       set((state) => ({
@@ -112,6 +116,25 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
       }))
 
       return session.id
+    },
+
+    reorderSessions: (sessionIds) => {
+      const desiredOrder = new Map(sessionIds.map((sessionId, index) => [sessionId, index]))
+      set((state) => {
+        if (desiredOrder.size === 0) return state
+
+        const ordered = [...state.sessions].sort((a, b) => {
+          const left = desiredOrder.get(a.id)
+          const right = desiredOrder.get(b.id)
+          if (left == null && right == null) return 0
+          if (left == null) return 1
+          if (right == null) return -1
+          return left - right
+        })
+
+        const unchanged = ordered.every((session, index) => session.id === state.sessions[index]?.id)
+        return unchanged ? state : { sessions: ordered }
+      })
     },
 
     setDefaultProjectPath: (defaultProjectPath) => set({ defaultProjectPath }),

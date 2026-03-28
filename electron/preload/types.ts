@@ -67,6 +67,8 @@ export type ModelInfo = {
   id: string
   displayName: string
   family: string
+  provider: 'anthropic' | 'ollama' | 'custom'
+  isLocal: boolean
 }
 
 export type ClaudeInstallationStatus = {
@@ -205,6 +207,7 @@ export type ScheduledTaskSyncItem = {
   name: string
   prompt: string
   projectPath: string
+  model: string | null
   permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
   frequency: ScheduledTaskFrequency
   enabled: boolean
@@ -222,6 +225,7 @@ export type ScheduledTaskFiredEvent = {
   name: string
   prompt: string
   cwd: string
+  model: string | null
   permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
   firedAt: number
   catchUp: boolean
@@ -261,6 +265,14 @@ export type McpReadResult = {
   projectPath: string | null
   mcpServers: Record<string, unknown>
   message?: string
+}
+
+export type McpHealthCheckStatus = 'checking' | 'ok' | 'auth-required' | 'missing-command' | 'error'
+
+export type McpHealthCheckResult = {
+  status: McpHealthCheckStatus
+  message?: string
+  checkedAt: number
 }
 
 export type QuickPanelAPI = {
@@ -332,6 +344,7 @@ export type ClaudeAPI = {
   writeSettings: (settings: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>
   readMcpServers: (params?: { scope?: McpConfigScope; cwd?: string | null }) => Promise<McpReadResult>
   writeMcpServers: (params: { scope?: McpConfigScope; cwd?: string | null; mcpServers: Record<string, unknown> }) => Promise<{ ok: boolean; error?: string }>
+  checkMcpServerHealth: (params: { name: string; config: Record<string, unknown> }) => Promise<McpHealthCheckResult>
   listProjectPaths: () => Promise<string[]>
   readProjectMcpServers: (projectPath: string) => Promise<McpReadResult>
   writeProjectMcpServer: (params: { projectPath: string; name: string; config: Record<string, unknown> }) => Promise<{ ok: boolean; error?: string }>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { SelectedFile } from '../../electron/preload'
 import { buildPromptWithAttachments, toAttachedFiles } from '../lib/attachmentPrompts'
+import { resolveEnvVarsForModel } from '../lib/claudeRuntime'
 import { translate, type AppLanguage, type TranslationKey } from '../lib/i18n'
 import { nanoid } from '../store/nanoid'
 import { useTeamStore } from '../store/teamStore'
@@ -177,7 +178,8 @@ export function useAgentTeamStream(
       cwd: team.cwd,
       requestId,
       permissionMode: 'bypassPermissions',
-      envVars: envVarsRef.current,
+      model: agent.model ?? undefined,
+      envVars: resolveEnvVarsForModel(agent.model, envVarsRef.current),
       ...(claudePathRef.current ? { claudePath: claudePathRef.current } : {}),
     }).catch((error) => {
       clearContextMappings(

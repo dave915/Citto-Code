@@ -63,6 +63,7 @@ export function makeDefaultSession(cwd: string, name: string): Session {
     permissionMode: 'default',
     planMode: false,
     model: null,
+    modelSwitchNotice: null,
   }
 }
 

@@ -1,7 +1,8 @@
-import { execSync } from 'child_process'
+import { exec } from 'child_process'
 import { request as httpRequest } from 'http'
 import { request as httpsRequest } from 'https'
 import { existsSync, readFileSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { getUserHomePath } from './shellEnvironmentService'
 
@@ -9,6 +10,8 @@ export type ModelInfo = {
   id: string
   displayName: string
   family: string
+  provider: 'anthropic' | 'ollama' | 'custom'
+  isLocal: boolean
 }
 
 type ApiConfig = {
@@ -19,11 +22,11 @@ type ApiConfig = {
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 const FALLBACK_MODELS: ModelInfo[] = [
-  { id: 'claude-opus-4-6', displayName: 'Opus 4.6', family: 'opus' },
-  { id: 'claude-sonnet-4-6', displayName: 'Sonnet 4.6', family: 'sonnet' },
-  { id: 'claude-opus-4-5', displayName: 'Opus 4.5', family: 'opus' },
-  { id: 'claude-sonnet-4-5', displayName: 'Sonnet 4.5', family: 'sonnet' },
-  { id: 'claude-haiku-4-5', displayName: 'Haiku 4.5', family: 'haiku' },
+  { id: 'claude-opus-4-6', displayName: 'Opus 4.6', family: 'opus', provider: 'anthropic', isLocal: false },
+  { id: 'claude-sonnet-4-6', displayName: 'Sonnet 4.6', family: 'sonnet', provider: 'anthropic', isLocal: false },
+  { id: 'claude-opus-4-5', displayName: 'Opus 4.5', family: 'opus', provider: 'anthropic', isLocal: false },
+  { id: 'claude-sonnet-4-5', displayName: 'Sonnet 4.5', family: 'sonnet', provider: 'anthropic', isLocal: false },
+  { id: 'claude-haiku-4-5', displayName: 'Haiku 4.5', family: 'haiku', provider: 'anthropic', isLocal: false },
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -74,6 +77,19 @@ function isLikelyOllamaBaseUrl(baseUrl: string): boolean {
   }
 }
 
+function isLocalOllamaBaseUrl(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl)
+    return (
+      url.hostname === 'localhost'
+      || url.hostname === '127.0.0.1'
+      || url.hostname === '0.0.0.0'
+    )
+  } catch {
+    return false
+  }
+}
+
 function inferModelFamily(modelId: string, familyHint?: string): string {
   const lowered = (familyHint || modelId).toLowerCase()
   if (lowered.includes('opus')) return 'opus'
@@ -89,7 +105,13 @@ function inferModelFamily(modelId: string, familyHint?: string): string {
   return match?.[0] ?? 'model'
 }
 
-function createModelInfo(id: string, displayName?: string, familyHint?: string): ModelInfo {
+function createModelInfo(
+  id: string,
+  displayName: string | undefined,
+  familyHint: string | undefined,
+  provider: ModelInfo['provider'],
+  isLocal: boolean,
+): ModelInfo {
   const normalizedId = id.trim()
   const normalizedDisplayName = displayName?.trim()
 
@@ -97,23 +119,26 @@ function createModelInfo(id: string, displayName?: string, familyHint?: string):
     id: normalizedId,
     displayName: normalizedDisplayName || (/^claude-/i.test(normalizedId) ? modelDisplayName(normalizedId) : normalizedId),
     family: inferModelFamily(normalizedId, familyHint),
+    provider,
+    isLocal,
   }
 }
 
 function uniqueModels(models: ModelInfo[]): ModelInfo[] {
-  const seen = new Set<string>()
-  const deduped: ModelInfo[] = []
+  const deduped = new Map<string, ModelInfo>()
 
   for (const model of models) {
-    if (!model.id || seen.has(model.id)) continue
-    seen.add(model.id)
-    deduped.push(model)
+    if (!model.id) continue
+    const existing = deduped.get(model.id)
+    if (!existing || (model.isLocal && !existing.isLocal)) {
+      deduped.set(model.id, model)
+    }
   }
 
-  return deduped
+  return Array.from(deduped.values())
 }
 
-function parseV1ModelsPayload(payload: unknown): ModelInfo[] {
+function parseV1ModelsPayload(payload: unknown, provider: ModelInfo['provider']): ModelInfo[] {
   if (!isRecord(payload) || !Array.isArray(payload.data)) return []
 
   return uniqueModels(
@@ -128,12 +153,12 @@ function parseV1ModelsPayload(payload: unknown): ModelInfo[] {
           ? entry.name
           : undefined
       const family = typeof entry.family === 'string' ? entry.family : undefined
-      return [createModelInfo(id, displayName, family)]
+      return [createModelInfo(id, displayName, family, provider, false)]
     }),
   )
 }
 
-function parseOllamaTagsPayload(payload: unknown): ModelInfo[] {
+function parseOllamaTagsPayload(payload: unknown, isLocal: boolean): ModelInfo[] {
   if (!isRecord(payload) || !Array.isArray(payload.models)) return []
 
   return uniqueModels(
@@ -154,7 +179,7 @@ function parseOllamaTagsPayload(payload: unknown): ModelInfo[] {
           ? details.families.find((value): value is string => typeof value === 'string')
           : undefined
 
-      return [createModelInfo(id, id, family)]
+      return [createModelInfo(id, id, family, 'ollama', isLocal)]
     }),
   )
 }
@@ -231,7 +256,22 @@ async function fetchOllamaModels(
     headers.Authorization = `Bearer ${apiKey}`
   }
   const payload = await requestJson(baseUrl, '/api/tags', headers, envVars)
-  return parseOllamaTagsPayload(payload)
+  return parseOllamaTagsPayload(payload, isLocalOllamaBaseUrl(baseUrl))
+}
+
+function runApiKeyHelper(command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    exec(command, {
+      encoding: 'utf-8',
+      timeout: 5000,
+    }, (error, stdout) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve(stdout.trim())
+    })
+  })
 }
 
 async function getApiConfig(envVars?: Record<string, string>): Promise<ApiConfig> {
@@ -244,10 +284,10 @@ async function getApiConfig(envVars?: Record<string, string>): Promise<ApiConfig
 
   try {
     const settingsPath = join(getUserHomePath(), '.claude', 'settings.json')
-    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
+    const settings = JSON.parse(await readFile(settingsPath, 'utf-8'))
     if (!envBaseUrl && settings.baseURL) baseUrl = settings.baseURL
     if (!apiKey && settings.apiKeyHelper) {
-      apiKey = execSync(settings.apiKeyHelper, { encoding: 'utf-8', timeout: 5000 }).trim()
+      apiKey = await runApiKeyHelper(settings.apiKeyHelper)
     }
   } catch {
     // Ignore local Claude settings read failures.
@@ -271,7 +311,7 @@ export async function fetchModelsFromApi(envVars?: Record<string, string>): Prom
     configuredModels = await fetchOllamaModels(baseUrl, envVars, authToken, apiKey)
   } else if (apiKey || authToken) {
     const modelsPayload = await requestJson(baseUrl, '/v1/models', remoteHeaders, envVars)
-    configuredModels = parseV1ModelsPayload(modelsPayload)
+    configuredModels = parseV1ModelsPayload(modelsPayload, usingOfficialAnthropic ? 'anthropic' : 'custom')
   } else if (usingOfficialAnthropic) {
     configuredModels = FALLBACK_MODELS
   }

@@ -21,6 +21,8 @@ type SkillCardProps = {
   onCreateFile: () => void | Promise<void>
   onEditFile: (file: SkillFile) => void | Promise<void>
   onOpenFile: (path: string) => void
+  onOpenFolder: () => void
+  onImportFiles: (files: FileList | File[]) => void | Promise<void>
   onRequestAddFile: () => void
   onRequestDelete: () => void
   onResetAddFile: () => void
@@ -28,6 +30,8 @@ type SkillCardProps = {
   onResetEditingFile: () => void
   onSaveFile: () => void | Promise<void>
   onToggleExpand: () => void
+  importError: string
+  importingFiles: boolean
   saveError: string
   saving: boolean
   skill: Skill
@@ -51,6 +55,8 @@ export function SkillCard({
   onCreateFile,
   onEditFile,
   onOpenFile,
+  onOpenFolder,
+  onImportFiles,
   onRequestAddFile,
   onRequestDelete,
   onResetAddFile,
@@ -58,6 +64,8 @@ export function SkillCard({
   onResetEditingFile,
   onSaveFile,
   onToggleExpand,
+  importError,
+  importingFiles,
   saveError,
   saving,
   skill,
@@ -110,6 +118,15 @@ export function SkillCard({
                 </svg>
               </button>
               <button
+                onClick={onOpenFolder}
+                className="rounded p-1.5 text-claude-muted transition-colors hover:bg-claude-panel hover:text-claude-text"
+                title={t('settings.skill.openFolder')}
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z" />
+                </svg>
+              </button>
+              <button
                 onClick={() => onOpenFile(skill.path)}
                 className="rounded p-1.5 text-claude-muted transition-colors hover:bg-claude-panel hover:text-claude-text"
                 title={t('common.openInExternalEditor')}
@@ -148,10 +165,13 @@ export function SkillCard({
           onCreateFile={onCreateFile}
           onEditFile={onEditFile}
           onOpenFile={onOpenFile}
+          onImportFiles={onImportFiles}
           onRequestAddFile={onRequestAddFile}
           onResetAddFile={onResetAddFile}
           onResetEditingFile={onResetEditingFile}
           onSaveFile={onSaveFile}
+          importError={importError}
+          importingFiles={importingFiles}
           saveError={saveError}
           saving={saving}
           skill={skill}

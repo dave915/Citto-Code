@@ -57,6 +57,7 @@ export function useAppController() {
     setPermissionMode,
     setPlanMode,
     setModel,
+    reorderSessions,
     commitStreamEnd,
     setLinkedTeamId,
     envVars,
@@ -96,6 +97,7 @@ export function useAppController() {
       name: task.name,
       prompt: task.prompt,
       projectPath: task.projectPath,
+      model: task.model,
       permissionMode: task.permissionMode,
       frequency: task.frequency,
       enabled: task.enabled,
@@ -252,6 +254,7 @@ export function useAppController() {
     addSession,
     setPermissionMode,
     setPlanMode,
+    setModel,
     onToggleSidebar: handleToggleSidebar,
     openSettingsPanel: panels.openSettingsPanel,
     toggleCommandPalette: panels.toggleCommandPalette,
@@ -311,11 +314,16 @@ export function useAppController() {
       if (!activeSession) return
       claudeStream.handleModelChange(activeSession.id, model)
     },
+    dismissActiveSessionModelSwitchNotice: () => {
+      if (!activeSession) return
+      updateSession(activeSession.id, () => ({ modelSwitchNotice: null }))
+    },
     setLinkedTeamIdForActiveSession: (teamId: string) => {
       if (!activeSession) return
       setLinkedTeamId(activeSession.id, teamId)
     },
     setSidebarMode,
+    reorderSessions,
     shortcutConfig,
     shortcutPlatform,
     sidebarCollapsed,

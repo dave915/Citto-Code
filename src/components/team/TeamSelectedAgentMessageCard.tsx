@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useI18n } from '../../hooks/useI18n'
 import type { AgentMessage } from '../../store/teamTypes'
 import { useCopyFeedback } from './teamOverlayShared'
@@ -89,8 +90,10 @@ export function TeamSelectedAgentMessageCard({
           )}
 
           {message.text.trim() ? (
-            <div className="prose prose-sm prose-invert max-w-none break-words pr-20 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-              <ReactMarkdown>{message.text}</ReactMarkdown>
+            <div className="overflow-x-auto pr-20">
+              <div className="prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_td]:border [&_td]:border-white/10 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-white/10 [&_th]:bg-white/5 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+              </div>
             </div>
           ) : (
             <span className="text-xs text-claude-text-muted">{t('team.message.generating')}</span>

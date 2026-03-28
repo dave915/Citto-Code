@@ -19,9 +19,6 @@ export function ScheduledTasksHeader({
       <div className="draggable-region flex h-14 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel px-5">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-claude-text">{t('scheduled.header.title')}</h2>
-          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600/90">
-            {t('scheduled.header.beta')}
-          </span>
           <span className="rounded-full border border-claude-border bg-claude-surface px-2 py-0.5 text-[11px] text-claude-muted">
             {t('scheduled.header.activeCount', { count: activeTaskCount })}
           </span>

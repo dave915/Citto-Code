@@ -25,6 +25,7 @@ type Props = {
   onAbort: () => void
   onAskAboutSelection: (payload: AskAboutSelectionPayload) => void
   onCloseDrilldown: () => void
+  onDismissModelSwitchNotice: () => void
   onModelChange: (model: string | null) => void
   onOpenTeam?: () => void
   onPermissionModeChange: (mode: PermissionMode) => void
@@ -58,6 +59,7 @@ export function ChatViewMainContent({
   onAbort,
   onAskAboutSelection,
   onCloseDrilldown,
+  onDismissModelSwitchNotice,
   onModelChange,
   onOpenTeam,
   onOpenDrilldown,
@@ -84,9 +86,11 @@ export function ChatViewMainContent({
         permissionMode={session.permissionMode}
         planMode={session.planMode}
         model={session.model}
+        modelSwitchNotice={session.modelSwitchNotice}
         onPermissionModeChange={onPermissionModeChange}
         onPlanModeChange={onPlanModeChange}
         onModelChange={onModelChange}
+        onDismissModelSwitchNotice={onDismissModelSwitchNotice}
         permissionShortcutLabel={permissionShortcutLabel}
         bypassShortcutLabel={bypassShortcutLabel}
         onOpenTeam={onOpenTeam}
@@ -128,9 +132,11 @@ export function ChatViewMainContent({
         permissionMode={session.permissionMode}
         planMode={session.planMode}
         model={session.model}
+        modelSwitchNotice={session.modelSwitchNotice}
         onPermissionModeChange={onPermissionModeChange}
         onPlanModeChange={onPlanModeChange}
         onModelChange={onModelChange}
+        onDismissModelSwitchNotice={onDismissModelSwitchNotice}
         permissionShortcutLabel={permissionShortcutLabel}
         bypassShortcutLabel={bypassShortcutLabel}
         externalDraft={externalDraft}

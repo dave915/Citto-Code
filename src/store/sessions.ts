@@ -28,7 +28,7 @@ export const useSessionsStore = create<SessionsStore>()(
       name: 'citto-code-sessions',
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 6,
+      version: 7,
       migrate: (persistedState, _version) => {
         const state = persistedState as Partial<SessionsStore> & {
           shortcutConfig?: Partial<ShortcutConfig>
@@ -45,6 +45,7 @@ export const useSessionsStore = create<SessionsStore>()(
           sessions: undefined,
           activeSessionId,
           appLanguage: state.appLanguage ?? DEFAULT_APP_LANGUAGE,
+          autoHtmlPreview: state.autoHtmlPreview ?? true,
           uiFontSize: clampUiFontSize(state.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
           uiZoomPercent: clampUiZoomPercent(state.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
           quickPanelEnabled: state.quickPanelEnabled ?? true,
@@ -59,6 +60,7 @@ export const useSessionsStore = create<SessionsStore>()(
         defaultProjectPath: state.defaultProjectPath,
         appLanguage: state.appLanguage,
         envVars: state.envVars,
+        autoHtmlPreview: state.autoHtmlPreview,
         sidebarMode: state.sidebarMode,
         claudeBinaryPath: state.claudeBinaryPath,
         preferredOpenWithAppId: state.preferredOpenWithAppId,
@@ -83,6 +85,7 @@ export const useSessionsStore = create<SessionsStore>()(
           ...persistedState,
           appLanguage: persistedState.appLanguage ?? DEFAULT_APP_LANGUAGE,
           defaultProjectPath: persistedState.defaultProjectPath ?? DEFAULT_PROJECT_PATH,
+          autoHtmlPreview: persistedState.autoHtmlPreview ?? true,
           claudeBinaryPath: persistedState.claudeBinaryPath ?? '',
           preferredOpenWithAppId: persistedState.preferredOpenWithAppId ?? '',
           themeId: persistedState.themeId ?? CURRENT_THEME_ID,
@@ -111,6 +114,7 @@ export type {
   ImportedSessionData,
   ImportedToolCall,
   Message,
+  ModelSwitchNotice,
   NotificationMode,
   PendingPermissionRequest,
   PendingQuestionOption,

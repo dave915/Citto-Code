@@ -3,6 +3,7 @@ import type { ScheduledTaskFrequency } from '../../store/scheduledTasks'
 import { translate, type AppLanguage } from '../../lib/i18n'
 import { ScheduledTaskSelect } from './ScheduledTaskSelect'
 import { getFrequencyOptions, getPermissionOptions } from './utils'
+import type { ModelInfo } from '../../../electron/preload'
 
 type Props = {
   name: string
@@ -10,12 +11,16 @@ type Props = {
   prompt: string
   projectPath: string
   defaultProjectPath: string
+  model: string | null
+  models: ModelInfo[]
+  modelsLoading: boolean
   frequency: ScheduledTaskFrequency
   permissionMode: PermissionMode
   selectedFrequencyDescription?: string
   onNameChange: (value: string) => void
   onPromptChange: (value: string) => void
   onProjectPathChange: (value: string) => void
+  onModelChange: (value: string | null) => void
   onSelectFolder: () => void | Promise<void>
   onFrequencyChange: (value: ScheduledTaskFrequency) => void
   onPermissionModeChange: (value: PermissionMode) => void
@@ -27,18 +32,23 @@ export function TaskBasicsSection({
   prompt,
   projectPath,
   defaultProjectPath,
+  model,
+  models,
+  modelsLoading,
   frequency,
   permissionMode,
   selectedFrequencyDescription,
   onNameChange,
   onPromptChange,
   onProjectPathChange,
+  onModelChange,
   onSelectFolder,
   onFrequencyChange,
   onPermissionModeChange,
 }: Props) {
   const frequencyOptions = getFrequencyOptions(language)
   const permissionOptions = getPermissionOptions(language)
+  const selectedModelMissing = Boolean(model && !models.some((entry) => entry.id === model))
 
   return (
     <>
@@ -84,7 +94,7 @@ export function TaskBasicsSection({
         </div>
       </label>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
         <div>
           <span className="mb-1.5 block text-xs font-medium text-claude-muted">{translate(language, 'scheduled.form.field.frequency')}</span>
           <ScheduledTaskSelect value={frequency} onChange={(value) => onFrequencyChange(value as ScheduledTaskFrequency)}>
@@ -93,6 +103,24 @@ export function TaskBasicsSection({
             ))}
           </ScheduledTaskSelect>
           <p className="mt-1.5 text-xs text-claude-muted">{selectedFrequencyDescription}</p>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-medium text-claude-muted">{translate(language, 'scheduled.form.field.model')}</span>
+          <ScheduledTaskSelect value={model ?? ''} onChange={(value) => onModelChange(value || null)}>
+            <option value="">{translate(language, 'input.modelPicker.defaultModel')}</option>
+            {selectedModelMissing ? <option value={model ?? ''}>{model}</option> : null}
+            {models.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.displayName}{entry.isLocal ? ' · LOCAL' : ''}</option>
+            ))}
+          </ScheduledTaskSelect>
+          <p className="mt-1.5 text-xs text-claude-muted">
+            {modelsLoading
+              ? translate(language, 'input.modelPicker.loading')
+              : models.length > 0
+                ? translate(language, 'scheduled.form.modelHint')
+                : translate(language, 'input.modelPicker.ollamaHint')}
+          </p>
         </div>
 
         <div>

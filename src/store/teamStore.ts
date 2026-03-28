@@ -13,6 +13,7 @@ export const useTeamStore = create<TeamStore>()(
     const id = nanoid()
     const teamAgents: TeamAgent[] = agents.map((a) => ({
       ...a,
+      model: a.model ?? null,
       claudeSessionId: null,
       messages: [],
       isStreaming: false,
@@ -146,6 +147,7 @@ export const useTeamStore = create<TeamStore>()(
                 ...t.agents,
                 {
                   ...agentData,
+                  model: agentData.model ?? null,
                   claudeSessionId: null,
                   messages: [],
                   isStreaming: false,

@@ -15,10 +15,12 @@ export function buildSummary(entries: TimelineEntry[], language: AppLanguage = '
   const fileEdits = entries.filter((entry) => entry.kind === 'file' && (entry.added > 0 || entry.removed > 0)).length
   const todos = entries.filter((entry) => entry.kind === 'todo').length
   const reads = entries.filter((entry) => entry.readLines > 0).length
+  const genericTools = entries.filter((entry) => entry.kind === 'generic').length
 
   if (fileEdits > 0) parts.push(translate(language, 'toolTimeline.summary.filesEdited', { count: fileEdits }))
   if (todos > 0) parts.push(translate(language, 'toolTimeline.summary.todoUpdated'))
   if (reads > 0) parts.push(translate(language, 'toolTimeline.summary.filesRead'))
+  if (genericTools > 0) parts.push(translate(language, 'toolTimeline.summary.otherTools', { count: genericTools }))
 
   return parts.length > 0
     ? parts.join(', ')

@@ -12,15 +12,19 @@ import {
 type Props = {
   uiFontSize: number
   uiZoomPercent: number
+  autoHtmlPreview: boolean
   onFontSizeChange: (value: number) => void
   onZoomChange: (value: number) => void
+  onAutoHtmlPreviewChange: (value: boolean) => void
 }
 
 export function DisplaySection({
   uiFontSize,
   uiZoomPercent,
+  autoHtmlPreview,
   onFontSizeChange,
   onZoomChange,
+  onAutoHtmlPreviewChange,
 }: Props) {
   const { t } = useI18n()
   const [pendingZoom, setPendingZoom] = useState(uiZoomPercent)
@@ -98,6 +102,32 @@ export function DisplaySection({
           <div className="mt-1 flex items-center justify-between text-[11px] text-claude-muted/80">
             <span>{MIN_UI_ZOOM_PERCENT}%</span>
             <span>{MAX_UI_ZOOM_PERCENT}%</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-claude-border/70 bg-claude-bg px-3 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-claude-text">{t('settings.general.display.autoHtmlPreview')}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-claude-muted">
+                {t('settings.general.display.autoHtmlPreviewDescription')}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoHtmlPreview}
+              onClick={() => onAutoHtmlPreviewChange(!autoHtmlPreview)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                autoHtmlPreview ? 'bg-claude-surface-2' : 'bg-claude-panel'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 rounded-full bg-white transition-transform ${
+                  autoHtmlPreview ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
           </div>
         </div>
       </div>

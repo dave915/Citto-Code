@@ -49,6 +49,7 @@ type Props = {
   onSend: (text: string, files: SelectedFile[]) => void
   onSendBtw: (text: string, files: SelectedFile[]) => void
   onAbort: () => void
+  onDismissModelSwitchNotice: () => void
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
@@ -83,6 +84,7 @@ export function AppMainContent({
   onSend,
   onSendBtw,
   onAbort,
+  onDismissModelSwitchNotice,
   onPermissionModeChange,
   onPlanModeChange,
   onModelChange,
@@ -153,6 +155,7 @@ export function AppMainContent({
       onSend={onSend}
       onSendBtw={onSendBtw}
       onAbort={onAbort}
+      onDismissModelSwitchNotice={onDismissModelSwitchNotice}
       sidebarMode={sidebarMode}
       sidebarCollapsed={sidebarCollapsed}
       onToggleSidebar={onToggleSidebar}

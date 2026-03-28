@@ -25,6 +25,7 @@ type Props = {
   sidebarShortcutLabel: string
   filesShortcutLabel: string
   sessionInfoShortcutLabel: string
+  onDismissModelSwitchNotice: () => void
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
@@ -48,6 +49,7 @@ export function ChatView({
   sidebarShortcutLabel,
   filesShortcutLabel,
   sessionInfoShortcutLabel,
+  onDismissModelSwitchNotice,
   onPermissionModeChange,
   onPlanModeChange,
   onModelChange,
@@ -138,6 +140,7 @@ export function ChatView({
           onAbort={onAbort}
           onAskAboutSelection={controller.handleAskAboutSelection}
           onCloseDrilldown={() => controller.setDrillTarget(null)}
+          onDismissModelSwitchNotice={onDismissModelSwitchNotice}
           onModelChange={onModelChange}
           onOpenTeam={onOpenTeam}
           onOpenDrilldown={controller.setDrillTarget}

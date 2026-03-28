@@ -26,6 +26,7 @@ type Params = {
   addSession: (cwd: string, name: string) => string
   setPermissionMode: (sessionId: string, mode: PermissionMode) => void
   setPlanMode: (sessionId: string, value: boolean) => void
+  setModel: (sessionId: string, model: string | null) => void
   onToggleSidebar: () => void
   openSettingsPanel: () => void
   toggleCommandPalette: () => void
@@ -64,6 +65,7 @@ export function useAppDesktopEffects({
   addSession,
   setPermissionMode,
   setPlanMode,
+  setModel,
   onToggleSidebar,
   openSettingsPanel,
   toggleCommandPalette,
@@ -179,6 +181,7 @@ export function useAppDesktopEffects({
         ? baseSessionName
         : `[Schedule] ${baseSessionName}`
       const sessionId = addSession(cwd, sessionName)
+      setModel(sessionId, payload.model ?? null)
       scheduledTaskSessionByRunRef.current.set(`${payload.taskId}:${payload.firedAt}`, sessionId)
       scheduledTaskRunMetaBySessionRef.current.set(sessionId, {
         taskId: payload.taskId,
@@ -195,7 +198,7 @@ export function useAppDesktopEffects({
       })
     })
     return cleanup
-  }, [addSession, closeOverlayPanels, defaultProjectPath, handleSendForSession, language, scheduledTaskRunMetaBySessionRef, scheduledTaskSessionByRunRef])
+  }, [addSession, closeOverlayPanels, defaultProjectPath, handleSendForSession, language, scheduledTaskRunMetaBySessionRef, scheduledTaskSessionByRunRef, setModel])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

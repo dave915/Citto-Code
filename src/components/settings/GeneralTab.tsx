@@ -20,6 +20,7 @@ export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode
     notificationMode,
     uiFontSize,
     uiZoomPercent,
+    autoHtmlPreview,
     quickPanelEnabled,
     shortcutConfig,
     claudeBinaryPath,
@@ -29,6 +30,7 @@ export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode
     setNotificationMode,
     setUiFontSize,
     setUiZoomPercent,
+    setAutoHtmlPreview,
     setQuickPanelEnabled,
     setShortcut,
     setClaudeBinaryPath,
@@ -46,8 +48,10 @@ export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode
       <DisplaySection
         uiFontSize={uiFontSize}
         uiZoomPercent={uiZoomPercent}
+        autoHtmlPreview={autoHtmlPreview}
         onFontSizeChange={setUiFontSize}
         onZoomChange={setUiZoomPercent}
+        onAutoHtmlPreviewChange={setAutoHtmlPreview}
       />
       <ClaudeBinaryPathSection
         claudeBinaryPath={claudeBinaryPath}

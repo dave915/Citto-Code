@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { useState, type RefObject } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { Session } from '../../store/sessions'
 import { SessionRow } from './SessionRow'
@@ -20,6 +20,8 @@ type Props = {
   onToggleFavorite: (id: string) => void
   onRemoveSession: (id: string) => void
   onNewSession: (cwd?: string) => void
+  onReorderSession: (sourceId: string, targetId: string) => void
+  onReorderProject: (sourceCwd: string, targetCwd: string) => void
   onToggleProject: (cwd: string) => void
   setEditingSessionId: (id: string | null) => void
   setEditingName: (name: string) => void
@@ -41,11 +43,18 @@ export function SidebarContent({
   onToggleFavorite,
   onRemoveSession,
   onNewSession,
+  onReorderSession,
+  onReorderProject,
   onToggleProject,
   setEditingSessionId,
   setEditingName,
 }: Props) {
   const { t } = useI18n()
+  const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null)
+  const [sessionDropTargetId, setSessionDropTargetId] = useState<string | null>(null)
+  const [draggingProjectCwd, setDraggingProjectCwd] = useState<string | null>(null)
+  const [projectDropTargetCwd, setProjectDropTargetCwd] = useState<string | null>(null)
+
   return (
     <>
       {favoriteSessions.length > 0 && (
@@ -81,7 +90,35 @@ export function SidebarContent({
         {sidebarMode === 'project' ? (
           projectGroups.map((group) => (
             <section key={group.cwd} className="space-y-0.5">
-              <div className="flex items-center gap-1 px-1">
+              <div
+                draggable
+                onDragStart={(event) => {
+                  setDraggingProjectCwd(group.cwd)
+                  event.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  if (draggingProjectCwd && draggingProjectCwd !== group.cwd) {
+                    setProjectDropTargetCwd(group.cwd)
+                  }
+                }}
+                onDragLeave={() => {
+                  setProjectDropTargetCwd((current) => (current === group.cwd ? null : current))
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  if (draggingProjectCwd) onReorderProject(draggingProjectCwd, group.cwd)
+                  setDraggingProjectCwd(null)
+                  setProjectDropTargetCwd(null)
+                }}
+                onDragEnd={() => {
+                  setDraggingProjectCwd(null)
+                  setProjectDropTargetCwd(null)
+                }}
+                className={`flex items-center gap-1 rounded-xl px-1 transition-colors ${
+                  projectDropTargetCwd === group.cwd ? 'bg-white/5' : ''
+                }`}
+              >
                 <button
                   onClick={() => onToggleProject(group.cwd)}
                   className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:text-claude-text"
@@ -141,23 +178,53 @@ export function SidebarContent({
         ) : (
           <div className="space-y-0.5">
             {sortSessions(nonFavoriteSessions).map((session) => (
-              <SessionRow
+              <div
                 key={session.id}
-                session={session}
-                activeSessionId={activeSessionId}
-                editingSessionId={editingSessionId}
-                editingName={editingName}
-                inputRef={inputRef}
-                showProjectLabel
-                dense
-                lockState={sessionLockState[session.id]}
-                onSelectSession={onSelectSession}
-                onRenameSession={onRenameSession}
-                onToggleFavorite={onToggleFavorite}
-                onRemoveSession={onRemoveSession}
-                setEditingSessionId={setEditingSessionId}
-                setEditingName={setEditingName}
-              />
+                draggable
+                onDragStart={(event) => {
+                  setDraggingSessionId(session.id)
+                  event.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  if (draggingSessionId && draggingSessionId !== session.id) {
+                    setSessionDropTargetId(session.id)
+                  }
+                }}
+                onDragLeave={() => {
+                  setSessionDropTargetId((current) => (current === session.id ? null : current))
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  if (draggingSessionId) onReorderSession(draggingSessionId, session.id)
+                  setDraggingSessionId(null)
+                  setSessionDropTargetId(null)
+                }}
+                onDragEnd={() => {
+                  setDraggingSessionId(null)
+                  setSessionDropTargetId(null)
+                }}
+                className={`rounded-2xl transition-colors ${
+                  sessionDropTargetId === session.id ? 'bg-white/5' : ''
+                }`}
+              >
+                <SessionRow
+                  session={session}
+                  activeSessionId={activeSessionId}
+                  editingSessionId={editingSessionId}
+                  editingName={editingName}
+                  inputRef={inputRef}
+                  showProjectLabel
+                  dense
+                  lockState={sessionLockState[session.id]}
+                  onSelectSession={onSelectSession}
+                  onRenameSession={onRenameSession}
+                  onToggleFavorite={onToggleFavorite}
+                  onRemoveSession={onRemoveSession}
+                  setEditingSessionId={setEditingSessionId}
+                  setEditingName={setEditingName}
+                />
+              </div>
             ))}
           </div>
         )}

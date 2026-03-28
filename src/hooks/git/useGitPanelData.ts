@@ -198,26 +198,18 @@ export function useGitPanelData({
   }, [gitPanelOpen, cwd])
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      if (gitPanelOpen) return
-      void refreshGitPanelPassive()
-    }, 5000)
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [gitPanelOpen, cwd])
-
-  useEffect(() => {
     let cancelled = false
     void refreshGitStatus(() => cancelled)
-    void refreshGitLog(() => cancelled)
-    void refreshGitBranches(() => cancelled)
+
+    if (gitPanelOpen) {
+      void refreshGitLog(() => cancelled)
+      void refreshGitBranches(() => cancelled)
+    }
 
     return () => {
       cancelled = true
     }
-  }, [cwd])
+  }, [cwd, gitPanelOpen])
 
   useEffect(() => {
     const normalizedCwd = cwd.trim()
@@ -228,7 +220,11 @@ export function useGitPanelData({
 
     const cleanupEvent = window.claude.onGitHeadChanged((event) => {
       if (event.cwd !== normalizedCwd) return
-      void refreshGitPanel({ silent: true })
+      if (gitPanelOpen) {
+        void refreshGitPanel({ silent: true })
+        return
+      }
+      void refreshGitStatus(undefined, { silent: true })
     })
 
     void window.claude.watchGitHead({ cwd: normalizedCwd })
@@ -250,10 +246,11 @@ export function useGitPanelData({
         void window.claude.unwatchGitHead({ watchId }).catch(() => undefined)
       }
     }
-  }, [cwd])
+  }, [cwd, gitPanelOpen])
 
   useEffect(() => {
     setGitLog([])
+    setGitBranches([])
     resetSelection()
   }, [cwd])
 

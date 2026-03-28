@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'fs'
+import { access, readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import type {
   CliHistoryEntry,
@@ -8,9 +8,9 @@ import type {
 } from '../../preload'
 import {
   extractTextBlocks,
+  getToolFileSnapshotBeforeAsync,
   getRecordTimestamp,
-  getToolFileSnapshotBefore,
-  parseJsonlFile,
+  parseJsonlFileAsync,
 } from './shared'
 
 type CreateCliHistoryServiceOptions = {
@@ -24,8 +24,17 @@ export function createCliHistoryService({
   getHomePath,
   getProjectNameFromPath,
 }: CreateCliHistoryServiceOptions) {
-  function buildCliHistoryEntry(filePath: string, source: 'project' | 'transcript'): CliHistoryEntry | null {
-    const records = parseJsonlFile(filePath)
+  async function pathExists(targetPath: string): Promise<boolean> {
+    try {
+      await access(targetPath)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async function buildCliHistoryEntry(filePath: string, source: 'project' | 'transcript'): Promise<CliHistoryEntry | null> {
+    const records = await parseJsonlFileAsync(filePath)
     if (records.length === 0) return null
 
     let cwd = ''
@@ -49,7 +58,7 @@ export function createCliHistoryService({
 
     if (!updatedAt) {
       try {
-        updatedAt = statSync(filePath).mtimeMs
+        updatedAt = (await stat(filePath)).mtimeMs
       } catch {
         updatedAt = Date.now()
       }
@@ -68,18 +77,18 @@ export function createCliHistoryService({
     }
   }
 
-  function listCliHistoryFiles(): Array<{ filePath: string; source: 'project' | 'transcript' }> {
+  async function listCliHistoryFiles(): Promise<Array<{ filePath: string; source: 'project' | 'transcript' }>> {
     const files: Array<{ filePath: string; source: 'project' | 'transcript' }> = []
     const home = getHomePath()
     const projectsDir = join(home, '.claude', 'projects')
     const transcriptsDir = join(home, '.claude', 'transcripts')
 
     try {
-      if (existsSync(projectsDir)) {
-        for (const projectDir of readdirSync(projectsDir, { withFileTypes: true })) {
+      if (await pathExists(projectsDir)) {
+        for (const projectDir of await readdir(projectsDir, { withFileTypes: true })) {
           if (!projectDir.isDirectory()) continue
           const fullProjectDir = join(projectsDir, projectDir.name)
-          for (const entry of readdirSync(fullProjectDir, { withFileTypes: true })) {
+          for (const entry of await readdir(fullProjectDir, { withFileTypes: true })) {
             if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue
             files.push({
               filePath: join(fullProjectDir, entry.name),
@@ -93,8 +102,8 @@ export function createCliHistoryService({
     }
 
     try {
-      if (existsSync(transcriptsDir)) {
-        for (const entry of readdirSync(transcriptsDir, { withFileTypes: true })) {
+      if (await pathExists(transcriptsDir)) {
+        for (const entry of await readdir(transcriptsDir, { withFileTypes: true })) {
           if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue
           files.push({
             filePath: join(transcriptsDir, entry.name),
@@ -109,9 +118,10 @@ export function createCliHistoryService({
     return files
   }
 
-  function listCliSessions(query = ''): CliHistoryEntry[] {
-    const entries = listCliHistoryFiles()
-      .map(({ filePath, source }) => buildCliHistoryEntry(filePath, source))
+  async function listCliSessions(query = ''): Promise<CliHistoryEntry[]> {
+    const entries = (await Promise.all(
+      (await listCliHistoryFiles()).map(({ filePath, source }) => buildCliHistoryEntry(filePath, source)),
+    ))
       .filter((entry): entry is CliHistoryEntry => entry !== null)
       .sort((a, b) => b.updatedAt - a.updatedAt)
 
@@ -126,8 +136,8 @@ export function createCliHistoryService({
       .slice(0, 200)
   }
 
-  function loadCliSession(filePath: string): ImportedCliSession | null {
-    const records = parseJsonlFile(filePath)
+  async function loadCliSession(filePath: string): Promise<ImportedCliSession | null> {
+    const records = await parseJsonlFileAsync(filePath)
     if (records.length === 0) return null
 
     let cwd = ''
@@ -176,7 +186,7 @@ export function createCliHistoryService({
               toolUseId: String(blockRecord.id ?? ''),
               toolName: String(blockRecord.name ?? ''),
               toolInput: blockRecord.input,
-              fileSnapshotBefore: getToolFileSnapshotBefore(String(blockRecord.name ?? ''), blockRecord.input),
+              fileSnapshotBefore: await getToolFileSnapshotBeforeAsync(String(blockRecord.name ?? ''), blockRecord.input),
               status: 'running',
             }
             toolCalls.push(toolCall)

@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react'
 import type { SelectedFile } from '../../../electron/preload'
-import type { PendingPermissionRequest, PendingQuestionRequest, PermissionMode } from '../../store/sessions'
+import type {
+  ModelSwitchNotice,
+  PendingPermissionRequest,
+  PendingQuestionRequest,
+  PermissionMode,
+} from '../../store/sessions'
 
 export type InputAreaProps = {
   cwd: string
@@ -17,9 +22,11 @@ export type InputAreaProps = {
   permissionMode: PermissionMode
   planMode: boolean
   model: string | null
+  modelSwitchNotice: ModelSwitchNotice | null
   onPermissionModeChange: (mode: PermissionMode) => void
   onPlanModeChange: (value: boolean) => void
   onModelChange: (model: string | null) => void
+  onDismissModelSwitchNotice: () => void
   permissionShortcutLabel: string
   bypassShortcutLabel: string
   externalDraft?: { id: number; text: string } | null

@@ -71,6 +71,13 @@ export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 export type SidebarMode = 'session' | 'project'
 export type NotificationMode = 'all' | 'background' | 'off'
 
+export type ModelSwitchNotice = {
+  kind: 'backend'
+  fromModel: string | null
+  toModel: string | null
+  createdAt: number
+}
+
 export type ShortcutAction =
   | 'toggleSidebar'
   | 'toggleFiles'
@@ -108,6 +115,7 @@ export type Session = {
   permissionMode: PermissionMode
   planMode: boolean
   model: string | null
+  modelSwitchNotice: ModelSwitchNotice | null
   linkedTeamId?: string | null
 }
 
@@ -142,6 +150,7 @@ export type SessionsStore = {
   appLanguage: AppLanguage
   defaultProjectPath: string
   envVars: Record<string, string>
+  autoHtmlPreview: boolean
   sidebarMode: SidebarMode
   claudeBinaryPath: string
   preferredOpenWithAppId: string
@@ -153,11 +162,13 @@ export type SessionsStore = {
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
   importSession: (data: ImportedSessionData) => string
+  reorderSessions: (sessionIds: string[]) => void
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   setDefaultProjectPath: (path: string) => void
   setAppLanguage: (language: AppLanguage) => void
   setSidebarMode: (mode: SidebarMode) => void
+  setAutoHtmlPreview: (value: boolean) => void
   setClaudeBinaryPath: (path: string) => void
   setPreferredOpenWithAppId: (appId: string) => void
   setThemeId: (themeId: ThemeId) => void

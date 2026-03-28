@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AgentTeamGuideModal } from './AgentTeamGuideModal'
 import { useI18n } from '../../hooks/useI18n'
+import { useInputModelData } from '../../hooks/useInputModelData'
+import { sanitizeEnvVars } from '../../lib/claudeRuntime'
 import {
   type AgentPreset,
   getAgentPresets,
@@ -23,6 +25,7 @@ import {
   type TeamSetupCustomDraft,
   type TeamSetupSelectedAgent,
 } from './TeamSetupModalParts'
+import { useSessionsStore } from '../../store/sessions'
 
 type Props = {
   onConfirm: (teamName: string, agents: TeamSetupSelectedAgent[]) => void
@@ -31,6 +34,7 @@ type Props = {
 
 export function TeamSetupModal({ onConfirm, onClose }: Props) {
   const { language, t } = useI18n()
+  const envVars = useSessionsStore((state) => state.envVars)
   const [step, setStep] = useState<'select' | 'custom'>('select')
   const [showGuide, setShowGuide] = useState(false)
   const [teamName, setTeamName] = useState(() => t('team.setup.defaultTeamName'))
@@ -40,6 +44,8 @@ export function TeamSetupModal({ onConfirm, onClose }: Props) {
   const [customDraft, setCustomDraft] = useState<TeamSetupCustomDraft>(createEmptyTeamSetupCustomDraft)
   const presetCategories = getPresetCategories(language)
   const agentPresets = getAgentPresets(language)
+  const sanitizedEnvVars = useMemo(() => sanitizeEnvVars(envVars), [envVars])
+  const { models, modelsLoading } = useInputModelData(sanitizedEnvVars, language)
 
   useEffect(() => {
     if (typeof localStorage === 'undefined') return
@@ -121,6 +127,12 @@ export function TeamSetupModal({ onConfirm, onClose }: Props) {
         ...localizeTeamSetupSelectedAgent(agent, language),
       })),
     )
+  }
+
+  function updateSelectedAgentModel(agentId: string, model: string | null) {
+    setSelectedAgents((current) => current.map((agent) => (
+      agent.id === agentId ? { ...agent, model } : agent
+    )))
   }
 
   return (
@@ -217,8 +229,11 @@ export function TeamSetupModal({ onConfirm, onClose }: Props) {
           <TeamSetupPreviewPane
             teamName={teamName}
             onTeamNameChange={setTeamName}
+            models={models}
+            modelsLoading={modelsLoading}
             selectedAgents={selectedAgents}
             selectedCountLabel={selectedCountLabel}
+            onAgentModelChange={updateSelectedAgentModel}
             onRemoveAgent={(agentId) => {
               setSelectedAgents((prev) => prev.filter((agent) => agent.id !== agentId))
             }}
