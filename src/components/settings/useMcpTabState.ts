@@ -12,6 +12,26 @@ import {
 } from './shared'
 import { buildEntry, mapMcpServers, serverToForm } from './mcpUtils'
 
+const MCP_LOAD_TIMEOUT_MS = 5000
+const MCP_HEALTH_TIMEOUT_MS = 5000
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(timeoutError), timeoutMs)
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timeoutId)
+        reject(error)
+      },
+    )
+  })
+}
+
 function buildUnavailableScopeInfo(
   scope: McpConfigScope,
   projectPath: string | null,
@@ -105,6 +125,7 @@ export function useMcpTabState(projectPath: string | null) {
       : ''
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
       mountedRef.current = false
     }
@@ -125,7 +146,11 @@ export function useMcpTabState(projectPath: string | null) {
   useEffect(() => {
     let cancelled = false
 
-    window.claude.listProjectPaths()
+    withTimeout(
+      window.claude.listProjectPaths(),
+      MCP_LOAD_TIMEOUT_MS,
+      new Error(t('settings.mcp.loadFailed')),
+    )
       .then((projectPaths) => {
         if (cancelled || !mountedRef.current) return
 
@@ -235,10 +260,14 @@ export function useMcpTabState(projectPath: string | null) {
     nextServers.forEach((server) => {
       const noticeId = buildAuthNoticeId(scopeValue, projectPathValue, server.name)
 
-      void window.claude.checkMcpServerHealth({
-        name: server.name,
-        config: rawServers[server.name] as Record<string, unknown> ?? {},
-      }).then((health) => {
+      void withTimeout(
+        window.claude.checkMcpServerHealth({
+          name: server.name,
+          config: rawServers[server.name] as Record<string, unknown> ?? {},
+        }),
+        MCP_HEALTH_TIMEOUT_MS,
+        new Error(t('settings.mcp.health.error')),
+      ).then((health) => {
         if (!mountedRef.current || requestId !== healthRequestIdRef.current) return
 
         setHealthByServer((current) => ({ ...current, [server.name]: health }))
@@ -309,7 +338,11 @@ export function useMcpTabState(projectPath: string | null) {
         : window.claude.readDotMcpServers(effectiveProjectPath!)
 
     try {
-      const result = await request
+      const result = await withTimeout(
+        request,
+        MCP_LOAD_TIMEOUT_MS,
+        new Error(t('settings.mcp.loadFailed')),
+      )
       if (!mountedRef.current || requestId !== loadRequestIdRef.current) return
 
       const mappedServers = mapMcpServers(result.mcpServers)
@@ -317,10 +350,14 @@ export function useMcpTabState(projectPath: string | null) {
       setRawMcp(result.mcpServers)
       setServers(mappedServers)
       runHealthChecks(mappedServers, result.mcpServers, scope, result.projectPath ?? effectiveProjectPath)
-    } catch {
+    } catch (error) {
       if (!mountedRef.current || requestId !== loadRequestIdRef.current) return
 
-      setScopeInfo(buildUnavailableScopeInfo(scope, effectiveProjectPath, t('settings.mcp.loadFailed')))
+      setScopeInfo(buildUnavailableScopeInfo(
+        scope,
+        effectiveProjectPath,
+        error instanceof Error ? error.message : t('settings.mcp.loadFailed'),
+      ))
       setRawMcp({})
       setServers([])
       setHealthByServer({})
