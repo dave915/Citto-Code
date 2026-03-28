@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { SelectedFile } from '../../electron/preload'
+import { createAgentTeamPromptBuilder } from './team/agentTeamPrompts'
 import { buildPromptWithAttachments, toAttachedFiles } from '../lib/attachmentPrompts'
 import { translate, type AppLanguage, type TranslationKey } from '../lib/i18n'
-import { resolveTeamAgentStrings } from '../lib/teamAgentPresets'
 import { nanoid } from '../store/nanoid'
 import { useTeamStore } from '../store/teamStore'
 import type { AgentTeam, DiscussionMode, TeamAgent } from '../store/teamTypes'
@@ -35,6 +35,12 @@ export function useAgentTeamStream(
   const requestToAgentRef = useRef<Map<string, AgentStreamContext>>(new Map())
   const sessionToAgentRef = useRef<Map<string, AgentStreamContext>>(new Map())
   const teamRuntimeRef = useRef<Map<string, TeamRuntime>>(new Map())
+  const {
+    buildInitialPrompt,
+    buildParallelPrompt,
+    buildParallelRoundPrompt,
+    buildMeetingPrompt,
+  } = createAgentTeamPromptBuilder(language, t)
 
   const storeRef = useRef(store)
   storeRef.current = store
@@ -212,121 +218,6 @@ export function useAgentTeamStream(
 
     return cleanup
   }, [])
-
-  function buildRoleHint(hint: string | null | undefined): string {
-    return hint?.trim() ? `${t('team.prompt.roleHint', { hint: hint.trim() })}\n\n` : ''
-  }
-
-  function buildInitialPrompt(agent: TeamAgent, taskPrompt: string, priorAgents: TeamAgent[]): string {
-    const priorResponses = priorAgents
-      .map((item) => {
-        const last = item.messages[item.messages.length - 1]
-        if (!last?.text?.trim()) return null
-        const agentCopy = resolveTeamAgentStrings(item, language)
-        return t('team.prompt.agentView', {
-          name: agentCopy.name,
-          role: agentCopy.role,
-          text: last.text.trim(),
-        })
-      })
-      .filter(Boolean)
-
-    const agentCopy = resolveTeamAgentStrings(agent, language)
-    let prompt = buildRoleHint(agentCopy.systemPrompt)
-    prompt += `${t('team.prompt.taskHeading')}\n${taskPrompt}\n`
-
-    if (priorResponses.length > 0) {
-      prompt += `\n${t('team.prompt.otherResponsesHeading')}\n${priorResponses.join('\n\n')}`
-      prompt += `\n\n${t('team.prompt.sequentialInstructions', {
-        name: agentCopy.name,
-        role: agentCopy.role,
-      })}`
-    }
-    return prompt
-  }
-
-  function buildParallelPrompt(agent: TeamAgent, taskPrompt: string): string {
-    const agentCopy = resolveTeamAgentStrings(agent, language)
-    let prompt = buildRoleHint(agentCopy.systemPrompt)
-    prompt += `${t('team.prompt.taskHeading')}\n${taskPrompt}\n\n`
-    prompt += t('team.prompt.parallelInstructions', {
-      name: agentCopy.name,
-      role: agentCopy.role,
-    })
-    return prompt
-  }
-
-  function buildParallelRoundPrompt(agent: TeamAgent, taskPrompt: string, allAgents: TeamAgent[], round: number): string {
-    const others = allAgents.filter((item) => item.id !== agent.id)
-    const responses = others
-      .map((item) => {
-        const last = item.messages[item.messages.length - 1]
-        if (!last?.text?.trim()) return null
-        const agentCopy = resolveTeamAgentStrings(item, language)
-        return t('team.prompt.agentRoundView', {
-          name: agentCopy.name,
-          role: agentCopy.role,
-          round: Math.max(1, round - 1),
-          text: last.text.trim(),
-        })
-      })
-      .filter(Boolean)
-
-    const agentCopy = resolveTeamAgentStrings(agent, language)
-    let prompt = buildRoleHint(agentCopy.systemPrompt)
-    prompt += `${t('team.prompt.originalTaskHeading')}\n${taskPrompt}\n\n`
-    prompt += `${t('team.prompt.parallelRoundHeading', { round })}\n`
-    if (responses.length > 0) {
-      prompt += responses.join('\n\n')
-      prompt += `\n\n${t('team.prompt.parallelRoundInstructions')}`
-    }
-    return prompt
-  }
-
-  function buildMeetingPrompt(agent: TeamAgent, taskPrompt: string, allAgents: TeamAgent[], round: number): string {
-    const isFirst = round === 1
-    const others = allAgents.filter((item) => item.id !== agent.id)
-
-    const responses = others
-      .map((item) => {
-        const last = item.messages[item.messages.length - 1]
-        if (!last?.text?.trim()) return null
-        const agentCopy = resolveTeamAgentStrings(item, language)
-        return t('team.prompt.agentRoundView', {
-          name: agentCopy.name,
-          role: agentCopy.role,
-          round: Math.max(1, round - 1),
-          text: last.text.trim(),
-        })
-      })
-      .filter(Boolean)
-
-    const agentCopy = resolveTeamAgentStrings(agent, language)
-    let prompt = buildRoleHint(agentCopy.systemPrompt)
-    prompt += `${t('team.prompt.topicHeading')}\n${taskPrompt}\n\n`
-
-    if (isFirst) {
-      prompt += t('team.prompt.meetingOpening', {
-        name: agentCopy.name,
-        role: agentCopy.role,
-      })
-    } else {
-      prompt += `${t('team.prompt.meetingContinueHeading', { round })}\n`
-      if (responses.length > 0) {
-        prompt += `${t('team.prompt.otherParticipantsSaidHeading')}\n\n${responses.join('\n\n')}\n\n`
-      }
-      prompt += `${t('team.prompt.meetingRespondAs', {
-        name: agentCopy.name,
-        role: agentCopy.role,
-      })}\n`
-      prompt += `${t('team.prompt.meetingBulletAgree')}\n`
-      prompt += `${t('team.prompt.meetingBulletNewAngles')}\n`
-      if (round >= 3) {
-        prompt += t('team.prompt.meetingBulletConclusion')
-      }
-    }
-    return prompt
-  }
 
   async function sendToAgentAwaited(
     team: AgentTeam,
