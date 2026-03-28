@@ -102,6 +102,7 @@
   - `ChatView.tsx`는 헤더/사이드패널 wiring과 상위 액션 연결만 유지한다.
   - `useChatViewController.ts`는 우측 패널 상태, export/copy 상태, Git draft/selection draft 생성, drilldown 전환 상태를 담당한다.
   - `ChatViewMainContent.tsx`는 drilldown과 기본 메시지+입력 흐름 분기만 담당한다.
+  - `AgentStatusBar.tsx`는 subagent summary/list 선택 상태만 유지하고, 상세 modal/transcript load/copy feedback/status helper는 `AgentDetailModal.tsx`, `AgentStatusCopyButton.tsx`, `agentStatusShared.ts`로 분리한다.
 - 흔한 회귀:
   - 레이아웃 상태 충돌
   - preview pane가 잘못 열리거나 닫히지 않음
