@@ -11,17 +11,22 @@ import {
   getProjectNameFromPath,
   makeDefaultSession,
   normalizeImportedMessage,
-  pruneEmptyCurrentAssistantMessage,
 } from '../lib/sessionUtils'
 import { extractSubagentRuntimeInfo, isSubagentToolName } from '../lib/agent-subcalls'
 import { nanoid } from './nanoid'
 import {
+  appendBtwCardToLastMessage,
+  appendToolCallToMessage,
+  appendUserMessage,
+  finalizeStreamingSession,
+  patchSession,
+  startAssistantStreamingSession,
   updateBtwCards,
   updateMessageById,
   updateSessionById,
   updateToolCalls,
 } from './sessionStoreMutators'
-import type { BtwCard, Message, Session, SessionsStore, ToolCallBlock } from './sessionTypes'
+import type { BtwCard, Session, SessionsStore, ToolCallBlock } from './sessionTypes'
 
 type StoreSet = Parameters<StateCreator<SessionsStore>>[0]
 
@@ -29,18 +34,6 @@ const GENERIC_CLAUDE_ERRORS = new Set([
   translate('ko', 'session.genericClaudeError'),
   translate('en', 'session.genericClaudeError'),
 ])
-
-function createBtwAnchorMessage(card: BtwCard): Message {
-  return {
-    id: nanoid(),
-    role: 'assistant',
-    text: '',
-    thinking: '',
-    toolCalls: [],
-    btwCards: [card],
-    createdAt: Date.now(),
-  }
-}
 
 export function createSessionStoreState(set: StoreSet): SessionsStore {
   const firstSession = makeDefaultSession(
@@ -54,21 +47,8 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     sessions: updateSessionById(state.sessions, sessionId, updater),
   }))
   const patchStoredSession = (sessionId: string, patch: Partial<Session>) => (
-    updateStoredSession(sessionId, (session) => ({ ...session, ...patch }))
+    updateStoredSession(sessionId, (session) => patchSession(session, patch))
   )
-  const finalizeStreamingSession = (session: Session, patch: Partial<Session> = {}): Session => {
-    const nextSession = {
-      ...session,
-      ...patch,
-      isStreaming: false,
-    }
-
-    return {
-      ...nextSession,
-      messages: pruneEmptyCurrentAssistantMessage(nextSession),
-      currentAssistantMsgId: null,
-    }
-  }
 
   return {
     sessions: [firstSession],
@@ -180,27 +160,9 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     addUserMessage: (tabId, text, files) => {
       const msgId = nanoid()
       set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                messages: [
-                  ...session.messages,
-                  {
-                    id: msgId,
-                    role: 'user',
-                    text,
-                    thinking: '',
-                    toolCalls: [],
-                    attachedFiles: files,
-                    createdAt: Date.now(),
-                  },
-                ],
-                pendingPermission: null,
-                pendingQuestion: null,
-              }
-            : session,
-        ),
+        sessions: updateSessionById(state.sessions, tabId, (session) => (
+          appendUserMessage(session, text, files, msgId)
+        )),
       }))
       return msgId
     },
@@ -208,29 +170,9 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     startAssistantMessage: (tabId) => {
       const msgId = nanoid()
       set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                currentAssistantMsgId: msgId,
-                isStreaming: true,
-                pendingPermission: null,
-                pendingQuestion: null,
-                tokenUsage: null,
-                messages: [
-                  ...session.messages,
-                  {
-                    id: msgId,
-                    role: 'assistant',
-                    text: '',
-                    thinking: '',
-                    toolCalls: [],
-                    createdAt: Date.now(),
-                  },
-                ],
-              }
-            : session,
-        ),
+        sessions: updateSessionById(state.sessions, tabId, (session) => (
+          startAssistantStreamingSession(session, msgId)
+        )),
       }))
       return msgId
     },
@@ -264,28 +206,10 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
       let targetMessageId = ''
 
       set((state) => ({
-        sessions: state.sessions.map((session) => {
-          if (session.id !== tabId) return session
-
-          const lastMessage = session.messages[session.messages.length - 1]
-          if (!lastMessage) {
-            const anchorMessage = createBtwAnchorMessage(card)
-            targetMessageId = anchorMessage.id
-            return {
-              ...session,
-              messages: [...session.messages, anchorMessage],
-            }
-          }
-
-          targetMessageId = lastMessage.id
-          return {
-            ...session,
-            messages: session.messages.map((message) =>
-              message.id === lastMessage.id
-                ? { ...message, btwCards: [...(message.btwCards ?? []), card] }
-                : message,
-            ),
-          }
+        sessions: updateSessionById(state.sessions, tabId, (session) => {
+          const nextSession = appendBtwCardToLastMessage(session, card)
+          targetMessageId = nextSession.targetMessageId
+          return nextSession.session
         }),
       }))
 
@@ -347,11 +271,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
       }
       updateStoredSession(
         tabId,
-        (session) => updateMessageById(
-          session,
-          assistantMsgId,
-          (message) => ({ ...message, toolCalls: [...message.toolCalls, nextToolCall] }),
-        ),
+        (session) => appendToolCallToMessage(session, assistantMsgId, nextToolCall),
       )
     },
 

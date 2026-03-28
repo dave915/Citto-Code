@@ -53,6 +53,7 @@
   - migrate/rehydrate
   - sqlite snapshot 동기화
   - `sessionStoreState.ts`는 store action wiring과 persisted 필드 기본값을 유지하고, 반복적인 session/message/tool mutation helper는 `sessionStoreMutators.ts`에 둔다.
+  - user/assistant message 생성, btw anchor 삽입, tool call append, stream finalize 같은 반복 state transition도 `sessionStoreMutators.ts`에 둔다.
 - 흔한 회귀:
   - persisted version 불일치
   - beforeunload flush 누락
