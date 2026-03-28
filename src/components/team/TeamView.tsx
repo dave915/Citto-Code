@@ -11,6 +11,7 @@ import { useTeamStore } from '../../store/teamStore'
 import { useInputAttachments } from '../../hooks/useInputAttachments'
 import { useI18n } from '../../hooks/useI18n'
 import { TeamSetupModal } from './TeamSetupModal'
+import type { TeamSetupSelectedAgent } from './TeamSetupModalParts'
 import { AgentTeamGuideModal } from './AgentTeamGuideModal'
 import type { AgentIconType } from './AgentPixelIcon'
 import { AgentPixelIcon } from './AgentPixelIcon'
@@ -246,17 +247,7 @@ export function TeamView({
 
   function handleCreateTeam(
     teamName: string,
-    selectedAgents: Array<{
-      id: string
-      presetId: string | null
-      name: string
-      role: string
-      description: string
-      color: string
-      iconType: AgentIconType
-      isCustom: boolean
-      systemPrompt: string
-    }>,
+    selectedAgents: TeamSetupSelectedAgent[],
   ) {
     const teamId = addTeam(
       defaultCwd.trim() || '~',

@@ -78,6 +78,7 @@
   - 서브에이전트 스트리밍
   - drilldown UI
   - `TeamView.tsx`는 팀 상태 오케스트레이션과 액션 연결을 유지하고, 화면 조각/순수 UI 유틸은 `TeamViewParts.tsx`에 둔다.
+  - `TeamSetupModal.tsx`는 선택 상태와 저장만 유지하고, 프리셋 카드/커스텀 폼/우측 프리뷰는 `TeamSetupModalParts.tsx`에 둔다.
 - 흔한 회귀:
   - watch 해제 누락
   - 실시간 텍스트 누락 또는 완료 상태 미동기화
