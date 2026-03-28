@@ -1,0 +1,50 @@
+# AGENTS
+
+이 파일은 이 저장소에서 작업하는 에이전트를 위한 기본 진입점이다.
+`CLAUDE.md`는 이 문서를 가리키는 얇은 진입점이며, 실제 규칙은 여기와 `docs/harness/`에만 둔다.
+
+## Canonical Docs
+
+- 이 저장소의 하네스 문서는 `docs/harness/`만 신뢰한다.
+- 기존 `docs/spec-v1/`, `docs/issues-v1/`, `docs/en/`, 루트 `README.md`는 기본적으로 무시한다.
+- 사용자가 기존 문서를 직접 비교하거나 갱신하라고 요청한 경우에만 예외로 읽는다.
+
+## Read Order
+
+1. `docs/harness/README.md`
+2. `docs/harness/architecture-map.md`
+3. `docs/harness/change-workflow.md`
+4. `docs/harness/quality-gates.md`
+5. `docs/harness/area-ownership.md`
+6. 필요하면 `docs/harness/task-template.md`
+
+## Entry Points
+
+- 앱 부트스트랩: `src/main.tsx`, `src/App.tsx`
+- 렌더러 핵심 화면: `src/components/ChatView.tsx`, `src/components/InputArea.tsx`
+- 세션 상태: `src/store/sessions.ts`, `src/store/sessionStoreState.ts`
+- Claude 스트리밍: `src/hooks/useClaudeStream.ts`, `src/hooks/claudeStream/*`
+- 메인 프로세스: `electron/main.ts`
+- Preload 경계: `electron/preload.ts`, `electron/preload/claudeApi.ts`
+- Claude IPC: `electron/ipc/claude.ts`
+- Git IPC/서비스: `electron/ipc/git.ts`, `electron/services/gitService.ts`, `electron/services/git/*`
+- 예약 작업: `src/store/scheduledTasks.ts`, `electron/services/scheduledTaskScheduler.ts`
+- 설정 데이터: `electron/ipc/settings.ts`, `electron/services/settingsDataService.ts`, `electron/services/settingsData/*`
+
+## Working Loop
+
+1. 변경 요청을 기능 축으로 분류한다.
+2. `docs/harness/area-ownership.md`에서 해당 영역과 인접 경계를 확인한다.
+3. 필요한 파일만 읽고 최소 경계 안에서 수정한다.
+4. 구조나 흐름이 바뀌면 `docs/harness/`를 같이 수정한다.
+5. 최소 `npm run harness:check`를 실행한다.
+6. TypeScript를 건드렸다면 `npm run typecheck` 또는 `npm run harness:check:strict`까지 실행한다.
+7. 결과를 사용자에게 `변경 내용`, `검증`, `남은 리스크` 순으로 짧게 정리한다.
+
+## Non-Negotiable Constraints
+
+- 렌더러에서 Node/Electron API를 직접 호출하지 않는다. `window.claude` 또는 `window.quickPanel`만 사용한다.
+- IPC 계약을 바꾸면 preload 타입과 렌더러 호출부를 같이 맞춘다.
+- 세션/예약 작업의 persisted shape를 바꾸면 마이그레이션 영향부터 확인한다.
+- 스트림, watcher, timer를 추가하면 해제 경로도 같은 변경에서 보장한다.
+- 새 구조를 도입했으면 문서가 코드보다 뒤처지지 않게 같은 PR에서 갱신한다.
