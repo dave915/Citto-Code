@@ -66,7 +66,14 @@ export function launchClaudeProcess({
     ...cleanEnv,
     HOME: cleanEnv.HOME ?? homePath,
     USERPROFILE: cleanEnv.USERPROFILE ?? homePath,
-    ...(envVars ?? {}),
+  }
+
+  for (const [key, value] of Object.entries(envVars ?? {})) {
+    if (value === '') {
+      delete procEnv[key]
+      continue
+    }
+    procEnv[key] = value
   }
   const userShell = procEnv.SHELL ?? '/bin/bash'
 
