@@ -31,12 +31,7 @@ export function SidebarFooter({
           <circle cx="12" cy="12" r="8" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3" />
         </svg>
-        <span className="min-w-0 flex items-baseline gap-1 text-left">
-          <span className="truncate">Schedule</span>
-          <span className="text-[11px] font-medium lowercase tracking-[0.04em] text-amber-500/80">
-            beta
-          </span>
-        </span>
+        <span className="min-w-0 truncate text-left">{t('sidebar.scheduledTasks')}</span>
         {activeScheduledTaskCount > 0 && (
           <span className="ml-auto rounded-full border border-claude-border bg-claude-panel px-2 py-0.5 text-[11px] text-claude-muted">
             {activeScheduledTaskCount}
