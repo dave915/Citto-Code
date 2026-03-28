@@ -87,10 +87,12 @@
   - `src/components/ChatMessagePane.tsx`
   - `src/components/InputArea.tsx`
   - `src/components/chat/*`
+  - `src/components/toolcalls/*`
 - 책임:
   - 메인 채팅 UX
   - 파일/Git/세션 사이드 패널
   - export, preview, selection actions
+  - tool result preview와 HTML iframe/fullscreen 수명주기
   - `ChatView.tsx`는 헤더/사이드패널 wiring과 상위 액션 연결만 유지한다.
   - `useChatViewController.ts`는 우측 패널 상태, export/copy 상태, Git draft/selection draft 생성, drilldown 전환 상태를 담당한다.
   - `ChatViewMainContent.tsx`는 drilldown과 기본 메시지+입력 흐름 분기만 담당한다.
