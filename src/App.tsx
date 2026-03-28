@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChatView } from './components/ChatView'
 import { CommandPalette } from './components/CommandPalette'
-import { ScheduledTasksView } from './components/ScheduledTasksView'
-import { SettingsPanel } from './components/SettingsPanel'
 import { Sidebar } from './components/Sidebar'
+import { AppMainContent } from './components/app/AppMainContent'
 import { ClaudeInstallModal } from './components/app/ClaudeInstallModal'
-import { EmptyMainState } from './components/app/EmptyMainState'
-import { TeamView } from './components/team/TeamView'
 import { useTeamStore } from './store/teamStore'
 import { useI18n } from './hooks/useI18n'
+import { useAppPanels } from './hooks/useAppPanels'
 import { useClaudeStream } from './hooks/useClaudeStream'
 import { useAgentTeamStream } from './hooks/useAgentTeam'
 import { useAppDesktopEffects } from './hooks/useAppDesktopEffects'
@@ -78,12 +75,22 @@ export default function App() {
 
   const { setActiveTeam, teams: agentTeams } = useTeamStore()
 
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [teamOpen, setTeamOpen] = useState(false)
-  /** 현재 세션과 연결된 팀 패널 열기 (ChatView 내 Team 버튼으로 진입) */
-  const [sessionTeamOpen, setSessionTeamOpen] = useState(false)
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const {
+    activePanel,
+    settingsOpen,
+    scheduleOpen,
+    commandPaletteOpen,
+    closeOverlayPanels,
+    openSettingsPanel,
+    closeSettingsPanel,
+    openSchedulePanel,
+    closeSchedulePanel,
+    closeTeamPanel,
+    openSessionTeamPanel: showSessionTeamPanel,
+    closeSessionTeamPanel,
+    closeCommandPalette,
+    toggleCommandPalette,
+  } = useAppPanels()
   const [messageJumpTarget, setMessageJumpTarget] = useState<{
     sessionId: string
     messageId: string
@@ -220,43 +227,9 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [messageJumpTarget])
 
-  const closeOverlayPanels = () => {
-    setSettingsOpen(false)
-    setScheduleOpen(false)
-    setTeamOpen(false)
-    setSessionTeamOpen(false)
-    setCommandPaletteOpen(false)
-  }
-
-  const openSettingsPanel = () => {
-    setCommandPaletteOpen(false)
-    setScheduleOpen(false)
-    setTeamOpen(false)
-    setSettingsOpen(true)
-  }
-
-  const openSchedulePanel = () => {
-    setSettingsOpen(false)
-    setCommandPaletteOpen(false)
-    setTeamOpen(false)
-    setScheduleOpen(true)
-  }
-
-  const openTeamPanel = () => {
-    setSettingsOpen(false)
-    setScheduleOpen(false)
-    setCommandPaletteOpen(false)
-    setSessionTeamOpen(false)
-    setTeamOpen(true)
-  }
-
   /** ChatView 헤더의 Team 버튼 → 현재 세션과 연결된 팀 패널 열기 */
   const openSessionTeamPanel = useCallback(() => {
     if (!activeSession) return
-    setSettingsOpen(false)
-    setScheduleOpen(false)
-    setTeamOpen(false)
-    setCommandPaletteOpen(false)
     const linkedTeam = activeSession.linkedTeamId
       ? agentTeams.find((team) => team.id === activeSession.linkedTeamId) ?? null
       : null
@@ -265,15 +238,15 @@ export default function App() {
       : false
 
     setActiveTeam(isSameProject ? linkedTeam?.id ?? null : null)
-    setSessionTeamOpen(true)
-  }, [activeSession, agentTeams, setActiveTeam])
+    showSessionTeamPanel()
+  }, [activeSession, agentTeams, setActiveTeam, showSessionTeamPanel])
 
   /** 팀 토론 완료 후 결과 요약을 현재 세션에 주입 */
   const handleInjectTeamSummary = useCallback((summary: string) => {
     if (!activeSession) return
-    setSessionTeamOpen(false)
+    closeSessionTeamPanel()
     handleSend(summary, [])
-  }, [activeSession, handleSend])
+  }, [activeSession, closeSessionTeamPanel, handleSend])
 
   async function handleNewSession(cwdOverride?: string): Promise<string> {
     closeOverlayPanels()
@@ -324,7 +297,7 @@ export default function App() {
     setPlanMode,
     onToggleSidebar: handleToggleSidebar,
     openSettingsPanel,
-    toggleCommandPalette: () => setCommandPaletteOpen((open) => !open),
+    toggleCommandPalette,
     handleNewSession,
     handleSendForSession,
     applyScheduledTaskAdvance,
@@ -363,65 +336,53 @@ export default function App() {
       )}
 
       <main className="flex-1 overflow-hidden">
-        {teamOpen ? (
-          <TeamView
-            defaultCwd={activeSession?.cwd ?? defaultProjectPath}
-            startDiscussion={startTeamDiscussion}
-            continueDiscussion={continueTeamDiscussion}
-            abortDiscussion={abortTeamDiscussion}
-            onClose={() => setTeamOpen(false)}
-          />
-        ) : sessionTeamOpen && activeSession ? (
-          <TeamView
-            defaultCwd={activeSession.cwd}
-            startDiscussion={startTeamDiscussion}
-            continueDiscussion={continueTeamDiscussion}
-            abortDiscussion={abortTeamDiscussion}
-            embedded
-            onClose={() => setSessionTeamOpen(false)}
-            onInjectSummary={handleInjectTeamSummary}
-            onTeamLinked={(teamId) => setLinkedTeamId(activeSession.id, teamId)}
-          />
-        ) : scheduleOpen ? (
-          <ScheduledTasksView
-            defaultProjectPath={activeSession?.cwd ?? defaultProjectPath}
-            onClose={() => setScheduleOpen(false)}
-            onSelectSession={handleSelectSession}
-          />
-        ) : settingsOpen ? (
-          <SettingsPanel
-            onClose={() => setSettingsOpen(false)}
-            onSidebarModeChange={setSidebarMode}
-            projectPath={activeSession?.cwd ?? null}
-          />
-        ) : activeSession ? (
-          <ChatView
-            key={activeSession.id}
-            session={activeSession}
-            fileConflict={activeSessionConflictDetails}
-            jumpToMessageId={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.messageId : null}
-            jumpToMessageToken={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.token : 0}
-            onSend={handleSend}
-            onSendBtw={handleBtwSend}
-            onAbort={handleAbort}
-            sidebarMode={sidebarMode}
-            sidebarCollapsed={sidebarCollapsed}
-            onToggleSidebar={handleToggleSidebar}
-            sidebarShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleSidebar', shortcutPlatform)}
-            filesShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleFiles', shortcutPlatform)}
-            sessionInfoShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleSessionInfo', shortcutPlatform)}
-            onPermissionModeChange={(mode: PermissionMode) => setPermissionMode(activeSession.id, mode)}
-            onPlanModeChange={(value: boolean) => setPlanMode(activeSession.id, value)}
-            onModelChange={(model) => handleModelChange(activeSession.id, model)}
-            onPermissionRequestAction={handlePermissionRequestAction}
-            onQuestionResponse={handleQuestionResponse}
-            permissionShortcutLabel={getShortcutLabel(shortcutConfig, 'cyclePermissionMode', shortcutPlatform)}
-            bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
-            onOpenTeam={openSessionTeamPanel}
-          />
-        ) : (
-          <EmptyMainState sidebarMode={sidebarMode} onNewSession={() => { void handleNewSession() }} />
-        )}
+        <AppMainContent
+          activePanel={activePanel}
+          activeSession={activeSession}
+          defaultProjectPath={defaultProjectPath}
+          sidebarMode={sidebarMode}
+          sidebarCollapsed={sidebarCollapsed}
+          shortcutConfig={shortcutConfig}
+          shortcutPlatform={shortcutPlatform}
+          messageJumpTarget={messageJumpTarget}
+          activeSessionConflictDetails={activeSessionConflictDetails}
+          onToggleSidebar={handleToggleSidebar}
+          onCloseTeamPanel={closeTeamPanel}
+          onCloseSessionTeamPanel={closeSessionTeamPanel}
+          onCloseSchedulePanel={closeSchedulePanel}
+          onCloseSettingsPanel={closeSettingsPanel}
+          onOpenSessionTeamPanel={openSessionTeamPanel}
+          onInjectTeamSummary={handleInjectTeamSummary}
+          onLinkActiveSessionTeam={(teamId) => {
+            if (!activeSession) return
+            setLinkedTeamId(activeSession.id, teamId)
+          }}
+          onSidebarModeChange={setSidebarMode}
+          onSelectSession={handleSelectSession}
+          onNewSession={() => {
+            void handleNewSession()
+          }}
+          onSend={handleSend}
+          onSendBtw={handleBtwSend}
+          onAbort={handleAbort}
+          onPermissionModeChange={(mode: PermissionMode) => {
+            if (!activeSession) return
+            setPermissionMode(activeSession.id, mode)
+          }}
+          onPlanModeChange={(value: boolean) => {
+            if (!activeSession) return
+            setPlanMode(activeSession.id, value)
+          }}
+          onModelChange={(model) => {
+            if (!activeSession) return
+            handleModelChange(activeSession.id, model)
+          }}
+          onPermissionRequestAction={handlePermissionRequestAction}
+          onQuestionResponse={handleQuestionResponse}
+          startTeamDiscussion={startTeamDiscussion}
+          continueTeamDiscussion={continueTeamDiscussion}
+          abortTeamDiscussion={abortTeamDiscussion}
+        />
       </main>
 
       {installationStatus && !installationStatus.installed && !installationDismissed && (
@@ -435,7 +396,7 @@ export default function App() {
       <CommandPalette
         open={commandPaletteOpen}
         sessions={sessions}
-        onClose={() => setCommandPaletteOpen(false)}
+        onClose={closeCommandPalette}
         onNewSession={() => {
           void handleNewSession()
         }}

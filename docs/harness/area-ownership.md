@@ -7,11 +7,14 @@
 - 파일:
   - `src/main.tsx`
   - `src/App.tsx`
+  - `src/components/app/AppMainContent.tsx`
+  - `src/hooks/useAppPanels.ts`
   - `src/components/Sidebar.tsx`
 - 책임:
   - 앱 부트스트랩
   - 전역 패널 열림 상태
   - 세션/설정/예약 작업 상위 조합
+  - `App.tsx`는 store/hook 조합과 상위 액션 연결을 유지하고, 메인 화면 분기는 `AppMainContent.tsx`, 단일 패널 상태는 `useAppPanels.ts`에 둔다.
 - 흔한 회귀:
   - hydration 후 active session 누락
   - 사이드바/메인 패널 상태 꼬임
