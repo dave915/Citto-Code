@@ -135,6 +135,7 @@
   - `src/components/team/TeamSetupPreviewPane.tsx`
   - `src/components/team/teamSetupShared.ts`
   - `src/components/SubagentDrilldownView.tsx`
+  - `src/components/subagentDrilldown/*`
   - `electron/services/subagentWatchService.ts`
 - 책임:
   - 팀 실행
@@ -148,6 +149,7 @@
   - `TeamAgentSeat.tsx`, `TeamSelectedAgentPanel.tsx`, `TeamTaskPopover.tsx`는 seat/detail/task popup 조각을 나눠 갖고, `TeamViewParts.tsx`는 공용 selector/util과 re-export만 유지한다.
   - `TeamSelectedAgentPanel.tsx`는 선택된 agent header, message highlight 이동, empty/error 상태만 유지하고, message card/popup 렌더링은 `TeamSelectedAgentMessageCard.tsx`, `TeamSelectedAgentMessagePopup.tsx`, `teamSelectedAgentShared.tsx`로 분리한다.
   - 팀 overlay popup의 escape/copy feedback cleanup은 `teamOverlayShared.tsx`에서 공통으로 관리한다.
+  - `SubagentDrilldownView.tsx`는 drilldown layout과 main chat로의 입력 handoff만 유지하고, transcript load/state와 header 렌더는 `src/components/subagentDrilldown/*`로 분리한다.
   - `TeamSetupModal.tsx`는 선택 상태와 저장만 유지한다.
   - `teamSetupShared.ts`는 setup 공용 타입/로컬 저장/프리셋 변환을 담당하고, `TeamSetupSelectionPane.tsx`, `TeamSetupCustomAgentForm.tsx`, `TeamSetupPreviewPane.tsx`는 각 화면 조각을 담당한다.
   - `TeamSetupModalParts.tsx`는 setup 서브모듈 re-export 레이어만 유지한다.
