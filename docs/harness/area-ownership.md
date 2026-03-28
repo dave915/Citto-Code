@@ -75,13 +75,20 @@
   - `src/hooks/team/*`
   - `src/hooks/useSubagentStreams.ts`
   - `src/components/team/*`
+  - `src/components/team/useTeamViewController.ts`
+  - `src/components/team/TeamViewHeader.tsx`
+  - `src/components/team/TeamViewWorkspace.tsx`
+  - `src/components/team/TeamViewComposer.tsx`
   - `src/components/SubagentDrilldownView.tsx`
   - `electron/services/subagentWatchService.ts`
 - 책임:
   - 팀 실행
   - 서브에이전트 스트리밍
   - drilldown UI
-  - `TeamView.tsx`는 팀 상태 오케스트레이션과 액션 연결을 유지하고, 화면 조각/순수 UI 유틸은 `TeamViewParts.tsx`에 둔다.
+  - `TeamView.tsx`는 팀 상태 오케스트레이션과 상위 액션 연결만 유지한다.
+  - `useTeamViewController.ts`는 Team 화면의 로컬 UI 상태, resize/escape cleanup, 입력/첨부 흐름을 담당한다.
+  - `TeamViewHeader.tsx`, `TeamViewWorkspace.tsx`, `TeamViewComposer.tsx`는 화면 섹션을 나눠 렌더링한다.
+  - 순수 UI 유틸과 seat/detail/task popup 조각은 `TeamViewParts.tsx`에 둔다.
   - `TeamSetupModal.tsx`는 선택 상태와 저장만 유지하고, 프리셋 카드/커스텀 폼/우측 프리뷰는 `TeamSetupModalParts.tsx`에 둔다.
   - `useAgentTeam.ts`는 스트림/runtime 오케스트레이션을 유지하고, 프롬프트 문자열 조립은 `src/hooks/team/*`에 둔다.
 - 흔한 회귀:
