@@ -196,6 +196,7 @@
   - MCP/Skill 목록과 편집
   - 큰 settings 탭은 파일 I/O 상태와 로컬 편집 상태를 해당 하위 폴더 helper로 분리한다.
   - `McpTab.tsx`는 scope panel, add form, server list 렌더링만 유지하고, project path 탐색과 read/write/delete/reset 흐름은 `useMcpTabState.ts`에서 관리한다.
+  - `SkillTab.tsx`는 intro/add/list 조합만 유지하고, skill 카드와 file editor/add-file UI는 `src/components/settings/skill/*` 하위 컴포넌트로 분리한다.
 - 흔한 회귀:
   - scope 혼동으로 잘못된 파일 위치에 저장
   - renderer와 persisted 설정 불일치

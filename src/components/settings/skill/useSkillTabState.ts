@@ -9,7 +9,7 @@ export type Skill = {
   legacy: boolean
 }
 
-type SkillFile = {
+export type SkillFile = {
   name: string
   path: string
 }
