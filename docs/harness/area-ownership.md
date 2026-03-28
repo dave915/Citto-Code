@@ -19,6 +19,24 @@
   - hydration 후 active session 누락
   - 사이드바/메인 패널 상태 꼬임
 
+## Main Process Shell
+
+- 파일:
+  - `electron/main.ts`
+  - `electron/main/windowController.ts`
+  - `electron/main/devLogger.ts`
+  - `electron/services/trayImageService.ts`
+- 책임:
+  - 앱 부트스트랩
+  - 메인 윈도우/퀵패널 생성과 포커스 복원
+  - 트레이/글로벌 단축키/외부 링크 처리
+  - dev log 전달과 메인 프로세스 수명주기 정리
+  - `main.ts`는 서비스 초기화와 IPC wiring만 유지하고, 윈도우/퀵패널 상태는 `windowController.ts`, 개발용 로그 전달은 `devLogger.ts`에 둔다.
+- 흔한 회귀:
+  - quick panel 단축키 재등록 누락
+  - 창 재생성 후 preload 경계나 외부 링크 처리 누락
+  - will-quit cleanup 누락
+
 ## Session State And Persistence
 
 - 파일:

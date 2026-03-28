@@ -7,6 +7,8 @@
 ### Main Process
 
 - `electron/main.ts`
+- `electron/main/windowController.ts`
+- `electron/main/devLogger.ts`
 - 역할: 윈도우 생성, 트레이/단축키 등록, IPC 핸들러 연결, 스케줄러/감시 서비스 수명주기 관리
 
 ### Preload
@@ -71,3 +73,4 @@
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`
+- 메인 프로세스 부트스트랩/윈도우: `electron/main.ts`, `electron/main/windowController.ts`, `electron/main/devLogger.ts`, `electron/services/trayImageService.ts`
