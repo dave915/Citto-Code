@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { SelectedFile } from '../../electron/preload'
+import { buildPromptWithAttachments, toAttachedFiles } from '../lib/attachmentPrompts'
+import { translate, type AppLanguage, type TranslationKey } from '../lib/i18n'
+import { nanoid } from '../store/nanoid'
+import { useTeamStore } from '../store/teamStore'
+import type { AgentTeam, DiscussionMode, TeamAgent } from '../store/teamTypes'
 import { createAgentTeamPromptBuilder } from './team/agentTeamPrompts'
 import {
   clearContextMappings,
@@ -15,11 +20,6 @@ import {
   type AgentStreamContext,
   type TeamRuntime,
 } from './team/agentTeamRuntime'
-import { buildPromptWithAttachments, toAttachedFiles } from '../lib/attachmentPrompts'
-import { translate, type AppLanguage, type TranslationKey } from '../lib/i18n'
-import { nanoid } from '../store/nanoid'
-import { useTeamStore } from '../store/teamStore'
-import type { AgentTeam, DiscussionMode, TeamAgent } from '../store/teamTypes'
 
 export function useAgentTeamStream(
   envVars: Record<string, string>,
@@ -48,13 +48,23 @@ export function useAgentTeamStream(
   const claudePathRef = useRef(claudeBinaryPath)
   claudePathRef.current = claudeBinaryPath
 
+  function getTeamById(teamId: string) {
+    return teamsRef.current.find((candidate) => candidate.id === teamId) ?? null
+  }
+
+  function markTeamDoneIfRunning(teamId: string) {
+    if (getTeamById(teamId)?.status === 'running') {
+      storeRef.current.setTeamStatus(teamId, 'done')
+    }
+  }
+
   function failTeam(teamId: string, agentId: string, error: string, requestId?: string, sessionId?: string | null) {
     storeRef.current.setAgentError(teamId, agentId, error)
     storeRef.current.setTeamStatus(teamId, 'error')
 
     clearQueuedRuntime(teamRuntimeRef.current, teamId)
 
-    const team = teamsRef.current.find((candidate) => candidate.id === teamId)
+    const team = getTeamById(teamId)
     if (team?.mode === 'parallel' && (requestId || sessionId)) {
       settleParallelTeam(teamRuntimeRef.current, teamId)
     } else {
@@ -115,10 +125,7 @@ export function useAgentTeamStream(
             event.requestId,
           )
 
-          const team = teamsRef.current.find((candidate) => candidate.id === teamId)
-          if (!team) break
-
-          if (team.mode === 'parallel') {
+          if (getTeamById(teamId)?.mode === 'parallel') {
             settleParallelTeam(teamRuntimeRef.current, teamId)
           } else {
             drainExecQueue(teamRuntimeRef.current, teamId)
@@ -142,6 +149,48 @@ export function useAgentTeamStream(
     return cleanup
   }, [])
 
+  function dispatchAgentPrompt(
+    team: AgentTeam,
+    agent: TeamAgent,
+    prompt: string,
+    attachments?: SelectedFile[],
+    onQueuedResolve?: () => void,
+  ) {
+    const runtime = getTeamRuntime(teamRuntimeRef.current, team.id)
+    const msgId = storeRef.current.startAgentMessage(team.id, agent.id)
+    const requestId = nanoid()
+    const context: AgentStreamContext = createAgentStreamContext(team.id, agent.id, msgId, requestId)
+
+    requestToAgentRef.current.set(requestId, context)
+    if (agent.claudeSessionId) {
+      sessionToAgentRef.current.set(agent.claudeSessionId, context)
+    }
+
+    if (onQueuedResolve) {
+      runtime.pendingResolve = onQueuedResolve
+    }
+
+    void window.claude.sendMessage({
+      sessionId: agent.claudeSessionId,
+      prompt,
+      attachments,
+      cwd: team.cwd,
+      requestId,
+      permissionMode: 'bypassPermissions',
+      envVars: envVarsRef.current,
+      ...(claudePathRef.current ? { claudePath: claudePathRef.current } : {}),
+    }).catch((error) => {
+      clearContextMappings(
+        requestToAgentRef.current,
+        sessionToAgentRef.current,
+        context,
+        agent.claudeSessionId,
+        requestId,
+      )
+      failTeam(team.id, agent.id, String(error), requestId, agent.claudeSessionId)
+    })
+  }
+
   async function sendToAgentAwaited(
     team: AgentTeam,
     agent: TeamAgent,
@@ -149,37 +198,7 @@ export function useAgentTeamStream(
     attachments?: SelectedFile[],
   ): Promise<void> {
     return new Promise((resolve) => {
-      const runtime = getTeamRuntime(teamRuntimeRef.current, team.id)
-      const msgId = storeRef.current.startAgentMessage(team.id, agent.id)
-      const requestId = nanoid()
-      const context: AgentStreamContext = createAgentStreamContext(team.id, agent.id, msgId, requestId)
-
-      requestToAgentRef.current.set(requestId, context)
-      if (agent.claudeSessionId) {
-        sessionToAgentRef.current.set(agent.claudeSessionId, context)
-      }
-
-      runtime.pendingResolve = resolve
-
-      void window.claude.sendMessage({
-        sessionId: agent.claudeSessionId,
-        prompt,
-        attachments,
-        cwd: team.cwd,
-        requestId,
-        permissionMode: 'bypassPermissions',
-        envVars: envVarsRef.current,
-        ...(claudePathRef.current ? { claudePath: claudePathRef.current } : {}),
-      }).catch((error) => {
-        clearContextMappings(
-          requestToAgentRef.current,
-          sessionToAgentRef.current,
-          context,
-          agent.claudeSessionId,
-          requestId,
-        )
-        failTeam(team.id, agent.id, String(error), requestId, agent.claudeSessionId)
-      })
+      dispatchAgentPrompt(team, agent, prompt, attachments, resolve)
     })
   }
 
@@ -195,118 +214,109 @@ export function useAgentTeamStream(
       runtime.parallelDoneCallback = resolve
 
       agents.forEach((agent, index) => {
-        const msgId = storeRef.current.startAgentMessage(team.id, agent.id)
-        const requestId = nanoid()
-        const context: AgentStreamContext = createAgentStreamContext(team.id, agent.id, msgId, requestId)
-
-        requestToAgentRef.current.set(requestId, context)
-        if (agent.claudeSessionId) {
-          sessionToAgentRef.current.set(agent.claudeSessionId, context)
-        }
-
-        void window.claude.sendMessage({
-          sessionId: agent.claudeSessionId,
-          prompt: prompts[index],
-          attachments,
-          cwd: team.cwd,
-          requestId,
-          permissionMode: 'bypassPermissions',
-          envVars: envVarsRef.current,
-          ...(claudePathRef.current ? { claudePath: claudePathRef.current } : {}),
-        }).catch((error) => {
-          clearContextMappings(
-            requestToAgentRef.current,
-            sessionToAgentRef.current,
-            context,
-            agent.claudeSessionId,
-            requestId,
-          )
-          failTeam(team.id, agent.id, String(error), requestId, agent.claudeSessionId)
-        })
+        dispatchAgentPrompt(team, agent, prompts[index], attachments)
       })
     })
   }
 
-  const startSequential = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
-    const team = teamsRef.current.find((candidate) => candidate.id === teamId)
-    if (!team) return
+  function prepareInitialTurn(teamId: string, task: string, files: SelectedFile[] = []) {
+    const team = getTeamById(teamId)
+    if (!team) return null
 
     resetTeamRuntimeState(teamRuntimeRef.current, teamId)
     const taskPrompt = buildPromptWithAttachments(task, files, language)
     storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
     storeRef.current.setTeamStatus(teamId, 'running')
 
-    team.agents.forEach((agent, index) => {
+    return { team, taskPrompt }
+  }
+
+  function enqueueQueuedTurn(
+    teamId: string,
+    agents: TeamAgent[],
+    buildPrompt: (team: AgentTeam, agent: TeamAgent, index: number) => string,
+    attachments?: SelectedFile[],
+  ) {
+    agents.forEach((agent, index) => {
       enqueueExec(teamRuntimeRef.current, teamId, () => {
-        const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
+        const currentTeam = getTeamById(teamId)
         if (!currentTeam) {
           drainExecQueue(teamRuntimeRef.current, teamId)
           return
         }
-        const prior = currentTeam.agents.slice(0, index)
-        const prompt = buildInitialPrompt(agent, taskPrompt, prior)
-        void sendToAgentAwaited(currentTeam, agent, prompt, files)
+
+        void sendToAgentAwaited(currentTeam, agent, buildPrompt(currentTeam, agent, index), attachments)
       })
     })
 
     enqueueExec(teamRuntimeRef.current, teamId, () => {
-      const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
-      if (currentTeam?.status === 'running') {
-        storeRef.current.setTeamStatus(teamId, 'done')
-      }
+      markTeamDoneIfRunning(teamId)
       drainExecQueue(teamRuntimeRef.current, teamId)
     })
-  }, [language])
+  }
+
+  async function runParallelTurn(
+    team: AgentTeam,
+    prompts: string[],
+    attachments?: SelectedFile[],
+  ) {
+    await sendAllParallel(team, team.agents, prompts, attachments)
+    markTeamDoneIfRunning(team.id)
+  }
+
+  function prepareContinuation(teamId: string) {
+    const team = getTeamById(teamId)
+    if (!team || team.status !== 'done') return null
+
+    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
+    storeRef.current.incrementRound(teamId)
+    storeRef.current.setTeamStatus(teamId, 'running')
+
+    return {
+      mode: team.mode ?? 'sequential',
+      newRound: team.roundNumber + 1,
+      taskPrompt: team.currentTaskPrompt || team.currentTask,
+      team,
+    }
+  }
+
+  const startSequential = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
+    const prepared = prepareInitialTurn(teamId, task, files)
+    if (!prepared) return
+
+    enqueueQueuedTurn(
+      teamId,
+      prepared.team.agents,
+      (currentTeam, agent, index) => {
+        const prior = currentTeam.agents.slice(0, index)
+        return buildInitialPrompt(agent, prepared.taskPrompt, prior)
+      },
+      files,
+    )
+  }, [buildInitialPrompt, language])
 
   const startParallel = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
-    const team = teamsRef.current.find((candidate) => candidate.id === teamId)
-    if (!team) return
+    const prepared = prepareInitialTurn(teamId, task, files)
+    if (!prepared) return
 
-    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
-    const taskPrompt = buildPromptWithAttachments(task, files, language)
-    storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
-    storeRef.current.setTeamStatus(teamId, 'running')
-
-    const prompts = team.agents.map((agent) => buildParallelPrompt(agent, taskPrompt))
-    await sendAllParallel(team, team.agents, prompts, files)
-
-    if (teamsRef.current.find((candidate) => candidate.id === teamId)?.status === 'running') {
-      storeRef.current.setTeamStatus(teamId, 'done')
-    }
-  }, [language])
+    const prompts = prepared.team.agents.map((agent) => buildParallelPrompt(agent, prepared.taskPrompt))
+    await runParallelTurn(prepared.team, prompts, files)
+  }, [buildParallelPrompt, language])
 
   const startMeeting = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
-    const team = teamsRef.current.find((candidate) => candidate.id === teamId)
-    if (!team) return
+    const prepared = prepareInitialTurn(teamId, task, files)
+    if (!prepared) return
 
-    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
-    const taskPrompt = buildPromptWithAttachments(task, files, language)
-    storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
-    storeRef.current.setTeamStatus(teamId, 'running')
-
-    team.agents.forEach((agent) => {
-      enqueueExec(teamRuntimeRef.current, teamId, () => {
-        const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
-        if (!currentTeam) {
-          drainExecQueue(teamRuntimeRef.current, teamId)
-          return
-        }
-        const prompt = buildMeetingPrompt(agent, taskPrompt, currentTeam.agents, 1)
-        void sendToAgentAwaited(currentTeam, agent, prompt, files)
-      })
-    })
-
-    enqueueExec(teamRuntimeRef.current, teamId, () => {
-      const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
-      if (currentTeam?.status === 'running') {
-        storeRef.current.setTeamStatus(teamId, 'done')
-      }
-      drainExecQueue(teamRuntimeRef.current, teamId)
-    })
-  }, [language])
+    enqueueQueuedTurn(
+      teamId,
+      prepared.team.agents,
+      (currentTeam, agent) => buildMeetingPrompt(agent, prepared.taskPrompt, currentTeam.agents, 1),
+      files,
+    )
+  }, [buildMeetingPrompt, language])
 
   const startDiscussion = useCallback(async (teamId: string, task: string, files: SelectedFile[] = []) => {
-    const team = teamsRef.current.find((candidate) => candidate.id === teamId)
+    const team = getTeamById(teamId)
     if (!team || team.agents.length < 2) return
 
     const mode: DiscussionMode = team.mode ?? 'sequential'
@@ -316,86 +326,53 @@ export function useAgentTeamStream(
   }, [startMeeting, startParallel, startSequential])
 
   const continueDiscussion = useCallback(async (teamId: string) => {
-    const team = teamsRef.current.find((candidate) => candidate.id === teamId)
-    if (!team || team.status !== 'done') return
+    const continuation = prepareContinuation(teamId)
+    if (!continuation) return
 
-    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
-    storeRef.current.incrementRound(teamId)
-    storeRef.current.setTeamStatus(teamId, 'running')
-
-    const newRound = team.roundNumber + 1
-    const mode: DiscussionMode = team.mode ?? 'sequential'
-
-    if (mode === 'parallel') {
-      const prompts = team.agents.map((agent) => buildParallelRoundPrompt(
-        agent,
-        team.currentTaskPrompt || team.currentTask,
-        team.agents,
-        newRound,
-      ))
-      const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
+    if (continuation.mode === 'parallel') {
+      const currentTeam = getTeamById(teamId)
       if (!currentTeam) return
-      await sendAllParallel(currentTeam, team.agents, prompts)
-      if (teamsRef.current.find((candidate) => candidate.id === teamId)?.status === 'running') {
-        storeRef.current.setTeamStatus(teamId, 'done')
-      }
+
+      const prompts = currentTeam.agents.map((agent) => buildParallelRoundPrompt(
+        agent,
+        continuation.taskPrompt,
+        currentTeam.agents,
+        continuation.newRound,
+      ))
+      await runParallelTurn(currentTeam, prompts)
       return
     }
 
-    if (mode === 'meeting') {
-      team.agents.forEach((agent) => {
-        enqueueExec(teamRuntimeRef.current, teamId, () => {
-          const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
-          if (!currentTeam) {
-            drainExecQueue(teamRuntimeRef.current, teamId)
-            return
-          }
-          const prompt = buildMeetingPrompt(
-            agent,
-            currentTeam.currentTaskPrompt || currentTeam.currentTask,
-            currentTeam.agents,
-            newRound,
-          )
-          void sendToAgentAwaited(currentTeam, agent, prompt)
-        })
-      })
-      enqueueExec(teamRuntimeRef.current, teamId, () => {
-        const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
-        if (currentTeam?.status === 'running') {
-          storeRef.current.setTeamStatus(teamId, 'done')
-        }
-        drainExecQueue(teamRuntimeRef.current, teamId)
-      })
+    if (continuation.mode === 'meeting') {
+      enqueueQueuedTurn(
+        teamId,
+        continuation.team.agents,
+        (currentTeam, agent) => buildMeetingPrompt(
+          agent,
+          currentTeam.currentTaskPrompt || currentTeam.currentTask,
+          currentTeam.agents,
+          continuation.newRound,
+        ),
+      )
       return
     }
 
-    team.agents.forEach((agent, index) => {
-      enqueueExec(teamRuntimeRef.current, teamId, () => {
-        const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
-        if (!currentTeam) {
-          drainExecQueue(teamRuntimeRef.current, teamId)
-          return
-        }
+    enqueueQueuedTurn(
+      teamId,
+      continuation.team.agents,
+      (currentTeam, agent, index) => {
         const prior = currentTeam.agents.slice(0, index)
-        const prompt = buildInitialPrompt(
+        return buildInitialPrompt(
           agent,
           currentTeam.currentTaskPrompt || currentTeam.currentTask,
           prior,
         )
-        void sendToAgentAwaited(currentTeam, agent, prompt)
-      })
-    })
-    enqueueExec(teamRuntimeRef.current, teamId, () => {
-      const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
-      if (currentTeam?.status === 'running') {
-        storeRef.current.setTeamStatus(teamId, 'done')
-      }
-      drainExecQueue(teamRuntimeRef.current, teamId)
-    })
-  }, [language])
+      },
+    )
+  }, [buildInitialPrompt, buildMeetingPrompt, buildParallelRoundPrompt])
 
   const abortDiscussion = useCallback(async (teamId: string) => {
-    const team = teamsRef.current.find((candidate) => candidate.id === teamId)
+    const team = getTeamById(teamId)
     if (!team) return
 
     clearQueuedRuntime(teamRuntimeRef.current, teamId)
