@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'child_process'
+import { spawn } from 'child_process'
 import { homedir } from 'os'
 import { join, relative } from 'path'
 import type { GitStatusEntry } from '../../preload'
@@ -14,15 +14,7 @@ export function resolveTargetPath(targetPath: string): string {
   return targetPath
 }
 
-export function runGit(args: string[], cwd: string) {
-  return spawnSync('git', ['-c', 'core.quotepath=false', ...args], {
-    cwd,
-    encoding: 'utf-8',
-    timeout: 5000,
-  })
-}
-
-export function runGitAsync(args: string[], cwd: string, timeoutMs = 60_000): Promise<{
+export function runGitAsync(args: string[], cwd?: string, timeoutMs = 60_000): Promise<{
   status: number
   stdout: string
   stderr: string
@@ -70,19 +62,20 @@ export function runGitAsync(args: string[], cwd: string, timeoutMs = 60_000): Pr
   })
 }
 
-export function isGitAvailable() {
-  const result = spawnSync('git', ['--version'], {
-    encoding: 'utf-8',
-    timeout: 3000,
-  })
+export async function runGit(args: string[], cwd?: string, timeoutMs = 5_000) {
+  return await runGitAsync(args, cwd, timeoutMs)
+}
+
+export async function isGitAvailable() {
+  const result = await runGitAsync(['--version'], undefined, 3_000)
   return result.status === 0
 }
 
-export function resolveGitRepoRoot(cwd: string): string | null {
+export async function resolveGitRepoRoot(cwd: string): Promise<string | null> {
   const resolvedPath = resolveTargetPath(cwd)
   if (!resolvedPath) return null
 
-  const result = runGit(['rev-parse', '--show-toplevel'], resolvedPath)
+  const result = await runGit(['rev-parse', '--show-toplevel'], resolvedPath)
   if (result.status !== 0) return null
   return result.stdout.trim() || null
 }
@@ -148,16 +141,17 @@ export function parsePorcelainPaths(pathText: string) {
   }
 }
 
-export function getGitEntryNumstat(
+export async function getGitEntryNumstat(
   repoRoot: string,
   entry: Omit<GitStatusEntry, 'stagedAdditions' | 'stagedDeletions' | 'unstagedAdditions' | 'unstagedDeletions' | 'totalAdditions' | 'totalDeletions'>,
 ) {
   try {
     if (entry.untracked) {
-      const result = spawnSync('git', ['-c', 'core.quotepath=false', 'diff', '--no-color', '--numstat', '--no-index', '--', NULL_DEVICE, entry.path], {
-        encoding: 'utf-8',
-        timeout: 5000,
-      })
+      const result = await runGitAsync(
+        ['diff', '--no-color', '--numstat', '--no-index', '--', NULL_DEVICE, entry.path],
+        repoRoot,
+        5_000,
+      )
       const counts = parseNumstat(`${result.stdout ?? ''}${result.stderr ?? ''}`)
       return {
         stagedAdditions: 0,
@@ -170,9 +164,11 @@ export function getGitEntryNumstat(
     }
 
     const relativePath = relative(repoRoot, entry.path)
-    const stagedResult = runGit(['diff', '--cached', '--numstat', '--', relativePath], repoRoot)
-    const unstagedResult = runGit(['diff', '--numstat', '--', relativePath], repoRoot)
-    const totalResult = runGit(['diff', '--numstat', 'HEAD', '--', relativePath], repoRoot)
+    const [stagedResult, unstagedResult, totalResult] = await Promise.all([
+      runGit(['diff', '--cached', '--numstat', '--', relativePath], repoRoot),
+      runGit(['diff', '--numstat', '--', relativePath], repoRoot),
+      runGit(['diff', '--numstat', 'HEAD', '--', relativePath], repoRoot),
+    ])
     const stagedCounts = parseNumstat(`${stagedResult.stdout ?? ''}${stagedResult.stderr ?? ''}`)
     const unstagedCounts = parseNumstat(`${unstagedResult.stdout ?? ''}${unstagedResult.stderr ?? ''}`)
     const totalCounts = parseNumstat(`${totalResult.stdout ?? ''}${totalResult.stderr ?? ''}`)
