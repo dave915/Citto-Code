@@ -15,6 +15,12 @@ import {
 } from '../lib/sessionUtils'
 import { extractSubagentRuntimeInfo, isSubagentToolName } from '../lib/agent-subcalls'
 import { nanoid } from './nanoid'
+import {
+  updateBtwCards,
+  updateMessageById,
+  updateSessionById,
+  updateToolCalls,
+} from './sessionStoreMutators'
 import type { BtwCard, Message, Session, SessionsStore, ToolCallBlock } from './sessionTypes'
 
 type StoreSet = Parameters<StateCreator<SessionsStore>>[0]
@@ -41,6 +47,28 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     DEFAULT_PROJECT_PATH,
     getProjectNameFromPath(DEFAULT_PROJECT_PATH),
   )
+  const updateStoredSession = (
+    sessionId: string,
+    updater: (session: Session) => Session,
+  ) => set((state) => ({
+    sessions: updateSessionById(state.sessions, sessionId, updater),
+  }))
+  const patchStoredSession = (sessionId: string, patch: Partial<Session>) => (
+    updateStoredSession(sessionId, (session) => ({ ...session, ...patch }))
+  )
+  const finalizeStreamingSession = (session: Session, patch: Partial<Session> = {}): Session => {
+    const nextSession = {
+      ...session,
+      ...patch,
+      isStreaming: false,
+    }
+
+    return {
+      ...nextSession,
+      messages: pruneEmptyCurrentAssistantMessage(nextSession),
+      currentAssistantMsgId: null,
+    }
+  }
 
   return {
     sessions: [firstSession],
@@ -58,11 +86,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     quickPanelEnabled: true,
     shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
-    setLinkedTeamId: (sessionId, teamId) => set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.id !== sessionId ? s : { ...s, linkedTeamId: teamId },
-      ),
-    })),
+    setLinkedTeamId: (sessionId, teamId) => patchStoredSession(sessionId, { linkedTeamId: teamId }),
 
     setEnvVar: (key, value) => set((state) => ({
       envVars: { ...state.envVars, [key]: value },
@@ -151,15 +175,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
 
     setActiveSession: (activeSessionId) => set({ activeSessionId }),
 
-    updateSession: (id, updater) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === id
-            ? { ...session, ...updater(session) }
-            : session,
-        ),
-      }))
-    },
+    updateSession: (id, updater) => updateStoredSession(id, (session) => ({ ...session, ...updater(session) })),
 
     addUserMessage: (tabId, text, files) => {
       const msgId = nanoid()
@@ -219,39 +235,23 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
       return msgId
     },
 
-    appendThinkingChunk: (tabId, assistantMsgId, chunk) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                messages: session.messages.map((message) =>
-                  message.id === assistantMsgId
-                    ? { ...message, thinking: (message.thinking ?? '') + chunk }
-                    : message,
-                ),
-              }
-            : session,
-        ),
-      }))
-    },
+    appendThinkingChunk: (tabId, assistantMsgId, chunk) => updateStoredSession(
+      tabId,
+      (session) => updateMessageById(
+        session,
+        assistantMsgId,
+        (message) => ({ ...message, thinking: (message.thinking ?? '') + chunk }),
+      ),
+    ),
 
-    appendTextChunk: (tabId, assistantMsgId, chunk) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                messages: session.messages.map((message) =>
-                  message.id === assistantMsgId
-                    ? { ...message, text: message.text + chunk }
-                    : message,
-                ),
-              }
-            : session,
-        ),
-      }))
-    },
+    appendTextChunk: (tabId, assistantMsgId, chunk) => updateStoredSession(
+      tabId,
+      (session) => updateMessageById(
+        session,
+        assistantMsgId,
+        (message) => ({ ...message, text: message.text + chunk }),
+      ),
+    ),
 
     addBtwCard: (tabId, cardId, question) => {
       const card: BtwCard = {
@@ -295,88 +295,45 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     appendBtwCardChunk: (tabId, cardId, chunk) => {
       if (!chunk) return
 
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id !== tabId
-            ? session
-            : {
-                ...session,
-                messages: session.messages.map((message) => ({
-                  ...message,
-                  btwCards: message.btwCards?.map((card) =>
-                    card.id === cardId
-                      ? { ...card, answer: card.answer + chunk }
-                      : card,
-                  ),
-                })),
-              },
+      updateStoredSession(
+        tabId,
+        (session) => updateBtwCards(
+          session,
+          (card) => (card.id === cardId ? { ...card, answer: card.answer + chunk } : card),
         ),
-      }))
+      )
     },
 
-    updateBtwCard: (tabId, cardId, patch) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id !== tabId
-            ? session
-            : {
-                ...session,
-                messages: session.messages.map((message) => ({
-                  ...message,
-                  btwCards: message.btwCards?.map((card) =>
-                    card.id === cardId
-                      ? { ...card, ...patch }
-                      : card,
-                  ),
-                })),
-              },
-        ),
-      }))
-    },
+    updateBtwCard: (tabId, cardId, patch) => updateStoredSession(
+      tabId,
+      (session) => updateBtwCards(
+        session,
+        (card) => (card.id === cardId ? { ...card, ...patch } : card),
+      ),
+    ),
 
-    toggleBtwCard: (tabId, cardId) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id !== tabId
-            ? session
-            : {
-                ...session,
-                messages: session.messages.map((message) => ({
-                  ...message,
-                  btwCards: message.btwCards?.map((card) =>
-                    card.id === cardId
-                      ? { ...card, isOpen: !card.isOpen }
-                      : card,
-                  ),
-                })),
-              },
-        ),
-      }))
-    },
+    toggleBtwCard: (tabId, cardId) => updateStoredSession(
+      tabId,
+      (session) => updateBtwCards(
+        session,
+        (card) => (card.id === cardId ? { ...card, isOpen: !card.isOpen } : card),
+      ),
+    ),
 
     appendSubagentText: (tabId, toolUseId, chunk) => {
       if (!chunk) return
 
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                messages: session.messages.map((message) => ({
-                  ...message,
-                  toolCalls: message.toolCalls.map((toolCall) =>
-                    toolCall.toolUseId === toolUseId
-                      ? {
-                          ...toolCall,
-                          streamingText: (toolCall.streamingText ?? '') + chunk,
-                        }
-                      : toolCall,
-                  ),
-                })),
-              }
-            : session,
+      updateStoredSession(
+        tabId,
+        (session) => updateToolCalls(
+          session,
+          (toolCall) => (
+            toolCall.toolUseId === toolUseId
+              ? { ...toolCall, streamingText: (toolCall.streamingText ?? '') + chunk }
+              : toolCall
+          ),
         ),
-      }))
+      )
     },
 
     addToolCall: (tabId, assistantMsgId, toolCall) => {
@@ -388,118 +345,60 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
           ? (toolCall.subagentState ?? 'pending')
           : toolCall.subagentState,
       }
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                messages: session.messages.map((message) =>
-                  message.id === assistantMsgId
-                    ? { ...message, toolCalls: [...message.toolCalls, nextToolCall] }
-                    : message,
-                ),
-              }
-            : session,
+      updateStoredSession(
+        tabId,
+        (session) => updateMessageById(
+          session,
+          assistantMsgId,
+          (message) => ({ ...message, toolCalls: [...message.toolCalls, nextToolCall] }),
         ),
-      }))
+      )
     },
 
-    resolveToolCall: (tabId, toolUseId, result, isError) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                messages: session.messages.map((message) => ({
-                  ...message,
-                  toolCalls: message.toolCalls.map((toolCall) =>
-                    toolCall.toolUseId === toolUseId
-                      ? (() => {
-                          const runtimeInfo = isSubagentToolName(toolCall.toolName)
-                            ? extractSubagentRuntimeInfo(result, toolCall.toolInput)
-                            : null
+    resolveToolCall: (tabId, toolUseId, result, isError) => updateStoredSession(
+      tabId,
+      (session) => updateToolCalls(
+        session,
+        (toolCall) => {
+          if (toolCall.toolUseId !== toolUseId) return toolCall
 
-                          return {
-                            ...toolCall,
-                            result,
-                            isError,
-                            status: isError ? 'error' : 'done',
-                            subagentState: isSubagentToolName(toolCall.toolName)
-                              ? (isError ? 'error' : (runtimeInfo ? 'running' : (toolCall.subagentState ?? 'done')))
-                              : toolCall.subagentState,
-                            subagentSessionId: runtimeInfo?.sessionId ?? toolCall.subagentSessionId,
-                            subagentAgentId: runtimeInfo?.agentId ?? toolCall.subagentAgentId,
-                            subagentTranscriptPath: runtimeInfo?.transcriptPath ?? toolCall.subagentTranscriptPath,
-                          }
-                        })()
-                      : toolCall,
-                  ),
-                })),
-              }
-            : session,
-        ),
-      }))
-    },
+          const runtimeInfo = isSubagentToolName(toolCall.toolName)
+            ? extractSubagentRuntimeInfo(result, toolCall.toolInput)
+            : null
 
-    updateSubagent: (tabId, toolUseId, patch) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? {
-                ...session,
-                messages: session.messages.map((message) => ({
-                  ...message,
-                  toolCalls: message.toolCalls.map((toolCall) =>
-                    toolCall.toolUseId === toolUseId
-                      ? {
-                          ...toolCall,
-                          ...patch,
-                        }
-                      : toolCall,
-                  ),
-                })),
-              }
-            : session,
-        ),
-      }))
-    },
+          return {
+            ...toolCall,
+            result,
+            isError,
+            status: isError ? 'error' : 'done',
+            subagentState: isSubagentToolName(toolCall.toolName)
+              ? (isError ? 'error' : (runtimeInfo ? 'running' : (toolCall.subagentState ?? 'done')))
+              : toolCall.subagentState,
+            subagentSessionId: runtimeInfo?.sessionId ?? toolCall.subagentSessionId,
+            subagentAgentId: runtimeInfo?.agentId ?? toolCall.subagentAgentId,
+            subagentTranscriptPath: runtimeInfo?.transcriptPath ?? toolCall.subagentTranscriptPath,
+          }
+        },
+      ),
+    ),
 
-    setStreaming: (tabId, value) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, isStreaming: value }
-            : session,
-        ),
-      }))
-    },
+    updateSubagent: (tabId, toolUseId, patch) => updateStoredSession(
+      tabId,
+      (session) => updateToolCalls(
+        session,
+        (toolCall) => (toolCall.toolUseId === toolUseId ? { ...toolCall, ...patch } : toolCall),
+      ),
+    ),
+
+    setStreaming: (tabId, value) => patchStoredSession(tabId, { isStreaming: value }),
 
     commitStreamEnd: (tabId) => {
       set((state) => ({
-        sessions: state.sessions.map((session) => {
-          if (session.id !== tabId) return session
-          const nextSession = {
-            ...session,
-            isStreaming: false,
-          }
-          return {
-            ...nextSession,
-            messages: pruneEmptyCurrentAssistantMessage(nextSession),
-            currentAssistantMsgId: null,
-          }
-        }),
+        sessions: updateSessionById(state.sessions, tabId, (session) => finalizeStreamingSession(session)),
       }))
     },
 
-    setClaudeSessionId: (tabId, claudeSessionId) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, sessionId: claudeSessionId }
-            : session,
-        ),
-      }))
-    },
+    setClaudeSessionId: (tabId, claudeSessionId) => patchStoredSession(tabId, { sessionId: claudeSessionId }),
 
     setError: (tabId, error) => {
       set((state) => ({
@@ -512,91 +411,27 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
             typeof session.error === 'string' &&
             !GENERIC_CLAUDE_ERRORS.has(session.error)
 
-          const nextSession = {
-            ...session,
+          return finalizeStreamingSession(session, {
             error: shouldKeepExistingError ? session.error : error,
             pendingPermission: null,
             pendingQuestion: null,
-            isStreaming: false,
-          }
-
-          return {
-            ...nextSession,
-            messages: pruneEmptyCurrentAssistantMessage(nextSession),
-            currentAssistantMsgId: null,
-          }
+          })
         }),
       }))
     },
 
-    setPendingPermission: (tabId, request) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, pendingPermission: request }
-            : session,
-        ),
-      }))
-    },
+    setPendingPermission: (tabId, request) => patchStoredSession(tabId, { pendingPermission: request }),
 
-    setPendingQuestion: (tabId, request) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, pendingQuestion: request }
-            : session,
-        ),
-      }))
-    },
+    setPendingQuestion: (tabId, request) => patchStoredSession(tabId, { pendingQuestion: request }),
 
-    setTokenUsage: (tabId, inputTokens) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, tokenUsage: inputTokens }
-            : session,
-        ),
-      }))
-    },
+    setTokenUsage: (tabId, inputTokens) => patchStoredSession(tabId, { tokenUsage: inputTokens }),
 
-    setLastCost: (tabId, cost) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, lastCost: cost }
-            : session,
-        ),
-      }))
-    },
+    setLastCost: (tabId, cost) => patchStoredSession(tabId, { lastCost: cost }),
 
-    setPermissionMode: (tabId, mode) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, permissionMode: mode }
-            : session,
-        ),
-      }))
-    },
+    setPermissionMode: (tabId, mode) => patchStoredSession(tabId, { permissionMode: mode }),
 
-    setPlanMode: (tabId, value) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, planMode: value }
-            : session,
-        ),
-      }))
-    },
+    setPlanMode: (tabId, value) => patchStoredSession(tabId, { planMode: value }),
 
-    setModel: (tabId, model) => {
-      set((state) => ({
-        sessions: state.sessions.map((session) =>
-          session.id === tabId
-            ? { ...session, model }
-            : session,
-        ),
-      }))
-    },
+    setModel: (tabId, model) => patchStoredSession(tabId, { model }),
   }
 }

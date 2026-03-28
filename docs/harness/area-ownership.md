@@ -24,12 +24,14 @@
 - 파일:
   - `src/store/sessions.ts`
   - `src/store/sessionStoreState.ts`
+  - `src/store/sessionStoreMutators.ts`
   - `src/store/scheduledTasks.ts`
   - `electron/persistence.ts`
 - 책임:
   - 세션/예약 작업 저장 구조
   - migrate/rehydrate
   - sqlite snapshot 동기화
+  - `sessionStoreState.ts`는 store action wiring과 persisted 필드 기본값을 유지하고, 반복적인 session/message/tool mutation helper는 `sessionStoreMutators.ts`에 둔다.
 - 흔한 회귀:
   - persisted version 불일치
   - beforeunload flush 누락
@@ -99,7 +101,7 @@
   - `TeamSetupModal.tsx`는 선택 상태와 저장만 유지한다.
   - `teamSetupShared.ts`는 setup 공용 타입/로컬 저장/프리셋 변환을 담당하고, `TeamSetupSelectionPane.tsx`, `TeamSetupCustomAgentForm.tsx`, `TeamSetupPreviewPane.tsx`는 각 화면 조각을 담당한다.
   - `TeamSetupModalParts.tsx`는 setup 서브모듈 re-export 레이어만 유지한다.
-  - `useAgentTeam.ts`는 스트림/runtime 오케스트레이션을 유지하고, 프롬프트 문자열 조립은 `src/hooks/team/*`에 둔다.
+  - `useAgentTeam.ts`는 스트림/runtime 오케스트레이션만 유지하고, 프롬프트 문자열 조립과 queue/context runtime helper는 `src/hooks/team/*`에 둔다.
 - 흔한 회귀:
   - watch 해제 누락
   - 실시간 텍스트 누락 또는 완료 상태 미동기화

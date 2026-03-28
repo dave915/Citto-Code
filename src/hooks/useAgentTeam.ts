@@ -1,26 +1,25 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { SelectedFile } from '../../electron/preload'
 import { createAgentTeamPromptBuilder } from './team/agentTeamPrompts'
+import {
+  clearContextMappings,
+  clearQueuedRuntime,
+  createAgentStreamContext,
+  drainExecQueue,
+  enqueueExec,
+  getTeamRuntime,
+  resetParallelRuntime,
+  resetTeamRuntimeState,
+  resolveAgentContext,
+  settleParallelTeam,
+  type AgentStreamContext,
+  type TeamRuntime,
+} from './team/agentTeamRuntime'
 import { buildPromptWithAttachments, toAttachedFiles } from '../lib/attachmentPrompts'
 import { translate, type AppLanguage, type TranslationKey } from '../lib/i18n'
 import { nanoid } from '../store/nanoid'
 import { useTeamStore } from '../store/teamStore'
 import type { AgentTeam, DiscussionMode, TeamAgent } from '../store/teamTypes'
-
-type AgentStreamContext = {
-  teamId: string
-  agentId: string
-  msgId: string
-  requestId: string
-}
-
-type TeamRuntime = {
-  execQueue: Array<() => void>
-  isQueueRunning: boolean
-  pendingResolve: (() => void) | null
-  parallelPendingCount: number
-  parallelDoneCallback: (() => void) | null
-}
 
 export function useAgentTeamStream(
   envVars: Record<string, string>,
@@ -49,138 +48,50 @@ export function useAgentTeamStream(
   const claudePathRef = useRef(claudeBinaryPath)
   claudePathRef.current = claudeBinaryPath
 
-  function getTeamRuntime(teamId: string): TeamRuntime {
-    const existing = teamRuntimeRef.current.get(teamId)
-    if (existing) return existing
-
-    const created: TeamRuntime = {
-      execQueue: [],
-      isQueueRunning: false,
-      pendingResolve: null,
-      parallelPendingCount: 0,
-      parallelDoneCallback: null,
-    }
-    teamRuntimeRef.current.set(teamId, created)
-    return created
-  }
-
-  function resetTeamRuntimeState(teamId: string) {
-    const runtime = getTeamRuntime(teamId)
-    runtime.execQueue = []
-    runtime.isQueueRunning = false
-    runtime.pendingResolve = null
-    runtime.parallelPendingCount = 0
-    runtime.parallelDoneCallback = null
-  }
-
-  function deleteIfMatches(
-    map: Map<string, AgentStreamContext>,
-    key: string | null | undefined,
-    context: AgentStreamContext,
-  ) {
-    if (!key) return
-    const current = map.get(key)
-    if (!current) return
-    if (
-      current.teamId === context.teamId
-      && current.agentId === context.agentId
-      && current.msgId === context.msgId
-      && current.requestId === context.requestId
-    ) {
-      map.delete(key)
-    }
-  }
-
-  function clearContextMappings(
-    context: AgentStreamContext,
-    sessionId?: string | null,
-    requestId?: string,
-  ) {
-    deleteIfMatches(requestToAgentRef.current, requestId ?? context.requestId, context)
-    deleteIfMatches(sessionToAgentRef.current, sessionId, context)
-  }
-
-  function resolveAgentContext(sessionId?: string | null, requestId?: string): AgentStreamContext | null {
-    if (sessionId) {
-      const mapped = sessionToAgentRef.current.get(sessionId)
-      if (mapped) return mapped
-    }
-    if (requestId) {
-      return requestToAgentRef.current.get(requestId) ?? null
-    }
-    return null
-  }
-
-  function settleParallelTeam(teamId: string) {
-    const runtime = getTeamRuntime(teamId)
-    runtime.parallelPendingCount -= 1
-    if (runtime.parallelPendingCount <= 0) {
-      runtime.parallelPendingCount = 0
-      const callback = runtime.parallelDoneCallback
-      runtime.parallelDoneCallback = null
-      callback?.()
-    }
-  }
-
-  function drainExecQueue(teamId: string) {
-    const runtime = getTeamRuntime(teamId)
-    const resolve = runtime.pendingResolve
-    runtime.pendingResolve = null
-    resolve?.()
-
-    const next = runtime.execQueue.shift()
-    if (next) {
-      next()
-    } else {
-      runtime.isQueueRunning = false
-    }
-  }
-
-  function enqueueExec(teamId: string, fn: () => void) {
-    const runtime = getTeamRuntime(teamId)
-    runtime.execQueue.push(fn)
-    if (!runtime.isQueueRunning) {
-      runtime.isQueueRunning = true
-      const next = runtime.execQueue.shift()
-      next?.()
-    }
-  }
-
   function failTeam(teamId: string, agentId: string, error: string, requestId?: string, sessionId?: string | null) {
     storeRef.current.setAgentError(teamId, agentId, error)
     storeRef.current.setTeamStatus(teamId, 'error')
 
-    const runtime = getTeamRuntime(teamId)
-    runtime.execQueue = []
-    runtime.isQueueRunning = false
-
-    const resolve = runtime.pendingResolve
-    runtime.pendingResolve = null
-    resolve?.()
+    clearQueuedRuntime(teamRuntimeRef.current, teamId)
 
     const team = teamsRef.current.find((candidate) => candidate.id === teamId)
     if (team?.mode === 'parallel' && (requestId || sessionId)) {
-      settleParallelTeam(teamId)
+      settleParallelTeam(teamRuntimeRef.current, teamId)
     } else {
-      runtime.parallelPendingCount = 0
-      runtime.parallelDoneCallback = null
+      resetParallelRuntime(teamRuntimeRef.current, teamId)
     }
   }
 
   useEffect(() => {
     const cleanup = window.claude.onClaudeEvent((event) => {
       if (event.type === 'stream-start') {
-        const context = resolveAgentContext(event.sessionId, event.requestId)
+        const context = resolveAgentContext(
+          requestToAgentRef.current,
+          sessionToAgentRef.current,
+          event.sessionId,
+          event.requestId,
+        )
         if (!context) return
 
         sessionToAgentRef.current.set(event.sessionId, context)
-        deleteIfMatches(requestToAgentRef.current, event.requestId, context)
+        clearContextMappings(
+          requestToAgentRef.current,
+          sessionToAgentRef.current,
+          context,
+          undefined,
+          event.requestId,
+        )
         storeRef.current.setAgentClaudeSessionId(context.teamId, context.agentId, event.sessionId)
         return
       }
 
       const eventSessionId = 'sessionId' in event ? event.sessionId : null
-      const context = resolveAgentContext(eventSessionId, event.requestId)
+      const context = resolveAgentContext(
+        requestToAgentRef.current,
+        sessionToAgentRef.current,
+        eventSessionId,
+        event.requestId,
+      )
       if (!context) return
 
       const { teamId, agentId, msgId } = context
@@ -196,21 +107,33 @@ export function useAgentTeamStream(
 
         case 'stream-end': {
           storeRef.current.finalizeAgentMessage(teamId, agentId)
-          clearContextMappings(context, event.sessionId, event.requestId)
+          clearContextMappings(
+            requestToAgentRef.current,
+            sessionToAgentRef.current,
+            context,
+            event.sessionId,
+            event.requestId,
+          )
 
           const team = teamsRef.current.find((candidate) => candidate.id === teamId)
           if (!team) break
 
           if (team.mode === 'parallel') {
-            settleParallelTeam(teamId)
+            settleParallelTeam(teamRuntimeRef.current, teamId)
           } else {
-            drainExecQueue(teamId)
+            drainExecQueue(teamRuntimeRef.current, teamId)
           }
           break
         }
 
         case 'error':
-          clearContextMappings(context, event.sessionId, event.requestId)
+          clearContextMappings(
+            requestToAgentRef.current,
+            sessionToAgentRef.current,
+            context,
+            event.sessionId,
+            event.requestId,
+          )
           failTeam(teamId, agentId, event.error, event.requestId, event.sessionId)
           break
       }
@@ -226,15 +149,10 @@ export function useAgentTeamStream(
     attachments?: SelectedFile[],
   ): Promise<void> {
     return new Promise((resolve) => {
-      const runtime = getTeamRuntime(team.id)
+      const runtime = getTeamRuntime(teamRuntimeRef.current, team.id)
       const msgId = storeRef.current.startAgentMessage(team.id, agent.id)
       const requestId = nanoid()
-      const context: AgentStreamContext = {
-        teamId: team.id,
-        agentId: agent.id,
-        msgId,
-        requestId,
-      }
+      const context: AgentStreamContext = createAgentStreamContext(team.id, agent.id, msgId, requestId)
 
       requestToAgentRef.current.set(requestId, context)
       if (agent.claudeSessionId) {
@@ -253,7 +171,13 @@ export function useAgentTeamStream(
         envVars: envVarsRef.current,
         ...(claudePathRef.current ? { claudePath: claudePathRef.current } : {}),
       }).catch((error) => {
-        clearContextMappings(context, agent.claudeSessionId, requestId)
+        clearContextMappings(
+          requestToAgentRef.current,
+          sessionToAgentRef.current,
+          context,
+          agent.claudeSessionId,
+          requestId,
+        )
         failTeam(team.id, agent.id, String(error), requestId, agent.claudeSessionId)
       })
     })
@@ -266,19 +190,14 @@ export function useAgentTeamStream(
     attachments?: SelectedFile[],
   ): Promise<void> {
     return new Promise((resolve) => {
-      const runtime = getTeamRuntime(team.id)
+      const runtime = getTeamRuntime(teamRuntimeRef.current, team.id)
       runtime.parallelPendingCount = agents.length
       runtime.parallelDoneCallback = resolve
 
       agents.forEach((agent, index) => {
         const msgId = storeRef.current.startAgentMessage(team.id, agent.id)
         const requestId = nanoid()
-        const context: AgentStreamContext = {
-          teamId: team.id,
-          agentId: agent.id,
-          msgId,
-          requestId,
-        }
+        const context: AgentStreamContext = createAgentStreamContext(team.id, agent.id, msgId, requestId)
 
         requestToAgentRef.current.set(requestId, context)
         if (agent.claudeSessionId) {
@@ -295,7 +214,13 @@ export function useAgentTeamStream(
           envVars: envVarsRef.current,
           ...(claudePathRef.current ? { claudePath: claudePathRef.current } : {}),
         }).catch((error) => {
-          clearContextMappings(context, agent.claudeSessionId, requestId)
+          clearContextMappings(
+            requestToAgentRef.current,
+            sessionToAgentRef.current,
+            context,
+            agent.claudeSessionId,
+            requestId,
+          )
           failTeam(team.id, agent.id, String(error), requestId, agent.claudeSessionId)
         })
       })
@@ -306,16 +231,16 @@ export function useAgentTeamStream(
     const team = teamsRef.current.find((candidate) => candidate.id === teamId)
     if (!team) return
 
-    resetTeamRuntimeState(teamId)
+    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
     const taskPrompt = buildPromptWithAttachments(task, files, language)
     storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
     storeRef.current.setTeamStatus(teamId, 'running')
 
     team.agents.forEach((agent, index) => {
-      enqueueExec(teamId, () => {
+      enqueueExec(teamRuntimeRef.current, teamId, () => {
         const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
         if (!currentTeam) {
-          drainExecQueue(teamId)
+          drainExecQueue(teamRuntimeRef.current, teamId)
           return
         }
         const prior = currentTeam.agents.slice(0, index)
@@ -324,12 +249,12 @@ export function useAgentTeamStream(
       })
     })
 
-    enqueueExec(teamId, () => {
+    enqueueExec(teamRuntimeRef.current, teamId, () => {
       const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
       if (currentTeam?.status === 'running') {
         storeRef.current.setTeamStatus(teamId, 'done')
       }
-      drainExecQueue(teamId)
+      drainExecQueue(teamRuntimeRef.current, teamId)
     })
   }, [language])
 
@@ -337,7 +262,7 @@ export function useAgentTeamStream(
     const team = teamsRef.current.find((candidate) => candidate.id === teamId)
     if (!team) return
 
-    resetTeamRuntimeState(teamId)
+    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
     const taskPrompt = buildPromptWithAttachments(task, files, language)
     storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
     storeRef.current.setTeamStatus(teamId, 'running')
@@ -354,16 +279,16 @@ export function useAgentTeamStream(
     const team = teamsRef.current.find((candidate) => candidate.id === teamId)
     if (!team) return
 
-    resetTeamRuntimeState(teamId)
+    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
     const taskPrompt = buildPromptWithAttachments(task, files, language)
     storeRef.current.setTeamTask(teamId, task, taskPrompt, toAttachedFiles(files))
     storeRef.current.setTeamStatus(teamId, 'running')
 
     team.agents.forEach((agent) => {
-      enqueueExec(teamId, () => {
+      enqueueExec(teamRuntimeRef.current, teamId, () => {
         const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
         if (!currentTeam) {
-          drainExecQueue(teamId)
+          drainExecQueue(teamRuntimeRef.current, teamId)
           return
         }
         const prompt = buildMeetingPrompt(agent, taskPrompt, currentTeam.agents, 1)
@@ -371,12 +296,12 @@ export function useAgentTeamStream(
       })
     })
 
-    enqueueExec(teamId, () => {
+    enqueueExec(teamRuntimeRef.current, teamId, () => {
       const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
       if (currentTeam?.status === 'running') {
         storeRef.current.setTeamStatus(teamId, 'done')
       }
-      drainExecQueue(teamId)
+      drainExecQueue(teamRuntimeRef.current, teamId)
     })
   }, [language])
 
@@ -394,7 +319,7 @@ export function useAgentTeamStream(
     const team = teamsRef.current.find((candidate) => candidate.id === teamId)
     if (!team || team.status !== 'done') return
 
-    resetTeamRuntimeState(teamId)
+    resetTeamRuntimeState(teamRuntimeRef.current, teamId)
     storeRef.current.incrementRound(teamId)
     storeRef.current.setTeamStatus(teamId, 'running')
 
@@ -419,10 +344,10 @@ export function useAgentTeamStream(
 
     if (mode === 'meeting') {
       team.agents.forEach((agent) => {
-        enqueueExec(teamId, () => {
+        enqueueExec(teamRuntimeRef.current, teamId, () => {
           const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
           if (!currentTeam) {
-            drainExecQueue(teamId)
+            drainExecQueue(teamRuntimeRef.current, teamId)
             return
           }
           const prompt = buildMeetingPrompt(
@@ -434,21 +359,21 @@ export function useAgentTeamStream(
           void sendToAgentAwaited(currentTeam, agent, prompt)
         })
       })
-      enqueueExec(teamId, () => {
+      enqueueExec(teamRuntimeRef.current, teamId, () => {
         const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
         if (currentTeam?.status === 'running') {
           storeRef.current.setTeamStatus(teamId, 'done')
         }
-        drainExecQueue(teamId)
+        drainExecQueue(teamRuntimeRef.current, teamId)
       })
       return
     }
 
     team.agents.forEach((agent, index) => {
-      enqueueExec(teamId, () => {
+      enqueueExec(teamRuntimeRef.current, teamId, () => {
         const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
         if (!currentTeam) {
-          drainExecQueue(teamId)
+          drainExecQueue(teamRuntimeRef.current, teamId)
           return
         }
         const prior = currentTeam.agents.slice(0, index)
@@ -460,12 +385,12 @@ export function useAgentTeamStream(
         void sendToAgentAwaited(currentTeam, agent, prompt)
       })
     })
-    enqueueExec(teamId, () => {
+    enqueueExec(teamRuntimeRef.current, teamId, () => {
       const currentTeam = teamsRef.current.find((candidate) => candidate.id === teamId)
       if (currentTeam?.status === 'running') {
         storeRef.current.setTeamStatus(teamId, 'done')
       }
-      drainExecQueue(teamId)
+      drainExecQueue(teamRuntimeRef.current, teamId)
     })
   }, [language])
 
@@ -473,14 +398,8 @@ export function useAgentTeamStream(
     const team = teamsRef.current.find((candidate) => candidate.id === teamId)
     if (!team) return
 
-    const runtime = getTeamRuntime(teamId)
-    runtime.execQueue = []
-    runtime.isQueueRunning = false
-    const resolve = runtime.pendingResolve
-    runtime.pendingResolve = null
-    resolve?.()
-    runtime.parallelPendingCount = 0
-    runtime.parallelDoneCallback = null
+    clearQueuedRuntime(teamRuntimeRef.current, teamId)
+    resetParallelRuntime(teamRuntimeRef.current, teamId)
 
     for (const agent of team.agents) {
       if (!agent.claudeSessionId) continue
