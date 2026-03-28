@@ -52,6 +52,8 @@
 
 - 파일:
   - `src/components/ChatView.tsx`
+  - `src/hooks/useChatViewLayout.ts`
+  - `src/hooks/useChatViewJumpState.ts`
   - `src/components/ChatMessagePane.tsx`
   - `src/components/InputArea.tsx`
   - `src/components/chat/*`

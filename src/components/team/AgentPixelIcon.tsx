@@ -112,7 +112,8 @@ function getCustomIcon(color?: string) {
 
 export function AgentPixelIcon({ type, size = 64, color }: Props) {
   const customIcon = type === 'custom' ? getCustomIcon(color) : null
-  const src = customIcon?.src ?? BUILTIN_ICON_BY_TYPE[type] ?? customCoralIcon
+  const builtinIcon = type === 'custom' ? null : BUILTIN_ICON_BY_TYPE[type]
+  const src = customIcon?.src ?? builtinIcon ?? customCoralIcon
   const customOffsetX = customIcon
     ? (size * (customIcon.offsetSourceX ?? 0)) / CUSTOM_ICON_SOURCE_WIDTH
     : 0

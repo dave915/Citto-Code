@@ -82,8 +82,8 @@ export function GitLogPanel({
   actionLoading: boolean
   selectedCommitHash: string | null
   onSelectCommit: (entry: GitLogEntry) => void
-  onPull: () => Promise<void>
-  onPush: () => Promise<void>
+  onPull: () => void | Promise<void>
+  onPush: () => void | Promise<void>
 }) {
   const { t } = useI18n()
   const historyEntries = gitLog

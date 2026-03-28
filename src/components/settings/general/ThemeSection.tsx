@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
 import { pickLocalized } from '../../../lib/i18n'
-import { THEME_PRESETS, applyTheme, type ThemeId } from '../../../lib/theme'
+import { THEME_PRESETS, applyTheme, type ThemeId, type ThemePreset } from '../../../lib/theme'
 
-type ThemeOption = {
+type ThemeOption = ThemePreset & {
   id: ThemeId
-  label: string
-  description: string
-  swatches: [string, string, string]
 }
 
 type Props = {

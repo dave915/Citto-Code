@@ -509,7 +509,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
           const shouldKeepExistingError =
             typeof error === 'string' &&
             GENERIC_CLAUDE_ERRORS.has(error) &&
-            Boolean(session.error) &&
+            typeof session.error === 'string' &&
             !GENERIC_CLAUDE_ERRORS.has(session.error)
 
           const nextSession = {

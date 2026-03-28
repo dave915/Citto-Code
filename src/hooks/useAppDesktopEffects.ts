@@ -2,7 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react'
 import type { RecentProject, ScheduledTaskSyncItem } from '../../electron/preload'
 import { getScheduledTaskChangedPaths, getScheduledTaskSnapshotStatus, getScheduledTaskSnapshotSummary } from '../lib/scheduledTaskSnapshots'
 import { matchShortcut } from '../lib/shortcuts'
-import { applyTheme } from '../lib/theme'
+import { applyTheme, type ThemeId } from '../lib/theme'
 import type { HandleSendForSession, ScheduledTaskRunMeta } from './claudeStream/types'
 import { getProjectNameFromPath, type PermissionMode, type Session, type ShortcutConfig, type ShortcutPlatform } from '../store/sessions'
 import type { ScheduledTaskAdvancePayload, ScheduledTaskRunSnapshotStatus } from '../store/scheduledTasks'
@@ -10,7 +10,7 @@ import { cycleClaudeCodeMode } from '../components/input/inputUtils'
 import { useI18n } from './useI18n'
 
 type Params = {
-  themeId: string
+  themeId: ThemeId
   uiFontSize: number
   uiZoomPercent: number
   hasUnsafeReloadState: boolean

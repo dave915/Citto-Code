@@ -173,7 +173,8 @@ export function useAgentTeamStream(
         return
       }
 
-      const context = resolveAgentContext(event.sessionId ?? null, event.requestId)
+      const eventSessionId = 'sessionId' in event ? event.sessionId : null
+      const context = resolveAgentContext(eventSessionId, event.requestId)
       if (!context) return
 
       const { teamId, agentId, msgId } = context

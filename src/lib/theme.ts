@@ -5,7 +5,7 @@ export type ThemePreset = {
   label: string
   description: string
   descriptionEn: string
-  swatches: [string, string, string]
+  swatches: readonly [string, string, string]
 }
 
 export const THEME_PRESETS = {

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { Dispatch, KeyboardEvent as ReactKeyboardEvent, MutableRefObject, SetStateAction } from 'react'
 import type { FileEntry, SelectedFile } from '../../electron/preload'
+import type { SlashCommand } from '../components/input/inputUtils'
 
 type Params = {
   text: string
@@ -14,7 +15,7 @@ type Params = {
   questionOptions: Array<{ label: string }>
   permissionSelectedIndex: number
   permissionActions: Array<{ action: 'once' | 'always' | 'deny' }>
-  slashResults: string[]
+  slashResults: SlashCommand[]
   atResults: FileEntry[]
   atSelectedIndex: number
   slashSelectedIndex: number
@@ -23,7 +24,7 @@ type Params = {
   draftTextRef: MutableRefObject<string>
   applyHistoryText: (value: string) => void
   handleAtSelect: (file: FileEntry) => void | Promise<void>
-  handleSlashSelect: (value: string) => void
+  handleSlashSelect: (command: SlashCommand) => void
   handleQuestionSubmit: (answer: string | null) => void
   handleSend: () => void
   onAbort: () => void

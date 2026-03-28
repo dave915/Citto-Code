@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react'
-import type { SelectedFile } from '../../electron/preload'
+import type { FileEntry, SelectedFile } from '../../electron/preload'
 import { useSessionsStore, type PendingPermissionRequest, type PendingQuestionRequest, type PermissionMode } from '../store/sessions'
 import { useInputAttachments } from '../hooks/useInputAttachments'
 import { useInputKeyboard } from '../hooks/useInputKeyboard'
@@ -10,6 +10,12 @@ import { AttachmentList } from './input/AttachmentList'
 import { InputComposer } from './input/InputComposer'
 import { extractBtwQuestion, sanitizeEnvVars } from './input/inputUtils'
 import { useI18n } from '../hooks/useI18n'
+
+function mergeExternalDraftText(currentText: string, externalDraftText: string) {
+  return currentText.trim().length > 0
+    ? `${currentText.trimEnd()}\n\n${externalDraftText}`
+    : externalDraftText
+}
 
 type Props = {
   cwd: string
@@ -171,9 +177,7 @@ export function InputArea({
     if (!externalDraft || lastAppliedDraftIdRef.current === externalDraft.id) return
 
     lastAppliedDraftIdRef.current = externalDraft.id
-    const nextText = text.trim().length > 0
-      ? `${text.trimEnd()}\n\n${externalDraft.text}`
-      : externalDraft.text
+    const nextText = mergeExternalDraftText(text, externalDraft.text)
 
     setText(nextText)
     setHistoryIndex(null)
@@ -253,6 +257,76 @@ export function InputArea({
   const canSend = btwQuestion !== null
     ? canSendBtw && !disabled
     : (text.trim().length > 0 || attachedFiles.length > 0) && !isStreaming && !disabled
+  const overlayProps = {
+    language,
+    showQuestionPrompt,
+    pendingQuestion,
+    questionOptions,
+    questionInputMode,
+    showPermissionPrompt,
+    pendingPermission,
+    permissionPreview,
+    permissionActions,
+    permissionSelectedIndex,
+    permissionItemRefs,
+    onQuestionOptionSelect: (label: string) => {
+      setQuestionInputMode(false)
+      handleQuestionSubmit(label)
+    },
+    onPermissionAction: onPermissionRequestAction,
+  }
+  const mentionMenuProps = {
+    language,
+    slashResults,
+    atResults,
+    slashSelectedIndex,
+    atSelectedIndex,
+    slashItemRefs,
+    atItemRefs,
+    onSlashSelect: handleSlashSelect,
+    onAtSelect: (file: FileEntry) => {
+      void handleAtSelect(file)
+    },
+  }
+  const toolbarProps = {
+    language,
+    isStreaming,
+    disabled,
+    isAttaching,
+    handleAttachFiles: () => { void handleAttachFiles() },
+    permissionMode,
+    planMode,
+    onPermissionModeChange,
+    onPlanModeChange,
+    permissionShortcutLabel,
+    bypassShortcutLabel,
+    model,
+    models,
+    modelsLoading,
+    onModelChange,
+    showStreamingUi,
+    onAbort,
+    handleSend,
+    canSend,
+    canSendWhileStreaming: canSendBtw,
+    onOpenTeam,
+    hasLinkedTeam,
+  }
+  const handleRemoveFile = (path: string) => {
+    setAttachedFiles((current) => current.filter((file) => file.path !== path))
+  }
+  const handleComposerBlur = () => {
+    setTimeout(() => {
+      closeAtMention()
+      closeSlashMention()
+    }, 150)
+  }
+  const handleCompositionStart = () => {
+    isComposingRef.current = true
+  }
+  const handleCompositionEnd = () => {
+    isComposingRef.current = false
+  }
 
   return (
     <div className="bg-claude-chat-bg px-6 pt-4 pb-5">
@@ -263,7 +337,7 @@ export function InputArea({
           attachedFiles={attachedFiles}
           skippedFiles={skippedFiles}
           language={language}
-          onRemoveFile={(path) => setAttachedFiles((current) => current.filter((file) => file.path !== path))}
+          onRemoveFile={handleRemoveFile}
         />
 
         <InputComposer
@@ -283,70 +357,16 @@ export function InputArea({
             void handlePaste(event)
           }}
           onSelect={handleSelect}
-          onBlur={() => setTimeout(() => { closeAtMention(); closeSlashMention() }, 150)}
-          onCompositionStart={() => { isComposingRef.current = true }}
-          onCompositionEnd={() => {
-            isComposingRef.current = false
-          }}
+          onBlur={handleComposerBlur}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          overlayProps={{
-            language,
-            showQuestionPrompt,
-            pendingQuestion,
-            questionOptions,
-            questionInputMode,
-            showPermissionPrompt,
-            pendingPermission,
-            permissionPreview,
-            permissionActions,
-            permissionSelectedIndex,
-            permissionItemRefs,
-            onQuestionOptionSelect: (label) => {
-              setQuestionInputMode(false)
-              handleQuestionSubmit(label)
-            },
-            onPermissionAction: onPermissionRequestAction,
-          }}
-          mentionMenuProps={{
-            language,
-            slashResults,
-            atResults,
-            slashSelectedIndex,
-            atSelectedIndex,
-            slashItemRefs,
-            atItemRefs,
-            onSlashSelect: handleSlashSelect,
-            onAtSelect: (file) => {
-              void handleAtSelect(file)
-            },
-          }}
-          toolbarProps={{
-            language,
-            isStreaming,
-            disabled,
-            isAttaching,
-            handleAttachFiles: () => { void handleAttachFiles() },
-            permissionMode,
-            planMode,
-            onPermissionModeChange,
-            onPlanModeChange,
-            permissionShortcutLabel,
-            bypassShortcutLabel,
-            model,
-            models,
-            modelsLoading,
-            onModelChange,
-            showStreamingUi,
-            onAbort,
-            handleSend,
-            canSend,
-            canSendWhileStreaming: canSendBtw,
-            onOpenTeam,
-            hasLinkedTeam,
-          }}
+          overlayProps={overlayProps}
+          mentionMenuProps={mentionMenuProps}
+          toolbarProps={toolbarProps}
         />
       </div>
     </div>

@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "electron/preload.ts", "electron/persistence-types.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "electron/preload.ts", "electron/preload/**/*.ts", "electron/persistence-types.ts"]
 }

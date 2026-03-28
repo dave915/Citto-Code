@@ -112,7 +112,6 @@ export type {
   ImportedToolCall,
   Message,
   NotificationMode,
-  AppLanguage,
   PendingPermissionRequest,
   PendingQuestionOption,
   PendingQuestionRequest,
@@ -128,6 +127,7 @@ export type {
   ToolCallBlock,
   ToolCallStatus,
 } from './sessionTypes'
+export type { AppLanguage } from '../lib/i18n'
 
 export {
   DEFAULT_PROJECT_PATH,
