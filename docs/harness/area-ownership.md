@@ -124,12 +124,14 @@
 
 - 파일:
   - `src/components/settings/*`
+  - `src/components/settings/skill/*`
   - `electron/ipc/settings.ts`
   - `electron/services/settingsDataService.ts`
   - `electron/services/settingsData/*`
 - 책임:
   - 설정 파일/프로젝트 설정/Claude 디렉터리 읽기 쓰기
   - MCP/Skill 목록과 편집
+  - 큰 settings 탭은 파일 I/O 상태와 로컬 편집 상태를 해당 하위 폴더 helper로 분리한다.
 - 흔한 회귀:
   - scope 혼동으로 잘못된 파일 위치에 저장
   - renderer와 persisted 설정 불일치

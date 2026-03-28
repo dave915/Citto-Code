@@ -1,168 +1,50 @@
-import { useEffect, useRef, useState } from 'react'
-import type { PluginSkill } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import { EmptyState, LoadingPlaceholder } from './shared'
 import { PluginSkillList } from './skill/PluginSkillList'
 import { SkillAddForm } from './skill/SkillAddForm'
 import { SkillIntroCard } from './skill/SkillIntroCard'
-
-type Skill = { name: string; path: string; dir: string; legacy: boolean }
+import { useSkillTabState } from './skill/useSkillTabState'
 
 export function SkillTab() {
   const { t } = useI18n()
-  const [skills, setSkills] = useState<Skill[]>([])
-  const [pluginSkills, setPluginSkills] = useState<PluginSkill[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [formError, setFormError] = useState('')
-  const nameRef = useRef<HTMLInputElement>(null)
-
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [expandedSkill, setExpandedSkill] = useState<string | null>(null)
-  const [skillFiles, setSkillFiles] = useState<Record<string, { name: string; path: string }[]>>({})
-  const [addFileFor, setAddFileFor] = useState<{ name: string; dir: string } | null>(null)
-  const [newFileName, setNewFileName] = useState('')
-  const [fileFormError, setFileFormError] = useState('')
-  const [creatingFile, setCreatingFile] = useState(false)
-  const fileNameRef = useRef<HTMLInputElement>(null)
-
-  const [editingFile, setEditingFile] = useState<{ name: string; path: string } | null>(null)
-  const [editContent, setEditContent] = useState('')
-  const [loadingEdit, setLoadingEdit] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
-
-  const loadSkills = () => {
-    setLoading(true)
-    Promise.all([
-      window.claude.listSkills().catch(() => []),
-      window.claude.listPluginSkills().catch(() => []),
-    ])
-      .then(([loadedSkills, loadedPluginSkills]) => {
-        setSkills(loadedSkills)
-        setPluginSkills(loadedPluginSkills)
-      })
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => {
-    loadSkills()
-  }, [])
-
-  useEffect(() => {
-    if (showAdd) setTimeout(() => nameRef.current?.focus(), 50)
-  }, [showAdd])
-
-  useEffect(() => {
-    if (addFileFor) setTimeout(() => fileNameRef.current?.focus(), 50)
-  }, [addFileFor])
-
-  const loadSkillFiles = (skill: Skill) => {
-    window.claude.listDirAbs(skill.dir)
-      .then((files) => {
-        setSkillFiles((previous) => ({ ...previous, [skill.name]: files }))
-      })
-      .catch(() => undefined)
-  }
-
-  const handleDelete = async (skill: Skill) => {
-    const result = await window.claude.deletePath({ targetPath: skill.dir, recursive: true })
-    if (!result.ok) return
-    setConfirmDelete(null)
-    if (expandedSkill === skill.name) setExpandedSkill(null)
-    if (editingFile) setEditingFile(null)
-    loadSkills()
-  }
-
-  const handleExpand = (skill: Skill) => {
-    if (expandedSkill === skill.name) {
-      setExpandedSkill(null)
-      setAddFileFor(null)
-      setEditingFile(null)
-      return
-    }
-
-    setExpandedSkill(skill.name)
-    setAddFileFor(null)
-    setEditingFile(null)
-    loadSkillFiles(skill)
-  }
-
-  const handleEditFile = async (file: { name: string; path: string }) => {
-    setEditingFile({ name: file.name, path: file.path })
-    setAddFileFor(null)
-    setSaveError('')
-    setLoadingEdit(true)
-    const result = await window.claude.readFile(file.path)
-    setLoadingEdit(false)
-    setEditContent(result?.content ?? '')
-  }
-
-  const handleSaveFile = async () => {
-    if (!editingFile) return
-    setSaving(true)
-    setSaveError('')
-    const result = await window.claude.writeFileAbs({ filePath: editingFile.path, content: editContent })
-    setSaving(false)
-    if (!result.ok) {
-      setSaveError(result.error ?? t('settings.skill.saveFailed'))
-      return
-    }
-    setEditingFile(null)
-  }
-
-  const handleCreate = async () => {
-    const raw = newName.trim()
-    if (!raw) {
-      setFormError(t('settings.skill.enterName'))
-      return
-    }
-    const skillName = raw.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 64)
-    const content = t('settings.skill.template', { name: skillName })
-    setCreating(true)
-    setFormError('')
-    const result = await window.claude.writeClaudeFile({ subdir: `skills/${skillName}`, name: 'SKILL.md', content })
-    setCreating(false)
-    if (!result.ok) {
-      setFormError(result.error ?? t('settings.skill.createFailed'))
-      return
-    }
-    setShowAdd(false)
-    setNewName('')
-    loadSkills()
-    if (result.path) window.claude.openFile(result.path)
-  }
-
-  const handleCreateFile = async () => {
-    if (!addFileFor) return
-    const fileName = newFileName.trim()
-    if (!fileName) {
-      setFileFormError(t('settings.skill.fileEnterName'))
-      return
-    }
-    const filePath = `${addFileFor.dir}/${fileName}`
-    const baseName = fileName.split('/').pop() ?? fileName
-    const content = fileName.endsWith('.md')
-      ? t('settings.skill.fileTemplate', { name: baseName.replace(/\.md$/, '') })
-      : ''
-    setCreatingFile(true)
-    setFileFormError('')
-    const result = await window.claude.writeFileAbs({ filePath, content })
-    setCreatingFile(false)
-    if (!result.ok) {
-      setFileFormError(result.error ?? t('settings.skill.createFailed'))
-      return
-    }
-    setAddFileFor(null)
-    setNewFileName('')
-    const skillForReload = skills.find((skill) => skill.name === addFileFor.name)
-    if (skillForReload) loadSkillFiles(skillForReload)
-    if (result.path) {
-      await handleEditFile({ name: fileName, path: result.path })
-    }
-  }
+  const {
+    skills,
+    pluginSkills,
+    loading,
+    showAdd,
+    newName,
+    creating,
+    formError,
+    nameRef,
+    confirmDelete,
+    expandedSkill,
+    skillFiles,
+    addFileFor,
+    newFileName,
+    fileFormError,
+    creatingFile,
+    fileNameRef,
+    editingFile,
+    editContent,
+    loadingEdit,
+    saving,
+    saveError,
+    setShowAdd,
+    setNewName,
+    setFormError,
+    setConfirmDelete,
+    setAddFileFor,
+    setNewFileName,
+    setFileFormError,
+    setEditingFile,
+    setEditContent,
+    handleDelete,
+    handleExpand,
+    handleEditFile,
+    handleSaveFile,
+    handleCreate,
+    handleCreateFile,
+  } = useSkillTabState()
 
   if (loading) return <LoadingPlaceholder />
 
