@@ -118,6 +118,8 @@
   - `src/hooks/useSubagentStreams.ts`
   - `src/components/team/*`
   - `src/components/team/useTeamViewController.ts`
+  - `src/components/team/useTeamDetailPanel.ts`
+  - `src/components/team/useTeamTaskComposer.ts`
   - `src/components/team/TeamViewHeader.tsx`
   - `src/components/team/TeamViewWorkspace.tsx`
   - `src/components/team/TeamViewComposer.tsx`
@@ -139,7 +141,9 @@
   - 서브에이전트 스트리밍
   - drilldown UI
   - `TeamView.tsx`는 팀 상태 오케스트레이션과 상위 액션 연결만 유지한다.
-  - `useTeamViewController.ts`는 Team 화면의 로컬 UI 상태, resize/escape cleanup, 입력/첨부 흐름을 담당한다.
+  - `useTeamViewController.ts`는 Team 화면의 선택/focus/popover 상태와 상위 액션 연결을 담당한다.
+  - `useTeamDetailPanel.ts`는 detail panel width, resize listener, body cursor cleanup을 담당한다.
+  - `useTeamTaskComposer.ts`는 task 입력/첨부, textarea height, summary injection, reset/start 흐름을 담당한다.
   - `TeamViewHeader.tsx`, `TeamViewWorkspace.tsx`, `TeamViewComposer.tsx`는 화면 섹션을 나눠 렌더링한다.
   - `TeamAgentSeat.tsx`, `TeamSelectedAgentPanel.tsx`, `TeamTaskPopover.tsx`는 seat/detail/task popup 조각을 나눠 갖고, `TeamViewParts.tsx`는 공용 selector/util과 re-export만 유지한다.
   - `TeamSelectedAgentPanel.tsx`는 선택된 agent header, message highlight 이동, empty/error 상태만 유지하고, message card/popup 렌더링은 `TeamSelectedAgentMessageCard.tsx`, `TeamSelectedAgentMessagePopup.tsx`, `teamSelectedAgentShared.tsx`로 분리한다.

@@ -3,26 +3,19 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { SelectedFile } from '../../../electron/preload'
-import { useInputAttachments } from '../../hooks/useInputAttachments'
 import { useI18n } from '../../hooks/useI18n'
 import { resolveAgentColor, resolveTeamAgentStrings } from '../../lib/teamAgentPresets'
 import { useTeamStore } from '../../store/teamStore'
 import type { AgentTeam } from '../../store/teamTypes'
 import type { TeamSetupSelectedAgent } from './TeamSetupModalParts'
 import {
-  clampDetailPanelWidth,
-  DETAIL_PANEL_DEFAULT_WIDTH,
-  formatTeamTaskSummary,
   getOfficeCarpetInsets,
   normalizeTeamProjectKey,
 } from './TeamViewParts'
-
-const TEAM_TASK_TEXTAREA_MAX_HEIGHT = 140
+import { useTeamDetailPanel } from './useTeamDetailPanel'
+import { useTeamTaskComposer } from './useTeamTaskComposer'
 
 type TeamViewControllerParams = {
   defaultCwd: string
@@ -54,40 +47,16 @@ export function useTeamViewController({
 
   const [showSetup, setShowSetup] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
-  const [task, setTask] = useState('')
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
-  const [injected, setInjected] = useState(false)
-  const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH)
-  const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false)
   const [isTaskPopoverOpen, setIsTaskPopoverOpen] = useState(false)
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const isComposingRef = useRef(false)
   const escapePressedAtRef = useRef(0)
-  const detailPanelResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   const projectKey = normalizeTeamProjectKey(defaultCwd)
   const projectTeams = teams.filter((team) => normalizeTeamProjectKey(team.cwd) === projectKey)
   const scopedActiveTeam = activeTeamId ? projectTeams.find((team) => team.id === activeTeamId) ?? null : null
   const activeTeam = scopedActiveTeam ?? projectTeams[0] ?? null
   const resolvedActiveTeamId = activeTeam?.id ?? null
-
-  const {
-    attachedFiles,
-    isAttaching,
-    isDragOver,
-    setAttachedFiles,
-    skippedFiles,
-    handleAttachFiles,
-    handleDragEnter,
-    handleDragLeave,
-    handleDragOver,
-    handleDrop,
-    handlePaste,
-  } = useInputAttachments({
-    disabled: activeTeam?.status === 'running',
-    isStreaming: activeTeam?.status === 'running',
-  })
 
   const displayActiveTeam: AgentTeam | null = activeTeam
     ? {
@@ -102,25 +71,51 @@ export function useTeamViewController({
       }
     : null
 
+  const {
+    attachedFiles,
+    canSubmitTask,
+    isAttaching,
+    isDragOver,
+    setAttachedFiles,
+    skippedFiles,
+    handleAttachFiles,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+    handleInjectSummary,
+    handlePaste,
+    handleReset,
+    handleStart,
+    handleTaskKeyDown,
+    injected,
+    isComposingRef,
+    setTask,
+    task,
+    taskSummary,
+    textareaRef,
+  } = useTeamTaskComposer({
+    activeTeam,
+    displayActiveTeam,
+    language,
+    onInjectSummary,
+    resetDiscussion,
+    startDiscussion,
+    t,
+  })
+  const {
+    detailPanelStyle,
+    handleDetailPanelResizeStart,
+  } = useTeamDetailPanel()
+
   const activeAgentId = activeTeam?.agents.find((agent) => agent.isStreaming)?.id ?? null
   const focusedAgent =
     displayActiveTeam?.agents.find((agent) => agent.id === focusedAgentId)
     ?? displayActiveTeam?.agents[0]
     ?? null
-  const taskSummary = displayActiveTeam
-    ? formatTeamTaskSummary(displayActiveTeam.currentTask, displayActiveTeam.currentTaskAttachments, language)
-    : ''
-  const canSubmitTask = (task.trim().length > 0 || attachedFiles.length > 0) && activeTeam?.status !== 'running'
   const carpetInsets = displayActiveTeam
     ? getOfficeCarpetInsets(displayActiveTeam.agents.length)
     : { outer: '15.5%', inner: '18.5%' }
-  const detailPanelStyle: CSSProperties = {
-    ['--team-detail-width' as string]: `${detailPanelWidth}px`,
-  }
-
-  useEffect(() => {
-    setInjected(false)
-  }, [resolvedActiveTeamId])
 
   useEffect(() => {
     if (!displayActiveTeam) {
@@ -148,52 +143,6 @@ export function useTeamViewController({
   ])
 
   useEffect(() => {
-    setDetailPanelWidth((current) => clampDetailPanelWidth(current))
-
-    const handleWindowResize = () => {
-      setDetailPanelWidth((current) => clampDetailPanelWidth(current))
-    }
-
-    window.addEventListener('resize', handleWindowResize)
-    return () => window.removeEventListener('resize', handleWindowResize)
-  }, [])
-
-  useEffect(() => {
-    if (!isResizingDetailPanel) return
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const resizeState = detailPanelResizeStateRef.current
-      if (!resizeState) return
-
-      const deltaX = event.clientX - resizeState.startX
-      setDetailPanelWidth(clampDetailPanelWidth(resizeState.startWidth - deltaX))
-    }
-
-    const handlePointerEnd = () => {
-      detailPanelResizeStateRef.current = null
-      setIsResizingDetailPanel(false)
-    }
-
-    const previousCursor = document.body.style.cursor
-    const previousUserSelect = document.body.style.userSelect
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerEnd)
-    window.addEventListener('pointercancel', handlePointerEnd)
-
-    return () => {
-      document.body.style.cursor = previousCursor
-      document.body.style.userSelect = previousUserSelect
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerEnd)
-      window.removeEventListener('pointercancel', handlePointerEnd)
-    }
-  }, [isResizingDetailPanel])
-
-  useEffect(() => {
     if (activeTeam?.status !== 'running' || isTaskPopoverOpen) {
       escapePressedAtRef.current = 0
       return
@@ -218,35 +167,6 @@ export function useTeamViewController({
     window.addEventListener('keydown', onKeyDownCapture, true)
     return () => window.removeEventListener('keydown', onKeyDownCapture, true)
   }, [activeTeam, abortDiscussion, isTaskPopoverOpen])
-
-  const syncTextareaHeight = useCallback((value: string) => {
-    if (!textareaRef.current) return
-
-    textareaRef.current.style.height = 'auto'
-    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, TEAM_TASK_TEXTAREA_MAX_HEIGHT)}px`
-
-    if (value.length === 0) {
-      textareaRef.current.style.height = 'auto'
-    }
-  }, [])
-
-  useEffect(() => {
-    syncTextareaHeight(task)
-  }, [syncTextareaHeight, task])
-
-  const handleDetailPanelResizeStart = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) return
-
-      detailPanelResizeStateRef.current = {
-        startX: event.clientX,
-        startWidth: detailPanelWidth,
-      }
-      setIsResizingDetailPanel(true)
-      event.preventDefault()
-    },
-    [detailPanelWidth],
-  )
 
   const handleCreateTeam = useCallback(
     (teamName: string, selectedAgents: TeamSetupSelectedAgent[]) => {
@@ -274,15 +194,6 @@ export function useTeamViewController({
     [addTeam, defaultCwd, onTeamLinked],
   )
 
-  const handleStart = useCallback(async () => {
-    if (!activeTeam || (!task.trim() && attachedFiles.length === 0) || activeTeam.status === 'running') return
-
-    await startDiscussion(activeTeam.id, task.trim(), attachedFiles)
-    setTask('')
-    setAttachedFiles([])
-    requestAnimationFrame(() => syncTextareaHeight(''))
-  }, [activeTeam, attachedFiles, setAttachedFiles, startDiscussion, syncTextareaHeight, task])
-
   const handleContinue = useCallback(async () => {
     if (!activeTeam) return
     await continueDiscussion(activeTeam.id)
@@ -292,51 +203,6 @@ export function useTeamViewController({
     if (!activeTeam) return
     await abortDiscussion(activeTeam.id)
   }, [activeTeam, abortDiscussion])
-
-  const handleReset = useCallback(() => {
-    if (!activeTeam) return
-    resetDiscussion(activeTeam.id)
-    setTask('')
-    setAttachedFiles([])
-    setInjected(false)
-  }, [activeTeam, resetDiscussion, setAttachedFiles])
-
-  const handleInjectSummary = useCallback(() => {
-    if (!displayActiveTeam || !onInjectSummary) return
-
-    const lines: string[] = [
-      t('team.injectSummaryHeading', { teamName: displayActiveTeam.name }),
-      '',
-    ]
-
-    for (const agent of displayActiveTeam.agents) {
-      const lastMessage = agent.messages.at(-1)
-      if (!lastMessage?.text?.trim()) continue
-
-      lines.push(
-        t('team.injectSummaryAgentLine', {
-          name: agent.name,
-          role: agent.role,
-          text: lastMessage.text.trim(),
-        }),
-      )
-      lines.push('')
-    }
-
-    const summary = lines.join('\n').trim()
-    if (!summary) return
-
-    onInjectSummary(summary)
-    setInjected(true)
-  }, [displayActiveTeam, onInjectSummary, t])
-
-  const handleTaskKeyDown = useCallback((event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Enter' || event.shiftKey) return
-    if (event.nativeEvent.isComposing || isComposingRef.current) return
-
-    event.preventDefault()
-    void handleStart()
-  }, [handleStart])
 
   const handleSelectTeam = useCallback((teamId: string) => {
     setActiveTeam(teamId)
