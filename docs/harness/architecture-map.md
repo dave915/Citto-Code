@@ -69,5 +69,5 @@
 - 채팅 레이아웃/패널: `src/components/ChatView.tsx`, `src/hooks/useChatViewLayout.ts`, `src/hooks/useChatViewJumpState.ts`, `src/components/chat/*`
 - 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/hooks/useInput*`
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
-- 팀/서브에이전트: `src/components/team/*`, `src/hooks/useAgentTeam.ts`, `src/hooks/useSubagentStreams.ts`
+- 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewParts.tsx`, `src/hooks/useAgentTeam.ts`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`
