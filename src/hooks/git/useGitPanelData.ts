@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 
-import type { GitBranchInfo, GitDiffResult, GitLogEntry, GitRepoStatus, GitStatusEntry } from '../../../electron/preload'
-import { useI18n } from '../useI18n'
-import {
-  areGitDiffResultsEqual,
-  areGitLogEntriesEqual,
-  areGitStatusEntriesEqual,
-} from '../../lib/gitUtils'
+import type { GitBranchInfo, GitLogEntry, GitRepoStatus, GitStatusEntry } from '../../../electron/preload'
+import { useGitPanelSelection } from './useGitPanelSelection'
+
+function buildFallbackGitStatus(): GitRepoStatus {
+  return {
+    gitAvailable: false,
+    isRepo: false,
+    rootPath: null,
+    branch: null,
+    ahead: 0,
+    behind: 0,
+    clean: true,
+    entries: [],
+  }
+}
 
 export function useGitPanelData({
   cwd,
@@ -15,11 +23,11 @@ export function useGitPanelData({
   cwd: string
   gitPanelOpen: boolean
 }) {
-  const { t } = useI18n()
-  const selectedGitEntryPathRef = useRef<string | null>(null)
-  const selectedGitCommitHashRef = useRef<string | null>(null)
   const gitPanelRefreshInFlightRef = useRef(false)
   const gitPanelLastRefreshAtRef = useRef(0)
+  const gitStatusRef = useRef<GitRepoStatus | null>(null)
+  const gitLogRef = useRef<GitLogEntry[]>([])
+  const gitBranchesRef = useRef<GitBranchInfo[]>([])
 
   const [gitStatus, setGitStatus] = useState<GitRepoStatus | null>(null)
   const [gitLoading, setGitLoading] = useState(false)
@@ -27,18 +35,38 @@ export function useGitPanelData({
   const [gitLogLoading, setGitLogLoading] = useState(false)
   const [gitBranches, setGitBranches] = useState<GitBranchInfo[]>([])
   const [gitBranchesLoading, setGitBranchesLoading] = useState(false)
-  const [selectedGitEntry, setSelectedGitEntry] = useState<GitStatusEntry | null>(null)
-  const [selectedGitCommit, setSelectedGitCommit] = useState<GitLogEntry | null>(null)
-  const [gitDiff, setGitDiff] = useState<GitDiffResult | null>(null)
-  const [gitDiffLoading, setGitDiffLoading] = useState(false)
+  const {
+    gitDiff,
+    gitDiffLoading,
+    handleSelectGitCommit: selectGitCommit,
+    handleSelectGitEntry: selectGitEntry,
+    refreshSelectedDiff,
+    resetSelection,
+    selectedGitCommit,
+    selectedGitEntry,
+    showGitPreviewPane,
+    syncSelectedCommit,
+    syncSelectedEntry,
+  } = useGitPanelSelection()
 
-  const showGitPreviewPane = selectedGitEntry !== null || selectedGitCommit !== null
   const gitAvailable = gitStatus?.gitAvailable ?? true
   const stagedGitEntryCount = gitStatus?.entries.filter((entry) => entry.staged).length ?? 0
 
+  useEffect(() => {
+    gitStatusRef.current = gitStatus
+  }, [gitStatus])
+
+  useEffect(() => {
+    gitLogRef.current = gitLog
+  }, [gitLog])
+
+  useEffect(() => {
+    gitBranchesRef.current = gitBranches
+  }, [gitBranches])
+
   const refreshGitStatus = async (isCancelled?: () => boolean, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
-    if (!silent || !gitStatus) {
+    if (!silent || !gitStatusRef.current) {
       setGitLoading(true)
     }
 
@@ -47,42 +75,18 @@ export function useGitPanelData({
       if (isCancelled?.()) return
 
       setGitStatus(nextStatus)
-      const selectedPath = selectedGitEntryPathRef.current
-      const nextSelectedEntry = selectedPath && nextStatus.isRepo
-        ? nextStatus.entries.find((entry) => entry.path === selectedPath) ?? null
-        : null
-
-      setSelectedGitEntry((current) => (areGitStatusEntriesEqual(current, nextSelectedEntry) ? current : nextSelectedEntry))
-      selectedGitEntryPathRef.current = nextSelectedEntry?.path ?? null
-
-      if (!nextSelectedEntry && !selectedGitCommitHashRef.current) {
-        setGitDiff(null)
-      }
+      syncSelectedEntry(nextStatus)
 
       return nextStatus
     } catch {
       if (isCancelled?.()) return
-
-      const fallbackStatus: GitRepoStatus = {
-        gitAvailable: false,
-        isRepo: false,
-        rootPath: null,
-        branch: null,
-        ahead: 0,
-        behind: 0,
-        clean: true,
-        entries: [],
-      }
+      const fallbackStatus = buildFallbackGitStatus()
 
       setGitStatus(fallbackStatus)
-      setSelectedGitEntry(null)
-      selectedGitEntryPathRef.current = null
-      if (!selectedGitCommitHashRef.current) {
-        setGitDiff(null)
-      }
+      syncSelectedEntry(fallbackStatus)
       return fallbackStatus
     } finally {
-      if (!isCancelled?.() && (!silent || !gitStatus)) {
+      if (!isCancelled?.() && (!silent || !gitStatusRef.current)) {
         setGitLoading(false)
       }
     }
@@ -90,7 +94,7 @@ export function useGitPanelData({
 
   const refreshGitLog = async (isCancelled?: () => boolean, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
-    if (!silent || gitLog.length === 0) {
+    if (!silent || gitLogRef.current.length === 0) {
       setGitLogLoading(true)
     }
 
@@ -100,31 +104,17 @@ export function useGitPanelData({
 
       const nextEntries = result.ok ? result.entries : []
       setGitLog(nextEntries)
-      const selectedHash = selectedGitCommitHashRef.current
-      const nextSelectedCommit = selectedHash
-        ? nextEntries.find((entry) => entry.hash === selectedHash) ?? null
-        : null
-
-      setSelectedGitCommit((current) => (areGitLogEntriesEqual(current, nextSelectedCommit) ? current : nextSelectedCommit))
-      selectedGitCommitHashRef.current = nextSelectedCommit?.hash ?? null
-
-      if (!nextSelectedCommit && !selectedGitEntryPathRef.current) {
-        setGitDiff(null)
-      }
+      syncSelectedCommit(nextEntries)
 
       return nextEntries
     } catch {
       if (isCancelled?.()) return
 
       setGitLog([])
-      setSelectedGitCommit(null)
-      selectedGitCommitHashRef.current = null
-      if (!selectedGitEntryPathRef.current) {
-        setGitDiff(null)
-      }
+      syncSelectedCommit([])
       return []
     } finally {
-      if (!isCancelled?.() && (!silent || gitLog.length === 0)) {
+      if (!isCancelled?.() && (!silent || gitLogRef.current.length === 0)) {
         setGitLogLoading(false)
       }
     }
@@ -132,7 +122,7 @@ export function useGitPanelData({
 
   const refreshGitBranches = async (isCancelled?: () => boolean, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
-    if (!silent || gitBranches.length === 0) {
+    if (!silent || gitBranchesRef.current.length === 0) {
       setGitBranchesLoading(true)
     }
 
@@ -144,58 +134,18 @@ export function useGitPanelData({
       if (isCancelled?.()) return
       setGitBranches([])
     } finally {
-      if (!isCancelled?.() && (!silent || gitBranches.length === 0)) {
+      if (!isCancelled?.() && (!silent || gitBranchesRef.current.length === 0)) {
         setGitBranchesLoading(false)
       }
     }
   }
 
   const handleSelectGitEntry = async (entry: GitStatusEntry) => {
-    if (selectedGitEntry?.path === entry.path) {
-      setSelectedGitEntry(null)
-      selectedGitEntryPathRef.current = null
-      setGitDiff(null)
-      return
-    }
-
-    selectedGitEntryPathRef.current = entry.path
-    selectedGitCommitHashRef.current = null
-    setSelectedGitEntry(entry)
-    setSelectedGitCommit(null)
-    setGitDiffLoading(true)
-
-    try {
-      const nextDiff = await window.claude.getGitDiff({ cwd: cwd || '~', filePath: entry.path })
-      setGitDiff(nextDiff)
-    } catch {
-      setGitDiff({ ok: false, diff: '', error: t('git.error.loadDiff') })
-    } finally {
-      setGitDiffLoading(false)
-    }
+    await selectGitEntry(cwd, entry)
   }
 
   const handleSelectGitCommit = async (entry: GitLogEntry) => {
-    if (selectedGitCommit?.hash === entry.hash) {
-      setSelectedGitCommit(null)
-      selectedGitCommitHashRef.current = null
-      setGitDiff(null)
-      return
-    }
-
-    selectedGitCommitHashRef.current = entry.hash
-    selectedGitEntryPathRef.current = null
-    setSelectedGitCommit(entry)
-    setSelectedGitEntry(null)
-    setGitDiffLoading(true)
-
-    try {
-      const nextDiff = await window.claude.getGitCommitDiff({ cwd: cwd || '~', commitHash: entry.hash })
-      setGitDiff(nextDiff)
-    } catch {
-      setGitDiff({ ok: false, diff: '', error: t('git.error.loadCommitDiff') })
-    } finally {
-      setGitDiffLoading(false)
-    }
+    await selectGitCommit(cwd, entry)
   }
 
   const refreshGitPanel = async (options?: { silent?: boolean }) => {
@@ -207,77 +157,12 @@ export function useGitPanelData({
     ])
 
     if (!nextStatus) return
-
-    const selectedPath = selectedGitEntryPathRef.current
-    const selectedCommitHash = selectedGitCommitHashRef.current
-
-    if (selectedPath) {
-      const nextEntry = nextStatus.isRepo
-        ? nextStatus.entries.find((entry) => entry.path === selectedPath) ?? null
-        : null
-      setSelectedGitEntry((current) => (areGitStatusEntriesEqual(current, nextEntry) ? current : nextEntry))
-      selectedGitEntryPathRef.current = nextEntry?.path ?? null
-
-      if (nextEntry) {
-        if (silent) return
-
-        if (!gitDiff) {
-          setGitDiffLoading(true)
-        }
-
-        try {
-          const nextDiff = await window.claude.getGitDiff({ cwd: cwd || '~', filePath: nextEntry.path })
-          setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
-        } catch {
-          const nextDiff = {
-            ok: false as const,
-            diff: '',
-            error: t('git.error.loadDiff'),
-          }
-          setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
-        } finally {
-          if (!gitDiff) {
-            setGitDiffLoading(false)
-          }
-        }
-      } else {
-        setGitDiff(null)
-      }
-      return
-    }
-
-    if (selectedCommitHash) {
-      const nextCommit = nextLogEntries?.find((entry) => entry.hash === selectedCommitHash) ?? null
-      setSelectedGitCommit((current) => (areGitLogEntriesEqual(current, nextCommit) ? current : nextCommit))
-      selectedGitCommitHashRef.current = nextCommit?.hash ?? null
-
-      if (!nextCommit) {
-        setGitDiff(null)
-        return
-      }
-
-      if (!silent) {
-        if (!gitDiff) {
-          setGitDiffLoading(true)
-        }
-
-        try {
-          const nextDiff = await window.claude.getGitCommitDiff({ cwd: cwd || '~', commitHash: nextCommit.hash })
-          setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
-        } catch {
-          const nextDiff = {
-            ok: false as const,
-            diff: '',
-            error: t('git.error.loadCommitDiff'),
-          }
-          setGitDiff((current) => (areGitDiffResultsEqual(current, nextDiff) ? current : nextDiff))
-        } finally {
-          if (!gitDiff) {
-            setGitDiffLoading(false)
-          }
-        }
-      }
-    }
+    await refreshSelectedDiff({
+      cwd,
+      logEntries: nextLogEntries ?? [],
+      silent,
+      status: nextStatus,
+    })
   }
 
   const refreshGitPanelPassive = async (throttleMs = 0) => {
@@ -368,12 +253,8 @@ export function useGitPanelData({
   }, [cwd])
 
   useEffect(() => {
-    setSelectedGitEntry(null)
-    setSelectedGitCommit(null)
     setGitLog([])
-    setGitDiff(null)
-    selectedGitEntryPathRef.current = null
-    selectedGitCommitHashRef.current = null
+    resetSelection()
   }, [cwd])
 
   return {

@@ -152,6 +152,7 @@
 
 - 파일:
   - `src/hooks/git/*`
+  - `src/hooks/git/useGitPanelSelection.ts`
   - `src/components/chat/git/*`
   - `electron/ipc/git.ts`
   - `electron/services/gitService.ts`
@@ -160,6 +161,7 @@
   - 상태/diff/log/브랜치 처리
   - staging/restore/commit/push/pull
   - 외부 HEAD 변경 감지
+  - `useGitPanelData.ts`는 repo status/log/branch 로드와 polling/watch cleanup만 유지하고, 선택된 entry/commit과 diff preview 수명주기는 `useGitPanelSelection.ts`로 분리한다.
 - 흔한 회귀:
   - cwd 기준 오류
   - 브랜치 전환 후 패널 stale state
