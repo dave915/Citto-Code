@@ -17,6 +17,16 @@
 
 - `npm run build`
 
+## Refactoring Gates
+
+- 리팩토링은 외부 동작 동일, 내부 구조 개선을 만족해야 한다.
+- 기능 추가나 버그 수정이 섞이면 리팩토링 완료로 보지 말고 별도 변경으로 분리한다.
+- Boy Scout Rule을 적용해서 건드린 파일은 이전보다 읽기 쉽고 중복이 적어야 한다.
+- 자동 검증은 변경 전후 모두 green이어야 한다. 이 저장소의 기본 green 기준은 `npm run harness:check`, TypeScript 변경 시 `npm run typecheck`, 경계 변경 시 `npm run build`다.
+- 현재 저장소는 별도 lint 게이트보다 harness/type/build와 수동 smoke에 더 의존한다. lint 스크립트가 없는 영역에서는 그 기준을 그대로 DoD에 사용한다.
+- 테스트가 이미 있으면 유지한 채 green이어야 한다. 테스트가 없는 영역인데 리스크가 높다면 리팩토링 전에 타깃 테스트 또는 더 좁은 검증 경로를 먼저 만든다.
+- 수동 smoke에서 사용자 흐름, 반응성, cleanup, 성능 회귀가 없어야 한다.
+
 ## Harness Review Checklist
 
 - 렌더러가 preload 없이 직접 Electron/Node 기능을 사용하지 않는가
