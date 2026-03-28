@@ -64,11 +64,13 @@
   - `src/hooks/claudeStream/eventHandler.ts`
   - `src/hooks/claudeStream/sessionHandlers.ts`
   - `electron/ipc/claude.ts`
+  - `electron/ipc/claude/*`
   - `electron/services/claude/*`
 - 책임:
   - Claude CLI 실행
   - stream-json 이벤트 처리
   - tool call, permission, token usage, abort 흐름
+  - `electron/ipc/claude.ts`는 IPC 채널 등록과 메인 wiring만 유지하고, 첨부 직렬화/모델 캐시/프로세스 registry/서브에이전트 이벤트 라우팅 helper는 `electron/ipc/claude/*`에 둔다.
 - 흔한 회귀:
   - 중복 프로세스 정리 누락
   - permission continuation 처리 누락

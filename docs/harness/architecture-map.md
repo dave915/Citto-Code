@@ -36,7 +36,7 @@
 1. `src/components/InputArea.tsx` 또는 `src/components/ChatView.tsx`에서 사용자 입력이 시작된다.
 2. `src/App.tsx`가 `useClaudeStream`의 핸들러를 호출한다.
 3. `src/hooks/useClaudeStream.ts`와 `src/hooks/claudeStream/*`가 세션 상태, 스트림 이벤트, 권한 요청, tool call 반영을 담당한다.
-4. `electron/ipc/claude.ts`가 Claude CLI 프로세스를 실행하고 stream-json 이벤트를 렌더러로 보낸다.
+4. `electron/ipc/claude.ts`가 Claude IPC 채널을 연결하고, `electron/ipc/claude/*` helper가 모델 캐시, 프로세스 실행, 첨부 직렬화, 서브에이전트 라우팅을 나눠 담당한다.
 5. 렌더러 스토어가 갱신되고 `ChatView`가 새 메시지, tool call, 서브에이전트 상태를 렌더링한다.
 
 ### Git Integration
@@ -61,7 +61,7 @@
 
 ## High-Risk Integration Seams
 
-- `electron/ipc/claude.ts` <-> `electron/preload/claudeApi.ts` <-> `src/hooks/useClaudeStream.ts`
+- `electron/ipc/claude.ts` / `electron/ipc/claude/*` <-> `electron/preload/claudeApi.ts` <-> `src/hooks/useClaudeStream.ts`
 - `src/main.tsx` persistence bootstrap <-> `src/store/sessions.ts` / `src/store/scheduledTasks.ts`
 - `electron/services/scheduledTaskScheduler.ts` <-> renderer scheduled task advance handling
 - `electron/services/gitHeadWatchService.ts` <-> Git panel refresh hooks
