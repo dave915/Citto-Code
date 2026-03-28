@@ -70,7 +70,7 @@
 
 - 채팅 레이아웃/패널: `src/components/ChatView.tsx`, `src/components/chat/ChatViewMainContent.tsx`, `src/components/app/AppMainContent.tsx`, `src/hooks/useChatViewController.ts`, `src/hooks/useChatViewLayout.ts`, `src/hooks/useChatViewJumpState.ts`, `src/hooks/useAppPanels.ts`, `src/components/chat/*`, `src/components/toolcalls/HtmlPreview.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `src/components/toolcalls/htmlPreviewDocument.ts`
 - 앱 루트 오케스트레이션: `src/App.tsx`, `src/hooks/useAppController.ts`, `src/hooks/useAppPanels.ts`, `src/components/app/*`
-- 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/hooks/useInput*`
+- 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/components/input/useInputAreaController.ts`, `src/hooks/useInput*`
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`
