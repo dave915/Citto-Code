@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { collectSubagentCalls } from '../../lib/agent-subcalls'
 import { useI18n } from '../../hooks/useI18n'
 import type { Session } from '../../store/sessions'
@@ -12,13 +12,7 @@ type Props = {
 
 export function AgentStatusBar({ session, onDrillDown }: Props) {
   const { language, t } = useI18n()
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [isExpanded, setIsExpanded] = useState(true)
   const entries = useMemo(() => collectSubagentCalls(session.messages), [session.messages])
-  const selectedEntry = useMemo(
-    () => entries.find((entry) => entry.key === selectedKey) ?? null,
-    [entries, selectedKey],
-  )
   const { runningCount, completedCount } = useMemo(() => (
     entries.reduce(
       (counts, entry) => {
@@ -32,6 +26,13 @@ export function AgentStatusBar({ session, onDrillDown }: Props) {
       { runningCount: 0, completedCount: 0 },
     )
   ), [entries])
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [isExpanded, setIsExpanded] = useState(() => runningCount > 0)
+  const previousRunningCountRef = useRef(runningCount)
+  const selectedEntry = useMemo(
+    () => entries.find((entry) => entry.key === selectedKey) ?? null,
+    [entries, selectedKey],
+  )
 
   useEffect(() => {
     if (selectedKey && !selectedEntry) {
@@ -40,8 +41,16 @@ export function AgentStatusBar({ session, onDrillDown }: Props) {
   }, [selectedEntry, selectedKey])
 
   useEffect(() => {
-    setIsExpanded(true)
-  }, [session.id])
+    setIsExpanded(runningCount > 0)
+    previousRunningCountRef.current = runningCount
+  }, [session.id, runningCount])
+
+  useEffect(() => {
+    if (runningCount > 0 && previousRunningCountRef.current === 0) {
+      setIsExpanded(true)
+    }
+    previousRunningCountRef.current = runningCount
+  }, [runningCount])
 
   if (entries.length === 0) return null
 
@@ -52,7 +61,7 @@ export function AgentStatusBar({ session, onDrillDown }: Props) {
 
   return (
     <>
-      <div className="mb-3 rounded-xl border border-claude-border/75 bg-claude-panel/40 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.015)]">
+      <div className="mb-2 rounded-xl border border-claude-border/75 bg-claude-panel/40 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.015)]">
         <div
           role="button"
           tabIndex={0}
@@ -63,14 +72,14 @@ export function AgentStatusBar({ session, onDrillDown }: Props) {
             event.preventDefault()
             setIsExpanded((current) => !current)
           }}
-          className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-1 py-0.5 transition-colors hover:bg-claude-surface/25"
+          className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-0.5 py-0.5 transition-colors hover:bg-claude-surface/25"
         >
           <div className="min-w-0 flex items-center gap-2">
-            <div className="text-[12px] font-semibold text-claude-text/90">
+            <div className="text-[11px] font-semibold text-claude-text/90">
               {t('subagent.title')}
             </div>
             {summaryLabels.length > 0 ? (
-              <div className="truncate text-[11px] text-claude-muted">
+              <div className="truncate text-[11px] text-claude-muted/90">
                 {summaryLabels.join(' · ')}
               </div>
             ) : null}
@@ -88,8 +97,8 @@ export function AgentStatusBar({ session, onDrillDown }: Props) {
         </div>
 
         {isExpanded ? (
-          <div className="mt-2 border-t border-claude-border/65 pt-2">
-            <div className="space-y-0.5">
+          <div className="mt-1.5 border-t border-claude-border/65 pt-1.5">
+            <div className="max-h-32 space-y-0 overflow-y-auto">
               {entries.map((entry) => (
                 <button
                   key={entry.key}
@@ -104,12 +113,12 @@ export function AgentStatusBar({ session, onDrillDown }: Props) {
                     }
                     setSelectedKey(entry.key)
                   }}
-                  className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-claude-surface/45"
+                  className="flex w-full min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-claude-surface/45"
                 >
-                  <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${getStatusClassName(entry.status)}`}>
+                  <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-medium leading-none ${getStatusClassName(entry.status)}`}>
                     {getStatusLabel(entry.status, language)}
                   </span>
-                  <div className="min-w-0 flex-1 truncate text-[12px] font-medium leading-5 text-claude-text">
+                  <div className="min-w-0 flex-1 truncate text-[12px] font-medium leading-4 text-claude-text">
                     {entry.description || entry.agent || entry.toolUseId}
                   </div>
                 </button>
