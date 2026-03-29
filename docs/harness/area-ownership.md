@@ -15,12 +15,14 @@
   - 앱 부트스트랩
   - 전역 패널 열림 상태
   - 세션/설정/예약 작업 상위 조합
+  - 새 세션 draft 상태와 첫 입력 시점의 실제 세션 생성
   - `App.tsx`는 루트 레이아웃 렌더링만 유지한다.
   - `useAppController.ts`는 store/hook 조합, 세션 선택/점프, 팀 연동, 데스크톱 effect wiring을 담당한다.
   - 메인 화면 분기는 `AppMainContent.tsx`, 단일 패널 상태는 `useAppPanels.ts`에 둔다.
 - 흔한 회귀:
   - hydration 후 active session 누락
   - 사이드바/메인 패널 상태 꼬임
+  - draft 세션이 첫 입력 전에 사이드바나 quick panel 최근 목록에 섞여 들어감
 
 ## Main Process Shell
 

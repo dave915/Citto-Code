@@ -24,9 +24,11 @@ export default function App() {
             onReorderSessions={controller.reorderSessions}
             onRemoveSession={controller.handleRemoveSession}
             onSelectFolder={(sessionId) => controller.handleSelectFolder(sessionId)}
-            onOpenSchedule={controller.openSchedulePanel}
-            onOpenSettings={controller.openSettingsPanel}
+            onOpenSchedule={controller.scheduleOpen ? controller.closeSchedulePanel : controller.openSchedulePanel}
+            onOpenSettings={controller.settingsOpen ? controller.closeSettingsPanel : () => controller.openSettingsPanel()}
+            onSidebarModeChange={controller.setSidebarMode}
             scheduleOpen={controller.scheduleOpen}
+            settingsOpen={controller.settingsOpen}
             newSessionShortcutLabel={getShortcutLabel(controller.shortcutConfig, 'newSession', controller.shortcutPlatform)}
             settingsShortcutLabel={getShortcutLabel(controller.shortcutConfig, 'openSettings', controller.shortcutPlatform)}
           />
@@ -41,6 +43,7 @@ export default function App() {
         <AppMainContent
           activePanel={controller.activePanel}
           activeSession={controller.activeSession}
+          sessionViewSession={controller.sessionViewSession}
           defaultProjectPath={controller.defaultProjectPath}
           sidebarMode={controller.sidebarMode}
           sidebarCollapsed={controller.sidebarCollapsed}
@@ -53,10 +56,10 @@ export default function App() {
           onCloseSessionTeamPanel={controller.closeSessionTeamPanel}
           onCloseSchedulePanel={controller.closeSchedulePanel}
           onCloseSettingsPanel={controller.closeSettingsPanel}
+          settingsInitialTab={controller.settingsInitialTab}
           onOpenSessionTeamPanel={controller.openSessionTeamPanel}
           onInjectTeamSummary={controller.handleInjectTeamSummary}
           onLinkActiveSessionTeam={controller.setLinkedTeamIdForActiveSession}
-          onSidebarModeChange={controller.setSidebarMode}
           onSelectSession={controller.handleSelectSession}
           onNewSession={() => {
             void controller.handleNewSession()

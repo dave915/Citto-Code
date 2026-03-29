@@ -1,19 +1,25 @@
 import { useState } from 'react'
+import type { SettingsTab } from '../components/settings/shared'
 
 export type AppOverlayPanel = 'none' | 'settings' | 'schedule' | 'team' | 'sessionTeam' | 'commandPalette'
 
 export function useAppPanels() {
   const [activePanel, setActivePanel] = useState<AppOverlayPanel>('none')
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
 
   return {
     activePanel,
+    settingsInitialTab,
     settingsOpen: activePanel === 'settings',
     scheduleOpen: activePanel === 'schedule',
     teamOpen: activePanel === 'team',
     sessionTeamOpen: activePanel === 'sessionTeam',
     commandPaletteOpen: activePanel === 'commandPalette',
     closeOverlayPanels: () => setActivePanel('none'),
-    openSettingsPanel: () => setActivePanel('settings'),
+    openSettingsPanel: (tab: SettingsTab = 'general') => {
+      setSettingsInitialTab(tab)
+      setActivePanel('settings')
+    },
     closeSettingsPanel: () => setActivePanel((current) => (current === 'settings' ? 'none' : current)),
     openSchedulePanel: () => setActivePanel('schedule'),
     closeSchedulePanel: () => setActivePanel((current) => (current === 'schedule' ? 'none' : current)),

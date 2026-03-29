@@ -1,4 +1,3 @@
-import type { SidebarMode } from '../../store/sessions'
 import { useSessionsStore } from '../../store/sessions'
 import { ClaudeBinaryPathSection } from './general/ClaudeBinaryPathSection'
 import { CliImportSection } from './general/CliImportSection'
@@ -8,13 +7,11 @@ import { LanguageSection } from './general/LanguageSection'
 import { NotificationSection } from './general/NotificationSection'
 import { QuickPanelSection } from './general/QuickPanelSection'
 import { ShortcutSection } from './general/ShortcutSection'
-import { SidebarModeSection } from './general/SidebarModeSection'
 import { ThemeSection } from './general/ThemeSection'
 
-export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode: SidebarMode) => void }) {
+export function GeneralTab() {
   const {
     appLanguage,
-    sidebarMode,
     defaultProjectPath,
     themeId,
     notificationMode,
@@ -64,10 +61,6 @@ export function GeneralTab({ onSidebarModeChange }: { onSidebarModeChange: (mode
       <QuickPanelSection
         quickPanelEnabled={quickPanelEnabled}
         onToggle={setQuickPanelEnabled}
-      />
-      <SidebarModeSection
-        sidebarMode={sidebarMode}
-        onChange={onSidebarModeChange}
       />
       <CliImportSection onImportSession={importSession} />
       <ShortcutSection

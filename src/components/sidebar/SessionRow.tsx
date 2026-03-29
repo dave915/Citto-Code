@@ -1,7 +1,12 @@
 import type { RefObject } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { Session } from '../../store/sessions'
-import { getDirName, getSessionDisplayName, isDefaultSessionName, type SessionLockState } from './sidebarUtils'
+import {
+  getSessionDisplayName,
+  getSessionProjectLabel,
+  isDefaultSessionName,
+  type SessionLockState,
+} from './sidebarUtils'
 
 type Props = {
   session: Session
@@ -11,6 +16,7 @@ type Props = {
   editingName: string
   inputRef: RefObject<HTMLInputElement>
   showProjectLabel: boolean
+  timestampLabel?: string | null
   compact?: boolean
   dense?: boolean
   onSelectSession: (id: string) => void
@@ -29,6 +35,7 @@ export function SessionRow({
   editingName,
   inputRef,
   showProjectLabel,
+  timestampLabel = null,
   compact = false,
   dense = false,
   onSelectSession,
@@ -39,29 +46,32 @@ export function SessionRow({
   setEditingName,
 }: Props) {
   const { language, t } = useI18n()
+  const displayName = getSessionDisplayName(session, language)
+  const projectLabel = getSessionProjectLabel(session)
+  const shouldShowProjectLabel = Boolean(showProjectLabel && projectLabel && projectLabel !== displayName)
+  const showStreamingIndicator = session.isStreaming
   const isActive = session.id === activeSessionId
   const isEditing = editingSessionId === session.id
   const itemCls = isActive
-    ? 'bg-claude-sidebar-active text-claude-text'
-    : 'text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
+    ? 'border-white/[0.08] bg-[#343a5b] text-claude-text'
+    : 'border-transparent text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
   const rowSpacingCls = compact
-    ? 'gap-0.5 px-1 py-0.5 rounded-lg'
+    ? 'gap-1.5 rounded-xl px-1.5 py-1'
     : dense
-      ? 'gap-1.5 px-2 py-1.5 rounded-xl'
-      : 'gap-2 px-2.5 py-2.5 rounded-2xl'
+      ? 'gap-1.5 rounded-xl px-2.5 py-1.5'
+      : 'gap-2 rounded-2xl px-3 py-2.5'
   const buttonGapCls = compact ? 'gap-1.5 rounded-lg' : dense ? 'gap-1.5 rounded-xl' : 'gap-2 rounded-xl'
-  const rowAlignCls = compact ? 'items-center' : 'items-start'
+  const rowAlignCls = compact || !shouldShowProjectLabel ? 'items-center' : 'items-start'
   const buttonAlignCls = compact ? 'items-center' : 'items-start'
   const indicatorCls = compact
-    ? 'flex-shrink-0 w-2 h-2 rounded-full bg-claude-orange animate-pulse'
-    : 'mt-1 flex-shrink-0 w-2 h-2 rounded-full bg-claude-orange animate-pulse'
-  const iconCls = compact
-    ? 'w-4 h-4 flex-shrink-0 opacity-60'
-    : 'w-4 h-4 mt-0.5 flex-shrink-0 opacity-60'
+    ? 'h-2 w-2 flex-shrink-0 rounded-full bg-claude-orange animate-pulse'
+    : shouldShowProjectLabel
+      ? 'mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-claude-orange animate-pulse'
+      : 'h-2 w-2 flex-shrink-0 rounded-full bg-claude-orange animate-pulse'
 
   const startRename = () => {
     setEditingSessionId(session.id)
-    setEditingName(getSessionDisplayName(session, language))
+    setEditingName(displayName)
   }
 
   const cancelRename = () => {
@@ -71,7 +81,6 @@ export function SessionRow({
 
   const commitRename = () => {
     const nextName = editingName.trim()
-    const displayName = getSessionDisplayName(session, language)
     const matchesLocalizedDefault = isDefaultSessionName(session.name) && nextName === displayName
     if (nextName && nextName !== session.name && !matchesLocalizedDefault) {
       onRenameSession(session.id, nextName)
@@ -80,19 +89,15 @@ export function SessionRow({
   }
 
   return (
-    <div className={`group flex transition-colors ${rowAlignCls} ${rowSpacingCls} ${itemCls}`}>
+    <div className={`group/session relative flex border transition-colors ${rowAlignCls} ${rowSpacingCls} ${itemCls}`}>
       <button
         onClick={() => onSelectSession(session.id)}
         onDoubleClick={startRename}
-        className={`min-w-0 flex-1 flex text-left outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${buttonAlignCls} ${buttonGapCls}`}
+        className={`flex min-w-0 flex-1 pr-2 text-left outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${buttonAlignCls} ${buttonGapCls}`}
       >
-        {session.isStreaming ? (
+        {showStreamingIndicator ? (
           <span className={indicatorCls} />
-        ) : (
-          <svg className={iconCls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-        )}
+        ) : null}
 
         <div className={`min-w-0 flex-1 ${compact ? 'flex items-center' : ''}`}>
           {isEditing ? (
@@ -115,21 +120,21 @@ export function SessionRow({
               className="w-full rounded-xl border border-claude-border bg-claude-surface px-2.5 py-1.5 text-sm font-medium text-claude-text outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
             />
           ) : (
-            <p className={`truncate text-[15px] font-medium ${compact ? 'leading-5' : ''}`}>{getSessionDisplayName(session, language)}</p>
+            <p className={`truncate text-[13px] font-medium ${compact ? 'leading-5' : ''}`}>{displayName}</p>
           )}
-          {showProjectLabel && session.cwd && session.cwd !== '~' && (
-            <p className="mt-0.5 truncate pr-1 font-mono text-[11px] opacity-50">
-              {getDirName(session.cwd)}
+          {shouldShowProjectLabel && projectLabel && (
+            <p className={`truncate pr-1 font-mono text-[10px] opacity-45 ${compact ? '' : 'mt-0.5'}`}>
+              {projectLabel}
             </p>
           )}
         </div>
       </button>
 
       {!isEditing && (
-        <div className="flex flex-shrink-0 items-center gap-0.5 self-center">
+        <div className="ml-2 flex flex-shrink-0 items-center gap-1 self-center">
           {lockState?.hasConflict ? (
             <span
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-red-200/80"
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-red-200/80"
               title={lockState.conflictingPaths.length > 0
                 ? t('sidebar.conflictEditing', { paths: lockState.conflictingPaths.join(', ') })
                 : t('sidebar.conflictEditingShort')}
@@ -142,7 +147,7 @@ export function SessionRow({
             </span>
           ) : lockState?.isLocked ? (
             <span
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-claude-muted/70"
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-claude-muted/70"
               title={t('sidebar.locked')}
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -151,34 +156,41 @@ export function SessionRow({
               </svg>
             </span>
           ) : null}
-          <button
-            onClick={(event) => {
-              event.stopPropagation()
-            onToggleFavorite(session.id)
-          }}
-          className={`rounded-lg p-1.5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 ${session.favorite ? 'text-claude-text hover:text-claude-text' : 'text-claude-muted/60 hover:text-claude-text'}`}
-          title={session.favorite ? t('sidebar.removeFavorite') : t('sidebar.addFavorite')}
-        >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={session.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m12 3.5 2.626 5.322 5.874.854-4.25 4.142 1.003 5.852L12 16.908 6.747 19.67l1.003-5.852L3.5 9.676l5.874-.854L12 3.5z" />
-            </svg>
-          </button>
+          {timestampLabel && (
+            <span className="min-w-[2rem] pr-0.5 text-right text-[11px] font-medium tabular-nums text-claude-muted/50 transition-opacity group-hover/session:opacity-0 group-focus-within/session:opacity-0">
+              {timestampLabel}
+            </span>
+          )}
+          <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover/session:pointer-events-auto group-hover/session:opacity-100 group-focus-within/session:pointer-events-auto group-focus-within/session:opacity-100">
+            <button
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleFavorite(session.id)
+              }}
+              className={`rounded-lg p-1.5 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 ${session.favorite ? 'text-claude-text hover:text-claude-text' : 'text-claude-muted/60 hover:text-claude-text'}`}
+              title={session.favorite ? t('sidebar.removeFavorite') : t('sidebar.addFavorite')}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill={session.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m12 3.5 2.626 5.322 5.874.854-4.25 4.142 1.003 5.852L12 16.908 6.747 19.67l1.003-5.852L3.5 9.676l5.874-.854L12 3.5z" />
+              </svg>
+            </button>
 
-          <button
-            onClick={(event) => {
-              event.stopPropagation()
-            onRemoveSession(session.id)
-          }}
-          className="rounded-lg p-1.5 text-claude-muted/60 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 hover:text-claude-text"
-          title={t('sidebar.deleteSession')}
-        >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4h8v2" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 6l-1 14H6L5 6" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 10v6M14 10v6" />
-            </svg>
-          </button>
+            <button
+              onClick={(event) => {
+                event.stopPropagation()
+                onRemoveSession(session.id)
+              }}
+              className="rounded-lg p-1.5 text-claude-muted/60 outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-white/10 hover:text-claude-text"
+              title={t('sidebar.deleteSession')}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4h8v2" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 6l-1 14H6L5 6" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 10v6M14 10v6" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
     </div>

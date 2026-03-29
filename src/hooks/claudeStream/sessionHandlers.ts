@@ -9,7 +9,12 @@ import {
   shouldAutoGenerateHtmlPreview,
 } from '../../lib/claudeRuntime'
 import { buildPromptWithAttachments, formatAttachedFilesSummary, toAttachedFiles } from '../../lib/attachmentPrompts'
+import {
+  buildRestoredCheckpointPrompt,
+  shouldSkipRestoredCheckpointSummary,
+} from '../../lib/checkpointSummary'
 import { translate, type AppLanguage } from '../../lib/i18n'
+import { getProjectNameFromPath, summarizeSessionTitleFromPrompt } from '../../lib/sessionUtils'
 import { nanoid } from '../../store/nanoid'
 import { useSessionsStore, type Session } from '../../store/sessions'
 import type {
@@ -106,7 +111,36 @@ export function createClaudeSessionHandlers({
         : autoPreviewInstruction
     }
 
+    const restoreState = session.checkpointRestoreState
+    const shouldInjectRestoredSummary = Boolean(
+      restoreState?.pendingSummaryInjection
+      && restoreState.summary?.trim()
+      && !shouldSkipRestoredCheckpointSummary(text),
+    )
+    if (shouldInjectRestoredSummary && restoreState?.summary) {
+      fullPrompt = buildRestoredCheckpointPrompt(restoreState.summary, fullPrompt)
+      runtime.pendingRestoredSummaryByTabRef.current.add(sessionId)
+    } else {
+      runtime.pendingRestoredSummaryByTabRef.current.delete(sessionId)
+    }
+
     const visibleFiles = toAttachedFiles(files)
+    const defaultSessionNames = new Set([
+      getProjectNameFromPath(session.cwd),
+      translate('ko', 'sidebar.newSession'),
+      translate('en', 'sidebar.newSession'),
+    ])
+
+    if (
+      !options?.visibleTextOverride
+      && text.trim()
+      && !sessionHasConversationHistory(session)
+      && defaultSessionNames.has(session.name.trim())
+    ) {
+      runtime.storeRef.current.updateSession(sessionId, () => ({
+        name: summarizeSessionTitleFromPrompt(text, getProjectNameFromPath(session.cwd)),
+      }))
+    }
 
     runtime.storeRef.current.addUserMessage(
       sessionId,
@@ -152,6 +186,7 @@ export function createClaudeSessionHandlers({
         runtime.pendingProcessKeyByTabRef.current.set(sessionId, result.tempKey)
       }
     } catch (error) {
+      runtime.pendingRestoredSummaryByTabRef.current.delete(sessionId)
       runtime.storeRef.current.setError(sessionId, String(error))
       runtime.pendingProcessKeyByTabRef.current.delete(sessionId)
       runtime.pendingTabIdRef.current = null
@@ -258,6 +293,7 @@ export function createClaudeSessionHandlers({
       runtime.claudeSessionToTabRef.current.delete(session.sessionId)
     }
 
+    runtime.pendingRestoredSummaryByTabRef.current.delete(sessionId)
     runtime.pendingProcessKeyByTabRef.current.delete(sessionId)
     runtime.currentAsstMsgRef.current.delete(sessionId)
     runtime.abortedTabIdsRef.current.delete(sessionId)

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SelectedFile } from '../../electron/preload'
 import { useTeamStore } from '../store/teamStore'
 import { useI18n } from './useI18n'
 import { useAppPanels } from './useAppPanels'
@@ -12,7 +13,17 @@ import { buildQuickPanelProjects, normalizeSelectedFolder, sanitizeEnvVars } fro
 import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
 import { useScheduledTasksStore } from '../store/scheduledTasks'
-import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode } from '../store/sessions'
+import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
+import { nanoid } from '../store/nanoid'
+import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode, type Session } from '../store/sessions'
+
+type PendingSessionDraft = {
+  id: string
+  cwd: string
+  permissionMode: PermissionMode
+  planMode: boolean
+  model: string | null
+}
 
 function normalizeProjectKey(path: string): string {
   const trimmed = path.trim()
@@ -72,6 +83,7 @@ export function useAppController() {
   const { setActiveTeam, teams: agentTeams } = useTeamStore()
 
   const panels = useAppPanels()
+  const [pendingSessionDraft, setPendingSessionDraft] = useState<PendingSessionDraft | null>(null)
   const [messageJumpTarget, setMessageJumpTarget] = useState<{
     sessionId: string
     messageId: string
@@ -80,6 +92,33 @@ export function useAppController() {
   const { sidebarWidth, sidebarCollapsed, handleSidebarResizeStart, handleToggleSidebar } = useSidebarLayout()
 
   const activeSession = activeSessionId ? sessions.find((session) => session.id === activeSessionId) ?? null : null
+  const pendingSessionView = useMemo<Session | null>(() => {
+    if (!pendingSessionDraft) return null
+
+    return {
+      id: pendingSessionDraft.id,
+      sessionId: null,
+      name: getProjectNameFromPath(pendingSessionDraft.cwd),
+      favorite: false,
+      cwd: pendingSessionDraft.cwd,
+      messages: [],
+      isStreaming: false,
+      currentAssistantMsgId: null,
+      error: null,
+      pendingPermission: null,
+      pendingQuestion: null,
+      tokenUsage: null,
+      lastCost: undefined,
+      permissionMode: pendingSessionDraft.permissionMode,
+      planMode: pendingSessionDraft.planMode,
+      model: pendingSessionDraft.model,
+      modelSwitchNotice: null,
+      checkpointRestoreState: null,
+      checkpoints: [],
+      linkedTeamId: null,
+    }
+  }, [pendingSessionDraft])
+  const sessionViewSession = pendingSessionView ?? activeSession
   const sessionFileLockState = useMemo(() => buildSessionFileLockState(sessions), [sessions])
   const quickPanelProjects = useMemo(() => buildQuickPanelProjects(sessions), [sessions])
   const quickPanelProjectsSignature = useMemo(
@@ -188,6 +227,11 @@ export function useAppController() {
     return () => window.clearTimeout(timer)
   }, [messageJumpTarget])
 
+  useEffect(() => {
+    if (!pendingSessionDraft || !activeSessionId) return
+    setPendingSessionDraft(null)
+  }, [activeSessionId, pendingSessionDraft])
+
   const openSessionTeamPanel = useCallback(() => {
     if (!activeSession) return
     const linkedTeam = activeSession.linkedTeamId
@@ -207,28 +251,87 @@ export function useAppController() {
     claudeStream.handleSend(summary, [])
   }, [activeSession, claudeStream, panels])
 
-  const handleNewSession = useCallback(async (cwdOverride?: string): Promise<string> => {
-    panels.closeOverlayPanels()
+  const resolveSessionCwd = useCallback(async (cwdOverride?: string) => {
     const fallbackPath = defaultProjectPath.trim() || DEFAULT_PROJECT_PATH
     const folder = normalizeSelectedFolder(cwdOverride)
       ?? normalizeSelectedFolder(await window.claude.selectFolder({
         defaultPath: fallbackPath,
         title: t('app.selectProjectFolderTitle'),
       }))
-    const cwd = folder || fallbackPath
-    const name = getProjectNameFromPath(cwd)
-    return addSession(cwd, name)
-  }, [addSession, defaultProjectPath, panels, t])
+    return folder || fallbackPath
+  }, [defaultProjectPath, t])
+
+  const createSessionRecord = useCallback((options: {
+    cwd: string
+    name: string
+    permissionMode?: PermissionMode
+    planMode?: boolean
+    model?: string | null
+  }): string => {
+    setPendingSessionDraft(null)
+    const sessionId = addSession(options.cwd, options.name)
+
+    if (options.permissionMode && options.permissionMode !== 'default') {
+      setPermissionMode(sessionId, options.permissionMode)
+    }
+    if (options.planMode) {
+      setPlanMode(sessionId, true)
+    }
+    if (options.model) {
+      setModel(sessionId, options.model)
+    }
+
+    return sessionId
+  }, [addSession, setModel, setPermissionMode, setPlanMode])
+
+  const openPendingSessionDraft = useCallback(async (cwdOverride?: string): Promise<void> => {
+    panels.closeOverlayPanels()
+    setMessageJumpTarget(null)
+    const cwd = await resolveSessionCwd(cwdOverride)
+    setActiveSession(null)
+    setPendingSessionDraft({
+      id: nanoid(),
+      cwd,
+      permissionMode: 'default',
+      planMode: false,
+      model: null,
+    })
+  }, [panels, resolveSessionCwd, setActiveSession])
+
+  const createSessionFromUserPrompt = useCallback(async (prompt: string, cwdOverride?: string): Promise<string> => {
+    const cwd = await resolveSessionCwd(cwdOverride)
+    return createSessionRecord({
+      cwd,
+      name: summarizeSessionTitleFromPrompt(prompt, getProjectNameFromPath(cwd)),
+    })
+  }, [createSessionRecord, resolveSessionCwd])
+
+  const startPendingDraftConversation = useCallback(async (
+    draft: PendingSessionDraft,
+    text: string,
+    files: SelectedFile[],
+  ) => {
+    const sessionId = createSessionRecord({
+      cwd: draft.cwd,
+      name: summarizeSessionTitleFromPrompt(text, getProjectNameFromPath(draft.cwd)),
+      permissionMode: draft.permissionMode,
+      planMode: draft.planMode,
+      model: draft.model,
+    })
+    await claudeStream.handleSendForSession(sessionId, text, files)
+  }, [claudeStream, createSessionRecord])
 
   const handleSelectSession = useCallback((sessionId: string) => {
     panels.closeOverlayPanels()
     setMessageJumpTarget(null)
+    setPendingSessionDraft(null)
     setActiveSession(sessionId)
   }, [panels, setActiveSession])
 
   const handleSelectMessageResult = useCallback((sessionId: string, messageId: string) => {
     messageJumpTokenRef.current += 1
     panels.closeOverlayPanels()
+    setPendingSessionDraft(null)
     setMessageJumpTarget({
       sessionId,
       messageId,
@@ -236,6 +339,49 @@ export function useAppController() {
     })
     setActiveSession(sessionId)
   }, [panels, setActiveSession])
+
+  const handleSend = useCallback(async (text: string, files: SelectedFile[]) => {
+    if (pendingSessionDraft) {
+      await startPendingDraftConversation(pendingSessionDraft, text, files)
+      return
+    }
+    await claudeStream.handleSend(text, files)
+  }, [claudeStream, pendingSessionDraft, startPendingDraftConversation])
+
+  const handleBtwSend = useCallback(async (text: string, files: SelectedFile[]) => {
+    if (pendingSessionDraft) {
+      await startPendingDraftConversation(pendingSessionDraft, text, files)
+      return
+    }
+    await claudeStream.handleBtwSend(text, files)
+  }, [claudeStream, pendingSessionDraft, startPendingDraftConversation])
+
+  const handlePermissionModeChange = useCallback((mode: PermissionMode) => {
+    if (pendingSessionDraft) {
+      setPendingSessionDraft((current) => (current ? { ...current, permissionMode: mode } : current))
+      return
+    }
+    if (!activeSession) return
+    setPermissionMode(activeSession.id, mode)
+  }, [activeSession, pendingSessionDraft, setPermissionMode])
+
+  const handlePlanModeChange = useCallback((value: boolean) => {
+    if (pendingSessionDraft) {
+      setPendingSessionDraft((current) => (current ? { ...current, planMode: value } : current))
+      return
+    }
+    if (!activeSession) return
+    setPlanMode(activeSession.id, value)
+  }, [activeSession, pendingSessionDraft, setPlanMode])
+
+  const handleModelChange = useCallback((model: string | null) => {
+    if (pendingSessionDraft) {
+      setPendingSessionDraft((current) => (current ? { ...current, model } : current))
+      return
+    }
+    if (!activeSession) return
+    claudeStream.handleModelChange(activeSession.id, model)
+  }, [activeSession, claudeStream, pendingSessionDraft])
 
   useAppDesktopEffects({
     themeId,
@@ -249,16 +395,27 @@ export function useAppController() {
     shortcutConfig,
     shortcutPlatform,
     sessions,
-    activeSession,
+    shortcutTarget: pendingSessionDraft
+      ? {
+          permissionMode: pendingSessionDraft.permissionMode,
+          planMode: pendingSessionDraft.planMode,
+        }
+      : activeSession
+        ? {
+            permissionMode: activeSession.permissionMode,
+            planMode: activeSession.planMode,
+          }
+        : null,
     defaultProjectPath,
     addSession,
-    setPermissionMode,
-    setPlanMode,
+    applyPermissionMode: handlePermissionModeChange,
+    applyPlanMode: handlePlanModeChange,
     setModel,
     onToggleSidebar: handleToggleSidebar,
     openSettingsPanel: panels.openSettingsPanel,
     toggleCommandPalette: panels.toggleCommandPalette,
-    handleNewSession,
+    createSessionFromUserPrompt,
+    openPendingSessionDraft,
     handleSendForSession: claudeStream.handleSendForSession,
     applyScheduledTaskAdvance,
     updateScheduledTaskRunSnapshot,
@@ -281,15 +438,15 @@ export function useAppController() {
     defaultProjectPath,
     dismissInstallation: installation.dismissInstallation,
     handleAbort: claudeStream.handleAbort,
-    handleBtwSend: claudeStream.handleBtwSend,
+    handleBtwSend,
     handleInjectTeamSummary,
-    handleNewSession,
+    handleNewSession: openPendingSessionDraft,
     handleRemoveSession: claudeStream.handleRemoveSession,
     handleQuestionResponse: claudeStream.handleQuestionResponse,
     handleSelectFolder: claudeStream.handleSelectFolder,
     handleSelectMessageResult,
     handleSelectSession,
-    handleSend: claudeStream.handleSend,
+    handleSend,
     handleSidebarResizeStart,
     handleToggleSidebar,
     installationDismissed: installation.installationDismissed,
@@ -300,20 +457,14 @@ export function useAppController() {
     openSettingsPanel: panels.openSettingsPanel,
     refreshInstallationStatus: installation.refreshInstallationStatus,
     scheduleOpen: panels.scheduleOpen,
+    settingsInitialTab: panels.settingsInitialTab,
+    settingsOpen: panels.settingsOpen,
+    sessionViewSession,
     sessionFileLockState,
     sessions,
-    setActiveSessionPermissionMode: (mode: PermissionMode) => {
-      if (!activeSession) return
-      setPermissionMode(activeSession.id, mode)
-    },
-    setActiveSessionPlanMode: (value: boolean) => {
-      if (!activeSession) return
-      setPlanMode(activeSession.id, value)
-    },
-    setActiveSessionModel: (model: string | null) => {
-      if (!activeSession) return
-      claudeStream.handleModelChange(activeSession.id, model)
-    },
+    setActiveSessionPermissionMode: handlePermissionModeChange,
+    setActiveSessionPlanMode: handlePlanModeChange,
+    setActiveSessionModel: handleModelChange,
     dismissActiveSessionModelSwitchNotice: () => {
       if (!activeSession) return
       updateSession(activeSession.id, () => ({ modelSwitchNotice: null }))

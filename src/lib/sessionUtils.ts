@@ -13,6 +13,7 @@ export const MAX_UI_FONT_SIZE = 20
 export const DEFAULT_UI_ZOOM_PERCENT = 100
 export const MIN_UI_ZOOM_PERCENT = 50
 export const MAX_UI_ZOOM_PERCENT = 200
+const SESSION_TITLE_MAX_LENGTH = 56
 
 export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
   toggleSidebar: { mac: 'Cmd+B', windows: 'Ctrl+B' },
@@ -46,6 +47,40 @@ export function getProjectNameFromPath(path: string): string {
   return parts[parts.length - 1] || path
 }
 
+function truncateSessionTitle(value: string): string {
+  return value.length > SESSION_TITLE_MAX_LENGTH
+    ? `${value.slice(0, SESSION_TITLE_MAX_LENGTH - 1).trimEnd()}…`
+    : value
+}
+
+function normalizeSessionTitleCandidate(value: string): string {
+  const normalized = value
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^\d+[.)]\s+/, '')
+    .replace(/^>\s?/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!normalized) return ''
+  const withoutSlashCommand = normalized.replace(/^\/[^\s]+\s*/, '').trim()
+  if (!withoutSlashCommand && /^\/[^\s]+$/.test(normalized)) return ''
+  return withoutSlashCommand || normalized
+}
+
+export function summarizeSessionTitleFromPrompt(prompt: string, fallback: string): string {
+  const firstMeaningfulLine = prompt
+    .split(/\r?\n/)
+    .map(normalizeSessionTitleCandidate)
+    .find(Boolean)
+
+  const normalized = firstMeaningfulLine
+    ?? normalizeSessionTitleCandidate(prompt)
+    ?? fallback.trim()
+
+  return truncateSessionTitle(normalized || fallback.trim() || '~')
+}
+
 export function makeDefaultSession(cwd: string, name: string): Session {
   return {
     id: nanoid(),
@@ -64,6 +99,8 @@ export function makeDefaultSession(cwd: string, name: string): Session {
     planMode: false,
     model: null,
     modelSwitchNotice: null,
+    checkpointRestoreState: null,
+    checkpoints: [],
   }
 }
 

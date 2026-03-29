@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '../../hooks/useI18n'
-import type { SidebarMode } from '../../store/sessions'
 import { AgentTab } from './AgentTab'
 import { EnvTab } from './EnvTab'
 import { GeneralTab } from './GeneralTab'
@@ -10,15 +9,15 @@ import { SkillTab } from './SkillTab'
 
 export function SettingsPanel({
   onClose,
-  onSidebarModeChange,
   projectPath,
+  initialTab,
 }: {
   onClose: () => void
-  onSidebarModeChange: (mode: SidebarMode) => void
   projectPath: string | null
+  initialTab: SettingsTab
 }) {
   const { language, t } = useI18n()
-  const [tab, setTab] = useState<SettingsTab>('general')
+  const [tab, setTab] = useState<SettingsTab>(initialTab)
   const tabs = getSettingsTabs(language)
 
   useEffect(() => {
@@ -28,6 +27,10 @@ export function SettingsPanel({
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
+
+  useEffect(() => {
+    setTab(initialTab)
+  }, [initialTab])
 
   return (
     <div className="flex h-full flex-col bg-claude-bg">
@@ -61,7 +64,7 @@ export function SettingsPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {tab === 'general' && <GeneralTab onSidebarModeChange={onSidebarModeChange} />}
+        {tab === 'general' && <GeneralTab />}
         {tab === 'mcp' && <McpTab projectPath={projectPath} />}
         {tab === 'skill' && <SkillTab />}
         {tab === 'agent' && <AgentTab />}

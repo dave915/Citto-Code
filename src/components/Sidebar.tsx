@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../hooks/useI18n'
 import type { Session, SidebarMode } from '../store/sessions'
 import { useScheduledTasksStore } from '../store/scheduledTasks'
 import { SidebarContent } from './sidebar/SidebarContent'
 import { SidebarFooter } from './sidebar/SidebarFooter'
-import { groupSessionsByProject, sortSessions, type SessionLockState } from './sidebar/sidebarUtils'
+import {
+  groupSessionsByProject,
+  type SessionLockState,
+  type SidebarSortMode,
+} from './sidebar/sidebarUtils'
 
 type Props = {
   sessions: Session[]
@@ -22,7 +26,45 @@ type Props = {
   onSelectFolder: (sessionId: string) => void
   onOpenSchedule: () => void
   onOpenSettings: () => void
+  onSidebarModeChange: (mode: SidebarMode) => void
   scheduleOpen: boolean
+  settingsOpen: boolean
+}
+
+function SidebarActionButton({
+  label,
+  icon,
+  active = false,
+  badge,
+  title,
+  onClick,
+}: {
+  label: string
+  icon: ReactNode
+  active?: boolean
+  badge?: number
+  title?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-2 rounded-xl px-3 py-1.5 text-[13px] font-medium outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+        active
+          ? 'bg-claude-surface text-claude-text'
+          : 'bg-transparent text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
+      }`}
+      title={title ?? label}
+    >
+      {icon}
+      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {badge && badge > 0 ? (
+        <span className="rounded-full border border-claude-border bg-claude-panel px-2 py-0.5 text-[11px] text-claude-muted">
+          {badge}
+        </span>
+      ) : null}
+    </button>
+  )
 }
 
 export function Sidebar({
@@ -41,15 +83,17 @@ export function Sidebar({
   onSelectFolder: _onSelectFolder,
   onOpenSchedule,
   onOpenSettings,
+  onSidebarModeChange,
   scheduleOpen,
+  settingsOpen,
 }: Props) {
   const { t } = useI18n()
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({})
+  const [sortMode, setSortMode] = useState<SidebarSortMode>('updated')
   const inputRef = useRef<HTMLInputElement>(null)
-  const primaryActionLabel = sidebarMode === 'project' ? t('sidebar.newProject') : t('sidebar.newSession')
-  const favoriteSessions = sortSessions(sessions.filter((session) => session.favorite))
+  const favoriteSessions = sessions.filter((session) => session.favorite)
   const nonFavoriteSessions = sessions.filter((session) => !session.favorite)
   const projectGroups = groupSessionsByProject(nonFavoriteSessions)
   const activeScheduledTaskCount = useScheduledTasksStore((state) => (
@@ -85,6 +129,17 @@ export function Sidebar({
       return changed ? next : prev
     })
   }, [sidebarMode, projectGroups])
+
+  const handleSetAllProjectsCollapsed = (collapsed: boolean) => {
+    if (projectGroups.length === 0) return
+    setCollapsedProjects((prev) => {
+      const next = { ...prev }
+      for (const group of projectGroups) {
+        next[group.cwd] = collapsed
+      }
+      return next
+    })
+  }
 
   const commitNonFavoriteOrder = (orderedNonFavoriteIds: string[]) => {
     const reorderedNonFavoriteIds = new Set(orderedNonFavoriteIds)
@@ -133,23 +188,36 @@ export function Sidebar({
 
   return (
     <aside className="flex h-full w-full flex-shrink-0 select-none flex-col border-r border-white/5 bg-claude-sidebar">
-      <div className="pt-10 pb-2 draggable-region" />
+      <div className="pt-10 pb-1 draggable-region" />
 
-      <div className="mb-3 flex flex-col gap-1 px-3">
-        <button
+      <div className="mb-1.5 flex flex-col gap-0.5 px-2.5">
+        <SidebarActionButton
+          label={t('sidebar.newSession')}
+          title={`${t('sidebar.newSession')} (${newSessionShortcutLabel})`}
           onClick={() => onNewSession()}
-          className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.035] bg-white/[0.03] px-3.5 py-2.5 text-sm text-claude-text outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 hover:bg-claude-sidebar-hover hover:text-claude-text"
-          title={`${primaryActionLabel} (${newSessionShortcutLabel})`}
-        >
-          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          {primaryActionLabel}
-        </button>
+          icon={(
+            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          )}
+        />
+        <SidebarActionButton
+          label={t('sidebar.automation')}
+          active={scheduleOpen}
+          badge={activeScheduledTaskCount}
+          onClick={onOpenSchedule}
+          icon={(
+            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="8" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3" />
+            </svg>
+          )}
+        />
       </div>
 
       <SidebarContent
         sidebarMode={sidebarMode}
+        sortMode={sortMode}
         favoriteSessions={favoriteSessions}
         nonFavoriteSessions={nonFavoriteSessions}
         projectGroups={projectGroups}
@@ -164,6 +232,9 @@ export function Sidebar({
         onToggleFavorite={onToggleFavorite}
         onRemoveSession={onRemoveSession}
         onNewSession={onNewSession}
+        onSidebarModeChange={onSidebarModeChange}
+        onSortModeChange={setSortMode}
+        onSetAllProjectsCollapsed={handleSetAllProjectsCollapsed}
         onReorderSession={handleReorderSession}
         onReorderProject={handleReorderProject}
         onToggleProject={(cwd) => {
@@ -174,10 +245,8 @@ export function Sidebar({
       />
 
       <SidebarFooter
-        activeScheduledTaskCount={activeScheduledTaskCount}
-        scheduleOpen={scheduleOpen}
+        settingsOpen={settingsOpen}
         settingsShortcutLabel={settingsShortcutLabel}
-        onOpenSchedule={onOpenSchedule}
         onOpenSettings={onOpenSettings}
       />
     </aside>

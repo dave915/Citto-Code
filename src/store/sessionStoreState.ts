@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { CURRENT_THEME_ID } from '../lib/theme'
 import { DEFAULT_APP_LANGUAGE, translate } from '../lib/i18n'
+import { buildCheckpointSummary } from '../lib/checkpointSummary'
 import {
   DEFAULT_PROJECT_PATH,
   DEFAULT_SHORTCUT_CONFIG,
@@ -8,7 +9,6 @@ import {
   DEFAULT_UI_ZOOM_PERCENT,
   clampUiFontSize,
   clampUiZoomPercent,
-  getProjectNameFromPath,
   makeDefaultSession,
   normalizeImportedMessage,
 } from '../lib/sessionUtils'
@@ -26,7 +26,16 @@ import {
   updateSessionById,
   updateToolCalls,
 } from './sessionStoreMutators'
-import type { BtwCard, Session, SessionsStore, ToolCallBlock } from './sessionTypes'
+import type {
+  BtwCard,
+  Message,
+  Session,
+  SessionCheckpoint,
+  SessionCheckpointRestoreState,
+  SessionCheckpointSnapshot,
+  SessionsStore,
+  ToolCallBlock,
+} from './sessionTypes'
 
 type StoreSet = Parameters<StateCreator<SessionsStore>>[0]
 
@@ -35,11 +44,94 @@ const GENERIC_CLAUDE_ERRORS = new Set([
   translate('en', 'session.genericClaudeError'),
 ])
 
+function cloneSerializable<T>(value: T): T {
+  if (value === undefined || value === null) return value
+
+  try {
+    return structuredClone(value)
+  } catch {
+    return value
+  }
+}
+
+function cloneMessage(message: Message): Message {
+  return {
+    ...message,
+    toolCalls: message.toolCalls.map((toolCall) => ({
+      ...toolCall,
+      toolInput: cloneSerializable(toolCall.toolInput),
+      result: cloneSerializable(toolCall.result),
+    })),
+    attachedFiles: message.attachedFiles?.map((file) => ({ ...file })),
+    btwCards: message.btwCards?.map((card) => ({ ...card, isStreaming: false })),
+  }
+}
+
+function createCheckpointSnapshot(session: Session): SessionCheckpointSnapshot {
+  return {
+    cwd: session.cwd,
+    messages: session.messages.map(cloneMessage),
+    tokenUsage: session.tokenUsage,
+    lastCost: session.lastCost,
+    permissionMode: session.permissionMode,
+    planMode: session.planMode,
+    model: session.model,
+  }
+}
+
+function createCheckpointRestoreState(checkpoint: SessionCheckpoint): SessionCheckpointRestoreState {
+  const summary = checkpoint.summary?.trim() ? checkpoint.summary.trim() : null
+
+  return {
+    checkpointId: checkpoint.id,
+    checkpointName: checkpoint.name,
+    summary,
+    restoredAt: Date.now(),
+    pendingSummaryInjection: Boolean(summary),
+  }
+}
+
+function restoreSessionFromCheckpoint(session: Session, checkpoint: SessionCheckpoint): Session {
+  const { snapshot } = checkpoint
+
+  return {
+    ...session,
+    cwd: snapshot.cwd,
+    sessionId: null,
+    messages: snapshot.messages.map(cloneMessage),
+    isStreaming: false,
+    currentAssistantMsgId: null,
+    error: null,
+    pendingPermission: null,
+    pendingQuestion: null,
+    tokenUsage: snapshot.tokenUsage,
+    lastCost: snapshot.lastCost,
+    permissionMode: snapshot.permissionMode,
+    planMode: snapshot.planMode,
+    model: snapshot.model,
+    modelSwitchNotice: null,
+    checkpointRestoreState: createCheckpointRestoreState(checkpoint),
+  }
+}
+
+function createSessionFromCheckpoint(checkpoint: SessionCheckpoint): Session {
+  const session = makeDefaultSession(checkpoint.snapshot.cwd, checkpoint.name)
+
+  return {
+    ...session,
+    name: checkpoint.name,
+    cwd: checkpoint.snapshot.cwd,
+    messages: checkpoint.snapshot.messages.map(cloneMessage),
+    tokenUsage: checkpoint.snapshot.tokenUsage,
+    lastCost: checkpoint.snapshot.lastCost,
+    permissionMode: checkpoint.snapshot.permissionMode,
+    planMode: checkpoint.snapshot.planMode,
+    model: checkpoint.snapshot.model,
+    checkpointRestoreState: createCheckpointRestoreState(checkpoint),
+  }
+}
+
 export function createSessionStoreState(set: StoreSet): SessionsStore {
-  const firstSession = makeDefaultSession(
-    DEFAULT_PROJECT_PATH,
-    getProjectNameFromPath(DEFAULT_PROJECT_PATH),
-  )
   const updateStoredSession = (
     sessionId: string,
     updater: (session: Session) => Session,
@@ -51,8 +143,8 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
   )
 
   return {
-    sessions: [firstSession],
-    activeSessionId: firstSession.id,
+    sessions: [],
+    activeSessionId: null,
     appLanguage: DEFAULT_APP_LANGUAGE,
     defaultProjectPath: DEFAULT_PROJECT_PATH,
     envVars: {},
@@ -108,6 +200,8 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
         planMode: data.planMode ?? false,
         model: data.model ?? null,
         modelSwitchNotice: null,
+        checkpointRestoreState: null,
+        checkpoints: [],
       }
 
       set((state) => ({
@@ -179,6 +273,86 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     setActiveSession: (activeSessionId) => set({ activeSessionId }),
 
     updateSession: (id, updater) => updateStoredSession(id, (session) => ({ ...session, ...updater(session) })),
+
+    createCheckpoint: (sessionId, name, note = '') => {
+      let checkpointId: string | null = null
+
+      set((state) => ({
+        sessions: updateSessionById(state.sessions, sessionId, (session) => {
+          const existingCheckpoints = session.checkpoints ?? []
+          const checkpoint: SessionCheckpoint = {
+            id: nanoid(),
+            name: name.trim() || `Checkpoint ${existingCheckpoints.length + 1}`,
+            note: note.trim(),
+            summary: buildCheckpointSummary(session, note),
+            createdAt: Date.now(),
+            snapshot: createCheckpointSnapshot(session),
+          }
+
+          checkpointId = checkpoint.id
+
+          return {
+            ...session,
+            checkpoints: [checkpoint, ...existingCheckpoints],
+          }
+        }),
+      }))
+
+      return checkpointId
+    },
+
+    renameCheckpoint: (sessionId, checkpointId, name) => updateStoredSession(sessionId, (session) => {
+      const nextName = name.trim()
+      if (!nextName) return session
+
+      return {
+        ...session,
+        checkpoints: (session.checkpoints ?? []).map((checkpoint) => (
+          checkpoint.id === checkpointId
+            ? { ...checkpoint, name: nextName }
+            : checkpoint
+        )),
+      }
+    }),
+
+    deleteCheckpoint: (sessionId, checkpointId) => updateStoredSession(sessionId, (session) => ({
+      ...session,
+      checkpoints: (session.checkpoints ?? []).filter((checkpoint) => checkpoint.id !== checkpointId),
+    })),
+
+    restoreCheckpoint: (sessionId, checkpointId, mode) => {
+      let restoredSessionId: string | null = null
+
+      set((state) => {
+        const sourceSession = state.sessions.find((session) => session.id === sessionId)
+        const checkpoint = sourceSession?.checkpoints.find((entry) => entry.id === checkpointId)
+
+        if (!sourceSession || !checkpoint) return state
+
+        if (mode === 'replace') {
+          restoredSessionId = sourceSession.id
+
+          return {
+            sessions: updateSessionById(
+              state.sessions,
+              sourceSession.id,
+              (session) => restoreSessionFromCheckpoint(session, checkpoint),
+            ),
+            activeSessionId: sourceSession.id,
+          }
+        }
+
+        const nextSession = createSessionFromCheckpoint(checkpoint)
+        restoredSessionId = nextSession.id
+
+        return {
+          sessions: [...state.sessions, nextSession],
+          activeSessionId: nextSession.id,
+        }
+      })
+
+      return restoredSessionId
+    },
 
     addUserMessage: (tabId, text, files) => {
       const msgId = nanoid()

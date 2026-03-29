@@ -21,16 +21,20 @@ type Params = {
   shortcutConfig: ShortcutConfig
   shortcutPlatform: ShortcutPlatform
   sessions: Session[]
-  activeSession: Session | null
+  shortcutTarget: {
+    permissionMode: PermissionMode
+    planMode: boolean
+  } | null
   defaultProjectPath: string
   addSession: (cwd: string, name: string) => string
-  setPermissionMode: (sessionId: string, mode: PermissionMode) => void
-  setPlanMode: (sessionId: string, value: boolean) => void
+  applyPermissionMode: (mode: PermissionMode) => void
+  applyPlanMode: (value: boolean) => void
   setModel: (sessionId: string, model: string | null) => void
   onToggleSidebar: () => void
   openSettingsPanel: () => void
   toggleCommandPalette: () => void
-  handleNewSession: (cwdOverride?: string) => Promise<string>
+  createSessionFromUserPrompt: (prompt: string, cwdOverride?: string) => Promise<string>
+  openPendingSessionDraft: (cwdOverride?: string) => Promise<void>
   handleSendForSession: HandleSendForSession
   applyScheduledTaskAdvance: (payload: ScheduledTaskAdvancePayload) => void
   updateScheduledTaskRunSnapshot: (
@@ -60,16 +64,17 @@ export function useAppDesktopEffects({
   shortcutConfig,
   shortcutPlatform,
   sessions,
-  activeSession,
+  shortcutTarget,
   defaultProjectPath,
   addSession,
-  setPermissionMode,
-  setPlanMode,
+  applyPermissionMode,
+  applyPlanMode,
   setModel,
   onToggleSidebar,
   openSettingsPanel,
   toggleCommandPalette,
-  handleNewSession,
+  createSessionFromUserPrompt,
+  openPendingSessionDraft,
   handleSendForSession,
   applyScheduledTaskAdvance,
   updateScheduledTaskRunSnapshot,
@@ -119,21 +124,23 @@ export function useAppDesktopEffects({
 
   useEffect(() => {
     const cleanup = window.claude.onTrayNewSession(() => {
-      void handleNewSession()
+      void openPendingSessionDraft()
     })
     return cleanup
-  }, [handleNewSession])
+  }, [openPendingSessionDraft])
 
   useEffect(() => {
     const cleanup = window.claude.onQuickPanelMessage(async (payload) => {
-      const sessionId = await handleNewSession(payload.cwd)
       closeOverlayPanels()
       if (payload.text.trim()) {
+        const sessionId = await createSessionFromUserPrompt(payload.text, payload.cwd)
         await handleSendForSession(sessionId, payload.text, [])
+        return
       }
+      await openPendingSessionDraft(payload.cwd)
     })
     return cleanup
-  }, [closeOverlayPanels, handleNewSession, handleSendForSession])
+  }, [closeOverlayPanels, createSessionFromUserPrompt, handleSendForSession, openPendingSessionDraft])
 
   useEffect(() => {
     const cleanup = window.claude.onScheduledTaskAdvance((payload) => {
@@ -216,7 +223,7 @@ export function useAppDesktopEffects({
 
       if (matchShortcut(event, shortcutConfig.newSession[shortcutPlatform])) {
         event.preventDefault()
-        void handleNewSession()
+        void openPendingSessionDraft()
         return
       }
 
@@ -226,31 +233,28 @@ export function useAppDesktopEffects({
         return
       }
 
-      if (!activeSession) return
+      if (!shortcutTarget) return
 
       if (matchShortcut(event, shortcutConfig.cyclePermissionMode[shortcutPlatform])) {
         event.preventDefault()
         cycleClaudeCodeMode(
-          activeSession.permissionMode,
-          activeSession.planMode,
-          (mode) => setPermissionMode(activeSession.id, mode),
-          (value) => setPlanMode(activeSession.id, value),
+          shortcutTarget.permissionMode,
+          shortcutTarget.planMode,
+          applyPermissionMode,
+          applyPlanMode,
         )
         return
       }
 
       if (matchShortcut(event, shortcutConfig.toggleBypassPermissions[shortcutPlatform])) {
         event.preventDefault()
-        if (!activeSession.planMode) {
-          setPermissionMode(
-            activeSession.id,
-            activeSession.permissionMode === 'bypassPermissions' ? 'default' : 'bypassPermissions',
-          )
+        if (!shortcutTarget.planMode) {
+          applyPermissionMode(shortcutTarget.permissionMode === 'bypassPermissions' ? 'default' : 'bypassPermissions')
         }
       }
     }
 
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [activeSession, handleNewSession, onToggleSidebar, openSettingsPanel, setPermissionMode, setPlanMode, shortcutConfig, shortcutPlatform, toggleCommandPalette])
+  }, [applyPermissionMode, applyPlanMode, onToggleSidebar, openPendingSessionDraft, openSettingsPanel, shortcutConfig, shortcutPlatform, shortcutTarget, toggleCommandPalette])
 }

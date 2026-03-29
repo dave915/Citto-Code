@@ -33,11 +33,12 @@
 
 ### Claude Conversation
 
-1. `src/components/InputArea.tsx` 또는 `src/components/ChatView.tsx`에서 사용자 입력이 시작된다.
+1. `src/components/InputArea.tsx` 또는 `src/components/ChatView.tsx`에서 사용자 입력이 시작된다. 새 세션 버튼으로 연 경우에는 `src/hooks/useAppController.ts`가 renderer-local draft를 먼저 열고, 첫 입력 시점에만 실제 세션을 생성한다.
 2. `src/App.tsx`가 `useClaudeStream`의 핸들러를 호출한다.
 3. `src/hooks/useClaudeStream.ts`와 `src/hooks/claudeStream/*`가 세션 상태, 스트림 이벤트, 권한 요청, tool call 반영을 담당한다.
 4. `electron/ipc/claude.ts`가 Claude IPC 채널을 연결하고, `electron/ipc/claude/*` helper가 모델 캐시, 프로세스 실행, 첨부 직렬화, 서브에이전트 라우팅을 나눠 담당한다.
 5. 렌더러 스토어가 갱신되고 `ChatView`가 새 메시지, tool call, 서브에이전트 상태를 렌더링한다.
+6. 체크포인트 복원은 화면 히스토리를 되돌리되 Claude 세션은 새로 시작하며, 저장된 체크포인트 요약이 있으면 다음 요청 직전에 숨은 컨텍스트로만 재주입한다.
 
 ### Git Integration
 

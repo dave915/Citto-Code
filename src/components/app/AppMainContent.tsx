@@ -13,6 +13,7 @@ import type {
   SidebarMode,
 } from '../../store/sessions'
 import type { AppOverlayPanel } from '../../hooks/useAppPanels'
+import type { SettingsTab } from '../settings/shared'
 
 type MessageJumpTarget = {
   sessionId: string
@@ -28,6 +29,7 @@ type SessionConflictDetails = {
 type Props = {
   activePanel: AppOverlayPanel
   activeSession: Session | null
+  sessionViewSession: Session | null
   defaultProjectPath: string
   sidebarMode: SidebarMode
   sidebarCollapsed: boolean
@@ -40,10 +42,10 @@ type Props = {
   onCloseSessionTeamPanel: () => void
   onCloseSchedulePanel: () => void
   onCloseSettingsPanel: () => void
+  settingsInitialTab: SettingsTab
   onOpenSessionTeamPanel: () => void
   onInjectTeamSummary: (summary: string) => void
   onLinkActiveSessionTeam: (teamId: string) => void
-  onSidebarModeChange: (mode: SidebarMode) => void
   onSelectSession: (sessionId: string) => void
   onNewSession: () => void
   onSend: (text: string, files: SelectedFile[]) => void
@@ -63,6 +65,7 @@ type Props = {
 export function AppMainContent({
   activePanel,
   activeSession,
+  sessionViewSession,
   defaultProjectPath,
   sidebarMode,
   sidebarCollapsed,
@@ -75,10 +78,10 @@ export function AppMainContent({
   onCloseSessionTeamPanel,
   onCloseSchedulePanel,
   onCloseSettingsPanel,
+  settingsInitialTab,
   onOpenSessionTeamPanel,
   onInjectTeamSummary,
   onLinkActiveSessionTeam,
-  onSidebarModeChange,
   onSelectSession,
   onNewSession,
   onSend,
@@ -94,10 +97,13 @@ export function AppMainContent({
   continueTeamDiscussion,
   abortTeamDiscussion,
 }: Props) {
+  const displaySession = sessionViewSession ?? activeSession
+  const activeCwd = displaySession?.cwd ?? activeSession?.cwd ?? defaultProjectPath
+
   if (activePanel === 'team') {
     return (
       <TeamView
-        defaultCwd={activeSession?.cwd ?? defaultProjectPath}
+        defaultCwd={activeCwd}
         startDiscussion={startTeamDiscussion}
         continueDiscussion={continueTeamDiscussion}
         abortDiscussion={abortTeamDiscussion}
@@ -124,7 +130,7 @@ export function AppMainContent({
   if (activePanel === 'schedule') {
     return (
       <ScheduledTasksView
-        defaultProjectPath={activeSession?.cwd ?? defaultProjectPath}
+        defaultProjectPath={activeCwd}
         onClose={onCloseSchedulePanel}
         onSelectSession={onSelectSession}
       />
@@ -135,23 +141,23 @@ export function AppMainContent({
     return (
       <SettingsPanel
         onClose={onCloseSettingsPanel}
-        onSidebarModeChange={onSidebarModeChange}
-        projectPath={activeSession?.cwd ?? null}
+        projectPath={displaySession?.cwd ?? activeSession?.cwd ?? null}
+        initialTab={settingsInitialTab}
       />
     )
   }
 
-  if (!activeSession) {
+  if (!displaySession) {
     return <EmptyMainState sidebarMode={sidebarMode} onNewSession={onNewSession} />
   }
 
   return (
     <ChatView
-      key={activeSession.id}
-      session={activeSession}
-      fileConflict={activeSessionConflictDetails}
-      jumpToMessageId={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.messageId : null}
-      jumpToMessageToken={messageJumpTarget?.sessionId === activeSession.id ? messageJumpTarget.token : 0}
+      key={displaySession.id}
+      session={displaySession}
+      fileConflict={displaySession.id === activeSession?.id ? activeSessionConflictDetails : null}
+      jumpToMessageId={messageJumpTarget?.sessionId === displaySession.id ? messageJumpTarget.messageId : null}
+      jumpToMessageToken={messageJumpTarget?.sessionId === displaySession.id ? messageJumpTarget.token : 0}
       onSend={onSend}
       onSendBtw={onSendBtw}
       onAbort={onAbort}
@@ -169,7 +175,7 @@ export function AppMainContent({
       onQuestionResponse={onQuestionResponse}
       permissionShortcutLabel={getShortcutLabel(shortcutConfig, 'cyclePermissionMode', shortcutPlatform)}
       bypassShortcutLabel={getShortcutLabel(shortcutConfig, 'toggleBypassPermissions', shortcutPlatform)}
-      onOpenTeam={onOpenSessionTeamPanel}
+      onOpenTeam={displaySession.id === activeSession?.id ? onOpenSessionTeamPanel : undefined}
     />
   )
 }

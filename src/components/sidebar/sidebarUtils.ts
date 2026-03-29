@@ -14,6 +14,8 @@ export type SessionGroup = {
   sessions: Session[]
 }
 
+export type SidebarSortMode = 'manual' | 'updated' | 'created'
+
 export function getDirName(path: string): string {
   return getProjectNameFromPath(path)
 }
@@ -28,6 +30,19 @@ export function getSessionDisplayName(session: Session, language: AppLanguage = 
   if (!isDefaultSessionName(session.name)) return session.name
   if (session.cwd && session.cwd !== '~') return getDirName(session.cwd)
   return translate(language, 'sidebar.newSession')
+}
+
+export function getSessionProjectLabel(session: Session): string | null {
+  if (!session.cwd || session.cwd === '~') return null
+  return getDirName(session.cwd)
+}
+
+export function getSessionCreatedAt(session: Session): number | null {
+  return session.messages[0]?.createdAt ?? session.messages.at(-1)?.createdAt ?? null
+}
+
+export function getSessionLastActivityAt(session: Session): number | null {
+  return session.messages.at(-1)?.createdAt ?? getSessionCreatedAt(session)
 }
 
 export function groupSessionsByProject(sessions: Session[]): SessionGroup[] {
@@ -51,9 +66,65 @@ export function groupSessionsByProject(sessions: Session[]): SessionGroup[] {
   return Array.from(groups.values())
 }
 
-export function sortSessions(sessions: Session[]): Session[] {
-  return [...sessions].sort((a, b) => {
-    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1
-    return 0
-  })
+function getSessionSortTimestamp(session: Session, sortMode: Exclude<SidebarSortMode, 'manual'>): number | null {
+  return sortMode === 'created' ? getSessionCreatedAt(session) : getSessionLastActivityAt(session)
+}
+
+export function orderSessionsForSidebar(sessions: Session[], sortMode: SidebarSortMode): Session[] {
+  if (sortMode === 'manual') return [...sessions]
+
+  return [...sessions]
+    .map((session, index) => ({ session, index }))
+    .sort((left, right) => {
+      const leftTimestamp = getSessionSortTimestamp(left.session, sortMode) ?? Number.NEGATIVE_INFINITY
+      const rightTimestamp = getSessionSortTimestamp(right.session, sortMode) ?? Number.NEGATIVE_INFINITY
+      if (leftTimestamp === rightTimestamp) return left.index - right.index
+      return rightTimestamp - leftTimestamp
+    })
+    .map(({ session }) => session)
+}
+
+export function getGroupSortTimestamp(sessions: Session[], sortMode: SidebarSortMode): number | null {
+  if (sortMode === 'manual') return null
+
+  return sessions.reduce<number | null>((latest, session) => {
+    const timestamp = getSessionSortTimestamp(session, sortMode)
+    if (timestamp == null) return latest
+    if (latest == null) return timestamp
+    return Math.max(latest, timestamp)
+  }, null)
+}
+
+export function formatSidebarRelativeTime(timestamp: number | null, language: AppLanguage = 'ko'): string | null {
+  if (timestamp == null) return null
+
+  const deltaSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (deltaSeconds < 60) return translate(language, 'sidebar.time.justNow')
+
+  const deltaMinutes = Math.floor(deltaSeconds / 60)
+  if (deltaMinutes < 60) {
+    return translate(language, 'sidebar.time.minutes', { count: deltaMinutes })
+  }
+
+  const deltaHours = Math.floor(deltaMinutes / 60)
+  if (deltaHours < 24) {
+    return translate(language, 'sidebar.time.hours', { count: deltaHours })
+  }
+
+  const deltaDays = Math.floor(deltaHours / 24)
+  if (deltaDays < 7) {
+    return translate(language, 'sidebar.time.days', { count: deltaDays })
+  }
+
+  const deltaWeeks = Math.floor(deltaDays / 7)
+  if (deltaWeeks < 5) {
+    return translate(language, 'sidebar.time.weeks', { count: deltaWeeks })
+  }
+
+  const deltaMonths = Math.floor(deltaDays / 30)
+  if (deltaMonths < 12) {
+    return translate(language, 'sidebar.time.months', { count: deltaMonths })
+  }
+
+  return translate(language, 'sidebar.time.years', { count: Math.floor(deltaDays / 365) })
 }
