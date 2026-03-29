@@ -53,7 +53,7 @@ export function SessionRow({
   const isActive = session.id === activeSessionId
   const isEditing = editingSessionId === session.id
   const itemCls = isActive
-    ? 'border-white/[0.08] bg-[#343a5b] text-claude-text'
+    ? 'border-claude-border/80 bg-claude-sidebar-active text-claude-text'
     : 'border-transparent text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
   const rowSpacingCls = compact
     ? 'gap-1.5 rounded-xl px-1.5 py-1'
