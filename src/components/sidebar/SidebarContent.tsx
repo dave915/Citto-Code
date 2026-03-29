@@ -155,7 +155,7 @@ export function SidebarContent({
                 editingSessionId={editingSessionId}
                 editingName={editingName}
                 inputRef={inputRef}
-                showProjectLabel
+                showProjectLabel={false}
                 dense
                 timestampLabel={getSessionTimestamp(session)}
                 lockState={sessionLockState[session.id]}
@@ -471,7 +471,7 @@ export function SidebarContent({
                   editingSessionId={editingSessionId}
                   editingName={editingName}
                   inputRef={inputRef}
-                  showProjectLabel
+                  showProjectLabel={false}
                   dense
                   timestampLabel={getSessionTimestamp(session)}
                   lockState={sessionLockState[session.id]}

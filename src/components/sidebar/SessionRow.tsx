@@ -58,11 +58,11 @@ export function SessionRow({
   const rowSpacingCls = compact
     ? 'gap-1.5 rounded-xl px-1.5 py-1'
     : dense
-      ? 'gap-1.5 rounded-xl px-2.5 py-1.5'
+      ? 'gap-1.5 rounded-xl px-2.5 py-1'
       : 'gap-2 rounded-2xl px-3 py-2.5'
   const buttonGapCls = compact ? 'gap-1.5 rounded-lg' : dense ? 'gap-1.5 rounded-xl' : 'gap-2 rounded-xl'
   const rowAlignCls = compact || !shouldShowProjectLabel ? 'items-center' : 'items-start'
-  const buttonAlignCls = compact ? 'items-center' : 'items-start'
+  const buttonAlignCls = compact || !shouldShowProjectLabel ? 'items-center' : 'items-start'
   const indicatorCls = compact
     ? 'h-2 w-2 flex-shrink-0 rounded-full bg-claude-orange animate-pulse'
     : shouldShowProjectLabel

@@ -99,8 +99,6 @@ export function makeDefaultSession(cwd: string, name: string): Session {
     planMode: false,
     model: null,
     modelSwitchNotice: null,
-    checkpointRestoreState: null,
-    checkpoints: [],
   }
 }
 
