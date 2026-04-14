@@ -15,14 +15,31 @@ type WorkflowExecutorOptions = {
   sendWhenRendererReady: (window: BrowserWindow, channel: string, payload?: unknown) => void
   getUserHomePath: (env?: NodeJS.ProcessEnv) => string
   resolveTargetPath: (targetPath: string) => string
+  workflowPollIntervalMs?: number
+  missedRunLimitMs?: number
+  catchUpThresholdMs?: number
 }
+
+type WorkflowClaudeRuntimeConfig = {
+  claudePath?: string
+  envVars?: Record<string, string>
+  defaultModel?: string | null
+}
+
+const DEFAULT_WORKFLOW_POLL_INTERVAL = 60 * 1000
+const DEFAULT_MISSED_RUN_LIMIT = 7 * 24 * 60 * 60 * 1000
+const DEFAULT_CATCHUP_THRESHOLD = 5 * 60 * 1000
 
 type StepExecutionContext = {
   executionId: string
   workflowId: string
+  workflowName: string
+  catchUp: boolean
+  manual: boolean
   previousOutput: string
   allResults: Map<string, string>
   abortController: AbortController
+  agentRunCounter: number
 }
 
 function clampHour(value: number) {
@@ -89,9 +106,22 @@ function createExecutionId(workflowId: string) {
   return `wfexec-${workflowId}-${Date.now()}`
 }
 
-function recalculateNextRunAt(workflow: Workflow) {
-  if (!workflow.active || workflow.trigger.type !== 'schedule') return null
-  return computeNextRunAt(workflow.trigger, true, Date.now())
+function normalizeSyncedWorkflow(workflow: Workflow) {
+  if (!workflow.active || workflow.trigger.type !== 'schedule') {
+    return {
+      ...workflow,
+      nextRunAt: null,
+    }
+  }
+
+  if (typeof workflow.nextRunAt === 'number' && Number.isFinite(workflow.nextRunAt)) {
+    return workflow
+  }
+
+  return {
+    ...workflow,
+    nextRunAt: computeNextRunAt(workflow.trigger, true, Date.now()),
+  }
 }
 
 export function createWorkflowExecutor({
@@ -100,11 +130,16 @@ export function createWorkflowExecutor({
   sendWhenRendererReady,
   getUserHomePath,
   resolveTargetPath,
+  workflowPollIntervalMs = DEFAULT_WORKFLOW_POLL_INTERVAL,
+  missedRunLimitMs = DEFAULT_MISSED_RUN_LIMIT,
+  catchUpThresholdMs = DEFAULT_CATCHUP_THRESHOLD,
 }: WorkflowExecutorOptions) {
   let workflows: Workflow[] = []
   let workflowInterval: NodeJS.Timeout | null = null
   let nextWorkflowTimeout: NodeJS.Timeout | null = null
   const runningExecutions = new Map<string, AbortController>()
+  let claudeRuntimeConfig: WorkflowClaudeRuntimeConfig = {}
+  let claudeRuntimeReady = false
 
   const getWorkflowWindow = () => {
     const currentWindow = getMainWindow()
@@ -152,6 +187,23 @@ export function createWorkflowExecutor({
     scheduleNextCheck()
   }
 
+  const advanceWorkflowSchedule = (
+    workflowId: string,
+    firedAt: number,
+    options?: { skipped?: boolean },
+  ) => {
+    workflows = workflows.map((workflow) => (
+      workflow.id === workflowId
+        ? {
+            ...workflow,
+            lastRunAt: options?.skipped ? workflow.lastRunAt : firedAt,
+            nextRunAt: computeNextRunAt(workflow.trigger, workflow.active, firedAt + 1000),
+          }
+        : workflow
+    ))
+    scheduleNextCheck()
+  }
+
   const getOrderedStepIds = (workflow: Workflow) => workflow.steps.map((step) => step.id)
 
   const getTopLevelStepIds = (workflow: Workflow) => {
@@ -190,42 +242,118 @@ export function createWorkflowExecutor({
     resolveConfiguredNextStepId(step, getSequentialTopLevelStepId(workflow, step.id))
   )
 
+  const createAgentRunId = (context: StepExecutionContext, stepId: string) => {
+    context.agentRunCounter += 1
+    return `${context.executionId}:${stepId}:${context.agentRunCounter}`
+  }
+
+  const executeAgentProcess = async (
+    executionId: string,
+    step: Extract<WorkflowStep, { type: 'agent' }>,
+    context: StepExecutionContext,
+  ) => {
+    const prompt = resolvePrompt(step.prompt, context)
+    const agentRunId = createAgentRunId(context, step.id)
+    const resolvedModel = step.model ?? claudeRuntimeConfig.defaultModel ?? null
+    emit('workflow:agent-session-started', {
+      agentRunId,
+      executionId: context.executionId,
+      workflowId: context.workflowId,
+      workflowName: context.workflowName,
+      stepId: step.id,
+      stepLabel: step.label.trim() || step.id,
+      cwd: step.cwd,
+      model: resolvedModel,
+      permissionMode: step.permissionMode,
+      catchUp: context.catchUp,
+      manual: context.manual,
+    })
+
+    let finished = false
+    let linkedClaudeSessionId: string | null = null
+    const finishAgentSession = (
+      status: 'done' | 'error' | 'cancelled',
+      error?: string | null,
+    ) => {
+      if (finished) return
+      finished = true
+      emit('workflow:agent-session-done', {
+        agentRunId,
+        status,
+        error: error ?? null,
+      })
+    }
+
+    try {
+      const result = await spawnClaudeProcess({
+        prompt,
+        cwd: step.cwd,
+        model: resolvedModel,
+        permissionMode: step.permissionMode as PermissionMode,
+        systemPrompt: step.systemPrompt,
+        claudePath: claudeRuntimeConfig.claudePath,
+        envVars: claudeRuntimeConfig.envVars,
+        abortSignal: context.abortController.signal,
+        getUserHomePath,
+        resolveTargetPath,
+        onSessionId: (claudeSessionId) => {
+          linkedClaudeSessionId = claudeSessionId
+          emit('workflow:agent-session-linked', {
+            agentRunId,
+            claudeSessionId,
+          })
+        },
+        onTextChunk: (chunk) => {
+          emit('workflow:step-text-chunk', {
+            executionId,
+            stepId: step.id,
+            chunk,
+          })
+          emit('workflow:agent-session-text-chunk', {
+            agentRunId,
+            chunk,
+          })
+        },
+      })
+
+      if (result.sessionId && result.sessionId !== linkedClaudeSessionId) {
+        emit('workflow:agent-session-linked', {
+          agentRunId,
+          claudeSessionId: result.sessionId,
+        })
+      }
+
+      if (result.isError) {
+        const errorMessage = result.error?.trim() || result.output || 'Workflow agent step failed.'
+        finishAgentSession(context.abortController.signal.aborted ? 'cancelled' : 'error', errorMessage)
+        throw new Error(errorMessage)
+      }
+
+      finishAgentSession('done')
+      return result.output
+    } catch (error) {
+      finishAgentSession(
+        context.abortController.signal.aborted ? 'cancelled' : 'error',
+        error instanceof Error ? error.message : String(error),
+      )
+      throw error
+    }
+  }
+
   const executeAgentStep = async (
     workflow: Workflow,
     executionId: string,
     step: Extract<WorkflowStep, { type: 'agent' }>,
     context: StepExecutionContext,
   ) => {
-    const prompt = resolvePrompt(step.prompt, context)
-    const result = await spawnClaudeProcess({
-      prompt,
-      cwd: step.cwd,
-      model: step.model,
-      permissionMode: step.permissionMode as PermissionMode,
-      systemPrompt: step.systemPrompt,
-      abortSignal: context.abortController.signal,
-      getUserHomePath,
-      resolveTargetPath,
-      onTextChunk: (chunk) => {
-        emit('workflow:step-text-chunk', {
-          executionId,
-          stepId: step.id,
-          chunk,
-        })
-      },
-    })
-
-    if (result.isError) {
-      throw new Error(result.error?.trim() || result.output || 'Workflow agent step failed.')
-    }
-
-    context.previousOutput = result.output
-    context.allResults.set(step.id, result.output)
+    const output = await executeAgentProcess(executionId, step, context)
+    context.previousOutput = output
+    context.allResults.set(step.id, output)
     emit('workflow:step-update', {
       executionId,
       stepId: step.id,
       status: 'done',
-      output: result.output,
+      output,
     })
     return getResolvedTopLevelNextStepId(workflow, step)
   }
@@ -270,38 +398,18 @@ export function createWorkflowExecutor({
           status: 'running',
         })
 
-        const result = await spawnClaudeProcess({
-          prompt: resolvePrompt(bodyStep.prompt, context),
-          cwd: bodyStep.cwd,
-          model: bodyStep.model,
-          permissionMode: bodyStep.permissionMode,
-          systemPrompt: bodyStep.systemPrompt,
-          abortSignal: context.abortController.signal,
-          getUserHomePath,
-          resolveTargetPath,
-          onTextChunk: (chunk) => {
-            emit('workflow:step-text-chunk', {
-              executionId,
-              stepId: bodyStep.id,
-              chunk,
-            })
-          },
-        })
-
-        if (result.isError) {
-          throw new Error(result.error?.trim() || result.output || 'Workflow loop step failed.')
-        }
+        const output = await executeAgentProcess(executionId, bodyStep, context)
 
         combinedOutput = combinedOutput
-          ? `${combinedOutput}\n\n${result.output}`
-          : result.output
-        context.previousOutput = result.output
-        context.allResults.set(bodyStep.id, result.output)
+          ? `${combinedOutput}\n\n${output}`
+          : output
+        context.previousOutput = output
+        context.allResults.set(bodyStep.id, output)
         emit('workflow:step-update', {
           executionId,
           stepId: bodyStep.id,
           status: 'done',
-          output: result.output,
+          output,
         })
       }
 
@@ -323,7 +431,11 @@ export function createWorkflowExecutor({
     return getResolvedTopLevelNextStepId(workflow, step)
   }
 
-  const execute = async (workflow: Workflow, triggeredBy: 'manual' | 'schedule') => {
+  const execute = async (
+    workflow: Workflow,
+    triggeredBy: 'manual' | 'schedule',
+    options?: { catchUp?: boolean },
+  ) => {
     if (runningExecutions.has(workflow.id)) {
       return { ok: false, error: '이미 실행 중인 워크플로우입니다.' }
     }
@@ -341,14 +453,19 @@ export function createWorkflowExecutor({
       executionId,
       triggeredBy,
       firedAt,
+      catchUp: Boolean(options?.catchUp),
     })
 
     const context: StepExecutionContext = {
       executionId,
       workflowId: workflow.id,
+      workflowName: workflow.name,
+      catchUp: Boolean(options?.catchUp),
+      manual: triggeredBy === 'manual',
       previousOutput: '',
       allResults: new Map<string, string>(),
       abortController,
+      agentRunCounter: 0,
     }
 
     let nextStepId: string | null = getTopLevelStepIds(workflow)[0] ?? null
@@ -421,37 +538,83 @@ export function createWorkflowExecutor({
   }
 
   const checkDueWorkflows = async () => {
+    if (!claudeRuntimeReady) {
+      scheduleNextCheck()
+      return
+    }
+
     const now = Date.now()
-    const dueWorkflows = workflows.filter((workflow) => (
-      workflow.active
-      && typeof workflow.nextRunAt === 'number'
-      && workflow.nextRunAt <= now
-    ))
+    const dueWorkflows = workflows
+      .filter((workflow) => (
+        workflow.active
+        && typeof workflow.nextRunAt === 'number'
+        && workflow.nextRunAt <= now
+      ))
+      .sort((left, right) => (left.nextRunAt ?? 0) - (right.nextRunAt ?? 0))
 
     for (const workflow of dueWorkflows) {
       if (runningExecutions.has(workflow.id)) continue
-      await execute(workflow, 'schedule')
+      const lateness = now - (workflow.nextRunAt ?? now)
+      if (lateness > missedRunLimitMs) {
+        advanceWorkflowSchedule(workflow.id, now, { skipped: true })
+        emit('workflow:schedule-advanced', {
+          workflowId: workflow.id,
+          firedAt: now,
+          skipped: true,
+          reason: '7일을 초과해 놓친 실행은 건너뛰고 다음 예약으로 이동합니다.',
+          catchUp: true,
+          manual: false,
+        })
+        continue
+      }
+
+      await execute(workflow, 'schedule', {
+        catchUp: lateness > catchUpThresholdMs,
+      })
     }
 
     scheduleNextCheck()
   }
 
   return {
+    syncClaudeRuntime(config: {
+      claudePath?: string | null
+      envVars?: Record<string, string>
+      defaultModel?: string | null
+    }) {
+      claudeRuntimeConfig = {
+        claudePath: typeof config.claudePath === 'string' && config.claudePath.trim()
+          ? config.claudePath.trim()
+          : undefined,
+        envVars: config.envVars && typeof config.envVars === 'object'
+          ? { ...config.envVars }
+          : undefined,
+        defaultModel: typeof config.defaultModel === 'string' && config.defaultModel.trim()
+          ? config.defaultModel.trim()
+          : null,
+      }
+      claudeRuntimeReady = true
+      void checkDueWorkflows()
+    },
+
     syncWorkflows(nextWorkflows: Workflow[]) {
-      workflows = nextWorkflows.map((workflow) => ({
-        ...workflow,
-        nextRunAt: recalculateNextRunAt(workflow),
-      }))
+      workflows = nextWorkflows.map(normalizeSyncedWorkflow)
       scheduleNextCheck()
+      if (claudeRuntimeReady) {
+        void checkDueWorkflows()
+      }
     },
 
     start() {
       if (!workflowInterval) {
         workflowInterval = setInterval(() => {
           void checkDueWorkflows()
-        }, 60 * 1000)
+        }, workflowPollIntervalMs)
       }
       scheduleNextCheck()
+      if (claudeRuntimeReady) {
+        void checkDueWorkflows()
+      }
     },
 
     stop() {
@@ -467,6 +630,10 @@ export function createWorkflowExecutor({
     },
 
     async runNow(workflowId: string) {
+      if (!claudeRuntimeReady) {
+        return { ok: false, error: 'Claude 실행 설정을 불러오는 중입니다. 잠시 후 다시 시도해주세요.' }
+      }
+
       const workflow = workflows.find((item) => item.id === workflowId)
       if (!workflow) {
         return { ok: false, error: '워크플로우를 찾을 수 없습니다.' }

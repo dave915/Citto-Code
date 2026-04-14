@@ -8,6 +8,11 @@ import type {
 } from '../persistence-types'
 
 type WorkflowExecutorLike = {
+  syncClaudeRuntime: (config: {
+    claudePath?: string | null
+    envVars?: Record<string, string>
+    defaultModel?: string | null
+  }) => void
   syncWorkflows: (workflows: PersistedWorkflow[]) => void
   runNow: (workflowId: string) => Promise<{ ok: boolean; error?: string }>
   cancel: (workflowId: string) => { ok: boolean; error?: string }
@@ -88,6 +93,21 @@ export function registerStorageIpcHandlers({
     workflowExecutor.syncWorkflows(Array.isArray(workflows) ? workflows : [])
     return { ok: true }
   })
+
+  ipcMain.handle(
+    'app:sync-claude-runtime',
+    (
+      _event,
+      config: {
+        claudePath?: string | null
+        envVars?: Record<string, string>
+        defaultModel?: string | null
+      } = {},
+    ) => {
+      workflowExecutor.syncClaudeRuntime(config)
+      return { ok: true }
+    },
+  )
 
   ipcMain.handle('app:mark-scheduled-tasks-migrated', (_event, { ids }: { ids: string[] }) => {
     try {

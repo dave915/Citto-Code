@@ -9,6 +9,7 @@ import type {
   WorkflowHistorySnapshot,
   WorkflowInput,
   WorkflowNodePosition,
+  WorkflowScheduleAdvancedPayload,
   WorkflowStep,
   WorkflowStepUpdatePayload,
   WorkflowStore,
@@ -257,14 +258,29 @@ function normalizeWorkflowInput(input: WorkflowInput): WorkflowInput {
   }
 }
 
-function normalizeWorkflow(workflow: Workflow): Workflow {
+function normalizeWorkflow(
+  workflow: Workflow,
+  options?: {
+    preserveNextRunAt?: boolean
+  },
+): Workflow {
   const normalizedInput = normalizeWorkflowInput(workflow)
   const referenceTime = Date.now()
+  const computedNextRunAt = computeNextRunAt(normalizedInput.trigger, normalizedInput.active, referenceTime)
+  const nextRunAt = (
+    options?.preserveNextRunAt
+    && normalizedInput.active
+    && normalizedInput.trigger.type === 'schedule'
+    && typeof workflow.nextRunAt === 'number'
+    && Number.isFinite(workflow.nextRunAt)
+  )
+    ? workflow.nextRunAt
+    : computedNextRunAt
 
   return {
     ...workflow,
     ...normalizedInput,
-    nextRunAt: computeNextRunAt(normalizedInput.trigger, normalizedInput.active, referenceTime),
+    nextRunAt,
   }
 }
 
@@ -342,7 +358,7 @@ function withRuntimeWorkflows(
   workflows: Workflow[],
   executions?: WorkflowExecution[],
 ) {
-  const normalizedWorkflows = workflows.map((workflow) => normalizeWorkflow(workflow))
+  const normalizedWorkflows = workflows.map((workflow) => normalizeWorkflow(workflow, { preserveNextRunAt: true }))
   const selection = syncSelection(normalizedWorkflows, state.selectedWorkflowId, state.selectedStepIds)
   const history = state.history.length === 0
     ? []
@@ -758,7 +774,7 @@ export const useWorkflowStore = create<WorkflowStore>()((set) => ({
   },
 
   replaceAll: (workflows, executions) => {
-    const normalizedWorkflows = workflows.map((workflow) => normalizeWorkflow(workflow))
+    const normalizedWorkflows = workflows.map((workflow) => normalizeWorkflow(workflow, { preserveNextRunAt: true }))
     const selectedWorkflowId = normalizedWorkflows[0]?.id ?? null
     const history = normalizedWorkflows.length > 0
       ? [createHistorySnapshot(normalizedWorkflows, selectedWorkflowId, [])]
@@ -841,6 +857,22 @@ export const useWorkflowStore = create<WorkflowStore>()((set) => ({
         [execution, ...state.executions.filter((item) => item.id !== payload.executionId)].slice(0, EXECUTION_HISTORY_LIMIT),
       )
     })
+  },
+
+  advanceSchedule: (payload: WorkflowScheduleAdvancedPayload) => {
+    set((state) => withRuntimeWorkflows(
+      state,
+      state.workflows.map((workflow) => (
+        workflow.id === payload.workflowId
+          ? {
+              ...workflow,
+              lastRunAt: payload.skipped ? workflow.lastRunAt : payload.firedAt,
+              nextRunAt: computeNextRunAt(workflow.trigger, workflow.active, payload.firedAt + 1000),
+              updatedAt: Date.now(),
+            }
+          : workflow
+      )),
+    ))
   },
 
   appendStepTextChunk: (executionId, stepId, chunk) => {

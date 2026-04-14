@@ -61,8 +61,8 @@
 1. `src/store/workflowStore.ts`와 `src/components/workflow/*`가 워크플로우 정의, 실행 기록, 편집 UI를 관리한다.
 2. `src/main.tsx`가 persisted workflow/workflow execution snapshot을 hydrate하고 debounce flush를 관리한다.
 3. `electron/ipc/storage.ts`와 persistence 계층이 workflow/workflow execution CRUD를 유지한다.
-4. `electron/workflow-executor.ts`가 수동 실행, 예약 실행, 취소, step update 스트림을 담당한다.
-5. Agent step은 `electron/services/claude-spawn.ts`를 통해 `--bare` Claude CLI를 실행하고, renderer는 `workflow:*` 이벤트를 받아 실행 기록을 갱신한다.
+4. `electron/workflow-executor.ts`가 수동 실행, 예약 실행, 놓친 예약 따라잡기, 취소, step update 스트림을 담당한다.
+5. Agent step은 `electron/services/claude-spawn.ts`를 통해 일반 채팅과 같은 Claude CLI 설정으로 실행하고, 실행 직전에 renderer가 동기화한 Claude runtime 설정(`claudeBinaryPath`, env vars)을 재사용한다. renderer는 `workflow:*` 이벤트로 실행 기록을 갱신하면서 agent run을 별도 세션으로도 미러링한다.
 
 ### Settings And Claude Files
 

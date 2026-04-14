@@ -1,4 +1,4 @@
-import type { LegacyScheduledTask, Session, Workflow, WorkflowExecution } from '../persistence-types'
+import type { LegacyScheduledTask, PermissionMode, Session, Workflow, WorkflowExecution } from '../persistence-types'
 
 export type { LegacyScheduledTask, Session, Workflow, WorkflowExecution } from '../persistence-types'
 
@@ -212,6 +212,16 @@ export type WorkflowFiredEvent = {
   executionId: string
   triggeredBy: 'manual' | 'schedule'
   firedAt: number
+  catchUp?: boolean
+}
+
+export type WorkflowScheduleAdvancedEvent = {
+  workflowId: string
+  firedAt: number
+  skipped?: boolean
+  reason?: string
+  catchUp?: boolean
+  manual?: boolean
 }
 
 export type WorkflowStepUpdateEvent = {
@@ -226,6 +236,36 @@ export type WorkflowStepTextChunkEvent = {
   executionId: string
   stepId: string
   chunk: string
+}
+
+export type WorkflowAgentSessionStartedEvent = {
+  agentRunId: string
+  executionId: string
+  workflowId: string
+  workflowName: string
+  stepId: string
+  stepLabel: string
+  cwd: string
+  model: string | null
+  permissionMode: PermissionMode
+  catchUp: boolean
+  manual: boolean
+}
+
+export type WorkflowAgentSessionLinkedEvent = {
+  agentRunId: string
+  claudeSessionId: string
+}
+
+export type WorkflowAgentSessionTextChunkEvent = {
+  agentRunId: string
+  chunk: string
+}
+
+export type WorkflowAgentSessionDoneEvent = {
+  agentRunId: string
+  status: 'done' | 'error' | 'cancelled'
+  error?: string | null
 }
 
 export type WorkflowExecutionDoneEvent = {
@@ -293,6 +333,11 @@ export type ClaudeAPI = {
   }) => Promise<PersistenceSnapshot>
   saveSessionsSnapshot: (params: { sessions: Session[] }) => Promise<{ ok: boolean; error?: string }>
   saveWorkflowsSnapshot: (params: { workflows: Workflow[]; executions: WorkflowExecution[] }) => Promise<{ ok: boolean; error?: string }>
+  syncClaudeRuntime: (params: {
+    claudePath?: string | null
+    envVars?: Record<string, string>
+    defaultModel?: string | null
+  }) => Promise<{ ok: boolean; error?: string }>
   markScheduledTasksMigrated: (params: { ids: string[] }) => Promise<{ ok: boolean; error?: string }>
   sendMessage: (params: {
     sessionId: string | null
@@ -393,8 +438,13 @@ export type ClaudeAPI = {
   onQuickPanelMessage: (handler: (payload: { text: string; cwd: string }) => void) => () => void
   onTrayNewSession: (handler: () => void) => () => void
   onWorkflowFired: (handler: (event: WorkflowFiredEvent) => void) => () => void
+  onWorkflowScheduleAdvanced: (handler: (event: WorkflowScheduleAdvancedEvent) => void) => () => void
   onWorkflowStepUpdate: (handler: (event: WorkflowStepUpdateEvent) => void) => () => void
   onWorkflowStepTextChunk: (handler: (event: WorkflowStepTextChunkEvent) => void) => () => void
+  onWorkflowAgentSessionStarted: (handler: (event: WorkflowAgentSessionStartedEvent) => void) => () => void
+  onWorkflowAgentSessionLinked: (handler: (event: WorkflowAgentSessionLinkedEvent) => void) => () => void
+  onWorkflowAgentSessionTextChunk: (handler: (event: WorkflowAgentSessionTextChunkEvent) => void) => () => void
+  onWorkflowAgentSessionDone: (handler: (event: WorkflowAgentSessionDoneEvent) => void) => () => void
   onWorkflowExecutionDone: (handler: (event: WorkflowExecutionDoneEvent) => void) => () => void
   onWorkflowNotify: (handler: (event: WorkflowNotifyEvent) => void) => () => void
   onGitHeadChanged: (handler: (event: GitHeadChangedEvent) => void) => () => void

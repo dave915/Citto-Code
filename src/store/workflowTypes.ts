@@ -48,6 +48,16 @@ export type WorkflowFiredPayload = {
   executionId: string
   triggeredBy: WorkflowExecutionTriggeredBy
   firedAt: number
+  catchUp?: boolean
+}
+
+export type WorkflowScheduleAdvancedPayload = {
+  workflowId: string
+  firedAt: number
+  skipped?: boolean
+  reason?: string
+  catchUp?: boolean
+  manual?: boolean
 }
 
 export type WorkflowStepUpdatePayload = {
@@ -97,6 +107,7 @@ export type WorkflowStore = {
   undo: () => void
   redo: () => void
   recordExecutionStart: (payload: WorkflowFiredPayload) => void
+  advanceSchedule: (payload: WorkflowScheduleAdvancedPayload) => void
   appendStepTextChunk: (executionId: string, stepId: string, chunk: string) => void
   applyStepUpdate: (payload: WorkflowStepUpdatePayload) => void
   completeExecution: (payload: WorkflowExecutionDonePayload) => void

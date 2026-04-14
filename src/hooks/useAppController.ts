@@ -14,6 +14,7 @@ import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
 import { useWorkflowStore } from '../store/workflowStore'
 import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
+import { normalizeConfiguredModelSelection } from '../lib/modelSelection'
 import { nanoid } from '../store/nanoid'
 import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode, type Session } from '../store/sessions'
 
@@ -125,10 +126,22 @@ export function useAppController() {
     () => quickPanelProjects.map((project) => project.path).join('\n'),
     [quickPanelProjects],
   )
+  const defaultWorkflowModel = useMemo(() => {
+    const activeModel = normalizeConfiguredModelSelection(activeSession?.model)
+    if (activeModel) return activeModel
+
+    for (let index = sessions.length - 1; index >= 0; index -= 1) {
+      const sessionModel = normalizeConfiguredModelSelection(sessions[index]?.model)
+      if (sessionModel) return sessionModel
+    }
+
+    return null
+  }, [activeSession?.model, sessions])
   const shortcutPlatform = getCurrentPlatform()
   const sanitizedEnvVars = sanitizeEnvVars(envVars)
   const workflows = useWorkflowStore((state) => state.workflows)
   const recordWorkflowExecutionStart = useWorkflowStore((state) => state.recordExecutionStart)
+  const advanceWorkflowSchedule = useWorkflowStore((state) => state.advanceSchedule)
   const appendWorkflowStepTextChunk = useWorkflowStore((state) => state.appendStepTextChunk)
   const applyWorkflowStepUpdate = useWorkflowStore((state) => state.applyStepUpdate)
   const completeWorkflowExecution = useWorkflowStore((state) => state.completeExecution)
@@ -377,6 +390,9 @@ export function useAppController() {
     quickPanelProjects,
     quickPanelProjectsSignature,
     workflowSyncPayload,
+    claudeBinaryPath,
+    sanitizedEnvVars,
+    defaultWorkflowModel,
     quickPanelEnabled,
     shortcutConfig,
     shortcutPlatform,
@@ -391,6 +407,7 @@ export function useAppController() {
             planMode: activeSession.planMode,
           }
         : null,
+    defaultProjectPath,
     applyPermissionMode: handlePermissionModeChange,
     applyPlanMode: handlePlanModeChange,
     onToggleSidebar: handleToggleSidebar,
@@ -399,7 +416,17 @@ export function useAppController() {
     createSessionFromUserPrompt,
     openPendingSessionDraft,
     handleSendForSession: claudeStream.handleSendForSession,
+    addSession,
+    addUserMessage,
+    startAssistantMessage,
+    appendTextChunk,
+    setClaudeSessionId,
+    setError,
+    setSessionPermissionMode: setPermissionMode,
+    setSessionModel: setModel,
+    commitStreamEnd,
     recordWorkflowExecutionStart,
+    advanceWorkflowSchedule,
     appendWorkflowStepTextChunk,
     applyWorkflowStepUpdate,
     completeWorkflowExecution,

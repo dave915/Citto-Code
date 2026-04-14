@@ -2,9 +2,14 @@ import { ipcRenderer, webUtils } from 'electron'
 import type {
   ClaudeAPI,
   ClaudeStreamEvent,
+  WorkflowAgentSessionDoneEvent,
+  WorkflowAgentSessionLinkedEvent,
+  WorkflowAgentSessionStartedEvent,
+  WorkflowAgentSessionTextChunkEvent,
   WorkflowExecutionDoneEvent,
   WorkflowFiredEvent,
   WorkflowNotifyEvent,
+  WorkflowScheduleAdvancedEvent,
   WorkflowStepTextChunkEvent,
   WorkflowStepUpdateEvent,
 } from './types'
@@ -26,6 +31,7 @@ export const claudeAPI: ClaudeAPI = {
   initPersistence: (params) => ipcRenderer.invoke('app-storage:init', params),
   saveSessionsSnapshot: (params) => ipcRenderer.invoke('app-storage:save-sessions', params),
   saveWorkflowsSnapshot: (params) => ipcRenderer.invoke('app-storage:save-workflows', params),
+  syncClaudeRuntime: (params) => ipcRenderer.invoke('app:sync-claude-runtime', params),
   markScheduledTasksMigrated: (params) => ipcRenderer.invoke('app:mark-scheduled-tasks-migrated', params),
   sendMessage: (params) => ipcRenderer.invoke('claude:send-message', params),
   abort: (params) => ipcRenderer.invoke('claude:abort', params),
@@ -133,6 +139,11 @@ export const claudeAPI: ClaudeAPI = {
     ipcRenderer.on('workflow:fired', listener)
     return () => ipcRenderer.removeListener('workflow:fired', listener)
   },
+  onWorkflowScheduleAdvanced: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WorkflowScheduleAdvancedEvent) => handler(payload)
+    ipcRenderer.on('workflow:schedule-advanced', listener)
+    return () => ipcRenderer.removeListener('workflow:schedule-advanced', listener)
+  },
   onWorkflowStepUpdate: (handler) => {
     const listener = (_: Electron.IpcRendererEvent, payload: WorkflowStepUpdateEvent) => handler(payload)
     ipcRenderer.on('workflow:step-update', listener)
@@ -142,6 +153,26 @@ export const claudeAPI: ClaudeAPI = {
     const listener = (_: Electron.IpcRendererEvent, payload: WorkflowStepTextChunkEvent) => handler(payload)
     ipcRenderer.on('workflow:step-text-chunk', listener)
     return () => ipcRenderer.removeListener('workflow:step-text-chunk', listener)
+  },
+  onWorkflowAgentSessionStarted: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WorkflowAgentSessionStartedEvent) => handler(payload)
+    ipcRenderer.on('workflow:agent-session-started', listener)
+    return () => ipcRenderer.removeListener('workflow:agent-session-started', listener)
+  },
+  onWorkflowAgentSessionLinked: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WorkflowAgentSessionLinkedEvent) => handler(payload)
+    ipcRenderer.on('workflow:agent-session-linked', listener)
+    return () => ipcRenderer.removeListener('workflow:agent-session-linked', listener)
+  },
+  onWorkflowAgentSessionTextChunk: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WorkflowAgentSessionTextChunkEvent) => handler(payload)
+    ipcRenderer.on('workflow:agent-session-text-chunk', listener)
+    return () => ipcRenderer.removeListener('workflow:agent-session-text-chunk', listener)
+  },
+  onWorkflowAgentSessionDone: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WorkflowAgentSessionDoneEvent) => handler(payload)
+    ipcRenderer.on('workflow:agent-session-done', listener)
+    return () => ipcRenderer.removeListener('workflow:agent-session-done', listener)
   },
   onWorkflowExecutionDone: (handler) => {
     const listener = (_: Electron.IpcRendererEvent, payload: WorkflowExecutionDoneEvent) => handler(payload)

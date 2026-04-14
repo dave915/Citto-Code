@@ -9,10 +9,13 @@ type SpawnClaudeProcessOptions = {
   permissionMode: PermissionMode
   systemPrompt?: string
   claudePath?: string
+  envVars?: Record<string, string>
+  bare?: boolean
   abortSignal?: AbortSignal
   getUserHomePath: (env?: NodeJS.ProcessEnv) => string
   resolveTargetPath: (targetPath: string) => string
   onTextChunk?: (chunk: string) => void
+  onSessionId?: (sessionId: string) => void
 }
 
 type SpawnClaudeProcessResult = {
@@ -46,10 +49,13 @@ export async function spawnClaudeProcess({
   permissionMode,
   systemPrompt,
   claudePath,
+  envVars,
+  bare = false,
   abortSignal,
   getUserHomePath,
   resolveTargetPath,
   onTextChunk,
+  onSessionId,
 }: SpawnClaudeProcessOptions): Promise<SpawnClaudeProcessResult> {
   return await new Promise<SpawnClaudeProcessResult>((resolve, reject) => {
     const { proc } = launchClaudeProcess({
@@ -59,7 +65,8 @@ export async function spawnClaudeProcess({
       permissionMode,
       planMode: false,
       model: model ?? undefined,
-      bare: true,
+      envVars,
+      bare,
       getUserHomePath,
       resolveTargetPath,
     })
@@ -118,7 +125,10 @@ export async function spawnClaudeProcess({
 
       const type = typeof record.type === 'string' ? record.type : ''
       if (type === 'system') {
-        sessionId = typeof record.session_id === 'string' ? record.session_id : sessionId
+        if (typeof record.session_id === 'string' && record.session_id.trim()) {
+          sessionId = record.session_id
+          onSessionId?.(record.session_id)
+        }
         return
       }
 

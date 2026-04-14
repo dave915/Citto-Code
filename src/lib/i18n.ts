@@ -689,6 +689,9 @@ const TRANSLATIONS = {
     'scheduled.inbox.taskList': 'Tasks',
     'scheduled.app.runNowLabel': ({ sessionName }) => `${sessionName} 지금 실행`,
     'scheduled.app.catchUpLabel': ({ sessionName }) => `${sessionName} 따라잡기 실행`,
+    'workflow.session.runNowLabel': ({ sessionName }) => `${sessionName} 지금 실행`,
+    'workflow.session.catchUpLabel': ({ sessionName }) => `${sessionName} 따라잡기 실행`,
+    'workflow.session.scheduledLabel': ({ sessionName }) => `${sessionName} 예약 실행`,
 
     'git.status.newFile': '새 파일',
     'git.status.deleted': '삭제',
@@ -1810,6 +1813,9 @@ const TRANSLATIONS = {
     'scheduled.inbox.taskList': 'Tasks',
     'scheduled.app.runNowLabel': ({ sessionName }) => `${sessionName} run now`,
     'scheduled.app.catchUpLabel': ({ sessionName }) => `${sessionName} catch-up run`,
+    'workflow.session.runNowLabel': ({ sessionName }) => `${sessionName} run now`,
+    'workflow.session.catchUpLabel': ({ sessionName }) => `${sessionName} catch-up run`,
+    'workflow.session.scheduledLabel': ({ sessionName }) => `${sessionName} scheduled run`,
 
     'git.status.newFile': 'New file',
     'git.status.deleted': 'Deleted',
