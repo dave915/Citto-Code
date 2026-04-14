@@ -1,5 +1,10 @@
 import { launchClaudeProcess } from '../ipc/claude/processLauncher'
 import { buildStreamJsonUserMessage } from '../ipc/claude/attachmentPayload'
+import {
+  bindResolvedSessionProcess,
+  removeActiveProcessReferences,
+  trackActiveProcess,
+} from '../ipc/claude/processRegistry'
 import type { PermissionMode } from '../persistence-types'
 
 type SpawnClaudeProcessOptions = {
@@ -58,7 +63,7 @@ export async function spawnClaudeProcess({
   onSessionId,
 }: SpawnClaudeProcessOptions): Promise<SpawnClaudeProcessResult> {
   return await new Promise<SpawnClaudeProcessResult>((resolve, reject) => {
-    const { proc } = launchClaudeProcess({
+    const { proc, tempKey } = launchClaudeProcess({
       sessionId: null,
       cwd,
       claudePath,
@@ -72,10 +77,8 @@ export async function spawnClaudeProcess({
     })
 
     const fullPrompt = buildPrompt(prompt, systemPrompt)
-    proc.stdin?.write(`${buildStreamJsonUserMessage(fullPrompt, [])}\n`)
-    proc.stdin?.end()
-
     let settled = false
+    let aborted = false
     let buffer = ''
     let sessionId: string | null = null
     let output = ''
@@ -83,11 +86,18 @@ export async function spawnClaudeProcess({
     let resultText: string | null = null
     let errorText: string | null = null
     let isError = false
+    let forceKillTimer: NodeJS.Timeout | null = null
+
+    trackActiveProcess(tempKey, proc)
 
     const finish = (result: SpawnClaudeProcessResult) => {
       if (settled) return
       settled = true
       abortSignal?.removeEventListener('abort', handleAbort)
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer)
+        forceKillTimer = null
+      }
       resolve(result)
     }
 
@@ -95,25 +105,40 @@ export async function spawnClaudeProcess({
       if (settled) return
       settled = true
       abortSignal?.removeEventListener('abort', handleAbort)
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer)
+        forceKillTimer = null
+      }
       reject(error)
     }
 
     const handleAbort = () => {
+      if (aborted) return
+      aborted = true
       try {
         proc.kill('SIGINT')
       } catch {
         // Ignore abort failures.
       }
-      fail(new Error('Workflow execution aborted'))
+      forceKillTimer = setTimeout(() => {
+        try {
+          if (proc.exitCode === null) proc.kill('SIGKILL')
+        } catch {
+          // Ignore force-kill failures.
+        }
+      }, 250)
     }
 
     const appendOutput = (chunk: string) => {
-      if (!chunk) return
+      if (!chunk || aborted) return
       output += chunk
       onTextChunk?.(chunk)
     }
 
     abortSignal?.addEventListener('abort', handleAbort, { once: true })
+    if (abortSignal?.aborted) {
+      handleAbort()
+    }
 
     const processLine = (line: string) => {
       let record: Record<string, unknown>
@@ -127,8 +152,13 @@ export async function spawnClaudeProcess({
       if (type === 'system') {
         if (typeof record.session_id === 'string' && record.session_id.trim()) {
           sessionId = record.session_id
+          bindResolvedSessionProcess(tempKey, record.session_id, proc)
           onSessionId?.(record.session_id)
         }
+        return
+      }
+
+      if (aborted) {
         return
       }
 
@@ -167,6 +197,11 @@ export async function spawnClaudeProcess({
       }
     }
 
+    if (!aborted) {
+      proc.stdin?.write(`${buildStreamJsonUserMessage(fullPrompt, [])}\n`)
+    }
+    proc.stdin?.end()
+
     proc.stdout?.on('data', (chunk: Buffer) => {
       buffer += chunk.toString()
       const lines = buffer.split('\n')
@@ -179,18 +214,40 @@ export async function spawnClaudeProcess({
     })
 
     proc.stderr?.on('data', (chunk: Buffer) => {
+      if (aborted) return
       const text = chunk.toString().trim()
       if (!text) return
       errorText = errorText ? `${errorText}\n${text}` : text
     })
 
     proc.once('error', (error) => {
+      removeActiveProcessReferences(proc)
+      if (aborted) {
+        finish({
+          sessionId,
+          output: output.trim(),
+          isError: true,
+          error: 'Workflow execution aborted',
+        })
+        return
+      }
       fail(error)
     })
 
     proc.once('close', () => {
+      removeActiveProcessReferences(proc)
       if (buffer.trim()) {
         processLine(buffer.trim())
+      }
+
+      if (aborted) {
+        finish({
+          sessionId,
+          output: output.trim(),
+          isError: true,
+          error: 'Workflow execution aborted',
+        })
+        return
       }
 
       const finalOutput = resultText?.trim()

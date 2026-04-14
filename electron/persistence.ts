@@ -66,6 +66,8 @@ export class AppPersistence {
 
   private db: SqlJsDatabase | null = null
 
+  private sql: Awaited<ReturnType<typeof initSqlJs>> | null = null
+
   private initializing: Promise<void> | null = null
 
   async initialize(userDataPath: string): Promise<void> {
@@ -75,6 +77,7 @@ export class AppPersistence {
     this.initializing = (async () => {
       this.dbPath = join(userDataPath, 'storage', DB_FILE_NAME)
       const SQL = await initSqlJs()
+      this.sql = SQL
       const fileData = this.dbPath && existsSync(this.dbPath)
         ? readFileSync(this.dbPath)
         : undefined
@@ -92,6 +95,7 @@ export class AppPersistence {
       await this.initializing
     } catch (error) {
       this.db = null
+      this.sql = null
       throw error
     } finally {
       this.initializing = null
@@ -440,7 +444,9 @@ export class AppPersistence {
 
     const dir = dirname(dbPath)
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(dbPath, Buffer.from(db.export()))
+    const snapshot = db.export()
+    writeFileSync(dbPath, Buffer.from(snapshot))
+    this.reopenDatabase(snapshot)
   }
 
   private requireDb(): SqlJsDatabase {
@@ -448,5 +454,20 @@ export class AppPersistence {
       throw new Error('Persistence database is not initialized.')
     }
     return this.db
+  }
+
+  private requireSql(): Awaited<ReturnType<typeof initSqlJs>> {
+    if (!this.sql) {
+      throw new Error('Persistence SQL runtime is not initialized.')
+    }
+    return this.sql
+  }
+
+  private reopenDatabase(snapshot: Uint8Array): void {
+    const currentDb = this.requireDb()
+    const SQL = this.requireSql()
+    const nextDb = new SQL.Database(snapshot)
+    currentDb.close()
+    this.db = nextDb
   }
 }

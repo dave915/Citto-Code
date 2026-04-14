@@ -106,6 +106,12 @@ function createExecutionId(workflowId: string) {
   return `wfexec-${workflowId}-${Date.now()}`
 }
 
+function throwIfAborted(abortController: AbortController) {
+  if (abortController.signal.aborted) {
+    throw new Error('Workflow execution aborted')
+  }
+}
+
 function normalizeSyncedWorkflow(workflow: Workflow) {
   if (!workflow.active || workflow.trigger.type !== 'schedule') {
     return {
@@ -346,6 +352,7 @@ export function createWorkflowExecutor({
     step: Extract<WorkflowStep, { type: 'agent' }>,
     context: StepExecutionContext,
   ) => {
+    throwIfAborted(context.abortController)
     const output = await executeAgentProcess(executionId, step, context)
     context.previousOutput = output
     context.allResults.set(step.id, output)
@@ -364,6 +371,7 @@ export function createWorkflowExecutor({
     step: Extract<WorkflowStep, { type: 'condition' }>,
     context: StepExecutionContext,
   ) => {
+    throwIfAborted(context.abortController)
     const matched = evaluateCondition(context.previousOutput, step.operator, step.value)
     const output = matched ? 'true' : 'false'
     context.previousOutput = output
@@ -388,7 +396,9 @@ export function createWorkflowExecutor({
     let combinedOutput = ''
 
     for (let iteration = 0; iteration < step.maxIterations; iteration += 1) {
+      throwIfAborted(context.abortController)
       for (const bodyStepId of step.bodyStepIds) {
+        throwIfAborted(context.abortController)
         const bodyStep = findStepById(workflow, bodyStepId)
         if (!bodyStep || bodyStep.type !== 'agent') continue
 
@@ -475,6 +485,10 @@ export function createWorkflowExecutor({
     try {
       let safetyCounter = 0
       while (nextStepId && safetyCounter < 200) {
+        if (abortController.signal.aborted) {
+          status = 'cancelled'
+          break
+        }
         safetyCounter += 1
         const step = findStepById(workflow, nextStepId)
         if (!step) break
