@@ -4,8 +4,9 @@ type ModelInfo = {
   id: string
   displayName: string
   family: string
-  provider: 'anthropic' | 'ollama' | 'custom'
+  provider: 'anthropic' | 'ollama' | 'custom' | 'gateway'
   isLocal: boolean
+  isGateway?: boolean
 }
 
 const CACHE_TTL = 5 * 60 * 1000

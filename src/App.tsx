@@ -25,9 +25,11 @@ export default function App() {
             onRemoveSession={controller.handleRemoveSession}
             onSelectFolder={(sessionId) => controller.handleSelectFolder(sessionId)}
             onOpenSchedule={controller.scheduleOpen ? controller.closeSchedulePanel : controller.openSchedulePanel}
+            onOpenWorkflow={controller.workflowOpen ? controller.closeWorkflowPanel : controller.openWorkflowPanel}
             onOpenSettings={controller.settingsOpen ? controller.closeSettingsPanel : () => controller.openSettingsPanel()}
             onSidebarModeChange={controller.setSidebarMode}
             scheduleOpen={controller.scheduleOpen}
+            workflowOpen={controller.workflowOpen}
             settingsOpen={controller.settingsOpen}
             newSessionShortcutLabel={getShortcutLabel(controller.shortcutConfig, 'newSession', controller.shortcutPlatform)}
             settingsShortcutLabel={getShortcutLabel(controller.shortcutConfig, 'openSettings', controller.shortcutPlatform)}
@@ -55,6 +57,7 @@ export default function App() {
           onCloseTeamPanel={controller.closeTeamPanel}
           onCloseSessionTeamPanel={controller.closeSessionTeamPanel}
           onCloseSchedulePanel={controller.closeSchedulePanel}
+          onCloseWorkflowPanel={controller.closeWorkflowPanel}
           onCloseSettingsPanel={controller.closeSettingsPanel}
           settingsInitialTab={controller.settingsInitialTab}
           onOpenSessionTeamPanel={controller.openSessionTeamPanel}

@@ -11,10 +11,11 @@
   - `src/components/app/AppMainContent.tsx`
   - `src/hooks/useAppPanels.ts`
   - `src/components/Sidebar.tsx`
+  - `src/components/WorkflowsView.tsx`
 - 책임:
   - 앱 부트스트랩
   - 전역 패널 열림 상태
-  - 세션/설정/예약 작업 상위 조합
+  - 세션/설정/예약 작업/워크플로우 상위 조합
   - 새 세션 draft 상태와 첫 입력 시점의 실제 세션 생성
   - `App.tsx`는 루트 레이아웃 렌더링만 유지한다.
   - `useAppController.ts`는 store/hook 조합, 세션 선택/점프, 팀 연동, 데스크톱 effect wiring을 담당한다.
@@ -31,11 +32,14 @@
   - `electron/main/windowController.ts`
   - `electron/main/devLogger.ts`
   - `electron/services/trayImageService.ts`
+  - `electron/services/gateway-proxy-service.ts`
+  - `electron/workflow-executor.ts`
 - 책임:
   - 앱 부트스트랩
   - 메인 윈도우/퀵패널 생성과 포커스 복원
   - 트레이/글로벌 단축키/외부 링크 처리
   - dev log 전달과 메인 프로세스 수명주기 정리
+  - Gateway 프록시와 workflow executor 타이머/cleanup
   - `main.ts`는 서비스 초기화와 IPC wiring만 유지하고, 윈도우/퀵패널 상태는 `windowController.ts`, 개발용 로그 전달은 `devLogger.ts`에 둔다.
 - 흔한 회귀:
   - quick panel 단축키 재등록 누락
@@ -49,9 +53,10 @@
   - `src/store/sessionStoreState.ts`
   - `src/store/sessionStoreMutators.ts`
   - `src/store/scheduledTasks.ts`
+  - `src/store/workflowStore.ts`
   - `electron/persistence.ts`
 - 책임:
-  - 세션/예약 작업 저장 구조
+  - 세션/예약 작업/워크플로우 저장 구조
   - migrate/rehydrate
   - sqlite snapshot 동기화
   - `sessionStoreState.ts`는 store action wiring과 persisted 필드 기본값을 유지하고, 반복적인 session/message/tool mutation helper는 `sessionStoreMutators.ts`에 둔다.
@@ -69,10 +74,14 @@
   - `electron/ipc/claude.ts`
   - `electron/ipc/claude/*`
   - `electron/services/claude/*`
+  - `electron/services/claude-models.ts`
+  - `electron/services/gateway-proxy-service.ts`
+  - `electron/agent-tool-names.ts`
 - 책임:
   - Claude CLI 실행
   - stream-json 이벤트 처리
   - tool call, permission, token usage, abort 흐름
+  - Gateway 모델 env/model 변환과 Agent tool 이름 정규화
   - `electron/ipc/claude.ts`는 IPC 채널 등록과 메인 wiring만 유지하고, 첨부 직렬화/모델 캐시/프로세스 registry/서브에이전트 이벤트 라우팅 helper는 `electron/ipc/claude/*`에 둔다.
 - 흔한 회귀:
   - 중복 프로세스 정리 누락
@@ -193,6 +202,27 @@
 - 흔한 회귀:
   - sleep/wake 이후 중복 fire
   - quiet hours/skip day 계산 오류
+
+## Workflow Builder
+
+- 파일:
+  - `src/components/WorkflowsView.tsx`
+  - `src/components/workflow/*`
+  - `src/store/workflowStore.ts`
+  - `src/store/workflowTypes.ts`
+  - `electron/workflow-executor.ts`
+  - `electron/services/claude-spawn.ts`
+  - `electron/ipc/storage.ts`
+  - `electron/persistence.ts`
+- 책임:
+  - 워크플로우 정의/편집 UI
+  - workflow/workflow execution persisted shape
+  - 수동 실행, 예약 실행, 취소, step update 스트림
+  - workflow builder 관련 preload/renderer event wiring
+- 흔한 회귀:
+  - 실행 중인 workflow 중복 시작
+  - step output이 execution history에 누락됨
+  - workflow 삭제 후 stale execution 참조
 
 ## Settings, MCP, Skills
 

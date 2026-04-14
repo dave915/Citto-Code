@@ -50,6 +50,7 @@ export function ModelPicker({
   const label = current ? current.displayName : (model || translate(language, 'input.modelPicker.defaultModel'))
 
   const familyColor = (family: string) => {
+    if (family === 'gateway') return 'text-orange-300'
     if (family === 'opus') return 'text-violet-300'
     if (family === 'haiku') return 'text-emerald-300'
     if (family === 'sonnet') return 'text-sky-300'
@@ -119,6 +120,11 @@ export function ModelPicker({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <p className={`font-medium ${familyColor(entry.family)}`}>{entry.displayName}</p>
+                {entry.isGateway && (
+                  <span className="rounded-md border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-orange-300">
+                    GATEWAY
+                  </span>
+                )}
                 {entry.isLocal && (
                   <span className="rounded-full border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-300">
                     LOCAL
@@ -160,6 +166,11 @@ export function ModelPicker({
           <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
         </svg>
         <span>{label}</span>
+        {current?.isGateway && (
+          <span className="rounded-md border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-orange-300">
+            GATEWAY
+          </span>
+        )}
         {currentIsLocal && (
           <span className="rounded-full border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-300">
             LOCAL

@@ -1,3 +1,5 @@
+import { isAgentToolName } from '../../agent-tool-names'
+
 type ClaudeEventRecord = Record<string, unknown>
 
 type StreamState = {
@@ -13,14 +15,12 @@ type SubagentChunkPayload = {
   error?: string
 }
 
-const SUBAGENT_TOOL_NAMES = new Set(['task', 'agent', 'call_omo_agent'])
-
 export function isClaudeEventRecord(value: unknown): value is ClaudeEventRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isSubagentToolName(name: unknown): boolean {
-  return typeof name === 'string' && SUBAGENT_TOOL_NAMES.has(name.trim().toLowerCase())
+  return typeof name === 'string' && isAgentToolName(name)
 }
 
 function extractAssistantText(eventData: ClaudeEventRecord): string {

@@ -127,3 +127,97 @@ export type ScheduledTask = {
   updatedAt: number
   runHistory: ScheduledTaskRunRecord[]
 }
+
+export type WorkflowTriggerFrequency = 'hourly' | 'daily' | 'weekdays' | 'weekly'
+
+export type WorkflowTrigger =
+  | { type: 'manual' }
+  | {
+      type: 'schedule'
+      frequency: WorkflowTriggerFrequency
+      hour: number
+      minute: number
+      dayOfWeek: number
+    }
+
+export type WorkflowConditionOperator =
+  | 'contains'
+  | 'not_contains'
+  | 'equals'
+  | 'not_equals'
+  | 'always_true'
+
+export type WorkflowAgentStep = {
+  type: 'agent'
+  id: string
+  label: string
+  prompt: string
+  cwd: string
+  model: string | null
+  permissionMode: PermissionMode
+  systemPrompt: string
+}
+
+export type WorkflowConditionStep = {
+  type: 'condition'
+  id: string
+  label: string
+  operator: WorkflowConditionOperator
+  value: string
+  trueBranchStepId: string | null
+  falseBranchStepId: string | null
+}
+
+export type WorkflowLoopStep = {
+  type: 'loop'
+  id: string
+  label: string
+  maxIterations: number
+  bodyStepIds: string[]
+  breakCondition: {
+    operator: WorkflowConditionOperator
+    value: string
+  } | null
+}
+
+export type WorkflowStep = WorkflowAgentStep | WorkflowConditionStep | WorkflowLoopStep
+
+export type WorkflowNodePosition = {
+  x: number
+  y: number
+}
+
+export type Workflow = {
+  id: string
+  name: string
+  steps: WorkflowStep[]
+  trigger: WorkflowTrigger
+  active: boolean
+  nextRunAt: number | null
+  lastRunAt: number | null
+  createdAt: number
+  updatedAt: number
+  nodePositions?: Record<string, WorkflowNodePosition>
+}
+
+export type WorkflowExecutionTriggeredBy = 'manual' | 'schedule'
+export type WorkflowExecutionStatus = 'running' | 'done' | 'error' | 'cancelled'
+export type WorkflowStepExecutionStatus = 'running' | 'done' | 'error' | 'skipped'
+
+export type WorkflowExecutionStepResult = {
+  stepId: string
+  status: WorkflowStepExecutionStatus
+  output: string
+  error: string | null
+}
+
+export type WorkflowExecution = {
+  id: string
+  workflowId: string
+  workflowName: string
+  triggeredBy: WorkflowExecutionTriggeredBy
+  firedAt: number
+  finishedAt: number | null
+  status: WorkflowExecutionStatus
+  stepResults: WorkflowExecutionStepResult[]
+}

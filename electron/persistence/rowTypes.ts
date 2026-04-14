@@ -10,6 +10,8 @@ import type {
   ScheduledTaskRunSnapshotStatus,
   Session,
   ToolCallBlock,
+  Workflow,
+  WorkflowExecution,
 } from '../persistence-types'
 
 export type PersistedSessionRow = {
@@ -97,6 +99,32 @@ export type PersistedScheduledTaskRunRow = {
   summary: string | null
   changed_paths_json: string | null
   cost: number | null
+  sort_order: number
+}
+
+export type PersistedWorkflowRow = {
+  id: string
+  name: string
+  steps_json: string
+  trigger_json: string
+  active: number
+  next_run_at: number | null
+  last_run_at: number | null
+  node_positions_json: string | null
+  created_at: number
+  updated_at: number
+  sort_order: number
+}
+
+export type PersistedWorkflowExecutionRow = {
+  id: string
+  workflow_id: string
+  workflow_name: string
+  triggered_by: WorkflowExecution['triggeredBy']
+  fired_at: number
+  finished_at: number | null
+  status: WorkflowExecution['status']
+  step_results_json: string
   sort_order: number
 }
 

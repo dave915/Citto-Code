@@ -43,7 +43,9 @@ import {
 } from './services/shellEnvironmentService'
 import { createSettingsDataService } from './services/settingsDataService'
 import { createSubagentWatchService } from './services/subagentWatchService'
+import { createGatewayProxyService } from './services/gateway-proxy-service'
 import { createTrayImage, resolveAppIconPath } from './services/trayImageService'
+import { createWorkflowExecutor } from './workflow-executor'
 
 const IS_DEV = process.env.NODE_ENV === 'development'
 const DEFAULT_PROJECT_PATH = '~/Desktop'
@@ -64,7 +66,15 @@ const scheduledTaskScheduler = createScheduledTaskScheduler({
   sendWhenRendererReady: windowController.sendWhenRendererReady,
   getProjectNameFromPath,
 })
+const workflowExecutor = createWorkflowExecutor({
+  getMainWindow: windowController.getMainWindow,
+  showMainWindow: windowController.showMainWindow,
+  sendWhenRendererReady: windowController.sendWhenRendererReady,
+  getUserHomePath,
+  resolveTargetPath,
+})
 const gitHeadWatchService = createGitHeadWatchService()
+const gatewayProxyService = createGatewayProxyService()
 const subagentWatchService = createSubagentWatchService({
   getHomePath: () => getUserHomePath(),
 })
@@ -138,6 +148,7 @@ app.whenReady().then(async () => {
   scheduledTaskScheduler.setTasks(
     appPersistence.loadScheduledTasks().map(mapPersistedScheduledTaskToSyncItem),
   )
+  workflowExecutor.syncWorkflows(appPersistence.loadWorkflows())
 
   const appIconPath = resolveAppIconPath()
   if (process.platform === 'darwin' && appIconPath) {
@@ -148,14 +159,23 @@ app.whenReady().then(async () => {
   createTray()
   windowController.registerQuickPanelShortcut()
   windowController.showMainWindow()
+  try {
+    await gatewayProxyService.start()
+  } catch (error) {
+    console.error('[gateway] failed to start proxy', error)
+  }
   scheduledTaskScheduler.start()
+  workflowExecutor.start()
   void scheduledTaskScheduler.checkMissedRuns()
+  void workflowExecutor.checkDueWorkflows()
 
   powerMonitor.on('resume', () => {
     void scheduledTaskScheduler.checkMissedRuns()
+    void workflowExecutor.checkDueWorkflows()
   })
   powerMonitor.on('unlock-screen', () => {
     void scheduledTaskScheduler.checkMissedRuns()
+    void workflowExecutor.checkDueWorkflows()
   })
 
   registerFileIpcHandlers({
@@ -213,6 +233,7 @@ app.whenReady().then(async () => {
     appPersistence,
     userDataPath: app.getPath('userData'),
     scheduledTaskScheduler,
+    workflowExecutor,
     mapPersistedScheduledTaskToSyncItem,
   })
 
@@ -278,6 +299,10 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   scheduledTaskScheduler.stop()
+  workflowExecutor.stop()
+  void gatewayProxyService.stop().catch((error) => {
+    console.error('[gateway] failed to stop proxy', error)
+  })
   gitHeadWatchService.dispose()
   subagentWatchService.dispose()
   killAllClaudeProcesses()

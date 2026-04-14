@@ -13,6 +13,7 @@ import { buildQuickPanelProjects, normalizeSelectedFolder, sanitizeEnvVars } fro
 import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
 import { useScheduledTasksStore } from '../store/scheduledTasks'
+import { useWorkflowStore } from '../store/workflowStore'
 import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
 import { nanoid } from '../store/nanoid'
 import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode, type Session } from '../store/sessions'
@@ -130,6 +131,11 @@ export function useAppController() {
   const scheduledTasks = useScheduledTasksStore((state) => state.tasks)
   const applyScheduledTaskAdvance = useScheduledTasksStore((state) => state.applyAdvance)
   const updateScheduledTaskRunSnapshot = useScheduledTasksStore((state) => state.updateRunRecordSnapshot)
+  const workflows = useWorkflowStore((state) => state.workflows)
+  const recordWorkflowExecutionStart = useWorkflowStore((state) => state.recordExecutionStart)
+  const appendWorkflowStepTextChunk = useWorkflowStore((state) => state.appendStepTextChunk)
+  const applyWorkflowStepUpdate = useWorkflowStore((state) => state.applyStepUpdate)
+  const completeWorkflowExecution = useWorkflowStore((state) => state.completeExecution)
   const scheduledTasksSyncPayload = useMemo(
     () => scheduledTasks.map((task) => ({
       id: task.id,
@@ -149,6 +155,10 @@ export function useAppController() {
       nextRunAt: task.nextRunAt,
     })),
     [scheduledTasks],
+  )
+  const workflowSyncPayload = useMemo(
+    () => workflows.map((workflow) => ({ ...workflow })),
+    [workflows],
   )
   const activeSessionConflict = activeSessionId ? sessionFileLockState[activeSessionId] : null
   const activeSessionConflictDetails = activeSessionConflict?.hasConflict
@@ -391,6 +401,7 @@ export function useAppController() {
     quickPanelProjects,
     quickPanelProjectsSignature,
     scheduledTasksSyncPayload,
+    workflowSyncPayload,
     quickPanelEnabled,
     shortcutConfig,
     shortcutPlatform,
@@ -419,6 +430,10 @@ export function useAppController() {
     handleSendForSession: claudeStream.handleSendForSession,
     applyScheduledTaskAdvance,
     updateScheduledTaskRunSnapshot,
+    recordWorkflowExecutionStart,
+    appendWorkflowStepTextChunk,
+    applyWorkflowStepUpdate,
+    completeWorkflowExecution,
     scheduledTaskRunMetaBySessionRef: claudeStream.scheduledTaskRunMetaBySessionRef,
     scheduledTaskSessionByRunRef: claudeStream.scheduledTaskSessionByRunRef,
     closeOverlayPanels: panels.closeOverlayPanels,
@@ -434,6 +449,7 @@ export function useAppController() {
     closeSessionTeamPanel: panels.closeSessionTeamPanel,
     closeSettingsPanel: panels.closeSettingsPanel,
     closeTeamPanel: panels.closeTeamPanel,
+    closeWorkflowPanel: panels.closeWorkflowPanel,
     commandPaletteOpen: panels.commandPaletteOpen,
     defaultProjectPath,
     dismissInstallation: installation.dismissInstallation,
@@ -455,10 +471,12 @@ export function useAppController() {
     openSchedulePanel: panels.openSchedulePanel,
     openSessionTeamPanel,
     openSettingsPanel: panels.openSettingsPanel,
+    openWorkflowPanel: panels.openWorkflowPanel,
     refreshInstallationStatus: installation.refreshInstallationStatus,
     scheduleOpen: panels.scheduleOpen,
     settingsInitialTab: panels.settingsInitialTab,
     settingsOpen: panels.settingsOpen,
+    workflowOpen: panels.workflowOpen,
     sessionViewSession,
     sessionFileLockState,
     sessions,

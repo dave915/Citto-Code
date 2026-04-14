@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs'
 import type { WebContents } from 'electron'
+import { normalizeAgentToolName, sanitizeAgentToolInput } from '../../agent-tool-names'
 
 const streamedAssistantStateBySession = new Map<string, { sawTextDelta: boolean; sawThinkingDelta: boolean }>()
 
@@ -14,6 +15,16 @@ function getToolFileSnapshotBefore(toolName: string, toolInput: unknown): string
     return readFileSync(filePath, 'utf-8')
   } catch {
     return null
+  }
+}
+
+function normalizeToolPayload(toolName: string, toolInput: unknown) {
+  const normalizedToolName = normalizeAgentToolName(toolName)
+  return {
+    toolName: normalizedToolName,
+    toolInput: normalizedToolName === 'Agent'
+      ? sanitizeAgentToolInput(toolInput)
+      : toolInput,
   }
 }
 
@@ -168,12 +179,13 @@ export function handleClaudeEvent(
         textBlocks.push(text)
         sendClaudeEvent(sender, 'claude:text-chunk', { sessionId: sid, text }, requestId)
       } else if ((block.type as string) === 'tool_use') {
+        const normalized = normalizeToolPayload(block.name as string, block.input)
         sendClaudeEvent(sender, 'claude:tool-start', {
           sessionId: sid,
           toolUseId: block.id as string,
-          toolName: block.name as string,
-          toolInput: block.input,
-          fileSnapshotBefore: getToolFileSnapshotBefore(block.name as string, block.input),
+          toolName: normalized.toolName,
+          toolInput: normalized.toolInput,
+          fileSnapshotBefore: getToolFileSnapshotBefore(normalized.toolName, normalized.toolInput),
         }, requestId)
       }
     }

@@ -2,6 +2,7 @@ import type { SelectedFile } from '../../../electron/preload'
 import { ChatView } from '../ChatView'
 import { ScheduledTasksView } from '../ScheduledTasksView'
 import { SettingsPanel } from '../SettingsPanel'
+import { WorkflowsView } from '../WorkflowsView'
 import { EmptyMainState } from './EmptyMainState'
 import { TeamView } from '../team/TeamView'
 import { getShortcutLabel } from '../../lib/shortcuts'
@@ -41,6 +42,7 @@ type Props = {
   onCloseTeamPanel: () => void
   onCloseSessionTeamPanel: () => void
   onCloseSchedulePanel: () => void
+  onCloseWorkflowPanel: () => void
   onCloseSettingsPanel: () => void
   settingsInitialTab: SettingsTab
   onOpenSessionTeamPanel: () => void
@@ -77,6 +79,7 @@ export function AppMainContent({
   onCloseTeamPanel,
   onCloseSessionTeamPanel,
   onCloseSchedulePanel,
+  onCloseWorkflowPanel,
   onCloseSettingsPanel,
   settingsInitialTab,
   onOpenSessionTeamPanel,
@@ -133,6 +136,15 @@ export function AppMainContent({
         defaultProjectPath={activeCwd}
         onClose={onCloseSchedulePanel}
         onSelectSession={onSelectSession}
+      />
+    )
+  }
+
+  if (activePanel === 'workflow') {
+    return (
+      <WorkflowsView
+        defaultProjectPath={activeCwd}
+        onClose={onCloseWorkflowPanel}
       />
     )
   }

@@ -131,6 +131,7 @@ export function isLocalModelSelection(model: string | null | undefined): boolean
   if (!model) return false
   const normalized = model.trim().toLowerCase()
   if (!normalized) return false
+  if (normalized === 'gpt-54') return false
   if (/^claude-/i.test(normalized)) return false
   if (normalized === 'sonnet' || normalized === 'opus' || normalized === 'haiku') return false
   return true

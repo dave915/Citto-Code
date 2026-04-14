@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { SettingsTab } from '../components/settings/shared'
 
-export type AppOverlayPanel = 'none' | 'settings' | 'schedule' | 'team' | 'sessionTeam' | 'commandPalette'
+export type AppOverlayPanel = 'none' | 'settings' | 'schedule' | 'workflow' | 'team' | 'sessionTeam' | 'commandPalette'
 
 export function useAppPanels() {
   const [activePanel, setActivePanel] = useState<AppOverlayPanel>('none')
@@ -12,6 +12,7 @@ export function useAppPanels() {
     settingsInitialTab,
     settingsOpen: activePanel === 'settings',
     scheduleOpen: activePanel === 'schedule',
+    workflowOpen: activePanel === 'workflow',
     teamOpen: activePanel === 'team',
     sessionTeamOpen: activePanel === 'sessionTeam',
     commandPaletteOpen: activePanel === 'commandPalette',
@@ -23,6 +24,8 @@ export function useAppPanels() {
     closeSettingsPanel: () => setActivePanel((current) => (current === 'settings' ? 'none' : current)),
     openSchedulePanel: () => setActivePanel('schedule'),
     closeSchedulePanel: () => setActivePanel((current) => (current === 'schedule' ? 'none' : current)),
+    openWorkflowPanel: () => setActivePanel('workflow'),
+    closeWorkflowPanel: () => setActivePanel((current) => (current === 'workflow' ? 'none' : current)),
     openTeamPanel: () => setActivePanel('team'),
     closeTeamPanel: () => setActivePanel((current) => (current === 'team' ? 'none' : current)),
     openSessionTeamPanel: () => setActivePanel('sessionTeam'),

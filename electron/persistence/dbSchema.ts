@@ -1,5 +1,5 @@
 export const DB_FILE_NAME = 'app.sqlite'
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 export const SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -117,4 +117,37 @@ CREATE TABLE IF NOT EXISTS scheduled_task_runs (
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task_sort
   ON scheduled_task_runs(task_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS workflows (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  steps_json TEXT NOT NULL,
+  trigger_json TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 0,
+  next_run_at INTEGER,
+  last_run_at INTEGER,
+  node_positions_json TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  sort_order INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflows_sort_order
+  ON workflows(sort_order);
+
+CREATE TABLE IF NOT EXISTS workflow_executions (
+  id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL,
+  workflow_name TEXT NOT NULL,
+  triggered_by TEXT NOT NULL,
+  fired_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  status TEXT NOT NULL,
+  step_results_json TEXT NOT NULL,
+  sort_order INTEGER NOT NULL,
+  FOREIGN KEY(workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_sort_order
+  ON workflow_executions(sort_order);
 `

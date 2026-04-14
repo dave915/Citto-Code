@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../hooks/useI18n'
 import type { Session, SidebarMode } from '../store/sessions'
 import { useScheduledTasksStore } from '../store/scheduledTasks'
+import { useWorkflowStore } from '../store/workflowStore'
 import { SidebarContent } from './sidebar/SidebarContent'
 import { SidebarFooter } from './sidebar/SidebarFooter'
 import {
@@ -25,9 +26,11 @@ type Props = {
   onRemoveSession: (id: string) => void
   onSelectFolder: (sessionId: string) => void
   onOpenSchedule: () => void
+  onOpenWorkflow: () => void
   onOpenSettings: () => void
   onSidebarModeChange: (mode: SidebarMode) => void
   scheduleOpen: boolean
+  workflowOpen: boolean
   settingsOpen: boolean
 }
 
@@ -82,9 +85,11 @@ export function Sidebar({
   onRemoveSession,
   onSelectFolder: _onSelectFolder,
   onOpenSchedule,
+  onOpenWorkflow,
   onOpenSettings,
   onSidebarModeChange,
   scheduleOpen,
+  workflowOpen,
   settingsOpen,
 }: Props) {
   const { t } = useI18n()
@@ -99,6 +104,7 @@ export function Sidebar({
   const activeScheduledTaskCount = useScheduledTasksStore((state) => (
     state.tasks.filter((task) => task.enabled && task.frequency !== 'manual').length
   ))
+  const workflowCount = useWorkflowStore((state) => state.workflows.length)
 
   useEffect(() => {
     if (!editingSessionId) return
@@ -210,6 +216,20 @@ export function Sidebar({
             <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3" />
+            </svg>
+          )}
+        />
+        <SidebarActionButton
+          label={t('sidebar.workflows')}
+          active={workflowOpen}
+          badge={workflowCount}
+          onClick={onOpenWorkflow}
+          icon={(
+            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="4" y="5" width="6" height="6" rx="1" />
+              <rect x="14" y="5" width="6" height="6" rx="1" />
+              <rect x="9" y="13" width="6" height="6" rx="1" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 11v2m10-2v2m-5-2v2" />
             </svg>
           )}
         />

@@ -12,10 +12,23 @@ import type {
   ScheduledTaskRunSnapshotStatus,
   Session,
   ToolCallBlock,
+  Workflow,
+  WorkflowConditionOperator,
+  WorkflowExecution,
+  WorkflowExecutionStepResult,
+  WorkflowExecutionStatus,
+  WorkflowStep,
+  WorkflowStepExecutionStatus,
+  WorkflowTrigger,
+  WorkflowTriggerFrequency,
 } from '../persistence-types'
 
 function createId() {
   return randomUUID()
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function toFiniteNumber(value: unknown, fallback = 0): number {
@@ -87,6 +100,33 @@ export function parseRunStatus(value: unknown): ScheduledTaskRunSnapshotStatus |
     || value === 'failed'
     ? value
     : null
+}
+
+export function parseWorkflowTriggerFrequency(value: unknown): WorkflowTriggerFrequency {
+  return value === 'hourly'
+    || value === 'daily'
+    || value === 'weekdays'
+    || value === 'weekly'
+    ? value
+    : 'daily'
+}
+
+export function parseWorkflowConditionOperator(value: unknown): WorkflowConditionOperator {
+  return value === 'contains'
+    || value === 'not_contains'
+    || value === 'equals'
+    || value === 'not_equals'
+    || value === 'always_true'
+    ? value
+    : 'contains'
+}
+
+export function parseWorkflowExecutionStatus(value: unknown): WorkflowExecutionStatus {
+  return value === 'done' || value === 'error' || value === 'cancelled' ? value : 'running'
+}
+
+export function parseWorkflowStepExecutionStatus(value: unknown): WorkflowStepExecutionStatus {
+  return value === 'done' || value === 'error' || value === 'skipped' ? value : 'running'
 }
 
 export function parseJsonValue(value: string | null): unknown {
@@ -289,6 +329,155 @@ export function normalizeScheduledTasks(value: unknown): ScheduledTask[] {
     normalized.push(task)
   }
 
+  return normalized
+}
+
+function normalizeWorkflowTrigger(value: unknown): WorkflowTrigger {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  if (input.type !== 'schedule') {
+    return { type: 'manual' }
+  }
+
+  return {
+    type: 'schedule',
+    frequency: parseWorkflowTriggerFrequency(input.frequency),
+    hour: Math.max(0, Math.min(23, Math.floor(toFiniteNumber(input.hour, 9)))),
+    minute: Math.max(0, Math.min(59, Math.floor(toFiniteNumber(input.minute, 0)))),
+    dayOfWeek: Math.max(0, Math.min(6, Math.floor(toFiniteNumber(input.dayOfWeek, 1)))),
+  }
+}
+
+function normalizeWorkflowStep(value: unknown, index: number): WorkflowStep {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const id = toTrimmedString(input.id, `workflow-step-${index}-${createId()}`)
+  const label = toTrimmedString(input.label, `Step ${index + 1}`)
+
+  if (input.type === 'condition') {
+    return {
+      type: 'condition',
+      id,
+      label,
+      operator: parseWorkflowConditionOperator(input.operator),
+      value: toStringSafe(input.value),
+      trueBranchStepId: toNullableString(input.trueBranchStepId),
+      falseBranchStepId: toNullableString(input.falseBranchStepId),
+    }
+  }
+
+  if (input.type === 'loop') {
+    const breakConditionInput = isRecord(input.breakCondition) ? input.breakCondition : null
+    return {
+      type: 'loop',
+      id,
+      label,
+      maxIterations: Math.max(1, Math.min(20, Math.floor(toFiniteNumber(input.maxIterations, 2)))),
+      bodyStepIds: Array.isArray(input.bodyStepIds)
+        ? input.bodyStepIds.filter((stepId): stepId is string => typeof stepId === 'string' && stepId.trim().length > 0)
+        : [],
+      breakCondition: breakConditionInput
+        ? {
+            operator: parseWorkflowConditionOperator(breakConditionInput.operator),
+            value: toStringSafe(breakConditionInput.value),
+          }
+        : null,
+    }
+  }
+
+  return {
+    type: 'agent',
+    id,
+    label,
+    prompt: toStringSafe(input.prompt),
+    cwd: toTrimmedString(input.cwd, '~'),
+    model: toNullableString(input.model),
+    permissionMode: parsePermissionMode(input.permissionMode),
+    systemPrompt: toStringSafe(input.systemPrompt),
+  }
+}
+
+function normalizeWorkflow(value: unknown, index: number): Workflow {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const nodePositions = isRecord(input.nodePositions)
+    ? Object.fromEntries(
+        Object.entries(input.nodePositions)
+          .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+          .map(([stepId, position]) => [
+            stepId,
+            {
+              x: toFiniteNumber(position.x),
+              y: toFiniteNumber(position.y),
+            },
+          ]),
+      )
+    : undefined
+
+  return {
+    id: toTrimmedString(input.id, `workflow-${index}-${createId()}`),
+    name: toTrimmedString(input.name, `Workflow ${index + 1}`),
+    steps: Array.isArray(input.steps)
+      ? input.steps.map((step, stepIndex) => normalizeWorkflowStep(step, stepIndex))
+      : [],
+    trigger: normalizeWorkflowTrigger(input.trigger),
+    active: Boolean(input.active),
+    nextRunAt: toNullableNumber(input.nextRunAt),
+    lastRunAt: toNullableNumber(input.lastRunAt),
+    createdAt: toFiniteNumber(input.createdAt, Date.now()),
+    updatedAt: toFiniteNumber(input.updatedAt, Date.now()),
+    nodePositions,
+  }
+}
+
+export function normalizeWorkflows(value: unknown): Workflow[] {
+  if (!Array.isArray(value)) return []
+
+  const seen = new Set<string>()
+  const normalized: Workflow[] = []
+  for (const [index, entry] of value.entries()) {
+    const workflow = normalizeWorkflow(entry, index)
+    if (seen.has(workflow.id)) continue
+    seen.add(workflow.id)
+    normalized.push(workflow)
+  }
+  return normalized
+}
+
+function normalizeWorkflowExecutionStepResult(value: unknown, index: number): WorkflowExecutionStepResult {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return {
+    stepId: toTrimmedString(input.stepId, `workflow-step-result-${index}`),
+    status: parseWorkflowStepExecutionStatus(input.status),
+    output: toStringSafe(input.output),
+    error: toNullableString(input.error),
+  }
+}
+
+function normalizeWorkflowExecution(value: unknown, index: number): WorkflowExecution {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return {
+    id: toTrimmedString(input.id, `workflow-exec-${index}-${createId()}`),
+    workflowId: toTrimmedString(input.workflowId, ''),
+    workflowName: toTrimmedString(input.workflowName, `Workflow ${index + 1}`),
+    triggeredBy: input.triggeredBy === 'schedule' ? 'schedule' : 'manual',
+    firedAt: toFiniteNumber(input.firedAt, Date.now()),
+    finishedAt: toNullableNumber(input.finishedAt),
+    status: parseWorkflowExecutionStatus(input.status),
+    stepResults: Array.isArray(input.stepResults)
+      ? input.stepResults.map((stepResult, stepIndex) => normalizeWorkflowExecutionStepResult(stepResult, stepIndex))
+      : [],
+  }
+}
+
+export function normalizeWorkflowExecutions(value: unknown): WorkflowExecution[] {
+  if (!Array.isArray(value)) return []
+
+  const seen = new Set<string>()
+  const normalized: WorkflowExecution[] = []
+  for (const [index, entry] of value.entries()) {
+    const execution = normalizeWorkflowExecution(entry, index)
+    if (seen.has(execution.id)) continue
+    seen.add(execution.id)
+    normalized.push(execution)
+  }
   return normalized
 }
 

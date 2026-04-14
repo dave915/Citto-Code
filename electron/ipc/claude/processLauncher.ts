@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { isPowerShellScriptPath, resolveClaude } from '../../services/claude/installation'
+import { resolveCliModelName, resolveLaunchEnvForModel } from '../../services/claude-models'
 
 type LaunchClaudeProcessOptions = {
   sessionId: string | null
@@ -60,7 +61,8 @@ export function launchClaudeProcess({
   const claudeBin = expandedPath && existsSync(expandedPath)
     ? expandedPath
     : resolveClaude(getUserHomePath)
-  const args = buildClaudeArgs({ sessionId, bare, model, permissionMode, planMode })
+  const cliModel = resolveCliModelName(model)
+  const args = buildClaudeArgs({ sessionId, bare, model: cliModel, permissionMode, planMode })
 
   const { CLAUDECODE: _ignoredClaudeCode, ...cleanEnv } = process.env
   const homePath = getUserHomePath(cleanEnv)
@@ -72,7 +74,7 @@ export function launchClaudeProcess({
     USERPROFILE: cleanEnv.USERPROFILE ?? homePath,
   }
 
-  for (const [key, value] of Object.entries(envVars ?? {})) {
+  for (const [key, value] of Object.entries(resolveLaunchEnvForModel(model, envVars) ?? {})) {
     if (value === '') {
       delete procEnv[key]
       continue

@@ -1,4 +1,4 @@
-import type { Session, ScheduledTask } from '../persistence-types'
+import type { Session, ScheduledTask, Workflow, WorkflowExecution } from '../persistence-types'
 
 type ClaudeStreamEventMeta = {
   requestId?: string
@@ -67,8 +67,9 @@ export type ModelInfo = {
   id: string
   displayName: string
   family: string
-  provider: 'anthropic' | 'ollama' | 'custom'
+  provider: 'anthropic' | 'ollama' | 'custom' | 'gateway'
   isLocal: boolean
+  isGateway?: boolean
 }
 
 export type ClaudeInstallationStatus = {
@@ -246,6 +247,35 @@ export type GitHeadChangedEvent = {
   headPath: string
 }
 
+export type WorkflowFiredEvent = {
+  workflowId: string
+  workflowName: string
+  executionId: string
+  triggeredBy: 'manual' | 'schedule'
+  firedAt: number
+}
+
+export type WorkflowStepUpdateEvent = {
+  executionId: string
+  stepId: string
+  status: 'running' | 'done' | 'error' | 'skipped'
+  output?: string
+  error?: string
+}
+
+export type WorkflowStepTextChunkEvent = {
+  executionId: string
+  stepId: string
+  chunk: string
+}
+
+export type WorkflowExecutionDoneEvent = {
+  executionId: string
+  workflowId: string
+  status: 'done' | 'error' | 'cancelled'
+  durationMs: number
+}
+
 export type SubagentTextChunkEvent = {
   tabId: string
   toolUseId: string
@@ -286,6 +316,8 @@ export type QuickPanelAPI = {
 export type PersistenceSnapshot = {
   sessions: Session[]
   scheduledTasks: ScheduledTask[]
+  workflows: Workflow[]
+  workflowExecutions: WorkflowExecution[]
   migratedSessions: boolean
   migratedScheduledTasks: boolean
 }
@@ -297,6 +329,7 @@ export type ClaudeAPI = {
   }) => Promise<PersistenceSnapshot>
   saveSessionsSnapshot: (params: { sessions: Session[] }) => Promise<{ ok: boolean; error?: string }>
   saveScheduledTasksSnapshot: (params: { tasks: ScheduledTask[] }) => Promise<{ ok: boolean; error?: string }>
+  saveWorkflowsSnapshot: (params: { workflows: Workflow[]; executions: WorkflowExecution[] }) => Promise<{ ok: boolean; error?: string }>
   sendMessage: (params: {
     sessionId: string | null
     tabId?: string
@@ -368,6 +401,9 @@ export type ClaudeAPI = {
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
   syncScheduledTasks: (tasks: ScheduledTaskSyncItem[]) => Promise<{ ok: boolean; error?: string }>
   runScheduledTaskNow: (params: { taskId: string }) => Promise<{ ok: boolean; error?: string }>
+  syncWorkflows: (workflows: Workflow[]) => Promise<{ ok: boolean; error?: string }>
+  runWorkflowNow: (params: { workflowId: string }) => Promise<{ ok: boolean; error?: string }>
+  cancelWorkflow: (params: { workflowId: string }) => Promise<{ ok: boolean; error?: string }>
   getPathForFile: (file: File) => string
   checkInstallation: (claudePath?: string) => Promise<ClaudeInstallationStatus>
   notify: (params: { title: string; body: string }) => Promise<void>
@@ -396,6 +432,10 @@ export type ClaudeAPI = {
   onTrayNewSession: (handler: () => void) => () => void
   onScheduledTaskFired: (handler: (event: ScheduledTaskFiredEvent) => void) => () => void
   onScheduledTaskAdvance: (handler: (event: ScheduledTaskAdvanceEvent) => void) => () => void
+  onWorkflowFired: (handler: (event: WorkflowFiredEvent) => void) => () => void
+  onWorkflowStepUpdate: (handler: (event: WorkflowStepUpdateEvent) => void) => () => void
+  onWorkflowStepTextChunk: (handler: (event: WorkflowStepTextChunkEvent) => void) => () => void
+  onWorkflowExecutionDone: (handler: (event: WorkflowExecutionDoneEvent) => void) => () => void
   onGitHeadChanged: (handler: (event: GitHeadChangedEvent) => void) => () => void
   onSubagentTextChunk: (handler: (event: SubagentTextChunkEvent) => void) => () => void
 }

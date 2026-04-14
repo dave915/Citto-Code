@@ -4,6 +4,7 @@ import App from './App'
 import './styles.css'
 import { useSessionsStore, type Session } from './store/sessions'
 import { useScheduledTasksStore, type ScheduledTask } from './store/scheduledTasks'
+import { useWorkflowStore, type Workflow, type WorkflowExecution } from './store/workflowStore'
 
 type PersistEnvelope = {
   state?: {
@@ -55,11 +56,19 @@ function applyLoadedScheduledTasks(tasks: ScheduledTask[]) {
   useScheduledTasksStore.getState().recomputeAll()
 }
 
+function applyLoadedWorkflows(workflows: Workflow[], executions: WorkflowExecution[]) {
+  useWorkflowStore.getState().replaceAll(workflows, executions)
+  useWorkflowStore.getState().recomputeAll()
+}
+
 function installPersistenceSync() {
   let pendingSessions = useSessionsStore.getState().sessions
   let pendingScheduledTasks = useScheduledTasksStore.getState().tasks
+  let pendingWorkflows = useWorkflowStore.getState().workflows
+  let pendingWorkflowExecutions = useWorkflowStore.getState().executions
   let sessionsTimer: number | null = null
   let scheduledTasksTimer: number | null = null
+  let workflowsTimer: number | null = null
 
   const flushSessions = () => {
     sessionsTimer = null
@@ -69,6 +78,14 @@ function installPersistenceSync() {
   const flushScheduledTasks = () => {
     scheduledTasksTimer = null
     void window.claude.saveScheduledTasksSnapshot({ tasks: pendingScheduledTasks }).catch(() => undefined)
+  }
+
+  const flushWorkflows = () => {
+    workflowsTimer = null
+    void window.claude.saveWorkflowsSnapshot({
+      workflows: pendingWorkflows,
+      executions: pendingWorkflowExecutions,
+    }).catch(() => undefined)
   }
 
   const scheduleSessionsFlush = (sessions: Session[]) => {
@@ -87,6 +104,15 @@ function installPersistenceSync() {
     scheduledTasksTimer = window.setTimeout(flushScheduledTasks, PERSISTENCE_DEBOUNCE_MS)
   }
 
+  const scheduleWorkflowsFlush = (workflows: Workflow[], executions: WorkflowExecution[]) => {
+    pendingWorkflows = workflows
+    pendingWorkflowExecutions = executions
+    if (workflowsTimer !== null) {
+      window.clearTimeout(workflowsTimer)
+    }
+    workflowsTimer = window.setTimeout(flushWorkflows, PERSISTENCE_DEBOUNCE_MS)
+  }
+
   useSessionsStore.subscribe((state, previousState) => {
     if (state.sessions !== previousState.sessions) {
       scheduleSessionsFlush(state.sessions)
@@ -99,8 +125,15 @@ function installPersistenceSync() {
     }
   })
 
+  useWorkflowStore.subscribe((state, previousState) => {
+    if (state.workflows !== previousState.workflows || state.executions !== previousState.executions) {
+      scheduleWorkflowsFlush(state.workflows, state.executions)
+    }
+  })
+
   scheduleSessionsFlush(pendingSessions)
   scheduleScheduledTasksFlush(pendingScheduledTasks)
+  scheduleWorkflowsFlush(pendingWorkflows, pendingWorkflowExecutions)
 
   window.addEventListener('beforeunload', () => {
     if (sessionsTimer !== null) {
@@ -110,6 +143,10 @@ function installPersistenceSync() {
     if (scheduledTasksTimer !== null) {
       window.clearTimeout(scheduledTasksTimer)
       flushScheduledTasks()
+    }
+    if (workflowsTimer !== null) {
+      window.clearTimeout(workflowsTimer)
+      flushWorkflows()
     }
   })
 }
@@ -128,6 +165,7 @@ async function bootstrap() {
 
     applyLoadedSessions(snapshot.sessions)
     applyLoadedScheduledTasks(snapshot.scheduledTasks)
+    applyLoadedWorkflows(snapshot.workflows, snapshot.workflowExecutions)
   } catch (error) {
     console.error('[storage] failed to initialize sqlite persistence', error)
   }

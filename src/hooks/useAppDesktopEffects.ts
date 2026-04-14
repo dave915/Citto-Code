@@ -6,6 +6,12 @@ import { applyTheme, type ThemeId } from '../lib/theme'
 import type { HandleSendForSession, ScheduledTaskRunMeta } from './claudeStream/types'
 import { getProjectNameFromPath, type PermissionMode, type Session, type ShortcutConfig, type ShortcutPlatform } from '../store/sessions'
 import type { ScheduledTaskAdvancePayload, ScheduledTaskRunSnapshotStatus } from '../store/scheduledTasks'
+import type {
+  Workflow,
+  WorkflowExecutionDonePayload,
+  WorkflowFiredPayload,
+  WorkflowStepUpdatePayload,
+} from '../store/workflowTypes'
 import { cycleClaudeCodeMode } from '../components/input/inputUtils'
 import { useI18n } from './useI18n'
 
@@ -17,6 +23,7 @@ type Params = {
   quickPanelProjects: RecentProject[]
   quickPanelProjectsSignature: string
   scheduledTasksSyncPayload: ScheduledTaskSyncItem[]
+  workflowSyncPayload: Workflow[]
   quickPanelEnabled: boolean
   shortcutConfig: ShortcutConfig
   shortcutPlatform: ShortcutPlatform
@@ -47,6 +54,10 @@ type Params = {
       cost: number | null
     },
   ) => void
+  recordWorkflowExecutionStart: (payload: WorkflowFiredPayload) => void
+  appendWorkflowStepTextChunk: (executionId: string, stepId: string, chunk: string) => void
+  applyWorkflowStepUpdate: (payload: WorkflowStepUpdatePayload) => void
+  completeWorkflowExecution: (payload: WorkflowExecutionDonePayload) => void
   scheduledTaskRunMetaBySessionRef: MutableRefObject<Map<string, ScheduledTaskRunMeta>>
   scheduledTaskSessionByRunRef: MutableRefObject<Map<string, string>>
   closeOverlayPanels: () => void
@@ -60,6 +71,7 @@ export function useAppDesktopEffects({
   quickPanelProjects,
   quickPanelProjectsSignature,
   scheduledTasksSyncPayload,
+  workflowSyncPayload,
   quickPanelEnabled,
   shortcutConfig,
   shortcutPlatform,
@@ -78,6 +90,10 @@ export function useAppDesktopEffects({
   handleSendForSession,
   applyScheduledTaskAdvance,
   updateScheduledTaskRunSnapshot,
+  recordWorkflowExecutionStart,
+  appendWorkflowStepTextChunk,
+  applyWorkflowStepUpdate,
+  completeWorkflowExecution,
   scheduledTaskRunMetaBySessionRef,
   scheduledTaskSessionByRunRef,
   closeOverlayPanels,
@@ -114,6 +130,10 @@ export function useAppDesktopEffects({
   useEffect(() => {
     void window.claude.syncScheduledTasks(scheduledTasksSyncPayload).catch(() => undefined)
   }, [scheduledTasksSyncPayload])
+
+  useEffect(() => {
+    void window.claude.syncWorkflows(workflowSyncPayload).catch(() => undefined)
+  }, [workflowSyncPayload])
 
   useEffect(() => {
     void window.claude.updateQuickPanelShortcut({
@@ -155,6 +175,34 @@ export function useAppDesktopEffects({
 
     return cleanup
   }, [applyScheduledTaskAdvance, scheduledTaskSessionByRunRef])
+
+  useEffect(() => {
+    const cleanup = window.claude.onWorkflowFired((payload) => {
+      recordWorkflowExecutionStart(payload)
+    })
+    return cleanup
+  }, [recordWorkflowExecutionStart])
+
+  useEffect(() => {
+    const cleanup = window.claude.onWorkflowStepTextChunk((payload) => {
+      appendWorkflowStepTextChunk(payload.executionId, payload.stepId, payload.chunk)
+    })
+    return cleanup
+  }, [appendWorkflowStepTextChunk])
+
+  useEffect(() => {
+    const cleanup = window.claude.onWorkflowStepUpdate((payload) => {
+      applyWorkflowStepUpdate(payload)
+    })
+    return cleanup
+  }, [applyWorkflowStepUpdate])
+
+  useEffect(() => {
+    const cleanup = window.claude.onWorkflowExecutionDone((payload) => {
+      completeWorkflowExecution(payload)
+    })
+    return cleanup
+  }, [completeWorkflowExecution])
 
   useEffect(() => {
     for (const [sessionId, meta] of scheduledTaskRunMetaBySessionRef.current) {

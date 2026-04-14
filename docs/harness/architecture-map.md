@@ -9,7 +9,9 @@
 - `electron/main.ts`
 - `electron/main/windowController.ts`
 - `electron/main/devLogger.ts`
-- 역할: 윈도우 생성, 트레이/단축키 등록, IPC 핸들러 연결, 스케줄러/감시 서비스 수명주기 관리
+- `electron/services/gateway-proxy-service.ts`
+- `electron/workflow-executor.ts`
+- 역할: 윈도우 생성, 트레이/단축키 등록, IPC 핸들러 연결, 스케줄러/프록시/실행 엔진 수명주기 관리
 
 ### Preload
 
@@ -37,8 +39,9 @@
 2. `src/App.tsx`가 `useClaudeStream`의 핸들러를 호출한다.
 3. `src/hooks/useClaudeStream.ts`와 `src/hooks/claudeStream/*`가 세션 상태, 스트림 이벤트, 권한 요청, tool call 반영을 담당한다.
 4. `electron/ipc/claude.ts`가 Claude IPC 채널을 연결하고, `electron/ipc/claude/*` helper가 모델 캐시, 프로세스 실행, 첨부 직렬화, 서브에이전트 라우팅을 나눠 담당한다.
-5. 렌더러 스토어가 갱신되고 `ChatView`가 새 메시지, tool call, 서브에이전트 상태를 렌더링한다.
-6. 체크포인트 복원은 화면 히스토리를 되돌리되 Claude 세션은 새로 시작하며, 저장된 체크포인트 요약이 있으면 다음 요청 직전에 숨은 컨텍스트로만 재주입한다.
+5. Gateway 모델을 선택한 경우 `electron/services/claude-models.ts`가 CLI 모델명과 env를 변환하고, `electron/services/gateway-proxy-service.ts`가 Anthropic Messages API 요청을 Gateway Chat Completions 요청으로 변환한다.
+6. 렌더러 스토어가 갱신되고 `ChatView`가 새 메시지, tool call, 서브에이전트 상태를 렌더링한다.
+7. 체크포인트 복원은 화면 히스토리를 되돌리되 Claude 세션은 새로 시작하며, 저장된 체크포인트 요약이 있으면 다음 요청 직전에 숨은 컨텍스트로만 재주입한다.
 
 ### Git Integration
 
@@ -54,6 +57,14 @@
 3. `electron/services/scheduledTaskScheduler.ts`가 다음 실행 시각, catch-up, 중복 실행 방지를 관리한다.
 4. 실행 시 렌더러는 새 세션을 열고 예약 작업 런에 한해 `--bare`로 Claude 흐름에 합류한다.
 
+### Workflow Builder
+
+1. `src/store/workflowStore.ts`와 `src/components/workflow/*`가 워크플로우 정의, 실행 기록, 편집 UI를 관리한다.
+2. `src/main.tsx`가 persisted workflow/workflow execution snapshot을 hydrate하고 debounce flush를 관리한다.
+3. `electron/ipc/storage.ts`와 persistence 계층이 workflow/workflow execution CRUD를 유지한다.
+4. `electron/workflow-executor.ts`가 수동 실행, 예약 실행, 취소, step update 스트림을 담당한다.
+5. Agent step은 `electron/services/claude-spawn.ts`를 통해 `--bare` Claude CLI를 실행하고, renderer는 `workflow:*` 이벤트를 받아 실행 기록을 갱신한다.
+
 ### Settings And Claude Files
 
 1. 설정 UI는 `src/components/settings/*`에 있다.
@@ -65,15 +76,19 @@
 
 - `electron/ipc/claude.ts` / `electron/ipc/claude/*` <-> `electron/preload/claudeApi.ts` <-> `src/hooks/useClaudeStream.ts`
 - `src/main.tsx` persistence bootstrap <-> `src/store/sessions.ts` / `src/store/scheduledTasks.ts`
+- `src/main.tsx` persistence bootstrap <-> `src/store/workflowStore.ts` <-> `electron/workflow-executor.ts`
 - `electron/services/scheduledTaskScheduler.ts` <-> renderer scheduled task advance handling
+- `electron/services/gateway-proxy-service.ts` <-> `electron/services/claude-models.ts` <-> `electron/ipc/claude/processLauncher.ts`
 - `electron/services/gitHeadWatchService.ts` <-> Git panel refresh hooks
 
 ## Fast File Map By Intent
 
 - 채팅 레이아웃/패널: `src/components/ChatView.tsx`, `src/components/chat/ChatViewMainContent.tsx`, `src/components/app/AppMainContent.tsx`, `src/hooks/useChatViewController.ts`, `src/hooks/useChatViewLayout.ts`, `src/hooks/useChatViewJumpState.ts`, `src/hooks/useAppPanels.ts`, `src/components/chat/*`, `src/components/message/*`, `src/components/toolcalls/HtmlPreview.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `src/components/toolcalls/htmlPreviewDocument.ts`
 - 앱 루트 오케스트레이션: `src/App.tsx`, `src/hooks/useAppController.ts`, `src/hooks/useAppPanels.ts`, `src/components/app/*`
+- 워크플로우 빌더: `src/components/WorkflowsView.tsx`, `src/components/workflow/*`, `src/store/workflowStore.ts`, `src/store/workflowTypes.ts`, `electron/workflow-executor.ts`, `electron/services/claude-spawn.ts`
 - 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/components/input/useInputAreaController.ts`, `src/hooks/useInput*`
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamSelectedAgentMessageCard.tsx`, `src/components/team/TeamSelectedAgentMessagePopup.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/teamSelectedAgentShared.tsx`, `src/components/team/teamOverlayShared.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`
 - 메인 프로세스 부트스트랩/윈도우: `electron/main.ts`, `electron/main/windowController.ts`, `electron/main/devLogger.ts`, `electron/services/trayImageService.ts`
+- Gateway/모델 변환: `electron/gateway-constants.ts`, `electron/services/gateway-proxy-service.ts`, `electron/services/claude-models.ts`, `electron/agent-tool-names.ts`
