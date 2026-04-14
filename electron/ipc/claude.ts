@@ -20,9 +20,8 @@ type ModelInfo = {
   id: string
   displayName: string
   family: string
-  provider: 'anthropic' | 'ollama' | 'custom' | 'gateway'
+  provider: 'anthropic' | 'ollama' | 'custom'
   isLocal: boolean
-  isGateway?: boolean
 }
 
 type RegisterClaudeIpcHandlersOptions = {

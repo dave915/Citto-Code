@@ -1,17 +1,11 @@
 import { ipcMain } from 'electron'
 import type { AppPersistence } from '../persistence'
 import type {
+  LegacyScheduledTask,
   Session as PersistedSession,
-  ScheduledTask as PersistedScheduledTask,
   Workflow as PersistedWorkflow,
   WorkflowExecution as PersistedWorkflowExecution,
 } from '../persistence-types'
-import type { ScheduledTaskSyncItem } from '../services/scheduledTaskScheduler'
-
-type ScheduledTaskSchedulerLike = {
-  syncTasks: (tasks: ScheduledTaskSyncItem[]) => void
-  runNow: (taskId: string) => { ok: boolean; error?: string }
-}
 
 type WorkflowExecutorLike = {
   syncWorkflows: (workflows: PersistedWorkflow[]) => void
@@ -22,17 +16,13 @@ type WorkflowExecutorLike = {
 type RegisterStorageIpcHandlersOptions = {
   appPersistence: AppPersistence
   userDataPath: string
-  scheduledTaskScheduler: ScheduledTaskSchedulerLike
   workflowExecutor: WorkflowExecutorLike
-  mapPersistedScheduledTaskToSyncItem: (task: PersistedScheduledTask) => ScheduledTaskSyncItem
 }
 
 export function registerStorageIpcHandlers({
   appPersistence,
   userDataPath,
-  scheduledTaskScheduler,
   workflowExecutor,
-  mapPersistedScheduledTaskToSyncItem,
 }: RegisterStorageIpcHandlersOptions) {
   ipcMain.handle(
     'app-storage:init',
@@ -43,7 +33,7 @@ export function registerStorageIpcHandlers({
         legacyScheduledTasks,
       }: {
         legacySessions?: PersistedSession[]
-        legacyScheduledTasks?: PersistedScheduledTask[]
+        legacyScheduledTasks?: LegacyScheduledTask[]
       } = {},
     ) => {
       const snapshot = await appPersistence.initializeAndLoad(userDataPath, {
@@ -51,9 +41,6 @@ export function registerStorageIpcHandlers({
         legacyScheduledTasks,
       })
 
-      scheduledTaskScheduler.syncTasks(
-        snapshot.scheduledTasks.map(mapPersistedScheduledTaskToSyncItem),
-      )
       workflowExecutor.syncWorkflows(snapshot.workflows)
 
       return snapshot
@@ -68,21 +55,6 @@ export function registerStorageIpcHandlers({
     ) => {
       try {
         appPersistence.saveSessions(Array.isArray(sessions) ? sessions : [])
-        return { ok: true }
-      } catch (error) {
-        return { ok: false, error: String(error) }
-      }
-    },
-  )
-
-  ipcMain.handle(
-    'app-storage:save-scheduled-tasks',
-    async (
-      _event,
-      { tasks }: { tasks: PersistedScheduledTask[] },
-    ) => {
-      try {
-        appPersistence.saveScheduledTasks(Array.isArray(tasks) ? tasks : [])
         return { ok: true }
       } catch (error) {
         return { ok: false, error: String(error) }
@@ -112,18 +84,18 @@ export function registerStorageIpcHandlers({
     },
   )
 
-  ipcMain.handle('scheduled-tasks:sync', (_event, { tasks }: { tasks: ScheduledTaskSyncItem[] }) => {
-    scheduledTaskScheduler.syncTasks(Array.isArray(tasks) ? tasks : [])
-    return { ok: true }
-  })
-
-  ipcMain.handle('scheduled-tasks:run-now', (_event, { taskId }: { taskId: string }) => {
-    return scheduledTaskScheduler.runNow(taskId)
-  })
-
   ipcMain.handle('app:sync-workflows', (_event, { workflows }: { workflows: PersistedWorkflow[] }) => {
     workflowExecutor.syncWorkflows(Array.isArray(workflows) ? workflows : [])
     return { ok: true }
+  })
+
+  ipcMain.handle('app:mark-scheduled-tasks-migrated', (_event, { ids }: { ids: string[] }) => {
+    try {
+      appPersistence.markScheduledTasksMigrated(Array.isArray(ids) ? ids : [])
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: String(error) }
+    }
   })
 
   ipcMain.handle('workflow:run-now', async (_event, { workflowId }: { workflowId: string }) => {

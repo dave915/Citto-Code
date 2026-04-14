@@ -177,6 +177,7 @@ export function WorkflowDetails({
                     {step.type === 'agent' ? (
                       <div className="mt-3 space-y-2 text-sm text-claude-muted">
                         <p><span className="text-claude-text">{t('workflow.form.cwd')}:</span> {step.cwd}</p>
+                        <p><span className="text-claude-text">{t('workflow.form.nextNode')}:</span> {step.nextStepId === null ? t('workflow.form.disconnectNext') : step.nextStepId ? stepLabelById.get(step.nextStepId) ?? step.nextStepId : t('workflow.form.sequentialFallback')}</p>
                         <p><span className="text-claude-text">{t('workflow.form.model')}:</span> {step.model ?? t('workflow.details.defaultModel')}</p>
                         <p><span className="text-claude-text">{t('workflow.form.permissionMode')}:</span> {translatePermission(step.permissionMode, t)}</p>
                         {step.systemPrompt.trim() ? (
@@ -190,14 +191,16 @@ export function WorkflowDetails({
                       <div className="mt-3 space-y-2 text-sm text-claude-muted">
                         <p><span className="text-claude-text">{t('workflow.form.operator')}:</span> {getConditionOperatorLabel(step.operator, language)}</p>
                         <p><span className="text-claude-text">{t('workflow.form.conditionValue')}:</span> {step.value || '-'}</p>
-                        <p><span className="text-claude-text">{t('workflow.form.trueBranch')}:</span> {step.trueBranchStepId ? stepLabelById.get(step.trueBranchStepId) ?? step.trueBranchStepId : t('workflow.form.sequentialFallback')}</p>
-                        <p><span className="text-claude-text">{t('workflow.form.falseBranch')}:</span> {step.falseBranchStepId ? stepLabelById.get(step.falseBranchStepId) ?? step.falseBranchStepId : t('workflow.form.sequentialFallback')}</p>
+                        <p><span className="text-claude-text">{t('workflow.form.nextNodeFallback')}:</span> {step.nextStepId === null ? t('workflow.form.disconnectNext') : step.nextStepId ? stepLabelById.get(step.nextStepId) ?? step.nextStepId : t('workflow.form.sequentialFallback')}</p>
+                        <p><span className="text-claude-text">{t('workflow.form.trueBranch')}:</span> {step.trueBranchStepId ? stepLabelById.get(step.trueBranchStepId) ?? step.trueBranchStepId : t('workflow.form.followDefaultNext')}</p>
+                        <p><span className="text-claude-text">{t('workflow.form.falseBranch')}:</span> {step.falseBranchStepId ? stepLabelById.get(step.falseBranchStepId) ?? step.falseBranchStepId : t('workflow.form.followDefaultNext')}</p>
                       </div>
                     ) : null}
 
                     {step.type === 'loop' ? (
                       <div className="mt-3 space-y-2 text-sm text-claude-muted">
                         <p><span className="text-claude-text">{t('workflow.form.maxIterations')}:</span> {step.maxIterations}</p>
+                        <p><span className="text-claude-text">{t('workflow.form.nextNode')}:</span> {step.nextStepId === null ? t('workflow.form.disconnectNext') : step.nextStepId ? stepLabelById.get(step.nextStepId) ?? step.nextStepId : t('workflow.form.sequentialFallback')}</p>
                         <p>
                           <span className="text-claude-text">{t('workflow.form.bodySteps')}:</span>{' '}
                           {step.bodyStepIds.length > 0

@@ -2,10 +2,9 @@ import { ipcRenderer, webUtils } from 'electron'
 import type {
   ClaudeAPI,
   ClaudeStreamEvent,
-  ScheduledTaskAdvanceEvent,
-  ScheduledTaskFiredEvent,
   WorkflowExecutionDoneEvent,
   WorkflowFiredEvent,
+  WorkflowNotifyEvent,
   WorkflowStepTextChunkEvent,
   WorkflowStepUpdateEvent,
 } from './types'
@@ -26,8 +25,8 @@ const claudeStreamChannels = [
 export const claudeAPI: ClaudeAPI = {
   initPersistence: (params) => ipcRenderer.invoke('app-storage:init', params),
   saveSessionsSnapshot: (params) => ipcRenderer.invoke('app-storage:save-sessions', params),
-  saveScheduledTasksSnapshot: (params) => ipcRenderer.invoke('app-storage:save-scheduled-tasks', params),
   saveWorkflowsSnapshot: (params) => ipcRenderer.invoke('app-storage:save-workflows', params),
+  markScheduledTasksMigrated: (params) => ipcRenderer.invoke('app:mark-scheduled-tasks-migrated', params),
   sendMessage: (params) => ipcRenderer.invoke('claude:send-message', params),
   abort: (params) => ipcRenderer.invoke('claude:abort', params),
   hasActiveProcess: (params) => ipcRenderer.invoke('claude:has-active-process', params),
@@ -81,8 +80,6 @@ export const claudeAPI: ClaudeAPI = {
   writeFileAbs: (params) => ipcRenderer.invoke('claude:write-file-abs', params),
   saveTextFile: (params) => ipcRenderer.invoke('claude:save-text-file', params),
   deletePath: (params) => ipcRenderer.invoke('claude:delete-path', params),
-  syncScheduledTasks: (tasks) => ipcRenderer.invoke('scheduled-tasks:sync', { tasks }),
-  runScheduledTaskNow: (params) => ipcRenderer.invoke('scheduled-tasks:run-now', params),
   syncWorkflows: (workflows) => ipcRenderer.invoke('app:sync-workflows', { workflows }),
   runWorkflowNow: (params) => ipcRenderer.invoke('workflow:run-now', params),
   cancelWorkflow: (params) => ipcRenderer.invoke('workflow:cancel', params),
@@ -131,16 +128,6 @@ export const claudeAPI: ClaudeAPI = {
     ipcRenderer.on('tray:new-session', listener)
     return () => ipcRenderer.removeListener('tray:new-session', listener)
   },
-  onScheduledTaskFired: (handler) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: ScheduledTaskFiredEvent) => handler(payload)
-    ipcRenderer.on('scheduled-tasks:fired', listener)
-    return () => ipcRenderer.removeListener('scheduled-tasks:fired', listener)
-  },
-  onScheduledTaskAdvance: (handler) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: ScheduledTaskAdvanceEvent) => handler(payload)
-    ipcRenderer.on('scheduled-tasks:advance', listener)
-    return () => ipcRenderer.removeListener('scheduled-tasks:advance', listener)
-  },
   onWorkflowFired: (handler) => {
     const listener = (_: Electron.IpcRendererEvent, payload: WorkflowFiredEvent) => handler(payload)
     ipcRenderer.on('workflow:fired', listener)
@@ -160,6 +147,11 @@ export const claudeAPI: ClaudeAPI = {
     const listener = (_: Electron.IpcRendererEvent, payload: WorkflowExecutionDoneEvent) => handler(payload)
     ipcRenderer.on('workflow:execution-done', listener)
     return () => ipcRenderer.removeListener('workflow:execution-done', listener)
+  },
+  onWorkflowNotify: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: WorkflowNotifyEvent) => handler(payload)
+    ipcRenderer.on('workflow:notify', listener)
+    return () => ipcRenderer.removeListener('workflow:notify', listener)
   },
   onGitHeadChanged: (handler) => {
     const listener = (_: Electron.IpcRendererEvent, payload: { cwd: string; headPath: string }) => handler(payload)

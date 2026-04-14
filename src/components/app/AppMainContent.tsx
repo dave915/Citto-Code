@@ -1,6 +1,5 @@
 import type { SelectedFile } from '../../../electron/preload'
 import { ChatView } from '../ChatView'
-import { ScheduledTasksView } from '../ScheduledTasksView'
 import { SettingsPanel } from '../SettingsPanel'
 import { WorkflowsView } from '../WorkflowsView'
 import { EmptyMainState } from './EmptyMainState'
@@ -41,14 +40,12 @@ type Props = {
   onToggleSidebar: () => void
   onCloseTeamPanel: () => void
   onCloseSessionTeamPanel: () => void
-  onCloseSchedulePanel: () => void
   onCloseWorkflowPanel: () => void
   onCloseSettingsPanel: () => void
   settingsInitialTab: SettingsTab
   onOpenSessionTeamPanel: () => void
   onInjectTeamSummary: (summary: string) => void
   onLinkActiveSessionTeam: (teamId: string) => void
-  onSelectSession: (sessionId: string) => void
   onNewSession: () => void
   onSend: (text: string, files: SelectedFile[]) => void
   onSendBtw: (text: string, files: SelectedFile[]) => void
@@ -78,14 +75,12 @@ export function AppMainContent({
   onToggleSidebar,
   onCloseTeamPanel,
   onCloseSessionTeamPanel,
-  onCloseSchedulePanel,
   onCloseWorkflowPanel,
   onCloseSettingsPanel,
   settingsInitialTab,
   onOpenSessionTeamPanel,
   onInjectTeamSummary,
   onLinkActiveSessionTeam,
-  onSelectSession,
   onNewSession,
   onSend,
   onSendBtw,
@@ -126,16 +121,6 @@ export function AppMainContent({
         onClose={onCloseSessionTeamPanel}
         onInjectSummary={onInjectTeamSummary}
         onTeamLinked={onLinkActiveSessionTeam}
-      />
-    )
-  }
-
-  if (activePanel === 'schedule') {
-    return (
-      <ScheduledTasksView
-        defaultProjectPath={activeCwd}
-        onClose={onCloseSchedulePanel}
-        onSelectSession={onSelectSession}
       />
     )
   }

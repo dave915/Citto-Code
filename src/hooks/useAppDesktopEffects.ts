@@ -1,11 +1,9 @@
-import { useEffect, useRef, type MutableRefObject } from 'react'
-import type { RecentProject, ScheduledTaskSyncItem } from '../../electron/preload'
-import { getScheduledTaskChangedPaths, getScheduledTaskSnapshotStatus, getScheduledTaskSnapshotSummary } from '../lib/scheduledTaskSnapshots'
+import { useEffect, useRef } from 'react'
+import type { RecentProject } from '../../electron/preload'
 import { matchShortcut } from '../lib/shortcuts'
 import { applyTheme, type ThemeId } from '../lib/theme'
-import type { HandleSendForSession, ScheduledTaskRunMeta } from './claudeStream/types'
-import { getProjectNameFromPath, type PermissionMode, type Session, type ShortcutConfig, type ShortcutPlatform } from '../store/sessions'
-import type { ScheduledTaskAdvancePayload, ScheduledTaskRunSnapshotStatus } from '../store/scheduledTasks'
+import type { HandleSendForSession } from './claudeStream/types'
+import type { PermissionMode, Session, ShortcutConfig, ShortcutPlatform } from '../store/sessions'
 import type {
   Workflow,
   WorkflowExecutionDonePayload,
@@ -13,7 +11,6 @@ import type {
   WorkflowStepUpdatePayload,
 } from '../store/workflowTypes'
 import { cycleClaudeCodeMode } from '../components/input/inputUtils'
-import { useI18n } from './useI18n'
 
 type Params = {
   themeId: ThemeId
@@ -22,45 +19,39 @@ type Params = {
   hasUnsafeReloadState: boolean
   quickPanelProjects: RecentProject[]
   quickPanelProjectsSignature: string
-  scheduledTasksSyncPayload: ScheduledTaskSyncItem[]
   workflowSyncPayload: Workflow[]
   quickPanelEnabled: boolean
   shortcutConfig: ShortcutConfig
   shortcutPlatform: ShortcutPlatform
-  sessions: Session[]
   shortcutTarget: {
     permissionMode: PermissionMode
     planMode: boolean
   } | null
-  defaultProjectPath: string
-  addSession: (cwd: string, name: string) => string
-  applyPermissionMode: (mode: PermissionMode) => void
-  applyPlanMode: (value: boolean) => void
-  setModel: (sessionId: string, model: string | null) => void
-  onToggleSidebar: () => void
-  openSettingsPanel: () => void
-  toggleCommandPalette: () => void
   createSessionFromUserPrompt: (prompt: string, cwdOverride?: string) => Promise<string>
   openPendingSessionDraft: (cwdOverride?: string) => Promise<void>
   handleSendForSession: HandleSendForSession
-  applyScheduledTaskAdvance: (payload: ScheduledTaskAdvancePayload) => void
-  updateScheduledTaskRunSnapshot: (
-    taskId: string,
-    runAt: number,
-    snapshot: {
-      status: ScheduledTaskRunSnapshotStatus
-      summary: string | null
-      changedPaths: string[]
-      cost: number | null
-    },
-  ) => void
+  applyPermissionMode: (mode: PermissionMode) => void
+  applyPlanMode: (value: boolean) => void
+  onToggleSidebar: () => void
+  openSettingsPanel: () => void
+  toggleCommandPalette: () => void
   recordWorkflowExecutionStart: (payload: WorkflowFiredPayload) => void
   appendWorkflowStepTextChunk: (executionId: string, stepId: string, chunk: string) => void
   applyWorkflowStepUpdate: (payload: WorkflowStepUpdatePayload) => void
   completeWorkflowExecution: (payload: WorkflowExecutionDonePayload) => void
-  scheduledTaskRunMetaBySessionRef: MutableRefObject<Map<string, ScheduledTaskRunMeta>>
-  scheduledTaskSessionByRunRef: MutableRefObject<Map<string, string>>
   closeOverlayPanels: () => void
+}
+
+function isTextEntryTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null
+  if (!element) return false
+  const tagName = element.tagName.toLowerCase()
+  return (
+    tagName === 'input'
+    || tagName === 'textarea'
+    || tagName === 'select'
+    || element.isContentEditable
+  )
 }
 
 export function useAppDesktopEffects({
@@ -70,35 +61,25 @@ export function useAppDesktopEffects({
   hasUnsafeReloadState,
   quickPanelProjects,
   quickPanelProjectsSignature,
-  scheduledTasksSyncPayload,
   workflowSyncPayload,
   quickPanelEnabled,
   shortcutConfig,
   shortcutPlatform,
-  sessions,
   shortcutTarget,
-  defaultProjectPath,
-  addSession,
-  applyPermissionMode,
-  applyPlanMode,
-  setModel,
-  onToggleSidebar,
-  openSettingsPanel,
-  toggleCommandPalette,
   createSessionFromUserPrompt,
   openPendingSessionDraft,
   handleSendForSession,
-  applyScheduledTaskAdvance,
-  updateScheduledTaskRunSnapshot,
+  applyPermissionMode,
+  applyPlanMode,
+  onToggleSidebar,
+  openSettingsPanel,
+  toggleCommandPalette,
   recordWorkflowExecutionStart,
   appendWorkflowStepTextChunk,
   applyWorkflowStepUpdate,
   completeWorkflowExecution,
-  scheduledTaskRunMetaBySessionRef,
-  scheduledTaskSessionByRunRef,
   closeOverlayPanels,
 }: Params) {
-  const { language, t } = useI18n()
   const syncedQuickPanelProjectsSignatureRef = useRef('')
 
   useEffect(() => {
@@ -126,10 +107,6 @@ export function useAppDesktopEffects({
     syncedQuickPanelProjectsSignatureRef.current = quickPanelProjectsSignature
     void window.claude.setQuickPanelProjects(quickPanelProjects).catch(() => undefined)
   }, [quickPanelProjects, quickPanelProjectsSignature])
-
-  useEffect(() => {
-    void window.claude.syncScheduledTasks(scheduledTasksSyncPayload).catch(() => undefined)
-  }, [scheduledTasksSyncPayload])
 
   useEffect(() => {
     void window.claude.syncWorkflows(workflowSyncPayload).catch(() => undefined)
@@ -163,20 +140,6 @@ export function useAppDesktopEffects({
   }, [closeOverlayPanels, createSessionFromUserPrompt, handleSendForSession, openPendingSessionDraft])
 
   useEffect(() => {
-    const cleanup = window.claude.onScheduledTaskAdvance((payload) => {
-      const runKey = `${payload.taskId}:${payload.firedAt}`
-      const sessionTabId = scheduledTaskSessionByRunRef.current.get(runKey) ?? null
-      scheduledTaskSessionByRunRef.current.delete(runKey)
-      applyScheduledTaskAdvance({
-        ...payload,
-        sessionTabId,
-      })
-    })
-
-    return cleanup
-  }, [applyScheduledTaskAdvance, scheduledTaskSessionByRunRef])
-
-  useEffect(() => {
     const cleanup = window.claude.onWorkflowFired((payload) => {
       recordWorkflowExecutionStart(payload)
     })
@@ -205,59 +168,16 @@ export function useAppDesktopEffects({
   }, [completeWorkflowExecution])
 
   useEffect(() => {
-    for (const [sessionId, meta] of scheduledTaskRunMetaBySessionRef.current) {
-      const session = sessions.find((item) => item.id === sessionId)
-      if (!session) {
-        scheduledTaskRunMetaBySessionRef.current.delete(sessionId)
-        continue
-      }
-
-      const status = getScheduledTaskSnapshotStatus(session)
-      updateScheduledTaskRunSnapshot(meta.taskId, meta.runAt, {
-        status,
-        summary: getScheduledTaskSnapshotSummary(session, language),
-        changedPaths: getScheduledTaskChangedPaths(session),
-        cost: typeof session.lastCost === 'number' ? session.lastCost : null,
-      })
-
-      if (status === 'completed' || status === 'failed') {
-        scheduledTaskRunMetaBySessionRef.current.delete(sessionId)
-      }
-    }
-  }, [language, sessions, scheduledTaskRunMetaBySessionRef, updateScheduledTaskRunSnapshot])
-
-  useEffect(() => {
-    const cleanup = window.claude.onScheduledTaskFired(async (payload) => {
-      closeOverlayPanels()
-
-      const cwd = payload.cwd?.trim() || defaultProjectPath
-      const baseSessionName = payload.name?.trim() || getProjectNameFromPath(cwd)
-      const sessionName = baseSessionName.startsWith('[Schedule] ')
-        ? baseSessionName
-        : `[Schedule] ${baseSessionName}`
-      const sessionId = addSession(cwd, sessionName)
-      setModel(sessionId, payload.model ?? null)
-      scheduledTaskSessionByRunRef.current.set(`${payload.taskId}:${payload.firedAt}`, sessionId)
-      scheduledTaskRunMetaBySessionRef.current.set(sessionId, {
-        taskId: payload.taskId,
-        runAt: payload.firedAt,
-      })
-
-      await handleSendForSession(sessionId, payload.prompt, [], {
-        bare: true,
-        permissionModeOverride: payload.permissionMode,
-        visibleTextOverride: payload.manual
-          ? t('scheduled.app.runNowLabel', { sessionName })
-          : payload.catchUp
-            ? t('scheduled.app.catchUpLabel', { sessionName })
-            : sessionName,
-      })
+    const cleanup = window.claude.onWorkflowNotify((payload) => {
+      void window.claude.notify(payload).catch(() => undefined)
     })
     return cleanup
-  }, [addSession, closeOverlayPanels, defaultProjectPath, handleSendForSession, language, scheduledTaskRunMetaBySessionRef, scheduledTaskSessionByRunRef, setModel])
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTextEntryTarget(event.target)) return
+
       if (matchShortcut(event, shortcutConfig.toggleSidebar[shortcutPlatform])) {
         event.preventDefault()
         onToggleSidebar()
@@ -305,5 +225,15 @@ export function useAppDesktopEffects({
 
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [applyPermissionMode, applyPlanMode, onToggleSidebar, openPendingSessionDraft, openSettingsPanel, shortcutConfig, shortcutPlatform, shortcutTarget, toggleCommandPalette])
+  }, [
+    applyPermissionMode,
+    applyPlanMode,
+    onToggleSidebar,
+    openPendingSessionDraft,
+    openSettingsPanel,
+    shortcutConfig,
+    shortcutPlatform,
+    shortcutTarget,
+    toggleCommandPalette,
+  ])
 }

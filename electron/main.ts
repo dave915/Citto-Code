@@ -14,7 +14,6 @@ import {
   openPathWithApp,
   readSelectedFile,
 } from './services/fileService'
-import { createScheduledTaskScheduler, mapPersistedScheduledTaskToSyncItem } from './services/scheduledTaskScheduler'
 import { fetchModelsFromApi } from './services/modelService'
 import { createGitHeadWatchService } from './services/gitHeadWatchService'
 import {
@@ -43,7 +42,6 @@ import {
 } from './services/shellEnvironmentService'
 import { createSettingsDataService } from './services/settingsDataService'
 import { createSubagentWatchService } from './services/subagentWatchService'
-import { createGatewayProxyService } from './services/gateway-proxy-service'
 import { createTrayImage, resolveAppIconPath } from './services/trayImageService'
 import { createWorkflowExecutor } from './workflow-executor'
 
@@ -60,12 +58,6 @@ const windowController = createWindowController({
 })
 
 const appPersistence = new AppPersistence()
-const scheduledTaskScheduler = createScheduledTaskScheduler({
-  getMainWindow: windowController.getMainWindow,
-  showMainWindow: windowController.showMainWindow,
-  sendWhenRendererReady: windowController.sendWhenRendererReady,
-  getProjectNameFromPath,
-})
 const workflowExecutor = createWorkflowExecutor({
   getMainWindow: windowController.getMainWindow,
   showMainWindow: windowController.showMainWindow,
@@ -74,7 +66,6 @@ const workflowExecutor = createWorkflowExecutor({
   resolveTargetPath,
 })
 const gitHeadWatchService = createGitHeadWatchService()
-const gatewayProxyService = createGatewayProxyService()
 const subagentWatchService = createSubagentWatchService({
   getHomePath: () => getUserHomePath(),
 })
@@ -145,9 +136,6 @@ app.whenReady().then(async () => {
   importShellEnvironmentVars()
   installDevLogForwarding(IS_DEV)
   await appPersistence.initialize(app.getPath('userData'))
-  scheduledTaskScheduler.setTasks(
-    appPersistence.loadScheduledTasks().map(mapPersistedScheduledTaskToSyncItem),
-  )
   workflowExecutor.syncWorkflows(appPersistence.loadWorkflows())
 
   const appIconPath = resolveAppIconPath()
@@ -159,22 +147,13 @@ app.whenReady().then(async () => {
   createTray()
   windowController.registerQuickPanelShortcut()
   windowController.showMainWindow()
-  try {
-    await gatewayProxyService.start()
-  } catch (error) {
-    console.error('[gateway] failed to start proxy', error)
-  }
-  scheduledTaskScheduler.start()
   workflowExecutor.start()
-  void scheduledTaskScheduler.checkMissedRuns()
   void workflowExecutor.checkDueWorkflows()
 
   powerMonitor.on('resume', () => {
-    void scheduledTaskScheduler.checkMissedRuns()
     void workflowExecutor.checkDueWorkflows()
   })
   powerMonitor.on('unlock-screen', () => {
-    void scheduledTaskScheduler.checkMissedRuns()
     void workflowExecutor.checkDueWorkflows()
   })
 
@@ -232,9 +211,7 @@ app.whenReady().then(async () => {
   registerStorageIpcHandlers({
     appPersistence,
     userDataPath: app.getPath('userData'),
-    scheduledTaskScheduler,
     workflowExecutor,
-    mapPersistedScheduledTaskToSyncItem,
   })
 
   ipcMain.handle('git:watch-head', (event, { cwd }: { cwd: string }) => {
@@ -298,11 +275,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
-  scheduledTaskScheduler.stop()
   workflowExecutor.stop()
-  void gatewayProxyService.stop().catch((error) => {
-    console.error('[gateway] failed to stop proxy', error)
-  })
   gitHeadWatchService.dispose()
   subagentWatchService.dispose()
   killAllClaudeProcesses()

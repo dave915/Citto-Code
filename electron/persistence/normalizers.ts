@@ -52,6 +52,18 @@ function toNullableString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
+function toOptionalNullableString(value: unknown): string | null | undefined {
+  if (value === null) return null
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+}
+
+function normalizeModelSelection(value: unknown): string | null {
+  const normalized = toNullableString(value)
+  if (!normalized) return null
+  if (normalized.toLowerCase() === 'gpt-54') return null
+  return normalized
+}
+
 export function toBooleanNumber(value: unknown): number {
   return value ? 1 : 0
 }
@@ -243,7 +255,7 @@ function normalizeSession(value: unknown, index: number): Session {
     lastCost: toNullableNumber(input.lastCost) ?? undefined,
     permissionMode: parsePermissionMode(input.permissionMode),
     planMode: Boolean(input.planMode),
-    model: toNullableString(input.model),
+    model: normalizeModelSelection(input.model),
     modelSwitchNotice: null,
   }
 }
@@ -292,7 +304,7 @@ function normalizeScheduledTask(value: unknown, index: number): ScheduledTask {
     name: toTrimmedString(input.name, `작업 ${index + 1}`),
     prompt: toStringSafe(input.prompt),
     projectPath: toTrimmedString(input.projectPath, '~'),
-    model: toNullableString(input.model),
+    model: normalizeModelSelection(input.model),
     permissionMode: parsePermissionMode(input.permissionMode),
     frequency: parseScheduledTaskFrequency(input.frequency),
     enabled: Boolean(input.enabled),
@@ -357,6 +369,7 @@ function normalizeWorkflowStep(value: unknown, index: number): WorkflowStep {
       type: 'condition',
       id,
       label,
+      nextStepId: toOptionalNullableString(input.nextStepId),
       operator: parseWorkflowConditionOperator(input.operator),
       value: toStringSafe(input.value),
       trueBranchStepId: toNullableString(input.trueBranchStepId),
@@ -370,6 +383,7 @@ function normalizeWorkflowStep(value: unknown, index: number): WorkflowStep {
       type: 'loop',
       id,
       label,
+      nextStepId: toOptionalNullableString(input.nextStepId),
       maxIterations: Math.max(1, Math.min(20, Math.floor(toFiniteNumber(input.maxIterations, 2)))),
       bodyStepIds: Array.isArray(input.bodyStepIds)
         ? input.bodyStepIds.filter((stepId): stepId is string => typeof stepId === 'string' && stepId.trim().length > 0)
@@ -387,12 +401,17 @@ function normalizeWorkflowStep(value: unknown, index: number): WorkflowStep {
     type: 'agent',
     id,
     label,
+    nextStepId: toOptionalNullableString(input.nextStepId),
     prompt: toStringSafe(input.prompt),
     cwd: toTrimmedString(input.cwd, '~'),
-    model: toNullableString(input.model),
+    model: normalizeModelSelection(input.model),
     permissionMode: parsePermissionMode(input.permissionMode),
     systemPrompt: toStringSafe(input.systemPrompt),
   }
+}
+
+export function normalizePersistedModelSelection(value: unknown): string | null {
+  return normalizeModelSelection(value)
 }
 
 function normalizeWorkflow(value: unknown, index: number): Workflow {

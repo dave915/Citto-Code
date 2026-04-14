@@ -1,4 +1,6 @@
-import type { Session, ScheduledTask, Workflow, WorkflowExecution } from '../persistence-types'
+import type { LegacyScheduledTask, Session, Workflow, WorkflowExecution } from '../persistence-types'
+
+export type { LegacyScheduledTask, Session, Workflow, WorkflowExecution } from '../persistence-types'
 
 type ClaudeStreamEventMeta = {
   requestId?: string
@@ -67,9 +69,8 @@ export type ModelInfo = {
   id: string
   displayName: string
   family: string
-  provider: 'anthropic' | 'ollama' | 'custom' | 'gateway'
+  provider: 'anthropic' | 'ollama' | 'custom'
   isLocal: boolean
-  isGateway?: boolean
 }
 
 export type ClaudeInstallationStatus = {
@@ -200,48 +201,6 @@ export type PluginSkill = {
   pluginPath: string
 }
 
-export type ScheduledTaskFrequency = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly'
-export type ScheduledTaskDay = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
-
-export type ScheduledTaskSyncItem = {
-  id: string
-  name: string
-  prompt: string
-  projectPath: string
-  model: string | null
-  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
-  frequency: ScheduledTaskFrequency
-  enabled: boolean
-  hour: number
-  minute: number
-  weeklyDay: ScheduledTaskDay
-  skipDays: ScheduledTaskDay[]
-  quietHoursStart: string | null
-  quietHoursEnd: string | null
-  nextRunAt: number | null
-}
-
-export type ScheduledTaskFiredEvent = {
-  taskId: string
-  name: string
-  prompt: string
-  cwd: string
-  model: string | null
-  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions'
-  firedAt: number
-  catchUp: boolean
-  manual: boolean
-}
-
-export type ScheduledTaskAdvanceEvent = {
-  taskId: string
-  firedAt: number
-  skipped?: boolean
-  reason?: string
-  catchUp?: boolean
-  manual?: boolean
-}
-
 export type GitHeadChangedEvent = {
   cwd: string
   headPath: string
@@ -274,6 +233,11 @@ export type WorkflowExecutionDoneEvent = {
   workflowId: string
   status: 'done' | 'error' | 'cancelled'
   durationMs: number
+}
+
+export type WorkflowNotifyEvent = {
+  title: string
+  body: string
 }
 
 export type SubagentTextChunkEvent = {
@@ -315,7 +279,7 @@ export type QuickPanelAPI = {
 
 export type PersistenceSnapshot = {
   sessions: Session[]
-  scheduledTasks: ScheduledTask[]
+  legacyScheduledTasks: LegacyScheduledTask[]
   workflows: Workflow[]
   workflowExecutions: WorkflowExecution[]
   migratedSessions: boolean
@@ -325,11 +289,11 @@ export type PersistenceSnapshot = {
 export type ClaudeAPI = {
   initPersistence: (params?: {
     legacySessions?: Session[]
-    legacyScheduledTasks?: ScheduledTask[]
+    legacyScheduledTasks?: LegacyScheduledTask[]
   }) => Promise<PersistenceSnapshot>
   saveSessionsSnapshot: (params: { sessions: Session[] }) => Promise<{ ok: boolean; error?: string }>
-  saveScheduledTasksSnapshot: (params: { tasks: ScheduledTask[] }) => Promise<{ ok: boolean; error?: string }>
   saveWorkflowsSnapshot: (params: { workflows: Workflow[]; executions: WorkflowExecution[] }) => Promise<{ ok: boolean; error?: string }>
+  markScheduledTasksMigrated: (params: { ids: string[] }) => Promise<{ ok: boolean; error?: string }>
   sendMessage: (params: {
     sessionId: string | null
     tabId?: string
@@ -399,8 +363,6 @@ export type ClaudeAPI = {
     filters?: Array<{ name: string; extensions: string[] }>
   }) => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
-  syncScheduledTasks: (tasks: ScheduledTaskSyncItem[]) => Promise<{ ok: boolean; error?: string }>
-  runScheduledTaskNow: (params: { taskId: string }) => Promise<{ ok: boolean; error?: string }>
   syncWorkflows: (workflows: Workflow[]) => Promise<{ ok: boolean; error?: string }>
   runWorkflowNow: (params: { workflowId: string }) => Promise<{ ok: boolean; error?: string }>
   cancelWorkflow: (params: { workflowId: string }) => Promise<{ ok: boolean; error?: string }>
@@ -430,12 +392,11 @@ export type ClaudeAPI = {
   onClaudeEvent: (handler: (event: ClaudeStreamEvent) => void) => () => void
   onQuickPanelMessage: (handler: (payload: { text: string; cwd: string }) => void) => () => void
   onTrayNewSession: (handler: () => void) => () => void
-  onScheduledTaskFired: (handler: (event: ScheduledTaskFiredEvent) => void) => () => void
-  onScheduledTaskAdvance: (handler: (event: ScheduledTaskAdvanceEvent) => void) => () => void
   onWorkflowFired: (handler: (event: WorkflowFiredEvent) => void) => () => void
   onWorkflowStepUpdate: (handler: (event: WorkflowStepUpdateEvent) => void) => () => void
   onWorkflowStepTextChunk: (handler: (event: WorkflowStepTextChunkEvent) => void) => () => void
   onWorkflowExecutionDone: (handler: (event: WorkflowExecutionDoneEvent) => void) => () => void
+  onWorkflowNotify: (handler: (event: WorkflowNotifyEvent) => void) => () => void
   onGitHeadChanged: (handler: (event: GitHeadChangedEvent) => void) => () => void
   onSubagentTextChunk: (handler: (event: SubagentTextChunkEvent) => void) => () => void
 }

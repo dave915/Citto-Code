@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../hooks/useI18n'
 import type { Session, SidebarMode } from '../store/sessions'
-import { useScheduledTasksStore } from '../store/scheduledTasks'
 import { useWorkflowStore } from '../store/workflowStore'
 import { SidebarContent } from './sidebar/SidebarContent'
 import { SidebarFooter } from './sidebar/SidebarFooter'
@@ -25,11 +24,9 @@ type Props = {
   onReorderSessions: (sessionIds: string[]) => void
   onRemoveSession: (id: string) => void
   onSelectFolder: (sessionId: string) => void
-  onOpenSchedule: () => void
   onOpenWorkflow: () => void
   onOpenSettings: () => void
   onSidebarModeChange: (mode: SidebarMode) => void
-  scheduleOpen: boolean
   workflowOpen: boolean
   settingsOpen: boolean
 }
@@ -84,11 +81,9 @@ export function Sidebar({
   onReorderSessions,
   onRemoveSession,
   onSelectFolder: _onSelectFolder,
-  onOpenSchedule,
   onOpenWorkflow,
   onOpenSettings,
   onSidebarModeChange,
-  scheduleOpen,
   workflowOpen,
   settingsOpen,
 }: Props) {
@@ -98,12 +93,22 @@ export function Sidebar({
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({})
   const [sortMode, setSortMode] = useState<SidebarSortMode>('updated')
   const inputRef = useRef<HTMLInputElement>(null)
-  const favoriteSessions = sessions.filter((session) => session.favorite)
-  const nonFavoriteSessions = sessions.filter((session) => !session.favorite)
-  const projectGroups = groupSessionsByProject(nonFavoriteSessions)
-  const activeScheduledTaskCount = useScheduledTasksStore((state) => (
-    state.tasks.filter((task) => task.enabled && task.frequency !== 'manual').length
-  ))
+  const favoriteSessions = useMemo(
+    () => sessions.filter((session) => session.favorite),
+    [sessions],
+  )
+  const nonFavoriteSessions = useMemo(
+    () => sessions.filter((session) => !session.favorite),
+    [sessions],
+  )
+  const projectGroups = useMemo(
+    () => groupSessionsByProject(nonFavoriteSessions),
+    [nonFavoriteSessions],
+  )
+  const projectGroupCwdsSignature = useMemo(
+    () => projectGroups.map((group) => group.cwd).join('\n'),
+    [projectGroups],
+  )
   const workflowCount = useWorkflowStore((state) => state.workflows.length)
 
   useEffect(() => {
@@ -134,7 +139,7 @@ export function Sidebar({
       }
       return changed ? next : prev
     })
-  }, [sidebarMode, projectGroups])
+  }, [projectGroupCwdsSignature, projectGroups, sidebarMode])
 
   const handleSetAllProjectsCollapsed = (collapsed: boolean) => {
     if (projectGroups.length === 0) return
@@ -204,18 +209,6 @@ export function Sidebar({
           icon={(
             <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-          )}
-        />
-        <SidebarActionButton
-          label={t('sidebar.automation')}
-          active={scheduleOpen}
-          badge={activeScheduledTaskCount}
-          onClick={onOpenSchedule}
-          icon={(
-            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="8" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3" />
             </svg>
           )}
         />

@@ -12,7 +12,6 @@ import { useSubagentStreams } from './useSubagentStreams'
 import { buildQuickPanelProjects, normalizeSelectedFolder, sanitizeEnvVars } from '../lib/claudeRuntime'
 import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
-import { useScheduledTasksStore } from '../store/scheduledTasks'
 import { useWorkflowStore } from '../store/workflowStore'
 import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
 import { nanoid } from '../store/nanoid'
@@ -128,34 +127,11 @@ export function useAppController() {
   )
   const shortcutPlatform = getCurrentPlatform()
   const sanitizedEnvVars = sanitizeEnvVars(envVars)
-  const scheduledTasks = useScheduledTasksStore((state) => state.tasks)
-  const applyScheduledTaskAdvance = useScheduledTasksStore((state) => state.applyAdvance)
-  const updateScheduledTaskRunSnapshot = useScheduledTasksStore((state) => state.updateRunRecordSnapshot)
   const workflows = useWorkflowStore((state) => state.workflows)
   const recordWorkflowExecutionStart = useWorkflowStore((state) => state.recordExecutionStart)
   const appendWorkflowStepTextChunk = useWorkflowStore((state) => state.appendStepTextChunk)
   const applyWorkflowStepUpdate = useWorkflowStore((state) => state.applyStepUpdate)
   const completeWorkflowExecution = useWorkflowStore((state) => state.completeExecution)
-  const scheduledTasksSyncPayload = useMemo(
-    () => scheduledTasks.map((task) => ({
-      id: task.id,
-      name: task.name,
-      prompt: task.prompt,
-      projectPath: task.projectPath,
-      model: task.model,
-      permissionMode: task.permissionMode,
-      frequency: task.frequency,
-      enabled: task.enabled,
-      hour: task.hour,
-      minute: task.minute,
-      weeklyDay: task.weeklyDay,
-      skipDays: task.skipDays,
-      quietHoursStart: task.quietHoursStart,
-      quietHoursEnd: task.quietHoursEnd,
-      nextRunAt: task.nextRunAt,
-    })),
-    [scheduledTasks],
-  )
   const workflowSyncPayload = useMemo(
     () => workflows.map((workflow) => ({ ...workflow })),
     [workflows],
@@ -400,42 +376,33 @@ export function useAppController() {
     hasUnsafeReloadState,
     quickPanelProjects,
     quickPanelProjectsSignature,
-    scheduledTasksSyncPayload,
     workflowSyncPayload,
     quickPanelEnabled,
     shortcutConfig,
     shortcutPlatform,
-    sessions,
     shortcutTarget: pendingSessionDraft
       ? {
           permissionMode: pendingSessionDraft.permissionMode,
           planMode: pendingSessionDraft.planMode,
         }
-      : activeSession
+        : activeSession
         ? {
             permissionMode: activeSession.permissionMode,
             planMode: activeSession.planMode,
           }
         : null,
-    defaultProjectPath,
-    addSession,
     applyPermissionMode: handlePermissionModeChange,
     applyPlanMode: handlePlanModeChange,
-    setModel,
     onToggleSidebar: handleToggleSidebar,
     openSettingsPanel: panels.openSettingsPanel,
     toggleCommandPalette: panels.toggleCommandPalette,
     createSessionFromUserPrompt,
     openPendingSessionDraft,
     handleSendForSession: claudeStream.handleSendForSession,
-    applyScheduledTaskAdvance,
-    updateScheduledTaskRunSnapshot,
     recordWorkflowExecutionStart,
     appendWorkflowStepTextChunk,
     applyWorkflowStepUpdate,
     completeWorkflowExecution,
-    scheduledTaskRunMetaBySessionRef: claudeStream.scheduledTaskRunMetaBySessionRef,
-    scheduledTaskSessionByRunRef: claudeStream.scheduledTaskSessionByRunRef,
     closeOverlayPanels: panels.closeOverlayPanels,
   })
 
@@ -445,7 +412,6 @@ export function useAppController() {
     activeSessionConflictDetails,
     claudeStream,
     closeCommandPalette: panels.closeCommandPalette,
-    closeSchedulePanel: panels.closeSchedulePanel,
     closeSessionTeamPanel: panels.closeSessionTeamPanel,
     closeSettingsPanel: panels.closeSettingsPanel,
     closeTeamPanel: panels.closeTeamPanel,
@@ -468,12 +434,10 @@ export function useAppController() {
     installationDismissed: installation.installationDismissed,
     installationStatus: installation.installationStatus,
     messageJumpTarget,
-    openSchedulePanel: panels.openSchedulePanel,
     openSessionTeamPanel,
     openSettingsPanel: panels.openSettingsPanel,
     openWorkflowPanel: panels.openWorkflowPanel,
     refreshInstallationStatus: installation.refreshInstallationStatus,
-    scheduleOpen: panels.scheduleOpen,
     settingsInitialTab: panels.settingsInitialTab,
     settingsOpen: panels.settingsOpen,
     workflowOpen: panels.workflowOpen,

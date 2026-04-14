@@ -41,11 +41,6 @@ export type UseClaudeStreamParams = StreamStoreActions & {
   notificationMode: NotificationMode
 }
 
-export type ScheduledTaskRunMeta = {
-  taskId: string
-  runAt: number
-}
-
 export type BtwRequestContext = {
   requestId: string
   messageId: string
@@ -64,8 +59,6 @@ export type ClaudeStreamRuntimeRefs = {
   currentAsstMsgRef: MutableRefObject<Map<string, string>>
   claudeSessionToTabRef: MutableRefObject<Map<string, string>>
   abortedTabIdsRef: MutableRefObject<Set<string>>
-  scheduledTaskSessionByRunRef: MutableRefObject<Map<string, string>>
-  scheduledTaskRunMetaBySessionRef: MutableRefObject<Map<string, ScheduledTaskRunMeta>>
   notifiedSessionEndsRef: MutableRefObject<Set<string>>
   btwRequestMapRef: MutableRefObject<Map<string, BtwRequestContext>>
   notificationModeRef: MutableRefObject<NotificationMode>

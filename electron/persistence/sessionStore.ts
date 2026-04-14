@@ -1,6 +1,7 @@
 import type { AttachedFile, Message, Session, ToolCallBlock } from '../persistence-types'
 import {
   deriveSessionTimestamps,
+  normalizePersistedModelSelection,
   normalizeSessions,
   parseJsonValue,
   parseMessageRole,
@@ -89,7 +90,7 @@ export function loadSessionsFromStore(query: PersistenceQuery): Session[] {
     lastCost: row.last_cost ?? undefined,
     permissionMode: parsePermissionMode(row.permission_mode),
     planMode: Boolean(row.plan_mode),
-    model: row.model,
+    model: normalizePersistedModelSelection(row.model),
     modelSwitchNotice: null,
   }))
 }

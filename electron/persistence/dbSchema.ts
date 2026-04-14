@@ -1,5 +1,5 @@
 export const DB_FILE_NAME = 'app.sqlite'
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 5
 
 export const SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
   quiet_hours_end TEXT,
   next_run_at INTEGER,
   last_run_at INTEGER,
+  migrated_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   sort_order INTEGER NOT NULL

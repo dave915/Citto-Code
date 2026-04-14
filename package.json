@@ -1,6 +1,6 @@
 {
   "name": "citto-code",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "Claude Code GUI for non-developers",
   "main": "out/main/index.js",
   "scripts": {

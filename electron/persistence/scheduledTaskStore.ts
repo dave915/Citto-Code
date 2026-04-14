@@ -1,5 +1,6 @@
 import type { ScheduledTask, ScheduledTaskRunRecord } from '../persistence-types'
 import {
+  normalizePersistedModelSelection,
   normalizeScheduledTasks,
   parsePermissionMode,
   parseRunOutcome,
@@ -17,7 +18,9 @@ import type {
 import type { PersistenceQuery, PersistenceRun, PersistenceTransaction } from './operations'
 
 export function loadScheduledTasksFromStore(query: PersistenceQuery): ScheduledTask[] {
-  const taskRows = query<PersistedScheduledTaskRow>('SELECT * FROM scheduled_tasks ORDER BY sort_order ASC')
+  const taskRows = query<PersistedScheduledTaskRow>(
+    'SELECT * FROM scheduled_tasks WHERE migrated_at IS NULL ORDER BY sort_order ASC',
+  )
   const runRows = query<PersistedScheduledTaskRunRow>(
     'SELECT * FROM scheduled_task_runs ORDER BY task_id ASC, sort_order ASC',
   )
@@ -46,7 +49,7 @@ export function loadScheduledTasksFromStore(query: PersistenceQuery): ScheduledT
     name: row.name,
     prompt: row.prompt,
     projectPath: row.project_path,
-    model: row.model,
+    model: normalizePersistedModelSelection(row.model),
     permissionMode: parsePermissionMode(row.permission_mode),
     frequency: parseScheduledTaskFrequency(row.frequency),
     enabled: Boolean(row.enabled),

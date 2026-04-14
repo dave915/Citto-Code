@@ -128,6 +128,20 @@ export type ScheduledTask = {
   runHistory: ScheduledTaskRunRecord[]
 }
 
+export type LegacyScheduledTask = {
+  id: string
+  name: string
+  prompt: string
+  cwd: string
+  model: string | null
+  permissionMode: PermissionMode
+  frequency: ScheduledTaskFrequency
+  active: boolean
+  hour: number
+  minute: number
+  dayOfWeek: number
+}
+
 export type WorkflowTriggerFrequency = 'hourly' | 'daily' | 'weekdays' | 'weekly'
 
 export type WorkflowTrigger =
@@ -151,6 +165,7 @@ export type WorkflowAgentStep = {
   type: 'agent'
   id: string
   label: string
+  nextStepId?: string | null
   prompt: string
   cwd: string
   model: string | null
@@ -162,6 +177,7 @@ export type WorkflowConditionStep = {
   type: 'condition'
   id: string
   label: string
+  nextStepId?: string | null
   operator: WorkflowConditionOperator
   value: string
   trueBranchStepId: string | null
@@ -172,6 +188,7 @@ export type WorkflowLoopStep = {
   type: 'loop'
   id: string
   label: string
+  nextStepId?: string | null
   maxIterations: number
   bodyStepIds: string[]
   breakCondition: {

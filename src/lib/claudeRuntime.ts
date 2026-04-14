@@ -1,5 +1,6 @@
 import type { RecentProject, SelectedFile } from '../../electron/preload'
 import { translate, type AppLanguage } from './i18n'
+import { normalizeConfiguredModelSelection } from './modelSelection'
 import type {
   NotificationMode,
   PendingPermissionRequest,
@@ -128,10 +129,10 @@ export function sanitizeEnvVars(envVars: Record<string, string>): Record<string,
 }
 
 export function isLocalModelSelection(model: string | null | undefined): boolean {
-  if (!model) return false
-  const normalized = model.trim().toLowerCase()
+  const normalizedModel = normalizeConfiguredModelSelection(model)
+  if (!normalizedModel) return false
+  const normalized = normalizedModel.toLowerCase()
   if (!normalized) return false
-  if (normalized === 'gpt-54') return false
   if (/^claude-/i.test(normalized)) return false
   if (normalized === 'sonnet' || normalized === 'opus' || normalized === 'haiku') return false
   return true
@@ -146,8 +147,9 @@ export function resolveEnvVarsForModel(
   envVars: Record<string, string>,
 ): Record<string, string> | undefined {
   const resolved = { ...envVars }
+  const normalizedModel = normalizeConfiguredModelSelection(model)
 
-  if (isLocalModelSelection(model)) {
+  if (isLocalModelSelection(normalizedModel)) {
     if (!resolved.ANTHROPIC_BASE_URL) resolved.ANTHROPIC_BASE_URL = DEFAULT_OLLAMA_BASE_URL
     if (!resolved.ANTHROPIC_AUTH_TOKEN) resolved.ANTHROPIC_AUTH_TOKEN = 'ollama'
     resolved.ANTHROPIC_API_KEY = ''

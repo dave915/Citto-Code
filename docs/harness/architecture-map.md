@@ -9,9 +9,8 @@
 - `electron/main.ts`
 - `electron/main/windowController.ts`
 - `electron/main/devLogger.ts`
-- `electron/services/gateway-proxy-service.ts`
 - `electron/workflow-executor.ts`
-- 역할: 윈도우 생성, 트레이/단축키 등록, IPC 핸들러 연결, 스케줄러/프록시/실행 엔진 수명주기 관리
+- 역할: 윈도우 생성, 트레이/단축키 등록, IPC 핸들러 연결, 스케줄러/실행 엔진 수명주기 관리
 
 ### Preload
 
@@ -31,7 +30,7 @@
 
 1. `electron/main.ts`가 브라우저 윈도우와 IPC를 준비한다.
 2. `src/main.tsx`가 persisted snapshot을 읽고 Zustand 스토어를 복원한다.
-3. `src/App.tsx`가 현재 세션, 설정, 예약 작업, 팀/서브에이전트 UI를 조합한다.
+3. `src/App.tsx`가 현재 세션, 설정, 워크플로우, 팀/서브에이전트 UI를 조합한다.
 
 ### Claude Conversation
 
@@ -39,7 +38,7 @@
 2. `src/App.tsx`가 `useClaudeStream`의 핸들러를 호출한다.
 3. `src/hooks/useClaudeStream.ts`와 `src/hooks/claudeStream/*`가 세션 상태, 스트림 이벤트, 권한 요청, tool call 반영을 담당한다.
 4. `electron/ipc/claude.ts`가 Claude IPC 채널을 연결하고, `electron/ipc/claude/*` helper가 모델 캐시, 프로세스 실행, 첨부 직렬화, 서브에이전트 라우팅을 나눠 담당한다.
-5. Gateway 모델을 선택한 경우 `electron/services/claude-models.ts`가 CLI 모델명과 env를 변환하고, `electron/services/gateway-proxy-service.ts`가 Anthropic Messages API 요청을 Gateway Chat Completions 요청으로 변환한다.
+5. `electron/services/claude-models.ts`가 로컬 모델 선택일 때만 Claude CLI env를 보정한다.
 6. 렌더러 스토어가 갱신되고 `ChatView`가 새 메시지, tool call, 서브에이전트 상태를 렌더링한다.
 7. 체크포인트 복원은 화면 히스토리를 되돌리되 Claude 세션은 새로 시작하며, 저장된 체크포인트 요약이 있으면 다음 요청 직전에 숨은 컨텍스트로만 재주입한다.
 
@@ -52,10 +51,10 @@
 
 ### Scheduled Tasks
 
-1. `src/store/scheduledTasks.ts`와 `src/components/scheduledTasks/*`가 작업 정의와 UI를 관리한다.
-2. `electron/ipc/storage.ts`와 persistence 계층이 snapshot을 보존한다.
-3. `electron/services/scheduledTaskScheduler.ts`가 다음 실행 시각, catch-up, 중복 실행 방지를 관리한다.
-4. 실행 시 렌더러는 새 세션을 열고 예약 작업 런에 한해 `--bare`로 Claude 흐름에 합류한다.
+1. 사용자-facing scheduled task UI는 제거되었고, `scheduled_tasks` 테이블은 워크플로우 마이그레이션 소스로만 남아 있다.
+2. `src/main.tsx`가 부트 시 legacy scheduled task를 읽어 단일-agent workflow로 변환하고 migrated flag를 기록한다.
+3. `electron/persistence.ts`가 `migrated_at` 컬럼과 미변환 task 로드/완료 마킹을 관리한다.
+4. `electron/services/scheduledTaskScheduler.ts`는 legacy 구현 참고용으로 남아 있으나 현재 앱 부트 경로에는 연결되지 않는다.
 
 ### Workflow Builder
 
@@ -75,10 +74,10 @@
 ## High-Risk Integration Seams
 
 - `electron/ipc/claude.ts` / `electron/ipc/claude/*` <-> `electron/preload/claudeApi.ts` <-> `src/hooks/useClaudeStream.ts`
-- `src/main.tsx` persistence bootstrap <-> `src/store/sessions.ts` / `src/store/scheduledTasks.ts`
+- `src/main.tsx` persistence bootstrap <-> `src/store/sessions.ts` / `src/store/workflowStore.ts`
 - `src/main.tsx` persistence bootstrap <-> `src/store/workflowStore.ts` <-> `electron/workflow-executor.ts`
-- `electron/services/scheduledTaskScheduler.ts` <-> renderer scheduled task advance handling
-- `electron/services/gateway-proxy-service.ts` <-> `electron/services/claude-models.ts` <-> `electron/ipc/claude/processLauncher.ts`
+- `src/main.tsx` legacy scheduled task migration <-> `electron/persistence.ts`
+- `electron/services/claude-models.ts` <-> `electron/ipc/claude/processLauncher.ts`
 - `electron/services/gitHeadWatchService.ts` <-> Git panel refresh hooks
 
 ## Fast File Map By Intent
@@ -91,4 +90,4 @@
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamSelectedAgentMessageCard.tsx`, `src/components/team/TeamSelectedAgentMessagePopup.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/teamSelectedAgentShared.tsx`, `src/components/team/teamOverlayShared.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`
 - 메인 프로세스 부트스트랩/윈도우: `electron/main.ts`, `electron/main/windowController.ts`, `electron/main/devLogger.ts`, `electron/services/trayImageService.ts`
-- Gateway/모델 변환: `electron/gateway-constants.ts`, `electron/services/gateway-proxy-service.ts`, `electron/services/claude-models.ts`, `electron/agent-tool-names.ts`
+- 모델/env 보정: `electron/services/claude-models.ts`, `electron/ipc/claude/processLauncher.ts`

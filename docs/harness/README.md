@@ -19,7 +19,7 @@
 ## Repo Snapshot
 
 - 앱 타입: Electron + React + TypeScript 데스크톱 앱
-- 렌더러 상태: Zustand 기반 세션/예약 작업 스토어
+- 렌더러 상태: Zustand 기반 세션/워크플로우 스토어
 - 메인 프로세스 역할: Claude CLI 실행, Git/파일/설정 IPC, 스케줄러, 트레이/윈도우 제어
 - 경계: `main -> preload -> renderer`
 

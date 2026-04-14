@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useI18n } from '../../hooks/useI18n'
-import { nanoid } from '../../store/nanoid'
 import type {
   Workflow,
   WorkflowConditionOperator,
@@ -9,6 +8,12 @@ import type {
   WorkflowTriggerFrequency,
 } from '../../store/workflowTypes'
 import { ScheduledTaskSelect } from '../scheduledTaskForm/ScheduledTaskSelect'
+import {
+  CONDITION_OPERATORS,
+  createAgentStep,
+  createStepByType,
+  workflowToInput,
+} from './editorShared'
 import { getConditionOperatorLabel, getStepDisplayLabel } from './utils'
 
 type Props = {
@@ -20,14 +25,6 @@ type Props = {
 
 const DAY_OPTIONS = [0, 1, 2, 3, 4, 5, 6] as const
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
-const CONDITION_OPERATORS: WorkflowConditionOperator[] = [
-  'contains',
-  'not_contains',
-  'equals',
-  'not_equals',
-  'always_true',
-]
-
 export function WorkflowForm({
   initialWorkflow,
   defaultProjectPath,
@@ -61,11 +58,7 @@ export function WorkflowForm({
       ...current,
       steps: [
         ...current.steps,
-        type === 'agent'
-          ? createAgentStep(defaultProjectPath)
-          : type === 'condition'
-            ? createConditionStep()
-            : createLoopStep(),
+        createStepByType(type, defaultProjectPath),
       ],
     }))
   }
@@ -717,64 +710,9 @@ export function WorkflowForm({
   )
 }
 
-function createAgentStep(defaultProjectPath: string, id = nanoid(), label = ''): Extract<WorkflowStep, { type: 'agent' }> {
-  return {
-    type: 'agent',
-    id,
-    label,
-    prompt: '',
-    cwd: defaultProjectPath,
-    model: null,
-    permissionMode: 'default',
-    systemPrompt: '',
-  }
-}
-
-function createConditionStep(id = nanoid(), label = ''): Extract<WorkflowStep, { type: 'condition' }> {
-  return {
-    type: 'condition',
-    id,
-    label,
-    operator: 'contains',
-    value: '',
-    trueBranchStepId: null,
-    falseBranchStepId: null,
-  }
-}
-
-function createLoopStep(id = nanoid(), label = ''): Extract<WorkflowStep, { type: 'loop' }> {
-  return {
-    type: 'loop',
-    id,
-    label,
-    maxIterations: 3,
-    bodyStepIds: [],
-    breakCondition: null,
-  }
-}
-
-function createStepByType(
-  type: WorkflowStep['type'],
-  defaultProjectPath: string,
-  id = nanoid(),
-  label = '',
-): WorkflowStep {
-  if (type === 'condition') return createConditionStep(id, label)
-  if (type === 'loop') return createLoopStep(id, label)
-  return createAgentStep(defaultProjectPath, id, label)
-}
-
 function buildInitialWorkflow(initialWorkflow: Workflow | null | undefined, defaultProjectPath: string): WorkflowInput {
   if (initialWorkflow) {
-    return {
-      name: initialWorkflow.name,
-      steps: initialWorkflow.steps.map((step) => ({ ...step })),
-      trigger: initialWorkflow.trigger.type === 'schedule'
-        ? { ...initialWorkflow.trigger }
-        : { type: 'manual' },
-      active: initialWorkflow.active,
-      nodePositions: initialWorkflow.nodePositions ? { ...initialWorkflow.nodePositions } : undefined,
-    }
+    return workflowToInput(initialWorkflow)
   }
 
   return {

@@ -11,6 +11,7 @@ import {
   makeDefaultSession,
   normalizeImportedMessage,
 } from '../lib/sessionUtils'
+import { normalizeConfiguredModelSelection } from '../lib/modelSelection'
 import { extractSubagentRuntimeInfo, isSubagentToolName } from '../lib/agent-subcalls'
 import { nanoid } from './nanoid'
 import {
@@ -106,7 +107,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
         lastCost: data.lastCost,
         permissionMode: data.permissionMode ?? 'default',
         planMode: data.planMode ?? false,
-        model: data.model ?? null,
+        model: normalizeConfiguredModelSelection(data.model),
         modelSwitchNotice: null,
       }
 

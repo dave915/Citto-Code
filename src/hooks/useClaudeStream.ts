@@ -2,11 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { SelectedFile } from '../../electron/preload'
 import { createClaudeEventHandler } from './claudeStream/eventHandler'
 import { createClaudeSessionHandlers } from './claudeStream/sessionHandlers'
-import type {
-  ClaudeStreamStoreSnapshot,
-  ScheduledTaskRunMeta,
-  UseClaudeStreamParams,
-} from './claudeStream/types'
+import type { ClaudeStreamStoreSnapshot, UseClaudeStreamParams } from './claudeStream/types'
 
 export function useClaudeStream({
   sessions,
@@ -46,8 +42,6 @@ export function useClaudeStream({
   const currentAsstMsgRef = useRef<Map<string, string>>(new Map())
   const claudeSessionToTabRef = useRef<Map<string, string>>(new Map())
   const abortedTabIdsRef = useRef<Set<string>>(new Set())
-  const scheduledTaskSessionByRunRef = useRef<Map<string, string>>(new Map())
-  const scheduledTaskRunMetaBySessionRef = useRef<Map<string, ScheduledTaskRunMeta>>(new Map())
   const notifiedSessionEndsRef = useRef<Set<string>>(new Set())
   const btwRequestMapRef = useRef(new Map<string, {
     requestId: string
@@ -116,8 +110,6 @@ export function useClaudeStream({
     currentAsstMsgRef,
     claudeSessionToTabRef,
     abortedTabIdsRef,
-    scheduledTaskSessionByRunRef,
-    scheduledTaskRunMetaBySessionRef,
     notifiedSessionEndsRef,
     btwRequestMapRef,
     notificationModeRef,
@@ -158,7 +150,5 @@ export function useClaudeStream({
   return {
     ...handlers,
     handleBtwSend,
-    scheduledTaskRunMetaBySessionRef,
-    scheduledTaskSessionByRunRef,
   }
 }

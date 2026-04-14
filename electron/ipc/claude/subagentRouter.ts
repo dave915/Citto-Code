@@ -1,5 +1,3 @@
-import { isAgentToolName } from '../../agent-tool-names'
-
 type ClaudeEventRecord = Record<string, unknown>
 
 type StreamState = {
@@ -20,7 +18,7 @@ export function isClaudeEventRecord(value: unknown): value is ClaudeEventRecord 
 }
 
 function isSubagentToolName(name: unknown): boolean {
-  return typeof name === 'string' && isAgentToolName(name)
+  return name === 'Agent'
 }
 
 function extractAssistantText(eventData: ClaudeEventRecord): string {

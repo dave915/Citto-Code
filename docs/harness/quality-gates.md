@@ -41,7 +41,7 @@
 - 정적 검증: TypeScript typecheck
 - 구조 검증: harness docs/link/path validation
 - 통합 검증: Electron build
-- 수동 검증: 실제 채팅, Git 패널, 예약 작업, 설정 화면에서 smoke test
+- 수동 검증: 실제 채팅, Git 패널, 워크플로우 빌더, 설정 화면에서 smoke test
 
 ## Manual Smoke Matrix
 
@@ -58,11 +58,11 @@
 - diff 미리보기
 - 브랜치 전환 또는 외부 브랜치 감지
 
-### Scheduled Tasks
+### Workflow Builder
 
-- 태스크 생성/수정
-- run now 실행
-- 중복 실행 방지 확인
+- 워크플로우 생성/복제/이름 편집
+- 캔버스 선택/복사/붙여넣기/undo-redo
+- 수동 실행, 취소, 완료 알림, 예약 트리거 보정 확인
 
 ### Settings
 

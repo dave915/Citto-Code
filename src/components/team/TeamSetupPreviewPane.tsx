@@ -1,5 +1,6 @@
 import type { ModelInfo } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
+import { normalizeConfiguredModelSelection } from '../../lib/modelSelection'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import {
   localizeTeamSetupSelectedAgent,
@@ -20,7 +21,10 @@ function SelectedAgentBadge({
   onRemove: () => void
 }) {
   const { t } = useI18n()
-  const selectedModelMissing = Boolean(agent.model && !models.some((entry) => entry.id === agent.model))
+  const normalizedSelectedModel = normalizeConfiguredModelSelection(agent.model)
+  const selectedModelMissing = Boolean(
+    normalizedSelectedModel && !models.some((entry) => entry.id === normalizedSelectedModel),
+  )
 
   return (
     <div
@@ -46,12 +50,12 @@ function SelectedAgentBadge({
       <label className="block">
         <span className="mb-1 block text-[11px] font-medium text-claude-text/70">{t('team.setup.field.model')}</span>
         <select
-          value={agent.model ?? ''}
+          value={normalizedSelectedModel ?? ''}
           onChange={(event) => onModelChange(event.target.value || null)}
           className="h-9 w-full rounded-lg border border-claude-border bg-claude-panel px-2.5 text-xs text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
         >
           <option value="">{t('input.modelPicker.defaultModel')}</option>
-          {selectedModelMissing ? <option value={agent.model ?? ''}>{agent.model}</option> : null}
+          {selectedModelMissing ? <option value={normalizedSelectedModel ?? ''}>{normalizedSelectedModel}</option> : null}
           {models.map((entry) => (
             <option key={entry.id} value={entry.id}>{entry.displayName}{entry.isLocal ? ' · LOCAL' : ''}</option>
           ))}

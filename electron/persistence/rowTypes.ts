@@ -81,6 +81,7 @@ export type PersistedScheduledTaskRow = {
   quiet_hours_end: string | null
   next_run_at: number | null
   last_run_at: number | null
+  migrated_at: number | null
   created_at: number
   updated_at: number
   sort_order: number

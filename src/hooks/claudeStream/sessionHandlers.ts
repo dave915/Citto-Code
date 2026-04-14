@@ -279,7 +279,6 @@ export function createClaudeSessionHandlers({
     runtime.pendingProcessKeyByTabRef.current.delete(sessionId)
     runtime.currentAsstMsgRef.current.delete(sessionId)
     runtime.abortedTabIdsRef.current.delete(sessionId)
-    runtime.scheduledTaskRunMetaBySessionRef.current.delete(sessionId)
     runtime.notifiedSessionEndsRef.current.delete(sessionId)
     if (runtime.pendingTabIdRef.current === sessionId) {
       runtime.pendingTabIdRef.current = null

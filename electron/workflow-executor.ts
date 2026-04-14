@@ -89,6 +89,11 @@ function createExecutionId(workflowId: string) {
   return `wfexec-${workflowId}-${Date.now()}`
 }
 
+function recalculateNextRunAt(workflow: Workflow) {
+  if (!workflow.active || workflow.trigger.type !== 'schedule') return null
+  return computeNextRunAt(workflow.trigger, true, Date.now())
+}
+
 export function createWorkflowExecutor({
   getMainWindow,
   showMainWindow,
@@ -174,6 +179,17 @@ export function createWorkflowExecutor({
     return index >= 0 ? ordered[index + 1] ?? null : null
   }
 
+  const resolveConfiguredNextStepId = (
+    step: WorkflowStep,
+    fallbackNextStepId: string | null,
+  ) => (
+    step.nextStepId === undefined ? fallbackNextStepId : step.nextStepId
+  )
+
+  const getResolvedTopLevelNextStepId = (workflow: Workflow, step: WorkflowStep) => (
+    resolveConfiguredNextStepId(step, getSequentialTopLevelStepId(workflow, step.id))
+  )
+
   const executeAgentStep = async (
     workflow: Workflow,
     executionId: string,
@@ -211,7 +227,7 @@ export function createWorkflowExecutor({
       status: 'done',
       output: result.output,
     })
-    return getSequentialTopLevelStepId(workflow, step.id)
+    return getResolvedTopLevelNextStepId(workflow, step)
   }
 
   const executeConditionStep = async (
@@ -231,8 +247,8 @@ export function createWorkflowExecutor({
       output,
     })
     return matched
-      ? (step.trueBranchStepId ?? getSequentialTopLevelStepId(workflow, step.id))
-      : (step.falseBranchStepId ?? getSequentialTopLevelStepId(workflow, step.id))
+      ? (step.trueBranchStepId ?? getResolvedTopLevelNextStepId(workflow, step))
+      : (step.falseBranchStepId ?? getResolvedTopLevelNextStepId(workflow, step))
   }
 
   const executeLoopStep = async (
@@ -304,7 +320,7 @@ export function createWorkflowExecutor({
       status: 'done',
       output: combinedOutput,
     })
-    return getSequentialTopLevelStepId(workflow, step.id)
+    return getResolvedTopLevelNextStepId(workflow, step)
   }
 
   const execute = async (workflow: Workflow, triggeredBy: 'manual' | 'schedule') => {
@@ -337,6 +353,7 @@ export function createWorkflowExecutor({
 
     let nextStepId: string | null = getTopLevelStepIds(workflow)[0] ?? null
     let status: WorkflowExecutionStatus = 'done'
+    let currentStepId: string | null = null
 
     try {
       let safetyCounter = 0
@@ -344,6 +361,7 @@ export function createWorkflowExecutor({
         safetyCounter += 1
         const step = findStepById(workflow, nextStepId)
         if (!step) break
+        currentStepId = step.id
 
         emit('workflow:step-update', {
           executionId,
@@ -369,13 +387,12 @@ export function createWorkflowExecutor({
       }
     } catch (error) {
       status = abortController.signal.aborted ? 'cancelled' : 'error'
-      const currentStepId = nextStepId
       if (currentStepId) {
         emit('workflow:step-update', {
           executionId,
           stepId: currentStepId,
-          status: 'error',
-          error: error instanceof Error ? error.message : String(error),
+          status: abortController.signal.aborted ? 'skipped' : 'error',
+          error: abortController.signal.aborted ? 'Workflow execution cancelled.' : (error instanceof Error ? error.message : String(error)),
         })
       }
     } finally {
@@ -385,6 +402,18 @@ export function createWorkflowExecutor({
         workflowId: workflow.id,
         status,
         durationMs: Date.now() - startedAt,
+      })
+      emit('workflow:notify', {
+        title: status === 'done'
+          ? '워크플로우 완료'
+          : status === 'cancelled'
+            ? '워크플로우 취소됨'
+            : '워크플로우 오류',
+        body: status === 'done'
+          ? `${workflow.name} 실행이 완료되었습니다.`
+          : status === 'cancelled'
+            ? `${workflow.name} 실행이 취소되었습니다.`
+            : `${workflow.name} 실행 중 오류가 발생했습니다.`,
       })
     }
 
@@ -411,7 +440,7 @@ export function createWorkflowExecutor({
     syncWorkflows(nextWorkflows: Workflow[]) {
       workflows = nextWorkflows.map((workflow) => ({
         ...workflow,
-        nextRunAt: workflow.nextRunAt ?? computeNextRunAt(workflow.trigger, workflow.active, workflow.lastRunAt ?? Date.now()),
+        nextRunAt: recalculateNextRunAt(workflow),
       }))
       scheduleNextCheck()
     },

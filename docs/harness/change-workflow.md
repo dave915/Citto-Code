@@ -93,13 +93,13 @@
 
 ### 저장 구조 변경
 
-- 시작 파일: `src/main.tsx`, `src/store/sessions.ts`, `src/store/scheduledTasks.ts`, `electron/persistence.ts`
+- 시작 파일: `src/main.tsx`, `src/store/sessions.ts`, `src/store/workflowStore.ts`, `electron/persistence.ts`
 - 먼저 확인할 것: legacy migration, debounce flush, bootstrap failure fallback
 
-### 예약 작업 변경
+### 레거시 예약 작업 마이그레이션
 
-- 시작 파일: `src/store/scheduledTasks.ts`, `src/components/scheduledTasks/*`, `electron/services/scheduledTaskScheduler.ts`
-- 먼저 확인할 것: nextRunAt 계산, 중복 실행 방지, sleep/wake catch-up
+- 시작 파일: `src/main.tsx`, `electron/persistence.ts`, `electron/ipc/storage.ts`
+- 먼저 확인할 것: `scheduled_tasks.migrated_at`, 중복 변환 방지, workflow sync 타이밍
 
 ### Git 변경
 

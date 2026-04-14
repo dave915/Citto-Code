@@ -4,16 +4,14 @@ import { request as httpsRequest } from 'https'
 import { existsSync, readFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { GATEWAY_MODELS } from '../gateway-constants'
 import { getUserHomePath } from './shellEnvironmentService'
 
 export type ModelInfo = {
   id: string
   displayName: string
   family: string
-  provider: 'anthropic' | 'ollama' | 'custom' | 'gateway'
+  provider: 'anthropic' | 'ollama' | 'custom'
   isLocal: boolean
-  isGateway?: boolean
 }
 
 type ApiConfig = {
@@ -23,21 +21,16 @@ type ApiConfig = {
 }
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
+const DISABLED_MODEL_IDS = new Set([
+  'gpt-54',
+])
 const FALLBACK_MODELS: ModelInfo[] = [
-  { id: 'claude-opus-4-6', displayName: 'Opus 4.6', family: 'opus', provider: 'anthropic', isLocal: false, isGateway: false },
-  { id: 'claude-sonnet-4-6', displayName: 'Sonnet 4.6', family: 'sonnet', provider: 'anthropic', isLocal: false, isGateway: false },
-  { id: 'claude-opus-4-5', displayName: 'Opus 4.5', family: 'opus', provider: 'anthropic', isLocal: false, isGateway: false },
-  { id: 'claude-sonnet-4-5', displayName: 'Sonnet 4.5', family: 'sonnet', provider: 'anthropic', isLocal: false, isGateway: false },
-  { id: 'claude-haiku-4-5', displayName: 'Haiku 4.5', family: 'haiku', provider: 'anthropic', isLocal: false, isGateway: false },
+  { id: 'claude-opus-4-6', displayName: 'Opus 4.6', family: 'opus', provider: 'anthropic', isLocal: false },
+  { id: 'claude-sonnet-4-6', displayName: 'Sonnet 4.6', family: 'sonnet', provider: 'anthropic', isLocal: false },
+  { id: 'claude-opus-4-5', displayName: 'Opus 4.5', family: 'opus', provider: 'anthropic', isLocal: false },
+  { id: 'claude-sonnet-4-5', displayName: 'Sonnet 4.5', family: 'sonnet', provider: 'anthropic', isLocal: false },
+  { id: 'claude-haiku-4-5', displayName: 'Haiku 4.5', family: 'haiku', provider: 'anthropic', isLocal: false },
 ]
-const GATEWAY_MODEL_INFOS: ModelInfo[] = GATEWAY_MODELS.map((model) => ({
-  id: model.id,
-  displayName: model.displayName,
-  family: 'gateway',
-  provider: 'gateway',
-  isLocal: false,
-  isGateway: true,
-}))
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -131,7 +124,6 @@ function createModelInfo(
     family: inferModelFamily(normalizedId, familyHint),
     provider,
     isLocal,
-    isGateway: provider === 'gateway',
   }
 }
 
@@ -140,8 +132,9 @@ function uniqueModels(models: ModelInfo[]): ModelInfo[] {
 
   for (const model of models) {
     if (!model.id) continue
+    if (DISABLED_MODEL_IDS.has(model.id.trim().toLowerCase())) continue
     const existing = deduped.get(model.id)
-    if (!existing || model.isGateway || (model.isLocal && !existing.isLocal)) {
+    if (!existing || (model.isLocal && !existing.isLocal)) {
       deduped.set(model.id, model)
     }
   }
@@ -335,7 +328,6 @@ export async function fetchModelsFromApi(envVars?: Record<string, string>): Prom
     ? mergeFallbackModels(configuredModels)
     : configuredModels
   const mergedModels = uniqueModels([
-    ...GATEWAY_MODEL_INFOS,
     ...localOllamaModels,
     ...mergedConfiguredModels,
   ])

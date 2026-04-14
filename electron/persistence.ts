@@ -6,7 +6,13 @@ import initSqlJs, {
   type SqlJsExecResult,
   type SqlValue,
 } from 'sql.js/dist/sql-asm.js'
-import type { ScheduledTask, Session, Workflow, WorkflowExecution } from './persistence-types'
+import type {
+  LegacyScheduledTask,
+  ScheduledTask,
+  Session,
+  Workflow,
+  WorkflowExecution,
+} from './persistence-types'
 import { DB_FILE_NAME, SCHEMA_SQL } from './persistence/dbSchema'
 import {
   normalizeScheduledTasks,
@@ -27,12 +33,33 @@ type PersistenceBootstrapPayload = {
 
 export type PersistenceSnapshot = {
   sessions: Session[]
-  scheduledTasks: ScheduledTask[]
+  legacyScheduledTasks: LegacyScheduledTask[]
   workflows: Workflow[]
   workflowExecutions: WorkflowExecution[]
   migratedSessions: boolean
   migratedScheduledTasks: boolean
 }
+
+const SCHEDULED_TASK_DAY_TO_INDEX: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+}
+
+const REQUIRED_TABLES = [
+  'sessions',
+  'messages',
+  'tool_calls',
+  'attachments',
+  'scheduled_tasks',
+  'scheduled_task_runs',
+  'workflows',
+  'workflow_executions',
+] as const
 
 export class AppPersistence {
   private dbPath: string | null = null
@@ -54,6 +81,7 @@ export class AppPersistence {
 
       this.db = new SQL.Database(fileData)
       this.exec(SCHEMA_SQL)
+      this.ensureRequiredTables()
       this.ensureSessionColumns()
       this.ensureMessageColumns()
       this.ensureScheduledTaskColumns()
@@ -62,6 +90,9 @@ export class AppPersistence {
 
     try {
       await this.initializing
+    } catch (error) {
+      this.db = null
+      throw error
     } finally {
       this.initializing = null
     }
@@ -94,7 +125,7 @@ export class AppPersistence {
 
     return {
       sessions: this.loadSessions(),
-      scheduledTasks: this.loadScheduledTasks(),
+      legacyScheduledTasks: this.loadLegacyScheduledTasks(),
       workflows: this.loadWorkflows(),
       workflowExecutions: this.loadWorkflowExecutions(),
       migratedSessions,
@@ -114,8 +145,42 @@ export class AppPersistence {
     return loadScheduledTasksFromStore(this.query.bind(this))
   }
 
+  loadLegacyScheduledTasks(): LegacyScheduledTask[] {
+    return this.loadScheduledTasks().map((task) => ({
+      id: task.id,
+      name: task.name,
+      prompt: task.prompt,
+      cwd: task.projectPath,
+      model: task.model,
+      permissionMode: task.permissionMode,
+      frequency: task.frequency,
+      active: task.enabled,
+      hour: task.hour,
+      minute: task.minute,
+      dayOfWeek: SCHEDULED_TASK_DAY_TO_INDEX[task.weeklyDay] ?? 0,
+    }))
+  }
+
   saveScheduledTasks(tasks: ScheduledTask[]): void {
     saveScheduledTasksToStore(this.runInTransaction.bind(this), this.run.bind(this), tasks)
+  }
+
+  markScheduledTasksMigrated(ids: string[]): void {
+    const normalizedIds = ids.filter((id) => typeof id === 'string' && id.trim().length > 0)
+    if (normalizedIds.length === 0) return
+
+    const migratedAt = Date.now()
+    this.runInTransaction(() => {
+      for (const id of normalizedIds) {
+        this.run(
+          'UPDATE scheduled_tasks SET migrated_at = :migratedAt WHERE id = :id',
+          {
+            ':migratedAt': migratedAt,
+            ':id': id,
+          },
+        )
+      }
+    })
   }
 
   loadWorkflows(): Workflow[] {
@@ -272,6 +337,7 @@ export class AppPersistence {
   }
 
   private ensureSessionColumns(): void {
+    if (!this.tableExists('sessions')) return
     const rows = this.query<Record<string, SqlValue>>('PRAGMA table_info(sessions)')
     const columns = new Set(
       rows
@@ -285,6 +351,7 @@ export class AppPersistence {
   }
 
   private ensureMessageColumns(): void {
+    if (!this.tableExists('messages')) return
     const rows = this.query<Record<string, SqlValue>>('PRAGMA table_info(messages)')
     const columns = new Set(
       rows
@@ -298,6 +365,7 @@ export class AppPersistence {
   }
 
   private ensureScheduledTaskColumns(): void {
+    if (!this.tableExists('scheduled_tasks')) return
     const rows = this.query<Record<string, SqlValue>>('PRAGMA table_info(scheduled_tasks)')
     const columns = new Set(
       rows
@@ -308,6 +376,42 @@ export class AppPersistence {
     if (!columns.has('model')) {
       this.run('ALTER TABLE scheduled_tasks ADD COLUMN model TEXT')
     }
+
+    if (!columns.has('migrated_at')) {
+      this.run('ALTER TABLE scheduled_tasks ADD COLUMN migrated_at INTEGER')
+    }
+  }
+
+  private ensureRequiredTables(): void {
+    const existingTables = new Set(
+      this.query<{ name: SqlValue }>("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .map((row) => row.name)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    )
+
+    const missingTables = REQUIRED_TABLES.filter((tableName) => !existingTables.has(tableName))
+    if (missingTables.length === 0) return
+
+    this.exec(SCHEMA_SQL)
+
+    const repairedTables = new Set(
+      this.query<{ name: SqlValue }>("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .map((row) => row.name)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    )
+
+    const unresolvedTables = REQUIRED_TABLES.filter((tableName) => !repairedTables.has(tableName))
+    if (unresolvedTables.length > 0) {
+      throw new Error(`Failed to initialize required tables: ${unresolvedTables.join(', ')}`)
+    }
+  }
+
+  private tableExists(tableName: string): boolean {
+    const rows = this.query<{ name: SqlValue }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = :tableName",
+      { ':tableName': tableName },
+    )
+    return rows.length > 0
   }
 
   private run(sql: string, params?: BindParams): void {

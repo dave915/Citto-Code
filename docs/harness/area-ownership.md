@@ -15,7 +15,7 @@
 - 책임:
   - 앱 부트스트랩
   - 전역 패널 열림 상태
-  - 세션/설정/예약 작업/워크플로우 상위 조합
+  - 세션/설정/워크플로우 상위 조합
   - 새 세션 draft 상태와 첫 입력 시점의 실제 세션 생성
   - `App.tsx`는 루트 레이아웃 렌더링만 유지한다.
   - `useAppController.ts`는 store/hook 조합, 세션 선택/점프, 팀 연동, 데스크톱 effect wiring을 담당한다.
@@ -32,14 +32,13 @@
   - `electron/main/windowController.ts`
   - `electron/main/devLogger.ts`
   - `electron/services/trayImageService.ts`
-  - `electron/services/gateway-proxy-service.ts`
   - `electron/workflow-executor.ts`
 - 책임:
   - 앱 부트스트랩
   - 메인 윈도우/퀵패널 생성과 포커스 복원
   - 트레이/글로벌 단축키/외부 링크 처리
   - dev log 전달과 메인 프로세스 수명주기 정리
-  - Gateway 프록시와 workflow executor 타이머/cleanup
+  - workflow executor 타이머/cleanup
   - `main.ts`는 서비스 초기화와 IPC wiring만 유지하고, 윈도우/퀵패널 상태는 `windowController.ts`, 개발용 로그 전달은 `devLogger.ts`에 둔다.
 - 흔한 회귀:
   - quick panel 단축키 재등록 누락
@@ -52,11 +51,10 @@
   - `src/store/sessions.ts`
   - `src/store/sessionStoreState.ts`
   - `src/store/sessionStoreMutators.ts`
-  - `src/store/scheduledTasks.ts`
   - `src/store/workflowStore.ts`
   - `electron/persistence.ts`
 - 책임:
-  - 세션/예약 작업/워크플로우 저장 구조
+  - 세션/워크플로우 저장 구조
   - migrate/rehydrate
   - sqlite snapshot 동기화
   - `sessionStoreState.ts`는 store action wiring과 persisted 필드 기본값을 유지하고, 반복적인 session/message/tool mutation helper는 `sessionStoreMutators.ts`에 둔다.
@@ -75,13 +73,11 @@
   - `electron/ipc/claude/*`
   - `electron/services/claude/*`
   - `electron/services/claude-models.ts`
-  - `electron/services/gateway-proxy-service.ts`
-  - `electron/agent-tool-names.ts`
 - 책임:
   - Claude CLI 실행
   - stream-json 이벤트 처리
   - tool call, permission, token usage, abort 흐름
-  - Gateway 모델 env/model 변환과 Agent tool 이름 정규화
+  - 로컬 모델 선택 시 env 보정
   - `electron/ipc/claude.ts`는 IPC 채널 등록과 메인 wiring만 유지하고, 첨부 직렬화/모델 캐시/프로세스 registry/서브에이전트 이벤트 라우팅 helper는 `electron/ipc/claude/*`에 둔다.
 - 흔한 회귀:
   - 중복 프로세스 정리 누락
@@ -187,21 +183,20 @@
   - cwd 기준 오류
   - 브랜치 전환 후 패널 stale state
 
-## Scheduled Tasks
+## Legacy Scheduled Tasks
 
 - 파일:
-  - `src/store/scheduledTasks.ts`
-  - `src/components/scheduledTasks/*`
-  - `src/components/scheduledTaskForm/*`
-  - `electron/services/scheduledTaskScheduler.ts`
+  - `src/main.tsx`
+  - `electron/persistence.ts`
   - `electron/ipc/storage.ts`
+  - `electron/services/scheduledTaskScheduler.ts`
 - 책임:
-  - 예약 작업 생성과 실행
-  - 다음 실행 시각 계산
-  - catch-up 및 중복 실행 방지
+  - 기존 `scheduled_tasks` 레코드를 workflow로 1회 변환
+  - `migrated_at` 기반 중복 변환 방지
+  - legacy scheduler 구현 보존
 - 흔한 회귀:
-  - sleep/wake 이후 중복 fire
-  - quiet hours/skip day 계산 오류
+  - 이미 마이그레이션한 task 재변환
+  - workflow 저장 전에 migrated flag를 먼저 찍어서 데이터 유실
 
 ## Workflow Builder
 
