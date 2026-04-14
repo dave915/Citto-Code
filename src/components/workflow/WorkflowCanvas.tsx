@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import { nanoid } from '../../store/nanoid'
 import { useWorkflowStore } from '../../store/workflowStore'
@@ -509,7 +509,7 @@ export function WorkflowCanvas({
     [workflow],
   )
 
-  const alignViewport = (nextZoom: number) => {
+  const alignViewport = useCallback((nextZoom: number) => {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         if (!scrollRef.current) return
@@ -517,9 +517,9 @@ export function WorkflowCanvas({
         scrollRef.current.scrollTop = Math.max(0, ((bounds.height * nextZoom) - scrollRef.current.clientHeight) / 2)
       })
     })
-  }
+  }, [bounds.height, bounds.width])
 
-  const applyZoom = (nextZoom: number, clientX?: number, clientY?: number) => {
+  const applyZoom = useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
     const container = scrollRef.current
     if (!container) return
 
@@ -547,16 +547,31 @@ export function WorkflowCanvas({
         scrollRef.current.scrollTop = Math.max(0, (canvasY * normalizedZoom) - offsetY)
       })
     })
-  }
+  }, [alignViewport, zoom])
 
-  const fitCanvas = () => {
+  const fitCanvas = useCallback(() => {
     if (!workflow || !scrollRef.current) return
     const widthScale = (scrollRef.current.clientWidth - 120) / bounds.width
     const heightScale = (scrollRef.current.clientHeight - 120) / bounds.height
     const nextZoom = clampZoom(Math.min(widthScale, heightScale, 1))
     setZoom(nextZoom)
     alignViewport(nextZoom)
-  }
+  }, [alignViewport, bounds.height, bounds.width, workflow])
+
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container) return undefined
+
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      const nextZoom = clampZoom(zoom * Math.exp(-event.deltaY * 0.0025))
+      applyZoom(nextZoom, event.clientX, event.clientY)
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [applyZoom, zoom])
 
   useEffect(() => {
     if (!workflow) return
@@ -613,12 +628,6 @@ export function WorkflowCanvas({
       <div
         ref={scrollRef}
         className="relative h-full w-full overflow-auto"
-        onWheel={(event) => {
-          if (!event.ctrlKey && !event.metaKey) return
-          event.preventDefault()
-          const nextZoom = clampZoom(zoom * Math.exp(-event.deltaY * 0.0025))
-          applyZoom(nextZoom, event.clientX, event.clientY)
-        }}
       >
         <div
           className="relative"
