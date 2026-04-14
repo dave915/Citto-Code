@@ -78,6 +78,7 @@ export type HandleSendOptions = {
   planModeOverride?: boolean
   visibleTextOverride?: string
   skipAutoTransforms?: boolean
+  bare?: boolean
 }
 
 export type ClaudeSessionHandlerDeps = {

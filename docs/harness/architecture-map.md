@@ -52,7 +52,7 @@
 1. `src/store/scheduledTasks.ts`와 `src/components/scheduledTasks/*`가 작업 정의와 UI를 관리한다.
 2. `electron/ipc/storage.ts`와 persistence 계층이 snapshot을 보존한다.
 3. `electron/services/scheduledTaskScheduler.ts`가 다음 실행 시각, catch-up, 중복 실행 방지를 관리한다.
-4. 실행 시 렌더러는 새 세션을 열고 Claude 흐름에 합류한다.
+4. 실행 시 렌더러는 새 세션을 열고 예약 작업 런에 한해 `--bare`로 Claude 흐름에 합류한다.
 
 ### Settings And Claude Files
 

@@ -196,6 +196,7 @@ export function useAppDesktopEffects({
       })
 
       await handleSendForSession(sessionId, payload.prompt, [], {
+        bare: true,
         permissionModeOverride: payload.permissionMode,
         visibleTextOverride: payload.manual
           ? t('scheduled.app.runNowLabel', { sessionName })

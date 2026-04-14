@@ -7,6 +7,7 @@ type LaunchClaudeProcessOptions = {
   cwd: string
   requestId?: string
   claudePath?: string
+  bare?: boolean
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
   planMode?: boolean
   model?: string
@@ -17,10 +18,11 @@ type LaunchClaudeProcessOptions = {
 
 function buildClaudeArgs({
   sessionId,
+  bare,
   model,
   permissionMode,
   planMode,
-}: Pick<LaunchClaudeProcessOptions, 'sessionId' | 'model' | 'permissionMode' | 'planMode'>) {
+}: Pick<LaunchClaudeProcessOptions, 'sessionId' | 'bare' | 'model' | 'permissionMode' | 'planMode'>) {
   const args: string[] = [
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
@@ -30,6 +32,7 @@ function buildClaudeArgs({
 
   if (sessionId) args.unshift('--resume', sessionId)
   if (model) args.push('--model', model)
+  if (bare) args.push('--bare')
   if (planMode) {
     args.push('--permission-mode', 'plan')
   } else if (permissionMode && permissionMode !== 'default') {
@@ -45,6 +48,7 @@ export function launchClaudeProcess({
   cwd,
   requestId,
   claudePath,
+  bare,
   permissionMode,
   planMode,
   model,
@@ -56,7 +60,7 @@ export function launchClaudeProcess({
   const claudeBin = expandedPath && existsSync(expandedPath)
     ? expandedPath
     : resolveClaude(getUserHomePath)
-  const args = buildClaudeArgs({ sessionId, model, permissionMode, planMode })
+  const args = buildClaudeArgs({ sessionId, bare, model, permissionMode, planMode })
 
   const { CLAUDECODE: _ignoredClaudeCode, ...cleanEnv } = process.env
   const homePath = getUserHomePath(cleanEnv)

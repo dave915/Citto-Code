@@ -159,6 +159,7 @@ export function createClaudeSessionHandlers({
         prompt: fullPrompt,
         attachments: files,
         cwd: session.cwd && session.cwd !== '~' ? session.cwd : '~',
+        bare: options?.bare,
         permissionMode: options?.permissionModeOverride ?? session.permissionMode,
         planMode: effectivePlanMode,
         model: session.model ?? undefined,

@@ -40,6 +40,7 @@ type SendMessageParams = {
   requestId?: string
   allowConcurrent?: boolean
   claudePath?: string
+  bare?: boolean
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
   planMode?: boolean
   model?: string
@@ -70,6 +71,7 @@ export function registerClaudeIpcHandlers({
       requestId,
       allowConcurrent = false,
       claudePath,
+      bare,
       permissionMode,
       planMode,
       model,
@@ -85,6 +87,7 @@ export function registerClaudeIpcHandlers({
       cwd,
       requestId,
       claudePath,
+      bare,
       permissionMode,
       planMode,
       model,

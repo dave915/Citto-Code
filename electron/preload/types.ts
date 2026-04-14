@@ -306,6 +306,7 @@ export type ClaudeAPI = {
     requestId?: string
     allowConcurrent?: boolean
     claudePath?: string
+    bare?: boolean
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     planMode?: boolean
     model?: string
