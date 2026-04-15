@@ -132,6 +132,7 @@ export function useChatViewController({
     handleCreateGitDraft,
     handleExportSession,
     handleHeaderDoubleClick,
+    handlePreviewElementSelection,
     setDrillTarget,
   } = useChatViewActions({
     language,
@@ -219,6 +220,7 @@ export function useChatViewController({
     handleSelectBranch,
     handleToggleBranchMenu,
     hideHtmlPreview,
+    handlePreviewElementSelection,
     highlightedMessageId,
     isNewSession,
     mainPaneRef,

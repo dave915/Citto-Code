@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import {
   buildHtmlPreviewDocument,
+  buildRemoteHtmlPreviewDocument,
   buildSuggestedSavePath,
   getFileName,
   getPreviewMinimumHeight,
@@ -14,20 +16,51 @@ type HtmlPreviewMessagePayload = {
   previewId?: unknown
   height?: unknown
   action?: unknown
+  enabled?: unknown
+  element?: unknown
 }
 
 type UseHtmlPreviewControllerOptions = {
-  html: string
+  html?: string | null
   path?: string | null
+  url?: string | null
+  onElementSelect?: (payload: HtmlPreviewElementSelection) => void
+}
+
+function getWatchRootPath(filePath: string | null | undefined): string | null {
+  const normalized = filePath?.replace(/\\/g, '/').trim() ?? ''
+  if (!normalized) return null
+  const lastSlash = normalized.lastIndexOf('/')
+  if (lastSlash < 0) return null
+  return normalized.slice(0, lastSlash) || '/'
+}
+
+function isPreviewSelectionPayload(value: unknown): value is Omit<HtmlPreviewElementSelection, 'previewPath'> {
+  if (!value || typeof value !== 'object') return false
+  return typeof (value as { selector?: unknown }).selector === 'string'
 }
 
 export function useHtmlPreviewController({
   html,
   path,
+  url,
+  onElementSelect,
 }: UseHtmlPreviewControllerOptions) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previewIdRef = useRef(`html-preview-${Math.random().toString(36).slice(2)}`)
-  const isViewportLayout = useMemo(() => isViewportSizedPreview(html), [html])
+  const urlLoadTimerRef = useRef<number | null>(null)
+  const urlRetryTimerRef = useRef<number | null>(null)
+  const [sourceHtml, setSourceHtml] = useState(html ?? '')
+  const [isSelectMode, setIsSelectMode] = useState(false)
+  const previewUrl = url?.trim() || null
+  const isUrlPreview = Boolean(previewUrl)
+  const [isFrameLoading, setIsFrameLoading] = useState(isUrlPreview)
+  const [hasInteractiveUrlDocument, setHasInteractiveUrlDocument] = useState(false)
+  const watchRootPath = useMemo(() => getWatchRootPath(path), [path])
+  const isViewportLayout = useMemo(
+    () => (isUrlPreview ? true : isViewportSizedPreview(sourceHtml)),
+    [isUrlPreview, sourceHtml],
+  )
   const [windowHeight, setWindowHeight] = useState(() => (typeof window !== 'undefined' ? window.innerHeight : 0))
   const minimumFrameHeight = useMemo(
     () => getPreviewMinimumHeight(isViewportLayout, windowHeight),
@@ -36,14 +69,23 @@ export function useHtmlPreviewController({
   const [frameHeight, setFrameHeight] = useState(minimumFrameHeight)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fallbackDocument = useMemo(
-    () => buildHtmlPreviewDocument(html, path),
-    [html, path],
+    () => buildHtmlPreviewDocument(sourceHtml, path),
+    [path, sourceHtml],
   )
   const [documentHtml, setDocumentHtml] = useState(fallbackDocument)
+  const usesInteractiveDocument = !isUrlPreview || hasInteractiveUrlDocument
   const srcDoc = useMemo(
-    () => injectHtmlPreviewBridge(documentHtml, previewIdRef.current),
-    [documentHtml],
+    () => (usesInteractiveDocument ? injectHtmlPreviewBridge(documentHtml, previewIdRef.current) : null),
+    [documentHtml, usesInteractiveDocument],
   )
+
+  const postPreviewMessage = useCallback((payload: Record<string, unknown>) => {
+    iframeRef.current?.contentWindow?.postMessage({
+      __claudeHtmlPreview: true,
+      previewId: previewIdRef.current,
+      ...payload,
+    }, '*')
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -58,11 +100,74 @@ export function useHtmlPreviewController({
   }, [])
 
   useEffect(() => {
+    setSourceHtml(html ?? '')
+  }, [html])
+
+  useEffect(() => {
+    if (urlLoadTimerRef.current !== null) {
+      window.clearTimeout(urlLoadTimerRef.current)
+      urlLoadTimerRef.current = null
+    }
+    if (urlRetryTimerRef.current !== null) {
+      window.clearTimeout(urlRetryTimerRef.current)
+      urlRetryTimerRef.current = null
+    }
+    setHasInteractiveUrlDocument(false)
+    setIsFrameLoading(isUrlPreview)
+  }, [isUrlPreview, previewUrl])
+
+  useEffect(() => () => {
+    if (urlLoadTimerRef.current !== null) {
+      window.clearTimeout(urlLoadTimerRef.current)
+    }
+    if (urlRetryTimerRef.current !== null) {
+      window.clearTimeout(urlRetryTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (((!path && !isUrlPreview) || (isUrlPreview && !hasInteractiveUrlDocument)) && isSelectMode) {
+      setIsSelectMode(false)
+    }
+  }, [hasInteractiveUrlDocument, isSelectMode, isUrlPreview, path])
+
+  useEffect(() => {
     let cancelled = false
     setDocumentHtml(fallbackDocument)
     setFrameHeight(minimumFrameHeight)
 
-    void inlineHtmlPreviewAssets(html, path)
+    if (isUrlPreview) {
+      const loadUrlPreviewDocument = async () => {
+        if (!previewUrl) return
+
+        const previewDocument = await window.claude.readPreviewUrl(previewUrl).catch(() => null)
+        if (cancelled) return
+
+        if (previewDocument?.html) {
+          setIsFrameLoading(true)
+          setDocumentHtml(buildRemoteHtmlPreviewDocument(previewDocument.html, previewDocument.url))
+          setHasInteractiveUrlDocument(true)
+          return
+        }
+
+        urlRetryTimerRef.current = window.setTimeout(() => {
+          urlRetryTimerRef.current = null
+          void loadUrlPreviewDocument()
+        }, 600)
+      }
+
+      void loadUrlPreviewDocument()
+
+      return () => {
+        cancelled = true
+        if (urlRetryTimerRef.current !== null) {
+          window.clearTimeout(urlRetryTimerRef.current)
+          urlRetryTimerRef.current = null
+        }
+      }
+    }
+
+    void inlineHtmlPreviewAssets(sourceHtml, path)
       .then((nextSrcDoc) => {
         if (!cancelled) setDocumentHtml(nextSrcDoc)
       })
@@ -73,11 +178,57 @@ export function useHtmlPreviewController({
     return () => {
       cancelled = true
     }
-  }, [fallbackDocument, html, minimumFrameHeight, path])
+  }, [fallbackDocument, isUrlPreview, minimumFrameHeight, path, previewUrl, sourceHtml])
 
   useEffect(() => {
     setFrameHeight((current) => (current < minimumFrameHeight ? minimumFrameHeight : current))
   }, [minimumFrameHeight])
+
+  useEffect(() => {
+    if (!path || !watchRootPath) return undefined
+
+    let activeWatchId: string | null = null
+    let cancelled = false
+
+    const handleRefresh = async () => {
+      if (isUrlPreview) {
+        if (!previewUrl) return
+        const previewDocument = await window.claude.readPreviewUrl(previewUrl).catch(() => null)
+        if (cancelled || !previewDocument?.html) return
+        setIsFrameLoading(true)
+        setDocumentHtml(buildRemoteHtmlPreviewDocument(previewDocument.html, previewDocument.url))
+        setHasInteractiveUrlDocument(true)
+        return
+      }
+
+      const file = await window.claude.readFile(path).catch(() => null)
+      if (!cancelled && file?.content !== undefined) {
+        setSourceHtml(file.content)
+      }
+    }
+
+    const unsubscribe = window.claude.onPreviewFileChanged((event) => {
+      if (event.watchId !== activeWatchId) return
+      void handleRefresh()
+    })
+
+    void window.claude.watchPreviewFiles({ rootPath: watchRootPath })
+      .then(({ watchId }) => {
+        if (cancelled) {
+          if (watchId) void window.claude.unwatchPreviewFiles({ watchId })
+          return
+        }
+        activeWatchId = watchId
+      })
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+      if (activeWatchId) {
+        void window.claude.unwatchPreviewFiles({ watchId: activeWatchId })
+      }
+    }
+  }, [isUrlPreview, path, previewUrl, watchRootPath])
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -89,6 +240,16 @@ export function useHtmlPreviewController({
       const payload = event.data as HtmlPreviewMessagePayload
       if (payload.__claudeHtmlPreview !== true) return
       if (payload.previewId !== previewIdRef.current) return
+      if (payload.action === 'element-selected') {
+        if (onElementSelect && isPreviewSelectionPayload(payload.element)) {
+          onElementSelect({
+            previewPath: path ?? null,
+            ...payload.element,
+          })
+        }
+        setIsSelectMode(false)
+        return
+      }
       if (payload.action === 'escape') {
         setIsFullscreen(false)
         return
@@ -101,7 +262,15 @@ export function useHtmlPreviewController({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [minimumFrameHeight])
+  }, [minimumFrameHeight, onElementSelect, path])
+
+  useEffect(() => {
+    if (!srcDoc) return
+    postPreviewMessage({
+      action: 'toggle-select-mode',
+      enabled: isSelectMode,
+    })
+  }, [isSelectMode, postPreviewMessage, srcDoc])
 
   useEffect(() => {
     if (!isFullscreen || typeof document === 'undefined' || typeof window === 'undefined') return undefined
@@ -136,13 +305,44 @@ export function useHtmlPreviewController({
     setIsFullscreen((value) => !value)
   }, [])
 
+  const toggleSelectMode = useCallback(() => {
+    if (isUrlPreview && !hasInteractiveUrlDocument) return
+    if (!path && !isUrlPreview) return
+    setIsSelectMode((value) => !value)
+  }, [hasInteractiveUrlDocument, isUrlPreview, path])
+
+  const handleIframeLoad = useCallback(() => {
+    if (isUrlPreview) {
+      if (urlLoadTimerRef.current !== null) {
+        window.clearTimeout(urlLoadTimerRef.current)
+      }
+      urlLoadTimerRef.current = window.setTimeout(() => {
+        setIsFrameLoading(false)
+        urlLoadTimerRef.current = null
+      }, 120)
+    }
+    if (!srcDoc) return
+    postPreviewMessage({ action: 'request-measure' })
+    postPreviewMessage({
+      action: 'toggle-select-mode',
+      enabled: isSelectMode,
+    })
+  }, [isSelectMode, isUrlPreview, postPreviewMessage, srcDoc])
+
   return {
+    canSelectElements: !isUrlPreview || hasInteractiveUrlDocument,
     documentHtml,
     frameHeight,
+    handleIframeLoad,
     iframeRef,
+    isFrameLoading,
     isFullscreen,
+    isSelectMode,
+    isUrlPreview,
+    previewUrl,
     srcDoc,
     handleDownload,
+    toggleSelectMode,
     toggleFullscreen,
   }
 }

@@ -148,6 +148,7 @@ export function ChatView({
           onPermissionRequestAction={onPermissionRequestAction}
           onPlanModeChange={onPlanModeChange}
           onQuestionResponse={onQuestionResponse}
+          onPreviewElementSelection={controller.handlePreviewElementSelection}
           onSend={onSend}
           onSendBtw={onSendBtw}
           onToggleBtwCard={(cardId) => toggleBtwCard(session.id, cardId)}

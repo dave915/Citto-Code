@@ -8,6 +8,7 @@ import {
 } from '../../lib/sessionExport'
 import { extractHtmlPreviewCandidate } from '../../lib/toolCallUtils'
 import type { Message, Session } from '../../store/sessions'
+import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 
 export type FileConflict = {
   paths: string[]
@@ -22,6 +23,8 @@ export type AskAboutSelectionPayload = {
   code: string
   prompt?: string
 }
+
+export type PreviewElementSelectionPayload = HtmlPreviewElementSelection
 
 type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string
 
@@ -45,7 +48,7 @@ function findLastMessage(messages: Message[], role: Message['role']) {
 function findLatestHtmlPreviewMessageId(messages: Message[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (message.role === 'assistant' && extractHtmlPreviewCandidate(message.toolCalls)) {
+    if (message.role === 'assistant' && extractHtmlPreviewCandidate(message.toolCalls, message.text)) {
       return message.id
     }
   }
@@ -162,6 +165,24 @@ export function buildAskAboutSelectionDraft(payload: AskAboutSelectionPayload, t
     code,
     '```',
     ...(prompt?.trim() ? ['', `${t('chatView.request')}: ${prompt.trim()}`] : []),
+  ].join('\n')
+}
+
+export function buildPreviewSelectionDraft(payload: PreviewElementSelectionPayload, t: TranslateFn) {
+  const { previewPath, selector, tagName, className, text, href, ariaLabel } = payload
+
+  return [
+    t('chatView.previewSelectionIntro'),
+    '',
+    ...(previewPath ? [`${t('chatView.file')}: ${previewPath}`] : []),
+    `${t('chatView.previewSelectionSelector')}: ${selector}`,
+    `${t('chatView.previewSelectionTag')}: ${tagName}`,
+    ...(className ? [`${t('chatView.previewSelectionClass')}: ${className}`] : []),
+    ...(text ? [`${t('chatView.previewSelectionText')}: "${text}"`] : []),
+    ...(ariaLabel ? [`${t('chatView.previewSelectionAriaLabel')}: "${ariaLabel}"`] : []),
+    ...(href ? [`${t('chatView.previewSelectionHref')}: ${href}`] : []),
+    '',
+    t('chatView.previewSelectionRequest'),
   ].join('\n')
 }
 

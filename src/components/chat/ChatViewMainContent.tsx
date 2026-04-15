@@ -32,6 +32,16 @@ type Props = {
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
   onPlanModeChange: (value: boolean) => void
   onQuestionResponse: (answer: string | null) => void
+  onPreviewElementSelection: (payload: {
+    previewPath: string | null
+    selector: string
+    tagName: string
+    id: string | null
+    className: string | null
+    text: string | null
+    href: string | null
+    ariaLabel: string | null
+  }) => void
   onSend: (text: string, files: SelectedFile[]) => void
   onSendBtw: (text: string, files: SelectedFile[]) => void
   onToggleBtwCard: (cardId: string) => void
@@ -67,6 +77,7 @@ export function ChatViewMainContent({
   onPermissionRequestAction,
   onPlanModeChange,
   onQuestionResponse,
+  onPreviewElementSelection,
   onSend,
   onSendBtw,
   onToggleBtwCard,
@@ -116,6 +127,7 @@ export function ChatViewMainContent({
         onSend={(text) => onSend(text, [])}
         onAbort={onAbort}
         onAskAboutSelection={onAskAboutSelection}
+        onPreviewElementSelection={onPreviewElementSelection}
         onToggleBtwCard={onToggleBtwCard}
       />
       <InputArea

@@ -18,8 +18,8 @@ export function useMessageHtmlPreview({
   const [htmlPreviewContent, setHtmlPreviewContent] = useState<string | null>(null)
   const [htmlPreviewLoading, setHtmlPreviewLoading] = useState(false)
   const htmlPreviewCandidate = useMemo(
-    () => (message.role === 'assistant' ? extractHtmlPreviewCandidate(message.toolCalls) : null),
-    [message.role, message.toolCalls],
+    () => (message.role === 'assistant' ? extractHtmlPreviewCandidate(message.toolCalls, message.text) : null),
+    [message.role, message.text, message.toolCalls],
   )
   const shouldShowHtmlPreview = Boolean(
     isActiveHtmlPreviewMessage &&
@@ -35,8 +35,8 @@ export function useMessageHtmlPreview({
       return
     }
 
-    if (!htmlPreviewCandidate.path) {
-      setHtmlPreviewContent(htmlPreviewCandidate.fallbackContent ?? null)
+    if (htmlPreviewCandidate.kind === 'url') {
+      setHtmlPreviewContent(null)
       setHtmlPreviewLoading(false)
       return
     }

@@ -18,6 +18,24 @@ type RegisterFileIpcHandlersOptions = {
   mimeTypesByExtension: Record<string, string>
 }
 
+function isLocalPreviewHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '::1' || hostname === '[::1]') {
+    return true
+  }
+
+  return /^127(?:\.\d{1,3}){3}$/.test(hostname)
+}
+
+function isAllowedPreviewUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    return isLocalPreviewHost(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
 export function registerFileIpcHandlers({
   getMainWindow,
   showMainWindow,
@@ -76,7 +94,10 @@ export function registerFileIpcHandlers({
 
   ipcMain.handle('claude:open-in-browser', async (_event, { filePath }: { filePath: string }) => {
     try {
-      await shell.openExternal(pathToFileURL(filePath).toString())
+      const target = /^https?:\/\//i.test(filePath)
+        ? filePath
+        : pathToFileURL(filePath).toString()
+      await shell.openExternal(target)
       return { ok: true }
     } catch (error) {
       return { ok: false, error: String(error) }
@@ -177,6 +198,30 @@ export function registerFileIpcHandlers({
         resolve(`data:${mimeType};base64,${data.toString('base64')}`)
       })
     })
+  })
+
+  ipcMain.handle('claude:read-preview-url', async (_event, { url }: { url: string }) => {
+    if (!isAllowedPreviewUrl(url)) return null
+
+    try {
+      const response = await fetch(url, {
+        redirect: 'follow',
+        headers: {
+          Accept: 'text/html,application/xhtml+xml',
+        },
+      })
+      if (!response.ok) return null
+
+      const finalUrl = response.url || url
+      if (!isAllowedPreviewUrl(finalUrl)) return null
+
+      const html = await response.text()
+      if (!html.trim()) return null
+
+      return { url: finalUrl, html }
+    } catch {
+      return null
+    }
   })
 
   ipcMain.handle('claude:write-file-abs', (_event, { filePath, content }: { filePath: string; content: string }) => {

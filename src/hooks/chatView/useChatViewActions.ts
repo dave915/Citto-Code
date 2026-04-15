@@ -13,8 +13,10 @@ import {
 import type { Session } from '../../store/sessions'
 import {
   buildAskAboutSelectionDraft,
+  buildPreviewSelectionDraft,
   buildSessionExportContent,
   type AskAboutSelectionPayload,
+  type PreviewElementSelectionPayload,
 } from '../../components/chat/chatViewUtils'
 import type { AppLanguage, TranslationKey } from '../../lib/i18n'
 
@@ -48,6 +50,13 @@ export function useChatViewActions({
     setExternalDraft({
       id: Date.now(),
       text: buildAskAboutSelectionDraft(payload, t),
+    })
+  }
+
+  const handlePreviewElementSelection = (payload: PreviewElementSelectionPayload) => {
+    setExternalDraft({
+      id: Date.now(),
+      text: buildPreviewSelectionDraft(payload, t),
     })
   }
 
@@ -131,6 +140,7 @@ export function useChatViewActions({
     handleCreateGitDraft,
     handleExportSession,
     handleHeaderDoubleClick,
+    handlePreviewElementSelection,
     setDrillTarget,
   }
 }

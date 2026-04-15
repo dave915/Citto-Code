@@ -3,6 +3,7 @@ import { useI18n } from '../../hooks/useI18n'
 import type { Message, Session } from '../../store/sessions'
 import { MessageBubble } from '../MessageBubble'
 import { WelcomeScreen } from './WelcomeScreen'
+import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 
 type Props = {
   session: Session
@@ -29,6 +30,7 @@ type Props = {
     code: string
     prompt?: string
   }) => void
+  onPreviewElementSelection: (payload: HtmlPreviewElementSelection) => void
   onToggleBtwCard: (cardId: string) => void
 }
 
@@ -52,6 +54,7 @@ function MessageList({
   currentAssistantMsgId,
   onAbort,
   onAskAboutSelection,
+  onPreviewElementSelection,
   onToggleBtwCard,
 }: {
   messages: Message[]
@@ -63,6 +66,7 @@ function MessageList({
   currentAssistantMsgId: string | null
   onAbort: () => void
   onAskAboutSelection: Props['onAskAboutSelection']
+  onPreviewElementSelection: Props['onPreviewElementSelection']
   onToggleBtwCard: Props['onToggleBtwCard']
 }) {
   return messages
@@ -90,6 +94,7 @@ function MessageList({
         isStreaming={isStreaming && message.id === currentAssistantMsgId}
         onAbort={isStreaming && message.id === currentAssistantMsgId ? onAbort : undefined}
         onAskAboutSelection={onAskAboutSelection}
+        onPreviewElementSelection={onPreviewElementSelection}
         onToggleBtwCard={onToggleBtwCard}
       />
     </div>
@@ -111,6 +116,7 @@ export function ChatMessagePane({
   onSend,
   onAbort,
   onAskAboutSelection,
+  onPreviewElementSelection,
   onToggleBtwCard,
 }: Props) {
   const { t } = useI18n()
@@ -153,6 +159,7 @@ export function ChatMessagePane({
             currentAssistantMsgId={session.currentAssistantMsgId}
             onAbort={onAbort}
             onAskAboutSelection={onAskAboutSelection}
+            onPreviewElementSelection={onPreviewElementSelection}
             onToggleBtwCard={onToggleBtwCard}
           />
         )}

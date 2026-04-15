@@ -28,8 +28,25 @@ export type AskAboutSelectionPayload = {
 }
 
 export type HtmlPreviewCandidate = {
+  kind: 'file'
   path: string
   fallbackContent: string | null
+} | {
+  kind: 'url'
+  url: string
+  path: string | null
+  fallbackContent: null
+}
+
+export type HtmlPreviewElementSelection = {
+  previewPath: string | null
+  selector: string
+  tagName: string
+  id: string | null
+  className: string | null
+  text: string | null
+  href: string | null
+  ariaLabel: string | null
 }
 
 export type TimelineEntry = {

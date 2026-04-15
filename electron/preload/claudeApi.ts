@@ -50,6 +50,7 @@ export const claudeAPI: ClaudeAPI = {
     return outcome?.ok ? outcome.file : null
   },
   readFileDataUrl: (filePath) => ipcRenderer.invoke('claude:read-file-data-url', { filePath }),
+  readPreviewUrl: (url) => ipcRenderer.invoke('claude:read-preview-url', { url }),
   getGitStatus: (cwd) => ipcRenderer.invoke('claude:get-git-status', { cwd }),
   getGitDiff: (params) => ipcRenderer.invoke('claude:get-git-diff', params),
   getGitLog: (params) => ipcRenderer.invoke('claude:get-git-log', params),
@@ -102,6 +103,8 @@ export const claudeAPI: ClaudeAPI = {
   quickPanelHide: () => ipcRenderer.invoke('quick-panel:hide'),
   watchGitHead: (params) => ipcRenderer.invoke('git:watch-head', params),
   unwatchGitHead: (params) => ipcRenderer.invoke('git:unwatch-head', params),
+  watchPreviewFiles: (params) => ipcRenderer.invoke('preview:watch-files', params),
+  unwatchPreviewFiles: (params) => ipcRenderer.invoke('preview:unwatch-files', params),
   watchSubagentText: (params) => ipcRenderer.invoke('subagent:watch-text', params),
   unwatchSubagentText: (params) => ipcRenderer.invoke('subagent:unwatch-text', params),
   onClaudeEvent: (handler) => {
@@ -188,6 +191,18 @@ export const claudeAPI: ClaudeAPI = {
     const listener = (_: Electron.IpcRendererEvent, payload: { cwd: string; headPath: string }) => handler(payload)
     ipcRenderer.on('git:head-changed', listener)
     return () => ipcRenderer.removeListener('git:head-changed', listener)
+  },
+  onPreviewFileChanged: (handler) => {
+    const listener = (
+      _: Electron.IpcRendererEvent,
+      payload: {
+        watchId: string
+        rootPath: string
+        filePath: string
+      },
+    ) => handler(payload)
+    ipcRenderer.on('preview:file-changed', listener)
+    return () => ipcRenderer.removeListener('preview:file-changed', listener)
   },
   onSubagentTextChunk: (handler) => {
     const listener = (

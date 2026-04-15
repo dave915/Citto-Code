@@ -1,45 +1,95 @@
 import { createPortal } from 'react-dom'
 import { useI18n } from '../../hooks/useI18n'
+import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import { useHtmlPreviewController } from './useHtmlPreviewController'
 
 export function HtmlPreview({
   html,
   path,
+  url,
+  onElementSelect,
 }: {
-  html: string
+  html?: string | null
   path?: string | null
+  url?: string | null
+  onElementSelect?: (payload: HtmlPreviewElementSelection) => void
 }) {
   const { t } = useI18n()
   const isMacOs = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
   const {
+    canSelectElements,
     frameHeight,
+    handleIframeLoad,
     iframeRef,
+    isFrameLoading,
     isFullscreen,
+    isSelectMode,
+    isUrlPreview,
+    previewUrl,
     srcDoc,
     handleDownload,
+    toggleSelectMode,
     toggleFullscreen,
-  } = useHtmlPreviewController({ html, path })
+  } = useHtmlPreviewController({ html, path, url, onElementSelect })
 
-  const previewTitle = t('toolcall.htmlPreview.title')
+  const previewTargetLabel = (() => {
+    if (!previewUrl) return null
+    try {
+      return new URL(previewUrl).host
+    } catch {
+      return previewUrl
+    }
+  })()
+  const previewTitle = isUrlPreview && previewTargetLabel
+    ? t('toolcall.htmlPreview.urlTitle', { target: previewTargetLabel })
+    : t('toolcall.htmlPreview.title')
   const downloadLabel = t('toolcall.htmlPreview.download')
   const openLabel = t('toolcall.htmlPreview.openInBrowser')
+  const loadingLabel = t('toolcall.htmlPreview.loadingUrl')
+  const selectUnavailableLabel = t('toolcall.htmlPreview.selectElementUnavailable')
+  const selectUnavailableHint = t('toolcall.htmlPreview.selectElementUnavailableHint')
+  const selectLabel = isSelectMode
+    ? t('toolcall.htmlPreview.selectingElement')
+    : t('toolcall.htmlPreview.selectElement')
   const maximizeLabel = isFullscreen
     ? t('toolcall.htmlPreview.exitFullscreen')
     : t('toolcall.htmlPreview.maximize')
+  const openTarget = previewUrl ?? path ?? null
+  const showSelectAction = Boolean(onElementSelect && (path || isUrlPreview))
+  const selectActionDisabled = !canSelectElements || (!path && !isUrlPreview)
 
   const renderHeaderActions = () => (
     <div className="no-drag flex flex-shrink-0 items-center gap-2" data-no-drag="true">
-      <button
-        type="button"
-        onClick={() => { void handleDownload() }}
-        className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
-      >
-        {downloadLabel}
-      </button>
-      {path ? (
+      {!isUrlPreview ? (
         <button
           type="button"
-          onClick={() => { void window.claude.openInBrowser(path) }}
+          onClick={() => { void handleDownload() }}
+          className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+        >
+          {downloadLabel}
+        </button>
+      ) : null}
+      {showSelectAction ? (
+        <button
+          type="button"
+          onClick={selectActionDisabled ? undefined : toggleSelectMode}
+          aria-disabled={selectActionDisabled}
+          title={selectActionDisabled ? selectUnavailableHint : undefined}
+          className={`rounded-md border px-2 py-1 text-[11px] outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+            selectActionDisabled
+              ? 'cursor-not-allowed border-claude-border/60 bg-claude-surface/60 text-claude-muted'
+              : isSelectMode
+              ? 'border-[#ff6b35] bg-[#ff6b35]/12 text-[#ff6b35]'
+              : 'border-claude-border bg-claude-surface text-claude-text'
+          }`}
+        >
+          {selectActionDisabled ? selectUnavailableLabel : selectLabel}
+        </button>
+      ) : null}
+      {openTarget ? (
+        <button
+          type="button"
+          onClick={() => { void window.claude.openInBrowser(openTarget) }}
           className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
         >
           {openLabel}
@@ -79,14 +129,25 @@ export function HtmlPreview({
   }
 
   const renderIframe = (fullscreen: boolean) => (
-    <iframe
-      ref={iframeRef}
-      title={path ? `${path} preview` : 'html-preview'}
-      srcDoc={srcDoc}
-      sandbox="allow-scripts allow-forms allow-modals"
-      style={fullscreen ? undefined : { height: `${frameHeight}px` }}
-      className={fullscreen ? 'block h-full w-full bg-white' : 'block w-full bg-white'}
-    />
+    <div className={fullscreen ? 'relative h-full w-full bg-white' : 'relative w-full bg-white'}>
+      <iframe
+        ref={iframeRef}
+        title={openTarget ? `${openTarget} preview` : 'html-preview'}
+        {...(srcDoc ? { srcDoc } : previewUrl ? { src: previewUrl } : {})}
+        sandbox={previewUrl ? 'allow-scripts allow-forms allow-modals allow-same-origin' : 'allow-scripts allow-forms allow-modals'}
+        onLoad={handleIframeLoad}
+        style={fullscreen ? undefined : { height: `${frameHeight}px` }}
+        className={fullscreen ? 'block h-full w-full bg-white' : 'block w-full bg-white'}
+      />
+      {isUrlPreview && isFrameLoading ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#06070d] text-center">
+          <div className="flex flex-col items-center gap-3 px-4">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-claude-border border-t-[#6c63ff]" />
+            <div className="text-[12px] font-medium text-claude-text/90">{loadingLabel}</div>
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 
   return (

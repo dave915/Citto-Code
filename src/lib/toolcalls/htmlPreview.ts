@@ -8,14 +8,55 @@ import {
 } from './formatting'
 import type { HtmlPreviewCandidate } from './types'
 
-export function extractHtmlPreviewCandidate(toolCalls: ToolCallBlockType[]): HtmlPreviewCandidate | null {
-  const targetPath = [...toolCalls]
-    .reverse()
-    .map((toolCall) => getEditableToolPath(toolCall.toolName, toolCall.toolInput))
-    .find((path): path is string => Boolean(path) && isHtmlPath(path))
+const ANSI_ESCAPE_PATTERN = /\u001B\[[0-9;]*m/g
+const DIRECT_LOCAL_SERVER_URL_PATTERN = /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0):\d+(?:\/[^\s"'<>)]*)?/i
+const LOCAL_SERVER_OUTPUT_PATTERNS = [
+  /Local:\s+(https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0):\d+(?:\/[^\s"'<>)]*)?)/i,
+  /started server on [^:\n]+:(\d+)/i,
+  /listening on(?: port)?\s*:?\s*(\d+)/i,
+  /ready in .*?\n.*?(https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0):\d+(?:\/[^\s"'<>)]*)?)/i,
+]
 
-  if (!targetPath) return null
+function normalizeServerUrl(url: string): string {
+  return url
+    .replace(ANSI_ESCAPE_PATTERN, '')
+    .trim()
+    .replace('0.0.0.0', 'localhost')
+}
 
+function isLikelyServerCommand(toolInput: unknown): boolean {
+  if (!toolInput || typeof toolInput !== 'object') return false
+  const command = String((toolInput as { command?: unknown }).command ?? '').toLowerCase()
+  if (!command) return false
+
+  return /\b(vite|next|serve|preview|dev|start|http-server|live-server|python\s+-m\s+http\.server)\b/.test(command)
+}
+
+function extractLocalServerUrl(toolCall: ToolCallBlockType): string | null {
+  if (toolCall.toolName !== 'Bash') return null
+
+  const output = formatToolResult(toolCall.result).replace(ANSI_ESCAPE_PATTERN, '').trim()
+  if (!output) return null
+
+  for (const pattern of LOCAL_SERVER_OUTPUT_PATTERNS) {
+    const match = output.match(pattern)
+    if (!match) continue
+    if (match[1]?.startsWith('http')) return normalizeServerUrl(match[1])
+    if (match[1]) return `http://localhost:${match[1]}`
+  }
+
+  if (!isLikelyServerCommand(toolCall.toolInput)) return null
+
+  const directUrlMatch = output.match(DIRECT_LOCAL_SERVER_URL_PATTERN)
+  return directUrlMatch?.[0] ? normalizeServerUrl(directUrlMatch[0]) : null
+}
+
+function extractLocalServerUrlFromText(text: string): string | null {
+  const directUrlMatch = text.replace(ANSI_ESCAPE_PATTERN, '').match(DIRECT_LOCAL_SERVER_URL_PATTERN)
+  return directUrlMatch?.[0] ? normalizeServerUrl(directUrlMatch[0]) : null
+}
+
+function buildFilePreviewCandidate(toolCalls: ToolCallBlockType[], targetPath: string): HtmlPreviewCandidate {
   const relatedToolCalls = toolCalls.filter(
     (toolCall) => getEditableToolPath(toolCall.toolName, toolCall.toolInput) === targetPath,
   )
@@ -25,6 +66,7 @@ export function extractHtmlPreviewCandidate(toolCalls: ToolCallBlockType[]): Htm
 
   if (latestReadCall) {
     return {
+      kind: 'file',
       path: targetPath,
       fallbackContent: stripLineNumberPrefixes(formatToolResult(latestReadCall.result)).code,
     }
@@ -36,7 +78,61 @@ export function extractHtmlPreviewCandidate(toolCalls: ToolCallBlockType[]): Htm
     .find((segment) => typeof segment.newContent === 'string' && segment.newContent.trim().length > 0)?.newContent ?? null
 
   return {
+    kind: 'file',
     path: targetPath,
     fallbackContent: latestRenderedContent,
   }
+}
+
+export function extractHtmlPreviewCandidate(
+  toolCalls: ToolCallBlockType[],
+  assistantText = '',
+): HtmlPreviewCandidate | null {
+  let latestFileCandidate: HtmlPreviewCandidate | null = null
+  let latestUrlCandidate: HtmlPreviewCandidate | null = null
+
+  for (let index = toolCalls.length - 1; index >= 0; index -= 1) {
+    const toolCall = toolCalls[index]
+    const targetPath = getEditableToolPath(toolCall.toolName, toolCall.toolInput)
+
+    if (!latestFileCandidate && targetPath && isHtmlPath(targetPath)) {
+      latestFileCandidate = buildFilePreviewCandidate(toolCalls, targetPath)
+    }
+
+    if (!latestUrlCandidate) {
+      const localServerUrl = extractLocalServerUrl(toolCall)
+      if (localServerUrl) {
+        latestUrlCandidate = {
+          kind: 'url',
+          url: localServerUrl,
+          path: null,
+          fallbackContent: null,
+        }
+      }
+    }
+  }
+
+  const linkedPreviewPath = latestFileCandidate?.kind === 'file'
+    ? latestFileCandidate.path
+    : null
+  const assistantTextUrl = assistantText.trim()
+    ? extractLocalServerUrlFromText(assistantText)
+    : null
+  if (assistantTextUrl) {
+    return {
+      kind: 'url',
+      url: assistantTextUrl,
+      path: linkedPreviewPath,
+      fallbackContent: null,
+    }
+  }
+
+  if (latestUrlCandidate?.kind === 'url') {
+    return {
+      ...latestUrlCandidate,
+      path: latestUrlCandidate.path ?? linkedPreviewPath,
+    }
+  }
+
+  return latestFileCandidate
 }

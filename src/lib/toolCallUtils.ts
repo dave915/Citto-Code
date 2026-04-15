@@ -27,5 +27,6 @@ export type {
   DiffRow,
   DiffSegment,
   HtmlPreviewCandidate,
+  HtmlPreviewElementSelection,
   TimelineEntry,
 } from './toolcalls/types'

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ClipboardEventHandler, type ReactNode } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { Message } from '../../store/sessions'
+import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import { BtwCardStack } from '../input/BtwCardStack'
 import { HtmlPreview, ToolTimeline } from '../ToolCallBlock'
 import { MessageMarkdown } from './messageMarkdown'
@@ -20,6 +21,7 @@ type Props = {
     code: string
     prompt?: string
   }) => void
+  onPreviewElementSelection?: (payload: HtmlPreviewElementSelection) => void
   onToggleBtwCard?: (cardId: string) => void
   onMarkdownCopy: ClipboardEventHandler<HTMLDivElement>
 }
@@ -55,6 +57,7 @@ export function AssistantMessageBubble({
   hideHtmlPreview,
   isStreaming,
   onAskAboutSelection,
+  onPreviewElementSelection,
   onToggleBtwCard,
   onMarkdownCopy,
 }: Props) {
@@ -97,8 +100,18 @@ export function AssistantMessageBubble({
 
         {shouldShowHtmlPreview ? (
           <div className="py-1">
-            {htmlPreviewContent ? (
-              <HtmlPreview html={htmlPreviewContent} path={htmlPreviewCandidate!.path} />
+            {htmlPreviewCandidate?.kind === 'url' ? (
+              <HtmlPreview
+                path={htmlPreviewCandidate.path}
+                url={htmlPreviewCandidate.url}
+                onElementSelect={onPreviewElementSelection}
+              />
+            ) : htmlPreviewContent && htmlPreviewCandidate?.kind === 'file' ? (
+              <HtmlPreview
+                html={htmlPreviewContent}
+                path={htmlPreviewCandidate.path}
+                onElementSelect={onPreviewElementSelection}
+              />
             ) : htmlPreviewLoading ? (
               <div className="rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-3 text-[11px] text-claude-muted">
                 {t('chat.message.loadingHtmlPreview')}

@@ -5,6 +5,7 @@ import type { Message } from '../store/sessions'
 import { AssistantMessageBubble } from './message/AssistantMessageBubble'
 import { normalizeCopiedMarkdownText } from './message/messageMarkdown'
 import { UserMessageBubble } from './message/UserMessageBubble'
+import type { HtmlPreviewElementSelection } from '../lib/toolcalls/types'
 
 type Props = {
   message: Message
@@ -20,6 +21,7 @@ type Props = {
     code: string
     prompt?: string
   }) => void
+  onPreviewElementSelection?: (payload: HtmlPreviewElementSelection) => void
   onToggleBtwCard?: (cardId: string) => void
 }
 
@@ -31,6 +33,7 @@ export function MessageBubble(props: Props) {
     hideHtmlPreview = false,
     isStreaming,
     onAskAboutSelection,
+    onPreviewElementSelection,
     onToggleBtwCard,
   } = props
   const [copied, setCopied] = useState(false)
@@ -113,6 +116,7 @@ export function MessageBubble(props: Props) {
       hideHtmlPreview={hideHtmlPreview}
       isStreaming={isStreaming}
       onAskAboutSelection={onAskAboutSelection}
+      onPreviewElementSelection={onPreviewElementSelection}
       onToggleBtwCard={onToggleBtwCard}
       onMarkdownCopy={handleMarkdownCopy}
     />
