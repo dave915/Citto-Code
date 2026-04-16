@@ -26,6 +26,7 @@ type UseHtmlPreviewControllerOptions = {
   html?: string | null
   path?: string | null
   url?: string | null
+  downloadRootPath?: string | null
   onElementSelect?: (payload: HtmlPreviewElementSelection) => void
   selectedElements?: HtmlPreviewElementSelection[]
   hoveredSelectionKey?: string | null
@@ -48,6 +49,7 @@ export function useHtmlPreviewController({
   html,
   path,
   url,
+  downloadRootPath,
   onElementSelect,
   selectedElements = [],
   hoveredSelectionKey = null,
@@ -328,13 +330,24 @@ export function useHtmlPreviewController({
   }, [isFullscreen])
 
   const handleDownload = useCallback(async () => {
+    if (isUrlPreview) {
+      const resolvedDownloadRootPath = downloadRootPath ?? await window.claude.selectFolder(
+        downloadRootPath ? { defaultPath: downloadRootPath } : undefined,
+      )
+      if (!resolvedDownloadRootPath) return
+      await window.claude.saveZipArchive({
+        sourcePath: resolvedDownloadRootPath,
+      })
+      return
+    }
+
     await window.claude.saveTextFile({
       suggestedName: getFileName(path),
       defaultPath: buildSuggestedSavePath(path),
       content: documentHtml,
       filters: [{ name: 'HTML', extensions: ['html', 'htm'] }],
     })
-  }, [documentHtml, path])
+  }, [documentHtml, downloadRootPath, isUrlPreview, path])
 
   const refreshPreview = useCallback(async () => {
     if (urlRetryTimerRef.current !== null) {

@@ -86,6 +86,7 @@ export const claudeAPI: ClaudeAPI = {
   writeClaudeFile: (params) => ipcRenderer.invoke('claude:write-claude-file', params),
   writeFileAbs: (params) => ipcRenderer.invoke('claude:write-file-abs', params),
   saveTextFile: (params) => ipcRenderer.invoke('claude:save-text-file', params),
+  saveZipArchive: (params) => ipcRenderer.invoke('claude:save-zip-archive', params),
   deletePath: (params) => ipcRenderer.invoke('claude:delete-path', params),
   syncWorkflows: (workflows) => ipcRenderer.invoke('app:sync-workflows', { workflows }),
   runWorkflowNow: (params) => ipcRenderer.invoke('workflow:run-now', params),

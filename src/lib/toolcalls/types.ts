@@ -35,6 +35,7 @@ export type HtmlPreviewCandidate = {
   kind: 'url'
   url: string
   path: string | null
+  rootPath: string | null
   fallbackContent: null
 }
 

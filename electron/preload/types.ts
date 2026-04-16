@@ -414,6 +414,10 @@ export type ClaudeAPI = {
     content: string
     filters?: Array<{ name: string; extensions: string[] }>
   }) => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
+  saveZipArchive: (params: {
+    sourcePath: string
+    suggestedName?: string
+  }) => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
   syncWorkflows: (workflows: Workflow[]) => Promise<{ ok: boolean; error?: string }>
   runWorkflowNow: (params: { workflowId: string }) => Promise<{ ok: boolean; error?: string }>

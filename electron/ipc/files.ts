@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { spawn } from 'child_process'
 import { dirname, extname, join } from 'path'
 import { existsSync, mkdirSync, readFile as fsReadFile, readdirSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { pathToFileURL } from 'url'
@@ -34,6 +35,77 @@ function isAllowedPreviewUrl(rawUrl: string): boolean {
   } catch {
     return false
   }
+}
+
+function getPathBaseName(targetPath: string): string {
+  const normalized = targetPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const segments = normalized.split('/').filter(Boolean)
+  return segments[segments.length - 1] ?? 'project'
+}
+
+function sanitizeArchiveName(name: string): string {
+  const trimmed = name.trim().replace(/\.zip$/i, '')
+  const sanitized = trimmed.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-').trim()
+  return sanitized || 'project'
+}
+
+function runCommand(command: string, args: string[], cwd?: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+
+    child.on('error', reject)
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve()
+        return
+      }
+      reject(new Error(`${command} exited with code ${code ?? 'unknown'}`))
+    })
+  })
+}
+
+async function createZipArchive(sourcePath: string, targetPath: string): Promise<void> {
+  if (process.platform === 'darwin') {
+    await runCommand('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', sourcePath, targetPath])
+    return
+  }
+
+  if (process.platform === 'win32') {
+    const escapedSourcePath = sourcePath.replace(/'/g, "''")
+    const escapedTargetPath = targetPath.replace(/'/g, "''")
+    await runCommand('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `Compress-Archive -LiteralPath '${escapedSourcePath}' -DestinationPath '${escapedTargetPath}' -Force`,
+    ])
+    return
+  }
+
+  const parentDir = dirname(sourcePath)
+  const directoryName = getPathBaseName(sourcePath)
+  const excludedEntries = [
+    `${directoryName}/node_modules/*`,
+    `${directoryName}/.git/*`,
+    `${directoryName}/dist/*`,
+    `${directoryName}/build/*`,
+    `${directoryName}/out/*`,
+    `${directoryName}/coverage/*`,
+    `${directoryName}/.next/*`,
+    `${directoryName}/.turbo/*`,
+    `${directoryName}/.cache/*`,
+    `${directoryName}/.DS_Store`,
+  ]
+
+  await runCommand(
+    'zip',
+    ['-rq', targetPath, directoryName, ...excludedEntries.flatMap((entry) => ['-x', entry])],
+    parentDir,
+  )
 }
 
 export function registerFileIpcHandlers({
@@ -270,6 +342,61 @@ export function registerFileIpcHandlers({
         writeFileSync(result.filePath, content, 'utf-8')
         return { ok: true, path: result.filePath }
       } catch (error) {
+        return { ok: false, error: String(error) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'claude:save-zip-archive',
+    async (
+      event,
+      {
+        sourcePath,
+        suggestedName,
+      }: {
+        sourcePath: string
+        suggestedName?: string
+      },
+    ) => {
+      let targetPath: string | null = null
+
+      try {
+        const resolvedSourcePath = resolveTargetPath(sourcePath)
+        if (!resolvedSourcePath || !existsSync(resolvedSourcePath)) {
+          return { ok: false, error: 'Source path does not exist.' }
+        }
+
+        const sourceStat = statSync(resolvedSourcePath)
+        if (!sourceStat.isDirectory()) {
+          return { ok: false, error: 'Source path must be a directory.' }
+        }
+
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) ?? getMainWindow() ?? showMainWindow()
+        const archiveName = sanitizeArchiveName(suggestedName ?? getPathBaseName(resolvedSourcePath))
+        const result = await dialog.showSaveDialog(parentWindow, {
+          defaultPath: join(app.getPath('documents'), `${archiveName}.zip`),
+          filters: [{ name: 'ZIP', extensions: ['zip'] }],
+        })
+
+        if (result.canceled || !result.filePath) {
+          return { ok: false, canceled: true }
+        }
+
+        targetPath = result.filePath.toLowerCase().endsWith('.zip')
+          ? result.filePath
+          : `${result.filePath}.zip`
+
+        await createZipArchive(resolvedSourcePath, targetPath)
+        return { ok: true, path: targetPath }
+      } catch (error) {
+        if (targetPath && existsSync(targetPath)) {
+          try {
+            unlinkSync(targetPath)
+          } catch {
+            // Ignore cleanup failures and surface the original error.
+          }
+        }
         return { ok: false, error: String(error) }
       }
     },

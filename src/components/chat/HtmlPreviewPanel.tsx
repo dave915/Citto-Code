@@ -1,14 +1,45 @@
 import { useI18n } from '../../hooks/useI18n'
 import { HtmlPreview } from '../ToolCallBlock'
-import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import type { HtmlPreviewCandidate, HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import type { HtmlPreviewSource, PreviewElementSelectionPayload } from './chatViewUtils'
 import { useMessageHtmlPreview } from '../message/useMessageHtmlPreview'
 import { getFileName } from '../toolcalls/htmlPreviewDocument'
+
+function normalizePath(path: string | null | undefined): string | null {
+  const trimmed = path?.trim() ?? ''
+  if (!trimmed || trimmed === '~') return null
+  return trimmed
+}
+
+function getParentDirectory(filePath: string): string | null {
+  const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const lastSlash = normalized.lastIndexOf('/')
+  if (lastSlash < 0) return null
+  if (lastSlash === 0) return '/'
+  return normalized.slice(0, lastSlash)
+}
+
+function resolveUrlPreviewDownloadRoot(candidate: HtmlPreviewCandidate | null, sessionCwd: string | null): string | null {
+  if (!candidate || candidate.kind !== 'url') return null
+
+  const rootedProjectPath = normalizePath(candidate.rootPath)
+  if (rootedProjectPath) {
+    return rootedProjectPath
+  }
+
+  const linkedPreviewPath = normalizePath(candidate.path)
+  if (linkedPreviewPath) {
+    return getParentDirectory(linkedPreviewPath) ?? linkedPreviewPath
+  }
+
+  return normalizePath(sessionCwd)
+}
 
 type Props = {
   activeSource: HtmlPreviewSource | null
   sources: HtmlPreviewSource[]
   selectedSourceId: string | null
+  sessionCwd: string | null
   hideHtmlPreview: boolean
   isStreaming: boolean
   onPreviewElementSelection: (payload: HtmlPreviewElementSelection) => void
@@ -22,6 +53,7 @@ export function HtmlPreviewPanel({
   activeSource,
   sources,
   selectedSourceId,
+  sessionCwd,
   hideHtmlPreview,
   isStreaming,
   onPreviewElementSelection,
@@ -61,6 +93,7 @@ export function HtmlPreviewPanel({
     hideHtmlPreview,
     showStreamingUi: isStreaming,
   })
+  const urlPreviewDownloadRoot = resolveUrlPreviewDownloadRoot(htmlPreviewCandidate, sessionCwd)
 
   if (!activeSource || !shouldShowHtmlPreview || !htmlPreviewCandidate) {
     return (
@@ -76,6 +109,7 @@ export function HtmlPreviewPanel({
         <HtmlPreview
           path={htmlPreviewCandidate.path}
           url={htmlPreviewCandidate.url}
+          downloadRootPath={urlPreviewDownloadRoot}
           sourceOptions={sourceOptions}
           activeSourceId={selectedSourceId}
           onSourceChange={onSelectSource}

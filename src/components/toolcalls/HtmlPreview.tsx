@@ -45,6 +45,7 @@ export function HtmlPreview({
   html,
   path,
   url,
+  downloadRootPath = null,
   onElementSelect,
   onClearSelectedElements,
   selectedElements = [],
@@ -56,6 +57,7 @@ export function HtmlPreview({
   html?: string | null
   path?: string | null
   url?: string | null
+  downloadRootPath?: string | null
   onElementSelect?: (payload: HtmlPreviewElementSelection) => void
   onClearSelectedElements?: () => void
   selectedElements?: HtmlPreviewElementSelection[]
@@ -90,7 +92,15 @@ export function HtmlPreview({
     handleDownload,
     toggleSelectMode,
     toggleFullscreen,
-  } = useHtmlPreviewController({ html, path, url: committedUrl, onElementSelect, selectedElements, hoveredSelectionKey })
+  } = useHtmlPreviewController({
+    html,
+    path,
+    url: committedUrl,
+    downloadRootPath,
+    onElementSelect,
+    selectedElements,
+    hoveredSelectionKey,
+  })
 
   useEffect(() => {
     const nextUrl = url?.trim() || null
@@ -112,6 +122,7 @@ export function HtmlPreview({
     : getFileName(path)
   const addressLabel = openTarget ?? t('toolcall.htmlPreview.localAddress')
   const showSourceSelector = sourceOptions.length > 1
+  const canDownloadPreview = Boolean(path || isUrlPreview)
   const showSelectAction = Boolean(onElementSelect && (path || isUrlPreview))
   const selectActionDisabled = !canSelectElements || (!path && !isUrlPreview)
   const hasSelectedElements = selectedElements.length > 0
@@ -146,7 +157,7 @@ export function HtmlPreview({
           <div className="truncate text-[13px] font-medium text-claude-text">{previewTitle}</div>
         </div>
 
-        {!isUrlPreview ? (
+        {canDownloadPreview ? (
           <PreviewIconButton title={t('toolcall.htmlPreview.download')} onClick={() => { void handleDownload() }}>
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v10" />

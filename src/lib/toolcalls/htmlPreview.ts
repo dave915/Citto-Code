@@ -24,6 +24,35 @@ function normalizeServerUrl(url: string): string {
     .replace('0.0.0.0', 'localhost')
 }
 
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+/g, '/').trim()
+}
+
+function stripShellQuotes(value: string): string {
+  const trimmed = value.trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith('\'') && trimmed.endsWith('\''))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+function extractCommandRootPath(toolInput: unknown): string | null {
+  if (!toolInput || typeof toolInput !== 'object') return null
+  const command = String((toolInput as { command?: unknown }).command ?? '').trim()
+  if (!command) return null
+
+  const normalizedCommand = command.replace(/\r\n?/g, '\n')
+  const match = normalizedCommand.match(/(?:^|\n)\s*cd\s+((?:"[^"]+"|'[^']+'|[^&;\n])+)\s*(?:&&|;|\n)/)
+  if (!match?.[1]) return null
+
+  const targetPath = stripShellQuotes(match[1])
+  if (!targetPath.startsWith('/')) return null
+  return normalizePath(targetPath)
+}
+
 function isLikelyServerCommand(toolInput: unknown): boolean {
   if (!toolInput || typeof toolInput !== 'object') return false
   const command = String((toolInput as { command?: unknown }).command ?? '').toLowerCase()
@@ -109,6 +138,7 @@ export function extractHtmlPreviewCandidates(
           kind: 'url',
           url: localServerUrl,
           path: null,
+          rootPath: extractCommandRootPath(toolCall.toolInput),
           fallbackContent: null,
         }
       }
@@ -126,6 +156,7 @@ export function extractHtmlPreviewCandidates(
       kind: 'url',
       url: assistantTextUrl,
       path: linkedPreviewPath,
+      rootPath: latestUrlCandidate?.kind === 'url' ? latestUrlCandidate.rootPath : null,
       fallbackContent: null,
     }
   } else if (latestUrlCandidate?.kind === 'url') {

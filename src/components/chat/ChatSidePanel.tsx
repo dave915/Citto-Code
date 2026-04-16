@@ -154,6 +154,7 @@ export function ChatSidePanel({
             activeSource={activeHtmlPreviewSource}
             sources={htmlPreviewSources}
             selectedSourceId={selectedHtmlPreviewSourceId}
+            sessionCwd={session.cwd ?? null}
             hideHtmlPreview={hideHtmlPreview}
             isStreaming={htmlPreviewIsStreaming}
             onPreviewElementSelection={onPreviewElementSelection}
