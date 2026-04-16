@@ -103,7 +103,7 @@
   - `electron/services/previewWatchService.ts`
 - 책임:
   - 메인 채팅 UX
-  - 파일/Git/세션 사이드 패널
+  - 파일/Git/세션/미리보기 우측 패널 스택과 섹션 리사이즈
   - export, preview, selection actions
   - tool result preview, 우측 HTML preview 패널, HTML iframe/fullscreen 수명주기
   - HTML preview auto-reload watcher와 preview element selection draft 주입

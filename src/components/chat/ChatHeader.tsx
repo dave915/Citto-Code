@@ -2,8 +2,9 @@ import type { MouseEvent as ReactMouseEvent, MutableRefObject } from 'react'
 import type { GitBranchInfo, GitRepoStatus, OpenWithApp } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import { BranchMenu } from './header/BranchMenu'
-import { HeaderToggleButton } from './header/HeaderToggleButton'
 import { OpenWithMenu } from './header/OpenWithMenu'
+import { PanelStackMenu } from './header/PanelStackMenu'
+import type { ChatViewRightPanel } from '../../hooks/useChatViewLayout'
 
 export function ChatHeader({
   isNewSession,
@@ -38,21 +39,15 @@ export function ChatHeader({
   onDefaultOpen,
   onToggleOpenWithMenu,
   onOpenWith,
-  showHeaderSessionAction,
-  sessionPanelOpen,
-  sessionInfoShortcutLabel,
-  onToggleSessionPanel,
-  showHeaderPreviewAction,
-  previewPanelOpen,
-  onTogglePreviewPanel,
   gitAvailable,
-  showHeaderGitAction,
   gitPanelOpen,
-  onToggleGitPanel,
-  showHeaderFileAction,
   filePanelOpen,
+  previewPanelOpen,
+  sessionPanelOpen,
   filesShortcutLabel,
-  onToggleFilePanel,
+  sessionInfoShortcutLabel,
+  previewAvailable,
+  onTogglePanel,
   onHeaderDoubleClick,
 }: {
   isNewSession: boolean
@@ -87,24 +82,74 @@ export function ChatHeader({
   onDefaultOpen: () => void | Promise<void>
   onToggleOpenWithMenu: () => void
   onOpenWith: (appId: string) => void | Promise<void>
-  showHeaderSessionAction: boolean
-  sessionPanelOpen: boolean
-  sessionInfoShortcutLabel: string
-  onToggleSessionPanel: () => void
-  showHeaderPreviewAction: boolean
-  previewPanelOpen: boolean
-  onTogglePreviewPanel: () => void
   gitAvailable: boolean
-  showHeaderGitAction: boolean
   gitPanelOpen: boolean
-  onToggleGitPanel: () => void
-  showHeaderFileAction: boolean
   filePanelOpen: boolean
+  previewPanelOpen: boolean
+  sessionPanelOpen: boolean
   filesShortcutLabel: string
-  onToggleFilePanel: () => void
+  sessionInfoShortcutLabel: string
+  previewAvailable: boolean
+  onTogglePanel: (panel: ChatViewRightPanel) => void
   onHeaderDoubleClick: (event: ReactMouseEvent<HTMLDivElement>) => void
 }) {
   const { t } = useI18n()
+  const panelItems = [
+    {
+      id: 'preview' as const,
+      label: t('common.preview'),
+      active: previewPanelOpen,
+      disabled: !previewAvailable && !previewPanelOpen,
+      icon: (
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 15l2.4-2.6a1.5 1.5 0 0 1 2.2 0L15 15" />
+          <circle cx="15.5" cy="9.5" r="1.5" />
+        </svg>
+      ),
+    },
+    {
+      id: 'git' as const,
+      label: t('sidePanel.diff'),
+      active: gitPanelOpen,
+      disabled: !gitAvailable && !gitPanelOpen,
+      icon: (
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="4.5" y="4.5" width="15" height="15" rx="3.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 15h8" />
+        </svg>
+      ),
+    },
+    {
+      id: 'files' as const,
+      label: t('sidePanel.fileExplorer'),
+      active: filePanelOpen,
+      shortcutLabel: filesShortcutLabel,
+      icon: (
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 18h10" />
+        </svg>
+      ),
+    },
+    {
+      id: 'session' as const,
+      label: t('sidePanel.sessionInfo'),
+      active: sessionPanelOpen,
+      shortcutLabel: sessionInfoShortcutLabel,
+      icon: (
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="9" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
+        </svg>
+      ),
+    },
+  ]
+
   return (
     <div
       className="draggable-region relative z-30 flex h-12 flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel pr-4"
@@ -170,56 +215,11 @@ export function ChatHeader({
           />
         )}
 
-        {showHeaderSessionAction && (
-          <HeaderToggleButton
-            active={sessionPanelOpen}
-            title={`${t('header.sessionInfo')} (${sessionInfoShortcutLabel})`}
-            onClick={onToggleSessionPanel}
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="9" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
-            </svg>
-          </HeaderToggleButton>
-        )}
-
-        {showHeaderPreviewAction && (
-          <HeaderToggleButton active={previewPanelOpen} title={t('common.preview')} onClick={onTogglePreviewPanel}>
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 15l2.4-2.6a1.5 1.5 0 0 1 2.2 0L15 15" />
-              <circle cx="15.5" cy="9.5" r="1.5" />
-            </svg>
-          </HeaderToggleButton>
-        )}
-
-        {gitAvailable && showHeaderGitAction && (
-          <HeaderToggleButton active={gitPanelOpen} title={t('header.gitDiff')} onClick={onToggleGitPanel}>
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="4.5" y="4.5" width="15" height="15" rx="3.5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 15h8" />
-            </svg>
-          </HeaderToggleButton>
-        )}
-
-        {showHeaderFileAction && (
-          <HeaderToggleButton
-            active={filePanelOpen}
-            title={`${t('header.fileExplorer')} (${filesShortcutLabel})`}
-            onClick={onToggleFilePanel}
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 18h10" />
-            </svg>
-          </HeaderToggleButton>
-        )}
-
-
+        <PanelStackMenu
+          items={panelItems}
+          title={t('header.panelMenu')}
+          onToggle={onTogglePanel}
+        />
       </div>
     </div>
   )

@@ -107,21 +107,15 @@ export function ChatView({
           onDefaultOpen={controller.handleDefaultOpen}
           onToggleOpenWithMenu={controller.toggleOpenWithMenu}
           onOpenWith={controller.handleOpenWith}
-          showHeaderSessionAction={controller.showHeaderSessionAction}
           sessionPanelOpen={controller.sessionPanelOpen}
           sessionInfoShortcutLabel={sessionInfoShortcutLabel}
-          onToggleSessionPanel={controller.toggleSessionPanel}
-          showHeaderPreviewAction={controller.showHeaderPreviewAction}
           previewPanelOpen={controller.previewPanelOpen}
-          onTogglePreviewPanel={controller.togglePreviewPanel}
+          previewAvailable={controller.previewAvailable}
           gitAvailable={controller.gitAvailable}
-          showHeaderGitAction={controller.showHeaderGitAction}
           gitPanelOpen={controller.gitPanelOpen}
-          onToggleGitPanel={controller.toggleGitPanel}
-          showHeaderFileAction={controller.showHeaderFileAction}
           filePanelOpen={controller.filePanelOpen}
           filesShortcutLabel={filesShortcutLabel}
-          onToggleFilePanel={controller.toggleFilePanel}
+          onTogglePanel={controller.togglePanel}
           onHeaderDoubleClick={controller.handleHeaderDoubleClick}
         />
 
@@ -161,7 +155,7 @@ export function ChatView({
         />
       </div>
 
-      {controller.rightPanel !== 'none' && (
+      {controller.sidePanelVisible && (
         <div
           onPointerDown={controller.handleFilePanelResizeStart}
           className="w-1.5 flex-shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-claude-border/80"
@@ -169,11 +163,8 @@ export function ChatView({
       )}
 
       <ChatSidePanel
-        visible={controller.rightPanel !== 'none'}
-        title={controller.sidePanelTitle}
-        filePanelOpen={controller.filePanelOpen}
-        gitPanelOpen={controller.gitPanelOpen}
-        previewPanelOpen={controller.previewPanelOpen}
+        visible={controller.sidePanelVisible}
+        openPanels={controller.openPanels}
         showPreviewPane={controller.showPreviewPane}
         showGitPreviewPane={controller.showGitPreviewPane}
         explorerWidth={controller.explorerWidth}

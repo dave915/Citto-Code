@@ -44,7 +44,7 @@ export function SessionInfoPanel({
     : null
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
       <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{t('sessionInfo.section')}</p>

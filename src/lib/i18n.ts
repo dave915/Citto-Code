@@ -144,6 +144,7 @@ const TRANSLATIONS = {
     'header.currentWorktree': '현재 작업 폴더',
     'header.openSidebar': '사이드바 열기',
     'header.closeSidebar': '사이드바 닫기',
+    'header.panelMenu': '사이드 패널 정리',
     'header.sessionInfo': '현재 세션 정보 보기',
     'header.gitDiff': 'git diff 보기',
     'header.fileExplorer': '현재 디렉토리 파일 보기',
@@ -169,6 +170,7 @@ const TRANSLATIONS = {
 
     'filePanel.none': '표시할 파일이 없습니다.',
     'sidePanel.fileExplorer': '파일 탐색기',
+    'sidePanel.diff': 'Diff',
     'sidePanel.sessionInfo': '세션 정보',
     'sidePanel.refreshFileExplorer': '파일 탐색기 새로고침',
     'sidePanel.refreshGit': 'Git 상태 새로고침',
@@ -1301,6 +1303,7 @@ const TRANSLATIONS = {
     'header.currentWorktree': 'Current working folder',
     'header.openSidebar': 'Open sidebar',
     'header.closeSidebar': 'Close sidebar',
+    'header.panelMenu': 'Manage side panels',
     'header.sessionInfo': 'Show current session info',
     'header.gitDiff': 'Show git diff',
     'header.fileExplorer': 'Show current directory files',
@@ -1326,6 +1329,7 @@ const TRANSLATIONS = {
 
     'filePanel.none': 'No files to show.',
     'sidePanel.fileExplorer': 'File explorer',
+    'sidePanel.diff': 'Diff',
     'sidePanel.sessionInfo': 'Session info',
     'sidePanel.refreshFileExplorer': 'Refresh file explorer',
     'sidePanel.refreshGit': 'Refresh Git status',
