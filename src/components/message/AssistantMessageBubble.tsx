@@ -1,17 +1,13 @@
 import { useEffect, useState, type ClipboardEventHandler, type ReactNode } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { Message } from '../../store/sessions'
-import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import { BtwCardStack } from '../input/BtwCardStack'
-import { HtmlPreview, ToolTimeline } from '../ToolCallBlock'
+import { ToolTimeline } from '../ToolCallBlock'
 import { MessageMarkdown } from './messageMarkdown'
-import { useMessageHtmlPreview } from './useMessageHtmlPreview'
 
 type Props = {
   message: Message
   copyButton: ReactNode
-  isActiveHtmlPreviewMessage: boolean
-  hideHtmlPreview: boolean
   isStreaming?: boolean
   onAskAboutSelection?: (payload: {
     kind: 'diff' | 'code'
@@ -21,7 +17,6 @@ type Props = {
     code: string
     prompt?: string
   }) => void
-  onPreviewElementSelection?: (payload: HtmlPreviewElementSelection) => void
   onToggleBtwCard?: (cardId: string) => void
   onMarkdownCopy: ClipboardEventHandler<HTMLDivElement>
 }
@@ -53,11 +48,8 @@ function ThinkingDots({ muted = false }: { muted?: boolean }) {
 export function AssistantMessageBubble({
   message,
   copyButton,
-  isActiveHtmlPreviewMessage,
-  hideHtmlPreview,
   isStreaming,
   onAskAboutSelection,
-  onPreviewElementSelection,
   onToggleBtwCard,
   onMarkdownCopy,
 }: Props) {
@@ -68,17 +60,6 @@ export function AssistantMessageBubble({
   const hasBtwCards = Boolean(message.btwCards?.length)
   const showThinkingRow = hasThinking || showStreamingUi
   const showThinkingPanel = hasThinking && thinkingOpen
-  const {
-    htmlPreviewCandidate,
-    htmlPreviewContent,
-    htmlPreviewLoading,
-    shouldShowHtmlPreview,
-  } = useMessageHtmlPreview({
-    message,
-    isActiveHtmlPreviewMessage,
-    hideHtmlPreview,
-    showStreamingUi,
-  })
 
   useEffect(() => {
     if (showStreamingUi) {
@@ -97,28 +78,6 @@ export function AssistantMessageBubble({
             <ToolTimeline toolCalls={message.toolCalls} onAskAboutSelection={onAskAboutSelection} />
           </div>
         )}
-
-        {shouldShowHtmlPreview ? (
-          <div className="py-1">
-            {htmlPreviewCandidate?.kind === 'url' ? (
-              <HtmlPreview
-                path={htmlPreviewCandidate.path}
-                url={htmlPreviewCandidate.url}
-                onElementSelect={onPreviewElementSelection}
-              />
-            ) : htmlPreviewContent && htmlPreviewCandidate?.kind === 'file' ? (
-              <HtmlPreview
-                html={htmlPreviewContent}
-                path={htmlPreviewCandidate.path}
-                onElementSelect={onPreviewElementSelection}
-              />
-            ) : htmlPreviewLoading ? (
-              <div className="rounded-lg border border-claude-border/70 bg-claude-bg px-3 py-3 text-[11px] text-claude-muted">
-                {t('chat.message.loadingHtmlPreview')}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
 
         {(message.text || hasThinking || showStreamingUi) && (
           <div className="relative inline-block max-w-[88%] px-0.5 py-1 align-top">

@@ -2,8 +2,92 @@ import { AttachmentList } from './input/AttachmentList'
 import { InputComposer } from './input/InputComposer'
 import { useInputAreaController } from './input/useInputAreaController'
 import type { InputAreaProps } from './input/inputAreaTypes'
+import type { PreviewElementSelectionPayload } from './chat/chatViewUtils'
 import { useI18n } from '../hooks/useI18n'
 import { useMcpRuntimeStore } from '../store/mcpRuntime'
+
+function getPreviewSelectionTooltip(
+  selection: PreviewElementSelectionPayload,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  const lines = [
+    `${t('chatView.previewSelectionReference')}: ${selection.selector}`,
+    ...(selection.previewPath ? [`${t('chatView.file')}: ${selection.previewPath}`] : []),
+    ...(selection.href ? [`${t('chatView.previewSelectionHref')}: ${selection.href}`] : []),
+  ]
+
+  return lines.join('\n')
+}
+
+function PreviewSelectionContext({
+  selections,
+  onRemove,
+  onClearAll,
+  onHoverChange,
+  t,
+}: {
+  selections: Array<{
+    key: string
+    selection: PreviewElementSelectionPayload
+    summary: string
+  }>
+  onRemove: (selectionKey: string) => void
+  onClearAll: () => void
+  onHoverChange?: (selectionKey: string | null) => void
+  t: ReturnType<typeof useI18n>['t']
+}) {
+  return (
+    <div className="mb-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-[11px] font-medium text-claude-muted">
+            {t('chatView.previewSelectionTarget')}
+          </p>
+          <span className="rounded-full border border-claude-border/70 bg-claude-surface/65 px-2 py-0.5 text-[10px] font-medium text-claude-muted">
+            {t('chatView.previewSelectionCount', { count: selections.length })}
+          </span>
+        </div>
+        {selections.length > 1 ? (
+          <button
+            type="button"
+            onClick={onClearAll}
+            className="inline-flex items-center rounded-full border border-claude-border/70 bg-claude-surface/55 px-2.5 py-1 text-[11px] font-medium text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+          >
+            {t('common.clearAll')}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {selections.map(({ key, selection, summary }) => (
+          <div
+            key={key}
+            title={getPreviewSelectionTooltip(selection, t)}
+            onMouseEnter={() => onHoverChange?.(key)}
+            onMouseLeave={() => onHoverChange?.(null)}
+            className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-claude-border/70 bg-claude-surface/60 pl-3 pr-1.5 py-1.5"
+          >
+            <span className="max-w-[280px] truncate text-[13px] font-medium text-claude-text">
+              {summary}
+            </span>
+            <button
+              type="button"
+              onClick={() => onRemove(key)}
+              aria-label={t('common.delete')}
+              title={t('common.delete')}
+              className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-claude-panel/85 text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+            >
+              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path strokeLinecap="round" d="M4 4l8 8" />
+                <path strokeLinecap="round" d="M12 4 4 12" />
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export function InputArea({
   topSlot,
@@ -83,6 +167,16 @@ export function InputArea({
           language={controller.language}
           onRemoveFile={controller.handleRemoveFile}
         />
+
+        {controller.previewSelectionItems.length > 0 ? (
+          <PreviewSelectionContext
+            selections={controller.previewSelectionItems}
+            onRemove={controller.removePreviewSelectionDraft}
+            onClearAll={controller.clearPreviewSelectionDrafts}
+            onHoverChange={props.onPreviewSelectionHoverChange}
+            t={t}
+          />
+        ) : null}
 
         <InputComposer
           textareaRef={controller.textareaRef}

@@ -84,10 +84,13 @@ function buildFilePreviewCandidate(toolCalls: ToolCallBlockType[], targetPath: s
   }
 }
 
-export function extractHtmlPreviewCandidate(
+export function extractHtmlPreviewCandidates(
   toolCalls: ToolCallBlockType[],
   assistantText = '',
-): HtmlPreviewCandidate | null {
+): {
+  file: HtmlPreviewCandidate | null
+  url: HtmlPreviewCandidate | null
+} {
   let latestFileCandidate: HtmlPreviewCandidate | null = null
   let latestUrlCandidate: HtmlPreviewCandidate | null = null
 
@@ -119,20 +122,29 @@ export function extractHtmlPreviewCandidate(
     ? extractLocalServerUrlFromText(assistantText)
     : null
   if (assistantTextUrl) {
-    return {
+    latestUrlCandidate = {
       kind: 'url',
       url: assistantTextUrl,
       path: linkedPreviewPath,
       fallbackContent: null,
     }
-  }
-
-  if (latestUrlCandidate?.kind === 'url') {
-    return {
+  } else if (latestUrlCandidate?.kind === 'url') {
+    latestUrlCandidate = {
       ...latestUrlCandidate,
       path: latestUrlCandidate.path ?? linkedPreviewPath,
     }
   }
 
-  return latestFileCandidate
+  return {
+    file: latestFileCandidate,
+    url: latestUrlCandidate,
+  }
+}
+
+export function extractHtmlPreviewCandidate(
+  toolCalls: ToolCallBlockType[],
+  assistantText = '',
+): HtmlPreviewCandidate | null {
+  const { file, url } = extractHtmlPreviewCandidates(toolCalls, assistantText)
+  return url ?? file
 }

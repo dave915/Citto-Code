@@ -41,6 +41,7 @@ export type HtmlPreviewCandidate = {
 export type HtmlPreviewElementSelection = {
   previewPath: string | null
   selector: string
+  pathHint: string | null
   tagName: string
   id: string | null
   className: string | null

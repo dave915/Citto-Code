@@ -7,7 +7,10 @@ export {
   getEditDiffHunks,
 } from './toolcalls/diff'
 
-export { extractHtmlPreviewCandidate } from './toolcalls/htmlPreview'
+export {
+  extractHtmlPreviewCandidate,
+  extractHtmlPreviewCandidates,
+} from './toolcalls/htmlPreview'
 
 export {
   countDisplayLines,

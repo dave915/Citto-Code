@@ -16,6 +16,7 @@ import {
   buildPreviewSelectionDraft,
   buildSessionExportContent,
   type AskAboutSelectionPayload,
+  type ExternalDraft,
   type PreviewElementSelectionPayload,
 } from '../../components/chat/chatViewUtils'
 import type { AppLanguage, TranslationKey } from '../../lib/i18n'
@@ -26,12 +27,16 @@ type UseChatViewActionsParams = {
   t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
+function createDraftId() {
+  return Date.now() + Math.random()
+}
+
 export function useChatViewActions({
   language,
   session,
   t,
 }: UseChatViewActionsParams) {
-  const [externalDraft, setExternalDraft] = useState<{ id: number; text: string } | null>(null)
+  const [externalDraft, setExternalDraft] = useState<ExternalDraft | null>(null)
   const [exportingFormat, setExportingFormat] = useState<SessionExportFormat | null>(null)
   const [copyingFormat, setCopyingFormat] = useState<SessionExportFormat | null>(null)
   const [sessionExportStatus, setSessionExportStatus] = useState<string | null>(null)
@@ -48,15 +53,18 @@ export function useChatViewActions({
 
   const handleAskAboutSelection = (payload: AskAboutSelectionPayload) => {
     setExternalDraft({
-      id: Date.now(),
+      id: createDraftId(),
+      kind: 'text',
       text: buildAskAboutSelectionDraft(payload, t),
     })
   }
 
   const handlePreviewElementSelection = (payload: PreviewElementSelectionPayload) => {
     setExternalDraft({
-      id: Date.now(),
+      id: createDraftId(),
+      kind: 'preview-selection',
       text: buildPreviewSelectionDraft(payload, t),
+      selection: payload,
     })
   }
 
@@ -120,7 +128,7 @@ export function useChatViewActions({
   ) => {
     const draft = buildGitDraft(action, payload, language)
     if (!draft) return
-    setExternalDraft({ id: Date.now(), text: draft })
+    setExternalDraft({ id: createDraftId(), kind: 'text', text: draft })
   }
 
   const handleHeaderDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {

@@ -105,7 +105,7 @@
   - 메인 채팅 UX
   - 파일/Git/세션 사이드 패널
   - export, preview, selection actions
-  - tool result preview와 HTML iframe/fullscreen 수명주기
+  - tool result preview, 우측 HTML preview 패널, HTML iframe/fullscreen 수명주기
   - HTML preview auto-reload watcher와 preview element selection draft 주입
   - `InputArea.tsx`는 입력 영역 레이아웃 조립만 유지하고, draft/멘션/권한 프롬프트/키보드 wiring은 `src/components/input/useInputAreaController.ts`가 담당한다.
   - `useInputKeyboard.ts`는 React hook/wiring만 유지하고, 질문/권한/@/슬래시/히스토리/전송 키 분기는 `src/hooks/inputKeyboardHandler.ts`로 분리한다.

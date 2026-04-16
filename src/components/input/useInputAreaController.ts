@@ -7,6 +7,12 @@ import { useInputMentions } from '../../hooks/useInputMentions'
 import { useInputModelData } from '../../hooks/useInputModelData'
 import { useInputPrompts } from '../../hooks/useInputPrompts'
 import { useI18n } from '../../hooks/useI18n'
+import {
+  buildPreviewSelectionKey,
+  buildPreviewSelectionSummary,
+  buildPreviewSelectionsDraft,
+  type PreviewElementSelectionPayload,
+} from '../chat/chatViewUtils'
 import { extractBtwQuestion, sanitizeEnvVars } from './inputUtils'
 import type { InputAreaProps } from './inputAreaTypes'
 
@@ -14,6 +20,18 @@ function mergeExternalDraftText(currentText: string, externalDraftText: string) 
   return currentText.trim().length > 0
     ? `${currentText.trimEnd()}\n\n${externalDraftText}`
     : externalDraftText
+}
+
+function togglePreviewSelectionDraft(
+  currentSelections: PreviewElementSelectionPayload[],
+  nextSelection: PreviewElementSelectionPayload,
+) {
+  const nextKey = buildPreviewSelectionKey(nextSelection)
+  const exists = currentSelections.some((selection) => buildPreviewSelectionKey(selection) === nextKey)
+  if (exists) {
+    return currentSelections.filter((selection) => buildPreviewSelectionKey(selection) !== nextKey)
+  }
+  return [...currentSelections, nextSelection]
 }
 
 export function useInputAreaController({
@@ -37,13 +55,16 @@ export function useInputAreaController({
   permissionShortcutLabel,
   bypassShortcutLabel,
   externalDraft,
+  previewSelectionResetToken,
+  onPreviewSelectionDraftsChange,
   onOpenTeam,
   hasLinkedTeam,
 }: InputAreaProps) {
-  const { language } = useI18n()
+  const { language, t } = useI18n()
   const envVars = useSessionsStore((state) => state.envVars)
   const sanitizedEnvVars = useMemo(() => sanitizeEnvVars(envVars), [envVars])
   const [text, setText] = useState('')
+  const [previewSelectionDrafts, setPreviewSelectionDrafts] = useState<PreviewElementSelectionPayload[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isComposingRef = useRef(false)
   const escapePressedAtRef = useRef(0)
@@ -105,6 +126,7 @@ export function useInputAreaController({
 
   const resetComposer = useCallback(() => {
     setText('')
+    setPreviewSelectionDrafts([])
     setAttachedFiles([])
     closeAtMention()
     closeSlashMention()
@@ -149,13 +171,26 @@ export function useInputAreaController({
     if (!externalDraft || lastAppliedDraftIdRef.current === externalDraft.id) return
 
     lastAppliedDraftIdRef.current = externalDraft.id
+    setHistoryIndex(null)
+    closeAtMention()
+    closeSlashMention()
+
+    if (externalDraft.kind === 'preview-selection') {
+      setPreviewSelectionDrafts((current) => togglePreviewSelectionDraft(current, externalDraft.selection))
+
+      requestAnimationFrame(() => {
+        const end = text.length
+        textareaRef.current?.focus()
+        textareaRef.current?.setSelectionRange(end, end)
+      })
+      return
+    }
+
+    setPreviewSelectionDrafts([])
     const nextText = mergeExternalDraftText(text, externalDraft.text)
 
     setText(nextText)
-    setHistoryIndex(null)
     draftTextRef.current = nextText
-    closeAtMention()
-    closeSlashMention()
 
     requestAnimationFrame(() => {
       syncTextareaHeight(nextText)
@@ -169,25 +204,54 @@ export function useInputAreaController({
     syncTextareaHeight(text)
   }, [syncTextareaHeight, text])
 
+  useEffect(() => {
+    if (previewSelectionResetToken === undefined) return
+    setPreviewSelectionDrafts([])
+  }, [previewSelectionResetToken])
+
+  useEffect(() => {
+    onPreviewSelectionDraftsChange?.(previewSelectionDrafts)
+  }, [onPreviewSelectionDraftsChange, previewSelectionDrafts])
+
   const btwQuestion = useMemo(() => extractBtwQuestion(text), [text])
+  const previewSelectionItems = useMemo(() => (
+    previewSelectionDrafts.map((selection) => ({
+      key: buildPreviewSelectionKey(selection),
+      selection,
+      summary: buildPreviewSelectionSummary(selection, t),
+    }))
+  ), [previewSelectionDrafts, t])
   const canSendBtw = btwQuestion !== null && btwQuestion.length > 0
 
   const handleSend = useCallback(() => {
+    const previewSelectionText = previewSelectionDrafts.length > 0
+      ? buildPreviewSelectionsDraft(previewSelectionDrafts, t)
+      : ''
     const trimmed = text.trim()
-    if ((!trimmed && attachedFiles.length === 0) || disabled) return
+    const composedText = previewSelectionText
+      ? trimmed.length > 0
+        ? `${previewSelectionText}\n\n${trimmed}`
+        : previewSelectionText
+      : trimmed
+
+    if ((!composedText.trim() && attachedFiles.length === 0) || disabled) return
 
     if (btwQuestion !== null) {
       if (btwQuestion.length === 0) return
-      onSendBtw(btwQuestion, attachedFiles)
+      const composedBtwQuestion = previewSelectionText
+        ? `${previewSelectionText}\n\n${btwQuestion}`
+        : btwQuestion
+
+      onSendBtw(composedBtwQuestion, attachedFiles)
       resetComposer()
       return
     }
 
     if (isStreaming) return
 
-    onSend(trimmed, attachedFiles)
+    onSend(composedText, attachedFiles)
     resetComposer()
-  }, [attachedFiles, btwQuestion, disabled, isStreaming, onSend, onSendBtw, resetComposer, text])
+  }, [attachedFiles, btwQuestion, disabled, isStreaming, onSend, onSendBtw, previewSelectionDrafts, resetComposer, t, text])
 
   const { handleKeyDown } = useInputKeyboard({
     text,
@@ -228,11 +292,21 @@ export function useInputAreaController({
 
   const canSend = btwQuestion !== null
     ? canSendBtw && !disabled
-    : (text.trim().length > 0 || attachedFiles.length > 0) && !isStreaming && !disabled
+    : (text.trim().length > 0 || attachedFiles.length > 0 || previewSelectionDrafts.length > 0) && !isStreaming && !disabled
 
   const handleRemoveFile = useCallback((path: string) => {
     setAttachedFiles((current) => current.filter((file) => file.path !== path))
   }, [setAttachedFiles])
+
+  const clearPreviewSelectionDrafts = useCallback(() => {
+    setPreviewSelectionDrafts([])
+    textareaRef.current?.focus()
+  }, [])
+
+  const removePreviewSelectionDraft = useCallback((selectionKey: string) => {
+    setPreviewSelectionDrafts((current) => current.filter((selection) => buildPreviewSelectionKey(selection) !== selectionKey))
+    textareaRef.current?.focus()
+  }, [])
 
   const handleComposerBlur = useCallback(() => {
     setTimeout(() => {
@@ -256,6 +330,7 @@ export function useInputAreaController({
     attachedFiles,
     skippedFiles,
     isDragOver,
+    previewSelectionItems,
     questionInputMode,
     overlayProps: {
       language,
@@ -324,5 +399,7 @@ export function useInputAreaController({
     handleDragLeave,
     handleDrop,
     handleRemoveFile,
+    clearPreviewSelectionDrafts,
+    removePreviewSelectionDraft,
   }
 }

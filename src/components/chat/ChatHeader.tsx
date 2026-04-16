@@ -42,6 +42,9 @@ export function ChatHeader({
   sessionPanelOpen,
   sessionInfoShortcutLabel,
   onToggleSessionPanel,
+  showHeaderPreviewAction,
+  previewPanelOpen,
+  onTogglePreviewPanel,
   gitAvailable,
   showHeaderGitAction,
   gitPanelOpen,
@@ -88,6 +91,9 @@ export function ChatHeader({
   sessionPanelOpen: boolean
   sessionInfoShortcutLabel: string
   onToggleSessionPanel: () => void
+  showHeaderPreviewAction: boolean
+  previewPanelOpen: boolean
+  onTogglePreviewPanel: () => void
   gitAvailable: boolean
   showHeaderGitAction: boolean
   gitPanelOpen: boolean
@@ -174,6 +180,16 @@ export function ChatHeader({
               <circle cx="12" cy="12" r="9" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 7h.01" />
+            </svg>
+          </HeaderToggleButton>
+        )}
+
+        {showHeaderPreviewAction && (
+          <HeaderToggleButton active={previewPanelOpen} title={t('common.preview')} onClick={onTogglePreviewPanel}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 15l2.4-2.6a1.5 1.5 0 0 1 2.2 0L15 15" />
+              <circle cx="15.5" cy="9.5" r="1.5" />
             </svg>
           </HeaderToggleButton>
         )}

@@ -111,6 +111,9 @@ export function ChatView({
           sessionPanelOpen={controller.sessionPanelOpen}
           sessionInfoShortcutLabel={sessionInfoShortcutLabel}
           onToggleSessionPanel={controller.toggleSessionPanel}
+          showHeaderPreviewAction={controller.showHeaderPreviewAction}
+          previewPanelOpen={controller.previewPanelOpen}
+          onTogglePreviewPanel={controller.togglePreviewPanel}
           gitAvailable={controller.gitAvailable}
           showHeaderGitAction={controller.showHeaderGitAction}
           gitPanelOpen={controller.gitPanelOpen}
@@ -123,7 +126,6 @@ export function ChatView({
         />
 
         <ChatViewMainContent
-          activeHtmlPreviewMessageId={controller.activeHtmlPreviewMessageId}
           bottomRef={controller.bottomRef}
           bypassShortcutLabel={bypassShortcutLabel}
           conflictSessionLabel={controller.conflictSessionLabel}
@@ -132,10 +134,10 @@ export function ChatView({
           fileConflict={fileConflict}
           fileConflictLabel={controller.fileConflictLabel}
           hasLinkedTeam={Boolean(session.linkedTeamId)}
-          hideHtmlPreview={controller.hideHtmlPreview}
           highlightedMessageId={controller.highlightedMessageId}
           isNewSession={controller.isNewSession}
           messageRefs={controller.messageRefs}
+          previewSelectionResetToken={controller.previewSelectionResetToken}
           promptHistory={controller.promptHistory}
           onAbort={onAbort}
           onAskAboutSelection={controller.handleAskAboutSelection}
@@ -146,9 +148,10 @@ export function ChatView({
           onOpenDrilldown={controller.setDrillTarget}
           onPermissionModeChange={onPermissionModeChange}
           onPermissionRequestAction={onPermissionRequestAction}
+          onPreviewSelectionDraftsChange={controller.setSelectedPreviewElements}
+          onPreviewSelectionHoverChange={controller.setHoveredPreviewSelectionKey}
           onPlanModeChange={onPlanModeChange}
           onQuestionResponse={onQuestionResponse}
-          onPreviewElementSelection={controller.handlePreviewElementSelection}
           onSend={onSend}
           onSendBtw={onSendBtw}
           onToggleBtwCard={(cardId) => toggleBtwCard(session.id, cardId)}
@@ -160,7 +163,7 @@ export function ChatView({
 
       {controller.rightPanel !== 'none' && (
         <div
-          onMouseDown={controller.handleFilePanelResizeStart}
+          onPointerDown={controller.handleFilePanelResizeStart}
           className="w-1.5 flex-shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-claude-border/80"
         />
       )}
@@ -170,6 +173,7 @@ export function ChatView({
         title={controller.sidePanelTitle}
         filePanelOpen={controller.filePanelOpen}
         gitPanelOpen={controller.gitPanelOpen}
+        previewPanelOpen={controller.previewPanelOpen}
         showPreviewPane={controller.showPreviewPane}
         showGitPreviewPane={controller.showGitPreviewPane}
         explorerWidth={controller.explorerWidth}
@@ -186,6 +190,16 @@ export function ChatView({
         stagedGitEntryCount={controller.stagedGitEntryCount}
         fileExplorer={controller.fileExplorer}
         gitPanel={controller.gitPanel}
+        activeHtmlPreviewSource={controller.activeHtmlPreviewSource}
+        htmlPreviewSources={controller.htmlPreviewSources}
+        selectedHtmlPreviewSourceId={controller.selectedHtmlPreviewSourceId}
+        hideHtmlPreview={controller.hideHtmlPreview}
+        htmlPreviewIsStreaming={session.isStreaming && controller.activeHtmlPreviewSource?.messageId === session.currentAssistantMsgId}
+        onPreviewElementSelection={controller.handlePreviewElementSelection}
+        onSelectHtmlPreviewSource={controller.handleSelectHtmlPreviewSource}
+        onClearSelectedPreviewElements={controller.clearSelectedPreviewElements}
+        selectedPreviewElements={controller.selectedPreviewElements}
+        hoveredPreviewSelectionKey={controller.hoveredPreviewSelectionKey}
         onCreateDraft={controller.handleCreateGitDraft}
         onExplorerResizeStart={controller.handleExplorerResizeStart}
         onGitLogResizeStart={(event) => controller.handleGitLogResizeStart(event, controller.gitPanel.gitSidebarRef.current?.clientHeight ?? 0)}

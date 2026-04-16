@@ -1,4 +1,6 @@
 import {
+  useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -17,7 +19,10 @@ import { useSessionsStore } from '../store/sessions'
 import type { Session } from '../store/sessions'
 import {
   buildChatViewDerivedState,
+  buildPreviewSelectionKey,
+  type HtmlPreviewSource,
   type FileConflict,
+  type PreviewElementSelectionPayload,
 } from '../components/chat/chatViewUtils'
 import type { AppLanguage, TranslationKey } from '../lib/i18n'
 
@@ -25,6 +30,7 @@ const HEADER_OPEN_WITH_MIN_WIDTH = 640
 const HEADER_SESSION_ACTION_MIN_WIDTH = 700
 const HEADER_GIT_ACTION_MIN_WIDTH = 756
 const HEADER_FILE_ACTION_MIN_WIDTH = 812
+const dismissedHtmlPreviewActivityIdBySession = new Map<string, string>()
 
 type Params = {
   fileConflict?: FileConflict | null
@@ -48,7 +54,12 @@ export function useChatViewController({
   t,
 }: Params) {
   const openWithMenuRef = useRef<HTMLDivElement>(null)
+  const previousHtmlPreviewActivityIdRef = useRef<string | null>(null)
   const [rightPanel, setRightPanel] = useState<ChatViewRightPanel>('none')
+  const [selectedHtmlPreviewSourceId, setSelectedHtmlPreviewSourceId] = useState<string | null>(null)
+  const [selectedPreviewElements, setSelectedPreviewElements] = useState<PreviewElementSelectionPayload[]>([])
+  const [hoveredPreviewSelectionKey, setHoveredPreviewSelectionKey] = useState<string | null>(null)
+  const [previewSelectionResetToken, setPreviewSelectionResetToken] = useState(0)
 
   const preferredOpenWithAppId = useSessionsStore((state) => state.preferredOpenWithAppId)
   const setPreferredOpenWithAppId = useSessionsStore((state) => state.setPreferredOpenWithAppId)
@@ -56,6 +67,7 @@ export function useChatViewController({
   const filePanelOpen = rightPanel === 'files'
   const sessionPanelOpen = rightPanel === 'session'
   const gitPanelOpen = rightPanel === 'git'
+  const previewPanelOpen = rightPanel === 'preview'
   const fileExplorer = useFileExplorer({
     cwd: session.cwd || '~',
     filePanelOpen,
@@ -67,6 +79,38 @@ export function useChatViewController({
   const showPreviewPane = fileExplorer.selectedEntry !== null
   const showGitPreviewPane = gitPanel.showGitPreviewPane
 
+  const {
+    bottomRef,
+    messageRefs,
+    highlightedMessageId,
+  } = useChatViewJumpState({
+    messages: session.messages,
+    jumpToMessageId,
+    jumpToMessageToken,
+  })
+
+  const {
+    isNewSession,
+    promptHistory,
+    latestHtmlPreviewActivityId,
+    htmlPreviewSources,
+    hideHtmlPreview,
+    showErrorCard,
+    userMessageCount,
+    assistantMessageCount,
+    contextUsagePercent,
+    fileConflictLabel,
+    conflictSessionLabel,
+  } = useMemo(() => buildChatViewDerivedState({
+    session,
+    fileConflict,
+    t,
+  }), [fileConflict, session, t])
+  const hasActiveHtmlPreview = htmlPreviewSources.length > 0
+  const activeHtmlPreviewSource = useMemo<HtmlPreviewSource | null>(() => {
+    if (htmlPreviewSources.length === 0) return null
+    return htmlPreviewSources.find((source) => source.id === selectedHtmlPreviewSourceId) ?? htmlPreviewSources[0]
+  }, [htmlPreviewSources, selectedHtmlPreviewSourceId])
   const {
     containerRef,
     mainPaneRef,
@@ -89,34 +133,8 @@ export function useChatViewController({
     sessionInfoShortcutLabel,
     showPreviewPane,
     showGitPreviewPane,
+    showHtmlPreviewPane: hasActiveHtmlPreview,
   })
-
-  const {
-    bottomRef,
-    messageRefs,
-    highlightedMessageId,
-  } = useChatViewJumpState({
-    messages: session.messages,
-    jumpToMessageId,
-    jumpToMessageToken,
-  })
-
-  const {
-    isNewSession,
-    promptHistory,
-    activeHtmlPreviewMessageId,
-    hideHtmlPreview,
-    showErrorCard,
-    userMessageCount,
-    assistantMessageCount,
-    contextUsagePercent,
-    fileConflictLabel,
-    conflictSessionLabel,
-  } = useMemo(() => buildChatViewDerivedState({
-    session,
-    fileConflict,
-    t,
-  }), [fileConflict, session, t])
 
   const openTargetPath = session.cwd || '~'
   const effectiveMainPaneWidth = mainPaneWidth || Number.POSITIVE_INFINITY
@@ -158,14 +176,109 @@ export function useChatViewController({
   const isMacPlatform = getCurrentPlatform() === 'mac'
   const showHeaderOpenWithAction = isMacPlatform && (openWithMenuOpen || effectiveMainPaneWidth >= HEADER_OPEN_WITH_MIN_WIDTH)
   const showHeaderSessionAction = sessionPanelOpen || effectiveMainPaneWidth >= HEADER_SESSION_ACTION_MIN_WIDTH
+  const showHeaderPreviewAction = hasActiveHtmlPreview || previewPanelOpen
   const showHeaderGitAction = gitPanelOpen || effectiveMainPaneWidth >= HEADER_GIT_ACTION_MIN_WIDTH
   const showHeaderFileAction = filePanelOpen || effectiveMainPaneWidth >= HEADER_FILE_ACTION_MIN_WIDTH
   const stagedGitEntryCount = gitPanel.stagedGitEntryCount
   const sidePanelTitle = filePanelOpen
     ? t('sidePanel.fileExplorer')
-    : gitPanelOpen
+    : previewPanelOpen
+      ? t('common.preview')
+      : gitPanelOpen
       ? 'Git'
       : t('sidePanel.sessionInfo')
+
+  const togglePreviewPanel = useCallback(() => {
+    setRightPanel((current) => {
+      const nextOpen = current !== 'preview'
+
+      if (latestHtmlPreviewActivityId) {
+        if (nextOpen) {
+          dismissedHtmlPreviewActivityIdBySession.delete(session.id)
+        } else {
+          dismissedHtmlPreviewActivityIdBySession.set(session.id, latestHtmlPreviewActivityId)
+        }
+      }
+
+      return nextOpen ? 'preview' : 'none'
+    })
+  }, [latestHtmlPreviewActivityId, session.id, setRightPanel])
+
+  useEffect(() => {
+    previousHtmlPreviewActivityIdRef.current = null
+    setSelectedHtmlPreviewSourceId(null)
+    setSelectedPreviewElements([])
+    setHoveredPreviewSelectionKey(null)
+    setPreviewSelectionResetToken(0)
+  }, [session.id])
+
+  useEffect(() => {
+    if (htmlPreviewSources.length === 0) {
+      setSelectedHtmlPreviewSourceId(null)
+      return
+    }
+
+    const hasSelectedSource = selectedHtmlPreviewSourceId
+      ? htmlPreviewSources.some((source) => source.id === selectedHtmlPreviewSourceId)
+      : false
+    if (hasSelectedSource) return
+
+    const defaultSource = htmlPreviewSources.find((source) => source.kind === 'url') ?? htmlPreviewSources[0]
+    setSelectedHtmlPreviewSourceId(defaultSource.id)
+  }, [htmlPreviewSources, selectedHtmlPreviewSourceId])
+
+  const clearSelectedPreviewElements = useCallback(() => {
+    setSelectedPreviewElements([])
+    setHoveredPreviewSelectionKey(null)
+    setPreviewSelectionResetToken((current) => current + 1)
+  }, [])
+
+  const handleSelectHtmlPreviewSource = useCallback((sourceId: string) => {
+    setSelectedHtmlPreviewSourceId(sourceId)
+    setSelectedPreviewElements([])
+    setHoveredPreviewSelectionKey(null)
+    setPreviewSelectionResetToken((current) => current + 1)
+  }, [])
+
+  useEffect(() => {
+    if (!hoveredPreviewSelectionKey) return
+    const hasHoveredSelection = selectedPreviewElements.some((selection) => (
+      buildPreviewSelectionKey(selection) === hoveredPreviewSelectionKey
+    ))
+    if (!hasHoveredSelection) {
+      setHoveredPreviewSelectionKey(null)
+    }
+  }, [hoveredPreviewSelectionKey, selectedPreviewElements])
+
+  useEffect(() => {
+    const previousHtmlPreviewActivityId = previousHtmlPreviewActivityIdRef.current
+    previousHtmlPreviewActivityIdRef.current = latestHtmlPreviewActivityId
+    const dismissedPreviewActivityId = dismissedHtmlPreviewActivityIdBySession.get(session.id) ?? null
+    const isDismissedCurrentPreview = Boolean(
+      latestHtmlPreviewActivityId
+      && dismissedPreviewActivityId === latestHtmlPreviewActivityId,
+    )
+
+    if (!hasActiveHtmlPreview && rightPanel === 'preview') {
+      setRightPanel('none')
+      return
+    }
+
+    if (rightPanel === 'preview' && isDismissedCurrentPreview) {
+      setRightPanel('none')
+      return
+    }
+
+    if (
+      hasActiveHtmlPreview
+      && rightPanel === 'none'
+      && latestHtmlPreviewActivityId
+      && latestHtmlPreviewActivityId !== previousHtmlPreviewActivityId
+      && !isDismissedCurrentPreview
+    ) {
+      setRightPanel('preview')
+    }
+  }, [hasActiveHtmlPreview, latestHtmlPreviewActivityId, rightPanel, session.id, setRightPanel])
 
   const handleToggleBranchMenu = () => {
     gitPanel.setBranchMenuOpen((open) => {
@@ -183,7 +296,7 @@ export function useChatViewController({
   }
 
   return {
-    activeHtmlPreviewMessageId,
+    activeHtmlPreviewSource,
     assistantMessageCount,
     bottomRef,
     conflictSessionLabel,
@@ -221,7 +334,10 @@ export function useChatViewController({
     handleToggleBranchMenu,
     hideHtmlPreview,
     handlePreviewElementSelection,
+    handleSelectHtmlPreviewSource,
     highlightedMessageId,
+    hoveredPreviewSelectionKey,
+    htmlPreviewSources,
     isNewSession,
     mainPaneRef,
     messageRefs,
@@ -230,12 +346,20 @@ export function useChatViewController({
     openWithMenuOpen,
     openWithMenuRef,
     preferredOpenWithAppId,
+    previewSelectionResetToken,
+    previewPanelOpen,
     promptHistory,
     rightPanel,
     sessionPanelOpen,
+    selectedPreviewElements,
+    selectedHtmlPreviewSourceId,
+    clearSelectedPreviewElements,
+    setSelectedPreviewElements,
+    setHoveredPreviewSelectionKey,
     setDrillTarget,
     showErrorCard,
     showGitPreviewPane,
+    showHeaderPreviewAction,
     showHeaderFileAction,
     showHeaderGitAction,
     showHeaderOpenWithAction,
@@ -245,6 +369,7 @@ export function useChatViewController({
     stagedGitEntryCount,
     toggleFilePanel,
     toggleGitPanel,
+    togglePreviewPanel,
     toggleOpenWithMenu,
     toggleSessionPanel,
     userMessageCount,

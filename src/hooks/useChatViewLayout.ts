@@ -4,12 +4,12 @@ import {
   useRef,
   useState,
   type Dispatch,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type SetStateAction,
 } from 'react'
 import { matchShortcut } from '../lib/shortcuts'
 
-export type ChatViewRightPanel = 'none' | 'files' | 'session' | 'git'
+export type ChatViewRightPanel = 'none' | 'files' | 'session' | 'git' | 'preview'
 
 type Params = {
   rightPanel: ChatViewRightPanel
@@ -18,6 +18,7 @@ type Params = {
   sessionInfoShortcutLabel: string
   showPreviewPane: boolean
   showGitPreviewPane: boolean
+  showHtmlPreviewPane: boolean
 }
 
 const INITIAL_RIGHT_PANEL_WIDTH = 290
@@ -34,6 +35,7 @@ export function useChatViewLayout({
   sessionInfoShortcutLabel,
   showPreviewPane,
   showGitPreviewPane,
+  showHtmlPreviewPane,
 }: Params) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mainPaneRef = useRef<HTMLDivElement>(null)
@@ -50,6 +52,7 @@ export function useChatViewLayout({
   const filePanelOpen = rightPanel === 'files'
   const sessionPanelOpen = rightPanel === 'session'
   const gitPanelOpen = rightPanel === 'git'
+  const previewPanelOpen = rightPanel === 'preview'
 
   const getRightPanelMaxWidth = useCallback(() => {
     const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth
@@ -66,6 +69,10 @@ export function useChatViewLayout({
 
   const toggleSessionPanel = useCallback(() => {
     setRightPanel((current) => (current === 'session' ? 'none' : 'session'))
+  }, [setRightPanel])
+
+  const togglePreviewPanel = useCallback(() => {
+    setRightPanel((current) => (current === 'preview' ? 'none' : 'preview'))
   }, [setRightPanel])
 
   useEffect(() => {
@@ -180,75 +187,134 @@ export function useChatViewLayout({
     setFilePanelWidth(INITIAL_SESSION_PANEL_WIDTH)
   }, [sessionPanelOpen])
 
-  const attachResizeListeners = useCallback((onMouseMove: (event: MouseEvent) => void) => {
-    const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
+  useEffect(() => {
+    if (!previewPanelOpen || !showHtmlPreviewPane) return
+
+    const containerWidth = containerRef.current?.clientWidth ?? window.innerWidth
+    const targetWidth = Math.min(
+      getRightPanelMaxWidth(),
+      Math.max(420, Math.floor(containerWidth / 2)),
+    )
+    setFilePanelWidth((current) => Math.max(current, targetWidth))
+  }, [getRightPanelMaxWidth, previewPanelOpen, showHtmlPreviewPane])
+
+  const attachResizeListeners = useCallback((
+    event: ReactPointerEvent<HTMLDivElement>,
+    onPointerMove: (event: PointerEvent) => void,
+    cursor: 'col-resize' | 'row-resize',
+  ) => {
+    if (event.button !== 0) return
+
+    const target = event.currentTarget
+    const pointerId = event.pointerId
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+
+    const cleanup = () => {
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerEnd)
+      window.removeEventListener('pointercancel', handlePointerEnd)
+      window.removeEventListener('blur', cleanup)
+      target.removeEventListener('lostpointercapture', cleanup)
+
+      try {
+        if (target.hasPointerCapture(pointerId)) {
+          target.releasePointerCapture(pointerId)
+        }
+      } catch {
+        // Ignore stale pointer capture cleanup.
+      }
     }
 
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return
+      onPointerMove(moveEvent)
+    }
+
+    const handlePointerEnd = (endEvent: PointerEvent) => {
+      if (endEvent.pointerId !== pointerId) return
+      cleanup()
+    }
+
+    document.body.style.cursor = cursor
+    document.body.style.userSelect = 'none'
+
+    try {
+      target.setPointerCapture(pointerId)
+    } catch {
+      // Pointer capture can fail if the pointer is already inactive.
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerEnd)
+    window.addEventListener('pointercancel', handlePointerEnd)
+    window.addEventListener('blur', cleanup)
+    target.addEventListener('lostpointercapture', cleanup)
+    event.preventDefault()
   }, [])
 
-  const handleFilePanelResizeStart = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
+  const handleFilePanelResizeStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const startX = event.clientX
     const startWidth = filePanelWidth
-    const minimumWidth = showPreviewPane || showGitPreviewPane ? Math.max(320, explorerWidth + 140) : explorerWidth
+    const minimumWidth = previewPanelOpen
+      ? 360
+      : showPreviewPane || showGitPreviewPane
+        ? Math.max(320, explorerWidth + 140)
+        : explorerWidth
     const maximumWidth = getRightPanelMaxWidth()
 
-    attachResizeListeners((moveEvent) => {
+    attachResizeListeners(event, (moveEvent) => {
       const nextWidth = Math.min(maximumWidth, Math.max(minimumWidth, startWidth - (moveEvent.clientX - startX)))
       setFilePanelWidth(nextWidth)
-    })
+    }, 'col-resize')
   }, [
     attachResizeListeners,
     explorerWidth,
     filePanelWidth,
     getRightPanelMaxWidth,
+    previewPanelOpen,
     showGitPreviewPane,
     showPreviewPane,
   ])
 
-  const handleExplorerResizeStart = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
+  const handleExplorerResizeStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const startX = event.clientX
     const startWidth = explorerWidth
 
-    attachResizeListeners((moveEvent) => {
+    attachResizeListeners(event, (moveEvent) => {
       const nextWidth = Math.min(filePanelWidth - 260, Math.max(180, startWidth - (moveEvent.clientX - startX)))
       setExplorerWidth(nextWidth)
-    })
+    }, 'col-resize')
   }, [attachResizeListeners, explorerWidth, filePanelWidth])
 
   const handleGitLogResizeStart = useCallback((
-    event: ReactMouseEvent<HTMLDivElement>,
+    event: ReactPointerEvent<HTMLDivElement>,
     sidebarHeight: number,
   ) => {
-    event.preventDefault()
     const startY = event.clientY
     const startHeight = gitLogPanelHeight
     const maxHeight = Math.max(120, sidebarHeight - gitCommitPanelHeight - 180)
 
-    attachResizeListeners((moveEvent) => {
+    attachResizeListeners(event, (moveEvent) => {
       const nextHeight = Math.min(maxHeight, Math.max(96, startHeight + (moveEvent.clientY - startY)))
       setGitLogPanelHeight(nextHeight)
-    })
+    }, 'row-resize')
   }, [attachResizeListeners, gitCommitPanelHeight, gitLogPanelHeight])
 
   const handleGitCommitResizeStart = useCallback((
-    event: ReactMouseEvent<HTMLDivElement>,
+    event: ReactPointerEvent<HTMLDivElement>,
     sidebarHeight: number,
   ) => {
-    event.preventDefault()
     const startY = event.clientY
     const startHeight = gitCommitPanelHeight
     const maxHeight = Math.max(108, sidebarHeight - gitLogPanelHeight - 180)
 
-    attachResizeListeners((moveEvent) => {
+    attachResizeListeners(event, (moveEvent) => {
       const nextHeight = Math.min(maxHeight, Math.max(92, startHeight - (moveEvent.clientY - startY)))
       setGitCommitPanelHeight(nextHeight)
-    })
+    }, 'row-resize')
   }, [attachResizeListeners, gitCommitPanelHeight, gitLogPanelHeight])
 
   return {
@@ -261,6 +327,7 @@ export function useChatViewLayout({
     mainPaneWidth,
     toggleFilePanel,
     toggleGitPanel,
+    togglePreviewPanel,
     toggleSessionPanel,
     handleFilePanelResizeStart,
     handleExplorerResizeStart,

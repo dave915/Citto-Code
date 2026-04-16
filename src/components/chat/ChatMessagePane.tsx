@@ -3,7 +3,6 @@ import { useI18n } from '../../hooks/useI18n'
 import type { Message, Session } from '../../store/sessions'
 import { MessageBubble } from '../MessageBubble'
 import { WelcomeScreen } from './WelcomeScreen'
-import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 
 type Props = {
   session: Session
@@ -15,8 +14,6 @@ type Props = {
   fileConflictLabel: string | null
   conflictSessionLabel: string
   highlightedMessageId: string | null
-  activeHtmlPreviewMessageId: string | null
-  hideHtmlPreview: boolean
   showErrorCard: boolean
   messageRefs: MutableRefObject<Record<string, HTMLDivElement | null>>
   bottomRef: MutableRefObject<HTMLDivElement | null>
@@ -30,7 +27,6 @@ type Props = {
     code: string
     prompt?: string
   }) => void
-  onPreviewElementSelection: (payload: HtmlPreviewElementSelection) => void
   onToggleBtwCard: (cardId: string) => void
 }
 
@@ -48,25 +44,19 @@ function MessageList({
   messages,
   messageRefs,
   highlightedMessageId,
-  activeHtmlPreviewMessageId,
-  hideHtmlPreview,
   isStreaming,
   currentAssistantMsgId,
   onAbort,
   onAskAboutSelection,
-  onPreviewElementSelection,
   onToggleBtwCard,
 }: {
   messages: Message[]
   messageRefs: MutableRefObject<Record<string, HTMLDivElement | null>>
   highlightedMessageId: string | null
-  activeHtmlPreviewMessageId: string | null
-  hideHtmlPreview: boolean
   isStreaming: boolean
   currentAssistantMsgId: string | null
   onAbort: () => void
   onAskAboutSelection: Props['onAskAboutSelection']
-  onPreviewElementSelection: Props['onPreviewElementSelection']
   onToggleBtwCard: Props['onToggleBtwCard']
 }) {
   return messages
@@ -89,12 +79,9 @@ function MessageList({
     >
       <MessageBubble
         message={message}
-        isActiveHtmlPreviewMessage={message.id === activeHtmlPreviewMessageId}
-        hideHtmlPreview={hideHtmlPreview}
         isStreaming={isStreaming && message.id === currentAssistantMsgId}
         onAbort={isStreaming && message.id === currentAssistantMsgId ? onAbort : undefined}
         onAskAboutSelection={onAskAboutSelection}
-        onPreviewElementSelection={onPreviewElementSelection}
         onToggleBtwCard={onToggleBtwCard}
       />
     </div>
@@ -108,15 +95,12 @@ export function ChatMessagePane({
   fileConflictLabel,
   conflictSessionLabel,
   highlightedMessageId,
-  activeHtmlPreviewMessageId,
-  hideHtmlPreview,
   showErrorCard,
   messageRefs,
   bottomRef,
   onSend,
   onAbort,
   onAskAboutSelection,
-  onPreviewElementSelection,
   onToggleBtwCard,
 }: Props) {
   const { t } = useI18n()
@@ -153,13 +137,10 @@ export function ChatMessagePane({
             messages={session.messages}
             messageRefs={messageRefs}
             highlightedMessageId={highlightedMessageId}
-            activeHtmlPreviewMessageId={activeHtmlPreviewMessageId}
-            hideHtmlPreview={hideHtmlPreview}
             isStreaming={session.isStreaming}
             currentAssistantMsgId={session.currentAssistantMsgId}
             onAbort={onAbort}
             onAskAboutSelection={onAskAboutSelection}
-            onPreviewElementSelection={onPreviewElementSelection}
             onToggleBtwCard={onToggleBtwCard}
           />
         )}

@@ -6,9 +6,9 @@ import {
   estimateContextUsagePercent,
   type SessionExportFormat,
 } from '../../lib/sessionExport'
-import { extractHtmlPreviewCandidate } from '../../lib/toolCallUtils'
+import { extractHtmlPreviewCandidates } from '../../lib/toolCallUtils'
 import type { Message, Session } from '../../store/sessions'
-import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import type { HtmlPreviewCandidate, HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 
 export type FileConflict = {
   paths: string[]
@@ -25,6 +25,22 @@ export type AskAboutSelectionPayload = {
 }
 
 export type PreviewElementSelectionPayload = HtmlPreviewElementSelection
+export type HtmlPreviewSource = {
+  id: string
+  kind: 'url' | 'file'
+  candidate: HtmlPreviewCandidate
+  messageId: string
+}
+export type ExternalDraft = {
+  id: number
+  kind: 'text'
+  text: string
+} | {
+  id: number
+  kind: 'preview-selection'
+  text: string
+  selection: PreviewElementSelectionPayload
+}
 
 type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string
 
@@ -45,15 +61,53 @@ function findLastMessage(messages: Message[], role: Message['role']) {
   return null
 }
 
-function findLatestHtmlPreviewMessageId(messages: Message[]) {
+function buildHtmlPreviewSourceId(candidate: HtmlPreviewCandidate) {
+  return candidate.kind === 'url'
+    ? `url:${candidate.url}`
+    : `file:${candidate.path}`
+}
+
+function findLatestHtmlPreviewState(messages: Message[]) {
+  let latestHtmlPreviewActivityId: string | null = null
+  let latestUrlSource: HtmlPreviewSource | null = null
+  let latestFileSource: HtmlPreviewSource | null = null
+
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (message.role === 'assistant' && extractHtmlPreviewCandidate(message.toolCalls, message.text)) {
-      return message.id
+    if (message.role !== 'assistant') continue
+
+    const previewCandidates = extractHtmlPreviewCandidates(message.toolCalls, message.text)
+    if (!latestHtmlPreviewActivityId && (previewCandidates.url || previewCandidates.file)) {
+      latestHtmlPreviewActivityId = message.id
+    }
+
+    if (!latestUrlSource && previewCandidates.url) {
+      latestUrlSource = {
+        id: buildHtmlPreviewSourceId(previewCandidates.url),
+        kind: 'url',
+        candidate: previewCandidates.url,
+        messageId: message.id,
+      }
+    }
+
+    if (!latestFileSource && previewCandidates.file) {
+      latestFileSource = {
+        id: buildHtmlPreviewSourceId(previewCandidates.file),
+        kind: 'file',
+        candidate: previewCandidates.file,
+        messageId: message.id,
+      }
+    }
+
+    if (latestHtmlPreviewActivityId && latestUrlSource && latestFileSource) {
+      break
     }
   }
 
-  return null
+  return {
+    latestHtmlPreviewActivityId,
+    htmlPreviewSources: [latestUrlSource, latestFileSource].filter((value): value is HtmlPreviewSource => value !== null),
+  }
 }
 
 function isMeaningfulMessage(message: Message) {
@@ -123,10 +177,16 @@ export function buildChatViewDerivedState({
     assistantMessageCount += 1
   }
 
+  const {
+    latestHtmlPreviewActivityId,
+    htmlPreviewSources,
+  } = findLatestHtmlPreviewState(session.messages)
+
   return {
     isNewSession: !session.messages.some(isMeaningfulMessage),
     promptHistory,
-    activeHtmlPreviewMessageId: findLatestHtmlPreviewMessageId(session.messages),
+    latestHtmlPreviewActivityId,
+    htmlPreviewSources,
     hideHtmlPreview: Boolean(
       session.pendingPermission
       || (session.isStreaming && lastUserMessage && PERMISSION_CONTINUATION_TEXTS.has(lastUserMessage.text.trim()))
@@ -168,21 +228,72 @@ export function buildAskAboutSelectionDraft(payload: AskAboutSelectionPayload, t
   ].join('\n')
 }
 
-export function buildPreviewSelectionDraft(payload: PreviewElementSelectionPayload, t: TranslateFn) {
-  const { previewPath, selector, tagName, className, text, href, ariaLabel } = payload
+export function buildPreviewSelectionKey(payload: PreviewElementSelectionPayload) {
+  return [
+    payload.previewPath ?? '',
+    payload.pathHint ?? '',
+    payload.selector,
+    payload.tagName,
+    payload.id ?? '',
+    payload.href ?? '',
+  ].join('::')
+}
 
+export function buildPreviewSelectionSummary(payload: PreviewElementSelectionPayload, t: TranslateFn) {
+  const { tagName, className, text, ariaLabel } = payload
+  const classSummary = className
+    ? className.split(/\s+/).filter(Boolean).join('.')
+    : ''
+  if (text) return `${tagName} "${text}"`
+  if (ariaLabel) return `${tagName} (${t('chatView.previewSelectionAriaLabel')}: "${ariaLabel}")`
+  if (classSummary) return `${tagName}.${classSummary}`
+  return tagName
+}
+
+function buildPreviewSelectionSection(
+  payload: PreviewElementSelectionPayload,
+  t: TranslateFn,
+  prefix = '',
+) {
+  const { previewPath, selector, className, text, href, ariaLabel } = payload
+  const classSummary = className
+    ? className.split(/\s+/).filter(Boolean).join('.')
+    : ''
+  const targetSummary = buildPreviewSelectionSummary(payload, t)
+
+  return [
+    `${prefix}${t('chatView.previewSelectionTarget')}: ${targetSummary}`,
+    ...(previewPath ? [`${t('chatView.file')}: ${previewPath}`] : []),
+    `${t('chatView.previewSelectionReference')}: ${selector}`,
+    ...(className && !targetSummary.includes(`.${classSummary}`) ? [`${t('chatView.previewSelectionClass')}: ${className}`] : []),
+    ...(text ? [] : ariaLabel ? [`${t('chatView.previewSelectionAriaLabel')}: "${ariaLabel}"`] : []),
+    ...(href ? [`${t('chatView.previewSelectionHref')}: ${href}`] : []),
+  ]
+}
+
+export function buildPreviewSelectionDraft(payload: PreviewElementSelectionPayload, t: TranslateFn) {
   return [
     t('chatView.previewSelectionIntro'),
     '',
-    ...(previewPath ? [`${t('chatView.file')}: ${previewPath}`] : []),
-    `${t('chatView.previewSelectionSelector')}: ${selector}`,
-    `${t('chatView.previewSelectionTag')}: ${tagName}`,
-    ...(className ? [`${t('chatView.previewSelectionClass')}: ${className}`] : []),
-    ...(text ? [`${t('chatView.previewSelectionText')}: "${text}"`] : []),
-    ...(ariaLabel ? [`${t('chatView.previewSelectionAriaLabel')}: "${ariaLabel}"`] : []),
-    ...(href ? [`${t('chatView.previewSelectionHref')}: ${href}`] : []),
+    ...buildPreviewSelectionSection(payload, t),
     '',
     t('chatView.previewSelectionRequest'),
+  ].join('\n')
+}
+
+export function buildPreviewSelectionsDraft(payloads: PreviewElementSelectionPayload[], t: TranslateFn) {
+  if (payloads.length === 0) return ''
+  if (payloads.length === 1) return buildPreviewSelectionDraft(payloads[0], t)
+
+  return [
+    t('chatView.previewSelectionsIntro'),
+    '',
+    ...payloads.flatMap((payload, index) => {
+      const section = buildPreviewSelectionSection(payload, t, `${index + 1}. `)
+      return index < payloads.length - 1 ? [...section, ''] : section
+    }),
+    '',
+    t('chatView.previewSelectionsRequest'),
   ].join('\n')
 }
 
