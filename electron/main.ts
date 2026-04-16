@@ -41,6 +41,7 @@ import {
   resolveTargetPath,
 } from './services/shellEnvironmentService'
 import { createSettingsDataService } from './services/settingsDataService'
+import { createPreviewWatchService } from './services/previewWatchService'
 import { createSubagentWatchService } from './services/subagentWatchService'
 import { createTrayImage, resolveAppIconPath } from './services/trayImageService'
 import { createWorkflowExecutor } from './workflow-executor'
@@ -66,6 +67,7 @@ const workflowExecutor = createWorkflowExecutor({
   resolveTargetPath,
 })
 const gitHeadWatchService = createGitHeadWatchService()
+const previewWatchService = createPreviewWatchService()
 const subagentWatchService = createSubagentWatchService({
   getHomePath: () => getUserHomePath(),
 })
@@ -222,6 +224,14 @@ app.whenReady().then(async () => {
     gitHeadWatchService.unregister(watchId)
   })
 
+  ipcMain.handle('preview:watch-files', (event, { rootPath }: { rootPath: string }) => {
+    return previewWatchService.register(event.sender, rootPath)
+  })
+
+  ipcMain.handle('preview:unwatch-files', (_event, { watchId }: { watchId: string }) => {
+    previewWatchService.unregister(watchId)
+  })
+
   ipcMain.handle(
     'subagent:watch-text',
     (
@@ -277,6 +287,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   workflowExecutor.stop()
   gitHeadWatchService.dispose()
+  previewWatchService.dispose()
   subagentWatchService.dispose()
   killAllClaudeProcesses()
   globalShortcut.unregisterAll()

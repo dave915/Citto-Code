@@ -6,6 +6,7 @@ import type {
   PendingQuestionRequest,
   PermissionMode,
 } from '../../store/sessions'
+import type { ExternalDraft, PreviewElementSelectionPayload } from '../chat/chatViewUtils'
 
 export type InputAreaProps = {
   cwd: string
@@ -29,7 +30,10 @@ export type InputAreaProps = {
   onDismissModelSwitchNotice: () => void
   permissionShortcutLabel: string
   bypassShortcutLabel: string
-  externalDraft?: { id: number; text: string } | null
+  externalDraft?: ExternalDraft | null
+  previewSelectionResetToken?: number
+  onPreviewSelectionDraftsChange?: (drafts: PreviewElementSelectionPayload[]) => void
+  onPreviewSelectionHoverChange?: (selectionKey: string | null) => void
   topSlot?: ReactNode
   onOpenTeam?: () => void
   hasLinkedTeam?: boolean

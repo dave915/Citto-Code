@@ -55,6 +55,24 @@ const AUTO_HTML_PREVIEW_SKIP_PATTERNS = [
   /preview\s*없이/i,
   /text\s*only/i,
 ]
+const AUTO_HTML_PREVIEW_REAL_APP_PATTERNS = [
+  /\bnpm\s+(?:run\s+)?dev\b/i,
+  /\bpnpm\s+(?:run\s+)?dev\b/i,
+  /\byarn\s+dev\b/i,
+  /\bbun\s+(?:run\s+)?dev\b/i,
+  /\bnpm\s+install\b/i,
+  /\bpnpm\s+install\b/i,
+  /\byarn\s+install\b/i,
+  /\bbun\s+install\b/i,
+  /\blocalhost(?::\d+)?\b/i,
+  /\bdev\s+server\b/i,
+  /\b(vite|next(?:\.js)?|astro|react|vue|svelte)\s+(?:app|project)\b/i,
+  /vite\s*(?:react|vue|svelte)?\s*앱/i,
+  /리액트\s*앱/,
+  /의존성\s*설치/,
+  /서버(?:를|는)?\s*(?:계속\s*)?(?:켜|실행|띄|열)/,
+  /계속\s*켜둔\s*채/,
+]
 const AUTO_HTML_PREVIEW_PATH_MARKER = '/.citto-code/previews/'
 
 function formatAutoPreviewTimestamp(date = new Date()): string {
@@ -199,6 +217,7 @@ export function shouldAutoGenerateHtmlPreview(
   if (normalized.length > 3000) return false
   if (files.some((file) => file.fileType === 'image')) return false
   if (AUTO_HTML_PREVIEW_SKIP_PATTERNS.some((pattern) => pattern.test(normalized))) return false
+  if (AUTO_HTML_PREVIEW_REAL_APP_PATTERNS.some((pattern) => pattern.test(normalized))) return false
   if (AUTO_HTML_PREVIEW_EXPLICIT_PATTERNS.some((pattern) => pattern.test(normalized))) return true
   if (!autoPreviewEnabled) return false
   return AUTO_HTML_PREVIEW_TRIGGER_PATTERNS.some((pattern) => pattern.test(normalized))

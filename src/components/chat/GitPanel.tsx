@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent, MutableRefObject } from 'react'
+import type { MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 
 import type { GitDiffResult, GitLogEntry, GitRepoStatus, GitStatusEntry } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
@@ -55,7 +55,7 @@ export function GitPanel({
       gitDiff: GitDiffResult | null
     },
   ) => void
-  onExplorerResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
+  onExplorerResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
   explorerWidth: number
   gitSidebarRef: MutableRefObject<HTMLDivElement | null>
   gitLogPanelHeight: number
@@ -67,14 +67,14 @@ export function GitPanel({
   onSelectGitCommit: (entry: GitLogEntry) => void | Promise<void>
   onPullGit: () => void | Promise<void>
   onPushGit: () => void | Promise<void>
-  onGitLogResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
+  onGitLogResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
   onSelectGitEntry: (entry: GitStatusEntry) => void | Promise<void>
   onToggleGitStage: (entry: GitStatusEntry, staged?: boolean) => void | Promise<void>
   onRestoreGitEntry: (entry: GitStatusEntry) => void | Promise<void>
   onRestoreGitEntries: (entries: GitStatusEntry[]) => void | Promise<void>
   onStageGitEntries: (entries: GitStatusEntry[]) => void | Promise<void>
   onUnstageGitEntries: (entries: GitStatusEntry[]) => void | Promise<void>
-  onGitCommitResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
+  onGitCommitResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
   stagedGitEntryCount: number
   gitCommitMessage: string
   onGitCommitMessageChange: (value: string) => void
@@ -100,7 +100,7 @@ export function GitPanel({
             </div>
 
             <div
-              onMouseDown={onExplorerResizeStart}
+              onPointerDown={onExplorerResizeStart}
               className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
             />
           </>
@@ -127,7 +127,7 @@ export function GitPanel({
               </div>
 
               <div
-                onMouseDown={onGitLogResizeStart}
+                onPointerDown={onGitLogResizeStart}
                 data-git-resize="true"
                 className="h-1.5 shrink-0 cursor-row-resize bg-transparent hover:bg-claude-border/80 transition-colors"
               />
@@ -148,7 +148,7 @@ export function GitPanel({
               </div>
 
               <div
-                onMouseDown={onGitCommitResizeStart}
+                onPointerDown={onGitCommitResizeStart}
                 data-git-resize="true"
                 className="h-1.5 shrink-0 cursor-row-resize bg-transparent hover:bg-claude-border/80 transition-colors"
               />

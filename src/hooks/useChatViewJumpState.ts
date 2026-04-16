@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Message } from '../store/sessions'
 
 type Params = {
@@ -18,28 +18,33 @@ export function useChatViewJumpState({
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
   const lastMessage = messages[messages.length - 1]
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, lastMessage?.text?.length, lastMessage?.thinking?.length, lastMessage?.toolCalls.length])
-
-  useEffect(() => {
-    if (!jumpToMessageId || !jumpToMessageToken) return
-
-    const targetNode = messageRefs.current[jumpToMessageId]
-    if (!targetNode) return
+  const focusMessageById = useCallback((messageId: string) => {
+    const targetNode = messageRefs.current[messageId]
+    if (!targetNode) return false
 
     targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    setHighlightedMessageId(jumpToMessageId)
+    setHighlightedMessageId(messageId)
 
     if (messageHighlightTimerRef.current != null) {
       window.clearTimeout(messageHighlightTimerRef.current)
     }
 
     messageHighlightTimerRef.current = window.setTimeout(() => {
-      setHighlightedMessageId((current) => (current === jumpToMessageId ? null : current))
+      setHighlightedMessageId((current) => (current === messageId ? null : current))
       messageHighlightTimerRef.current = null
     }, 2200)
-  }, [jumpToMessageId, jumpToMessageToken, messages.length])
+
+    return true
+  }, [])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length, lastMessage?.text?.length, lastMessage?.thinking?.length, lastMessage?.toolCalls.length])
+
+  useEffect(() => {
+    if (!jumpToMessageId || !jumpToMessageToken) return
+    focusMessageById(jumpToMessageId)
+  }, [focusMessageById, jumpToMessageId, jumpToMessageToken, messages.length])
 
   useEffect(() => () => {
     if (messageHighlightTimerRef.current != null) {
@@ -49,6 +54,7 @@ export function useChatViewJumpState({
 
   return {
     bottomRef,
+    focusMessageById,
     messageRefs,
     highlightedMessageId,
   }

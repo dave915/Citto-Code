@@ -8,8 +8,6 @@ import { UserMessageBubble } from './message/UserMessageBubble'
 
 type Props = {
   message: Message
-  isActiveHtmlPreviewMessage?: boolean
-  hideHtmlPreview?: boolean
   isStreaming?: boolean
   onAbort?: () => void
   onAskAboutSelection?: (payload: {
@@ -27,8 +25,6 @@ export function MessageBubble(props: Props) {
   const { t } = useI18n()
   const {
     message,
-    isActiveHtmlPreviewMessage = false,
-    hideHtmlPreview = false,
     isStreaming,
     onAskAboutSelection,
     onToggleBtwCard,
@@ -109,8 +105,6 @@ export function MessageBubble(props: Props) {
     <AssistantMessageBubble
       message={message}
       copyButton={copyButton}
-      isActiveHtmlPreviewMessage={isActiveHtmlPreviewMessage}
-      hideHtmlPreview={hideHtmlPreview}
       isStreaming={isStreaming}
       onAskAboutSelection={onAskAboutSelection}
       onToggleBtwCard={onToggleBtwCard}

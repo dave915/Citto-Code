@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 
 import type { DirEntry } from '../../../electron/preload'
@@ -28,7 +28,7 @@ export function FilePanel({
   previewState: 'idle' | 'loading' | 'ready' | 'unsupported'
   markdownPreviewEnabled: boolean
   onToggleMarkdownPreview: () => void
-  onExplorerResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
+  onExplorerResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
   explorerWidth: number
   loadingPaths: Record<string, boolean>
   rootEntries: DirEntry[]
@@ -54,7 +54,7 @@ export function FilePanel({
           </div>
 
           <div
-            onMouseDown={onExplorerResizeStart}
+            onPointerDown={onExplorerResizeStart}
             className="w-1.5 cursor-col-resize bg-transparent hover:bg-claude-border/80 transition-colors flex-shrink-0"
           />
         </>

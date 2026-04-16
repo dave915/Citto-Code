@@ -206,6 +206,12 @@ export type GitHeadChangedEvent = {
   headPath: string
 }
 
+export type PreviewFileChangedEvent = {
+  watchId: string
+  rootPath: string
+  filePath: string
+}
+
 export type WorkflowFiredEvent = {
   workflowId: string
   workflowName: string
@@ -367,6 +373,7 @@ export type ClaudeAPI = {
   listCurrentDir: (path: string) => Promise<DirEntry[]>
   readFile: (filePath: string) => Promise<SelectedFile | null>
   readFileDataUrl: (filePath: string) => Promise<string | null>
+  readPreviewUrl: (url: string) => Promise<{ url: string; html: string } | null>
   getGitStatus: (cwd: string) => Promise<GitRepoStatus>
   getGitDiff: (params: { cwd: string; filePath: string }) => Promise<GitDiffResult>
   getGitLog: (params: { cwd: string; limit?: number }) => Promise<GitLogResult>
@@ -407,6 +414,10 @@ export type ClaudeAPI = {
     content: string
     filters?: Array<{ name: string; extensions: string[] }>
   }) => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
+  saveZipArchive: (params: {
+    sourcePath: string
+    suggestedName?: string
+  }) => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
   deletePath: (params: { targetPath: string; recursive?: boolean }) => Promise<{ ok: boolean; error?: string }>
   syncWorkflows: (workflows: Workflow[]) => Promise<{ ok: boolean; error?: string }>
   runWorkflowNow: (params: { workflowId: string }) => Promise<{ ok: boolean; error?: string }>
@@ -424,6 +435,8 @@ export type ClaudeAPI = {
   quickPanelHide: () => Promise<void>
   watchGitHead: (params: { cwd: string }) => Promise<{ watchId: string | null }>
   unwatchGitHead: (params: { watchId: string }) => Promise<void>
+  watchPreviewFiles: (params: { rootPath: string }) => Promise<{ watchId: string | null }>
+  unwatchPreviewFiles: (params: { watchId: string }) => Promise<void>
   watchSubagentText: (params: {
     tabId: string
     toolUseId: string
@@ -448,5 +461,6 @@ export type ClaudeAPI = {
   onWorkflowExecutionDone: (handler: (event: WorkflowExecutionDoneEvent) => void) => () => void
   onWorkflowNotify: (handler: (event: WorkflowNotifyEvent) => void) => () => void
   onGitHeadChanged: (handler: (event: GitHeadChangedEvent) => void) => () => void
+  onPreviewFileChanged: (handler: (event: PreviewFileChangedEvent) => void) => () => void
   onSubagentTextChunk: (handler: (event: SubagentTextChunkEvent) => void) => () => void
 }

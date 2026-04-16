@@ -100,11 +100,13 @@
   - `src/components/message/*`
   - `src/components/chat/*`
   - `src/components/toolcalls/*`
+  - `electron/services/previewWatchService.ts`
 - 책임:
   - 메인 채팅 UX
-  - 파일/Git/세션 사이드 패널
+  - 파일/Git/세션/미리보기 우측 패널 스택과 섹션 리사이즈
   - export, preview, selection actions
-  - tool result preview와 HTML iframe/fullscreen 수명주기
+  - tool result preview, 우측 HTML preview 패널, HTML iframe/fullscreen 수명주기
+  - HTML preview auto-reload watcher와 preview element selection draft 주입
   - `InputArea.tsx`는 입력 영역 레이아웃 조립만 유지하고, draft/멘션/권한 프롬프트/키보드 wiring은 `src/components/input/useInputAreaController.ts`가 담당한다.
   - `useInputKeyboard.ts`는 React hook/wiring만 유지하고, 질문/권한/@/슬래시/히스토리/전송 키 분기는 `src/hooks/inputKeyboardHandler.ts`로 분리한다.
   - `MessageBubble.tsx`는 메시지 종류 분기와 공통 copy 상태만 유지하고, 사용자/어시스턴트 bubble 렌더와 HTML preview 로더는 `src/components/message/*`로 분리한다.
@@ -116,6 +118,8 @@
 - 흔한 회귀:
   - 레이아웃 상태 충돌
   - preview pane가 잘못 열리거나 닫히지 않음
+  - preview watcher cleanup 누락
+  - localhost preview와 static HTML preview가 잘못 전환됨
 
 ## Team And Subagents
 

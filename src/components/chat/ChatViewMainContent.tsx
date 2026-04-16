@@ -2,25 +2,29 @@ import type { MutableRefObject } from 'react'
 import type { SelectedFile } from '../../../electron/preload'
 import { InputArea } from '../InputArea'
 import { SubagentDrilldownView } from '../SubagentDrilldownView'
-import type { AskAboutSelectionPayload, FileConflict } from './chatViewUtils'
+import type {
+  AskAboutSelectionPayload,
+  ExternalDraft,
+  FileConflict,
+  PreviewElementSelectionPayload,
+} from './chatViewUtils'
 import { AgentStatusBar } from './AgentStatusBar'
 import { ChatMessagePane } from './ChatMessagePane'
 import type { Session, PermissionMode } from '../../store/sessions'
 
 type Props = {
-  activeHtmlPreviewMessageId: string | null
   bottomRef: MutableRefObject<HTMLDivElement | null>
   bypassShortcutLabel: string
   conflictSessionLabel: string
   drillTarget: { toolUseId: string; title: string } | null
-  externalDraft: { id: number; text: string } | null
+  externalDraft: ExternalDraft | null
   fileConflict?: FileConflict | null
   fileConflictLabel: string | null
   hasLinkedTeam: boolean
-  hideHtmlPreview: boolean
   highlightedMessageId: string | null
   isNewSession: boolean
   messageRefs: MutableRefObject<Record<string, HTMLDivElement | null>>
+  previewSelectionResetToken: number
   promptHistory: string[]
   onAbort: () => void
   onAskAboutSelection: (payload: AskAboutSelectionPayload) => void
@@ -30,6 +34,8 @@ type Props = {
   onOpenTeam?: () => void
   onPermissionModeChange: (mode: PermissionMode) => void
   onPermissionRequestAction: (action: 'once' | 'always' | 'deny') => void
+  onPreviewSelectionDraftsChange: (drafts: PreviewElementSelectionPayload[]) => void
+  onPreviewSelectionHoverChange: (selectionKey: string | null) => void
   onPlanModeChange: (value: boolean) => void
   onQuestionResponse: (answer: string | null) => void
   onSend: (text: string, files: SelectedFile[]) => void
@@ -42,7 +48,6 @@ type Props = {
 }
 
 export function ChatViewMainContent({
-  activeHtmlPreviewMessageId,
   bottomRef,
   bypassShortcutLabel,
   conflictSessionLabel,
@@ -51,10 +56,10 @@ export function ChatViewMainContent({
   fileConflict,
   fileConflictLabel,
   hasLinkedTeam,
-  hideHtmlPreview,
   highlightedMessageId,
   isNewSession,
   messageRefs,
+  previewSelectionResetToken,
   promptHistory,
   onAbort,
   onAskAboutSelection,
@@ -65,6 +70,8 @@ export function ChatViewMainContent({
   onOpenDrilldown,
   onPermissionModeChange,
   onPermissionRequestAction,
+  onPreviewSelectionDraftsChange,
+  onPreviewSelectionHoverChange,
   onPlanModeChange,
   onQuestionResponse,
   onSend,
@@ -108,8 +115,6 @@ export function ChatViewMainContent({
         fileConflictLabel={fileConflictLabel}
         conflictSessionLabel={conflictSessionLabel}
         highlightedMessageId={highlightedMessageId}
-        activeHtmlPreviewMessageId={activeHtmlPreviewMessageId}
-        hideHtmlPreview={hideHtmlPreview}
         showErrorCard={showErrorCard}
         messageRefs={messageRefs}
         bottomRef={bottomRef}
@@ -140,6 +145,9 @@ export function ChatViewMainContent({
         permissionShortcutLabel={permissionShortcutLabel}
         bypassShortcutLabel={bypassShortcutLabel}
         externalDraft={externalDraft}
+        previewSelectionResetToken={previewSelectionResetToken}
+        onPreviewSelectionDraftsChange={onPreviewSelectionDraftsChange}
+        onPreviewSelectionHoverChange={onPreviewSelectionHoverChange}
         topSlot={(
           <AgentStatusBar
             session={session}
