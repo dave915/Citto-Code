@@ -106,7 +106,7 @@
   - 파일/Git/세션/미리보기 우측 패널 스택과 섹션 리사이즈
   - export, preview, selection actions
   - tool result preview, 우측 HTML preview 패널, HTML iframe/fullscreen 수명주기
-  - HTML preview auto-reload watcher와 preview element selection draft 주입
+  - HTML preview auto-reload watcher와 preview element selection draft/스크린샷 첨부 주입
   - `src/components/InputArea.tsx`는 입력 영역 레이아웃 조립만 유지하고, draft/멘션/권한 프롬프트/키보드 wiring은 `src/components/input/useInputAreaController.ts`가 담당한다.
   - `src/hooks/useInputKeyboard.ts`는 React hook/wiring만 유지하고, 질문/권한/@/슬래시/히스토리/전송 키 분기는 `src/hooks/inputKeyboardHandler.ts`로 분리한다.
   - `src/components/MessageBubble.tsx`는 메시지 종류 분기와 공통 copy 상태만 유지하고, 사용자/어시스턴트 bubble 렌더와 HTML preview 로더는 `src/components/message/*`로 분리한다.
@@ -138,7 +138,7 @@
 - 책임:
   - 파일 트리 조회와 preview 로딩
   - 첨부 파일 선택과 mention 파일 검색
-  - HTML preview 프록시 세션 관리, 텍스트 저장, zip export
+  - HTML preview 프록시 세션 관리, preview element PNG capture, 텍스트 저장, zip export
   - OS 기본 앱/open-with 연결과 macOS 앱 아이콘 로딩
   - `electron/ipc/files.ts`는 파일/폴더 선택 dialog, preview proxy start/update/stop, 저장/export, open-in-browser/open-with 핸들러를 담당한다.
   - `electron/services/previewProxyService.ts`는 localhost 미리보기만 허용하고, 응답 헤더 정리와 bridge script 주입, renderer 종료 시 proxy cleanup을 담당한다.

@@ -58,7 +58,7 @@ export function buildPromptWithAttachments(
 }
 
 export function toAttachedFiles(files: SelectedFile[]): AttachedFile[] {
-  return files.map(({ dataUrl: _dataUrl, ...file }) => ({
+  return files.map((file) => ({
     ...file,
     id: file.path,
   }))

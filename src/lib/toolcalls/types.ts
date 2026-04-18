@@ -1,4 +1,5 @@
 import type { ToolCallBlock as ToolCallBlockType } from '../../store/sessions'
+import type { SelectedFile } from '../../../electron/preload'
 
 export type DiffHunk = {
   before: string
@@ -49,6 +50,11 @@ export type HtmlPreviewElementSelection = {
   text: string | null
   href: string | null
   ariaLabel: string | null
+}
+
+export type HtmlPreviewElementCapture = {
+  selection: HtmlPreviewElementSelection
+  captureFile?: SelectedFile | null
 }
 
 export type TimelineEntry = {

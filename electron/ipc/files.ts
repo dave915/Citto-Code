@@ -37,6 +37,12 @@ function sanitizeArchiveName(name: string): string {
   return sanitized || 'project'
 }
 
+function sanitizePngName(name?: string): string {
+  const trimmed = (name ?? '').trim().replace(/\.png$/i, '')
+  const sanitized = trimmed.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-').trim()
+  return `${sanitized || 'preview-selection'}.png`
+}
+
 function runCommand(command: string, args: string[], cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -260,6 +266,61 @@ export function registerFileIpcHandlers({
       })
     })
   })
+
+  ipcMain.handle(
+    'claude:capture-preview-element',
+    async (
+      event,
+      {
+        x,
+        y,
+        width,
+        height,
+        suggestedName,
+      }: {
+        x: number
+        y: number
+        width: number
+        height: number
+        suggestedName?: string
+      },
+    ) => {
+      try {
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) ?? getMainWindow() ?? showMainWindow()
+        const contentBounds = parentWindow.getContentBounds()
+        const normalizedX = Math.max(0, Math.round(x))
+        const normalizedY = Math.max(0, Math.round(y))
+        const rect = {
+          x: normalizedX,
+          y: normalizedY,
+          width: Math.max(1, Math.min(Math.round(width), Math.max(1, contentBounds.width - normalizedX))),
+          height: Math.max(1, Math.min(Math.round(height), Math.max(1, contentBounds.height - normalizedY))),
+        }
+
+        const image = await event.sender.capturePage(rect)
+        if (image.isEmpty()) return null
+
+        const png = image.toPNG()
+        const captureDir = join(app.getPath('temp'), 'citto-preview-selections')
+        if (!existsSync(captureDir)) mkdirSync(captureDir, { recursive: true })
+
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${sanitizePngName(suggestedName)}`
+        const filePath = join(captureDir, fileName)
+        writeFileSync(filePath, png)
+
+        return {
+          name: fileName,
+          path: filePath,
+          content: '',
+          size: png.length,
+          fileType: 'image' as const,
+          dataUrl: image.toDataURL(),
+        }
+      } catch {
+        return null
+      }
+    },
+  )
 
   ipcMain.handle(
     'claude:start-preview-proxy',

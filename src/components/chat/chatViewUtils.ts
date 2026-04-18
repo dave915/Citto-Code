@@ -9,6 +9,7 @@ import {
 import { extractHtmlPreviewCandidates } from '../../lib/toolCallUtils'
 import type { Message, Session } from '../../store/sessions'
 import type { HtmlPreviewCandidate, HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import type { SelectedFile } from '../../../electron/preload'
 
 export type FileConflict = {
   paths: string[]
@@ -40,6 +41,7 @@ export type ExternalDraft = {
   kind: 'preview-selection'
   text: string
   selection: PreviewElementSelectionPayload
+  attachment?: SelectedFile | null
 }
 
 type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string
@@ -272,10 +274,16 @@ function buildPreviewSelectionSection(
 }
 
 export function buildPreviewSelectionDraft(payload: PreviewElementSelectionPayload, t: TranslateFn) {
+  const lines = [
+    t('chatView.previewSelectionScreenshotIntro'),
+  ]
+
+  if (payload.previewPath) {
+    lines.push('', `${t('chatView.file')}: ${payload.previewPath}`)
+  }
+
   return [
-    t('chatView.previewSelectionIntro'),
-    '',
-    ...buildPreviewSelectionSection(payload, t),
+    ...lines,
     '',
     t('chatView.previewSelectionRequest'),
   ].join('\n')
@@ -285,14 +293,20 @@ export function buildPreviewSelectionsDraft(payloads: PreviewElementSelectionPay
   if (payloads.length === 0) return ''
   if (payloads.length === 1) return buildPreviewSelectionDraft(payloads[0], t)
 
+  const filePaths = Array.from(new Set(payloads
+    .map((payload) => payload.previewPath?.trim() ?? '')
+    .filter((value) => value.length > 0)))
+
   return [
-    t('chatView.previewSelectionsIntro'),
+    t('chatView.previewSelectionsScreenshotIntro'),
     '',
-    ...payloads.flatMap((payload, index) => {
-      const section = buildPreviewSelectionSection(payload, t, `${index + 1}. `)
-      return index < payloads.length - 1 ? [...section, ''] : section
-    }),
-    '',
+    ...(filePaths.length > 0
+      ? [
+          `${t('chatView.file')}:`,
+          ...filePaths.map((path) => `- ${path}`),
+          '',
+        ]
+      : []),
     t('chatView.previewSelectionsRequest'),
   ].join('\n')
 }

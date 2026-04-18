@@ -50,6 +50,7 @@ export const claudeAPI: ClaudeAPI = {
     return outcome?.ok ? outcome.file : null
   },
   readFileDataUrl: (filePath) => ipcRenderer.invoke('claude:read-file-data-url', { filePath }),
+  capturePreviewElement: (params) => ipcRenderer.invoke('claude:capture-preview-element', params),
   startPreviewProxy: (params) => ipcRenderer.invoke('claude:start-preview-proxy', params),
   updatePreviewProxy: (params) => ipcRenderer.invoke('claude:update-preview-proxy', params),
   stopPreviewProxy: (params) => ipcRenderer.invoke('claude:stop-preview-proxy', params),

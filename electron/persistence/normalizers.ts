@@ -185,6 +185,7 @@ function normalizeToolCall(value: unknown, index: number): ToolCallBlock {
 function normalizeAttachment(value: unknown, index: number): AttachedFile {
   const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const fileType = input.fileType === 'image' ? 'image' : input.fileType === 'text' ? 'text' : undefined
+  const dataUrl = typeof input.dataUrl === 'string' ? input.dataUrl : undefined
 
   return {
     id: toTrimmedString(input.id, `attachment-${index}-${createId()}`),
@@ -193,6 +194,7 @@ function normalizeAttachment(value: unknown, index: number): AttachedFile {
     content: toStringSafe(input.content),
     size: toFiniteNumber(input.size),
     fileType,
+    dataUrl,
   }
 }
 

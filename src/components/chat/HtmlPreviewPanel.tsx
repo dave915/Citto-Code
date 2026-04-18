@@ -1,6 +1,6 @@
 import { useI18n } from '../../hooks/useI18n'
 import { HtmlPreview } from '../ToolCallBlock'
-import type { HtmlPreviewCandidate, HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import type { HtmlPreviewCandidate, HtmlPreviewElementCapture } from '../../lib/toolcalls/types'
 import type { HtmlPreviewSource, PreviewElementSelectionPayload } from './chatViewUtils'
 import { useMessageHtmlPreview } from '../message/useMessageHtmlPreview'
 import { getFileName } from '../toolcalls/htmlPreviewDocument'
@@ -42,7 +42,7 @@ type Props = {
   sessionCwd: string | null
   hideHtmlPreview: boolean
   isStreaming: boolean
-  onPreviewElementSelection: (payload: HtmlPreviewElementSelection) => void
+  onPreviewElementSelection: (payload: HtmlPreviewElementCapture) => void
   onSelectSource: (sourceId: string) => void
   onClearSelectedElements: () => void
   selectedElements: PreviewElementSelectionPayload[]

@@ -218,6 +218,14 @@ export type PreviewProxySession = {
   targetUrl: string
 }
 
+export type PreviewElementCaptureRequest = {
+  x: number
+  y: number
+  width: number
+  height: number
+  suggestedName?: string
+}
+
 export type WorkflowFiredEvent = {
   workflowId: string
   workflowName: string
@@ -379,6 +387,7 @@ export type ClaudeAPI = {
   listCurrentDir: (path: string) => Promise<DirEntry[]>
   readFile: (filePath: string) => Promise<SelectedFile | null>
   readFileDataUrl: (filePath: string) => Promise<string | null>
+  capturePreviewElement: (params: PreviewElementCaptureRequest) => Promise<SelectedFile | null>
   startPreviewProxy: (params: { targetUrl: string; bridgeScript: string }) => Promise<PreviewProxySession | null>
   updatePreviewProxy: (params: { sessionId: string; targetUrl: string; bridgeScript: string }) => Promise<PreviewProxySession | null>
   stopPreviewProxy: (params: { sessionId: string }) => Promise<void>

@@ -204,6 +204,7 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
   let emphasizedKey = null;
   let emphasizedElement = null;
   let emphasizedAnimation = null;
+  let captureSuppressed = false;
   const selectedElements = new Map();
   const prefersReducedMotion = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -323,6 +324,15 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
   };
 
   const paintCurrentSelectionStates = () => {
+    if (captureSuppressed) {
+      for (const entry of selectedElements.values()) {
+        if (entry.element && entry.element.isConnected) {
+          restoreInlineStyles(entry.element, entry.styles);
+        }
+      }
+      return;
+    }
+
     for (const [key, entry] of selectedElements.entries()) {
       if (!entry.element || !entry.element.isConnected) continue;
       if (emphasizedKey && key === emphasizedKey) {
@@ -502,6 +512,7 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
   };
 
   const postElementSelection = (element) => {
+    const rect = element.getBoundingClientRect();
     const elementInfo = {
       selector: buildSelector(element),
       pathHint: buildPathHint(element),
@@ -517,6 +528,12 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
       previewId,
       action: 'element-selected',
       element: elementInfo,
+      captureBounds: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
     }, '*');
     return {
       key: buildSelectionKey(elementInfo),
@@ -649,12 +666,7 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
     event.preventDefault();
     event.stopPropagation();
     clearHover();
-    const selection = postElementSelection(element);
-    if (selectedElements.has(selection.key)) {
-      removeSelectedKey(selection.key);
-      return;
-    }
-    applySelectedElement(selection.key, element);
+    postElementSelection(element);
   };
 
   const handleMessage = (event) => {
@@ -676,6 +688,21 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
 
     if (payload.action === 'highlight-selection') {
       emphasizedKey = typeof payload.key === 'string' && payload.key ? payload.key : null;
+      syncEmphasizedSelection();
+      return;
+    }
+
+    if (payload.action === 'prepare-capture') {
+      captureSuppressed = true;
+      clearHover();
+      stopEmphasis();
+      paintCurrentSelectionStates();
+      return;
+    }
+
+    if (payload.action === 'finish-capture') {
+      captureSuppressed = false;
+      paintCurrentSelectionStates();
       syncEmphasizedSelection();
       return;
     }

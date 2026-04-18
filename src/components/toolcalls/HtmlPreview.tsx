@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useI18n } from '../../hooks/useI18n'
-import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import type { HtmlPreviewElementCapture, HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import { getFileName } from './htmlPreviewDocument'
 import { type HtmlPreviewNavigationMode, useHtmlPreviewController } from './useHtmlPreviewController'
 
@@ -86,7 +86,7 @@ export function HtmlPreview({
   path?: string | null
   url?: string | null
   downloadRootPath?: string | null
-  onElementSelect?: (payload: HtmlPreviewElementSelection) => void
+  onElementSelect?: (payload: HtmlPreviewElementCapture) => void
   onClearSelectedElements?: () => void
   selectedElements?: HtmlPreviewElementSelection[]
   hoveredSelectionKey?: string | null

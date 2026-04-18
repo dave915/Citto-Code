@@ -11,7 +11,7 @@ import type { Session } from '../../store/sessions'
 import type { useFileExplorer } from '../../hooks/useFileExplorer'
 import type { useGitPanel } from '../../hooks/useGitPanel'
 import type { GitDraftAction } from '../../lib/gitUtils'
-import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import type { HtmlPreviewElementCapture } from '../../lib/toolcalls/types'
 import type { ChatViewRightPanel } from '../../hooks/useChatViewLayout'
 import type { HtmlPreviewSource, PreviewElementSelectionPayload } from './chatViewUtils'
 import { FilePanel } from './FilePanel'
@@ -62,7 +62,7 @@ type Props = {
   selectedHtmlPreviewSourceId: string | null
   hideHtmlPreview: boolean
   htmlPreviewIsStreaming: boolean
-  onPreviewElementSelection: (payload: HtmlPreviewElementSelection) => void
+  onPreviewElementSelection: (payload: HtmlPreviewElementCapture) => void
   onSelectHtmlPreviewSource: (sourceId: string) => void
   onClearSelectedPreviewElements: () => void
   selectedPreviewElements: PreviewElementSelectionPayload[]

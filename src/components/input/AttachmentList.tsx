@@ -26,6 +26,7 @@ export function AttachmentList({
               <span className="max-w-[120px] truncate font-medium text-claude-text">{file.name}</span>
               <span className="text-claude-muted">{formatBytes(file.size)}</span>
               <button
+                type="button"
                 onClick={() => onRemoveFile(file.path)}
                 className="ml-0.5 text-claude-muted transition-colors hover:text-red-500"
               >

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import type { SelectedFile } from '../../../electron/preload'
+import type { HtmlPreviewElementCapture, HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import { buildPreviewSelectionKey } from '../chat/chatViewUtils'
 import {
   buildHtmlPreviewBridgeScript,
@@ -22,6 +23,7 @@ type HtmlPreviewMessagePayload = {
   elements?: unknown
   url?: unknown
   navigationMode?: unknown
+  captureBounds?: unknown
 }
 
 export type HtmlPreviewNavigationMode = 'load' | 'push' | 'replace' | 'pop' | 'unknown'
@@ -31,7 +33,7 @@ type UseHtmlPreviewControllerOptions = {
   path?: string | null
   url?: string | null
   downloadRootPath?: string | null
-  onElementSelect?: (payload: HtmlPreviewElementSelection) => void
+  onElementSelect?: (payload: HtmlPreviewElementCapture) => void
   onLocationChange?: (payload: {
     url: string
     proxyUrl: string
@@ -58,6 +60,70 @@ function normalizeNavigationMode(value: unknown): HtmlPreviewNavigationMode {
   return value === 'load' || value === 'push' || value === 'replace' || value === 'pop'
     ? value
     : 'unknown'
+}
+
+type PreviewCaptureBounds = {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+function isPreviewCaptureBounds(value: unknown): value is PreviewCaptureBounds {
+  if (!value || typeof value !== 'object') return false
+  const bounds = value as Partial<PreviewCaptureBounds>
+  return (
+    Number.isFinite(bounds.left)
+    && Number.isFinite(bounds.top)
+    && Number.isFinite(bounds.width)
+    && Number.isFinite(bounds.height)
+  )
+}
+
+function waitForNextFrame() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve())
+  })
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function clampCaptureRect(rect: PreviewCaptureBounds, iframeRect: DOMRect) {
+  const horizontalPadding = clampNumber(rect.width * 1.1, 96, 220)
+  const topPadding = clampNumber(rect.height * 1.45, 96, 220)
+  const bottomPadding = clampNumber(rect.height * 1.65, 120, 240)
+  const left = Math.max(0, Math.floor(iframeRect.left + rect.left - horizontalPadding + window.scrollX))
+  const top = Math.max(0, Math.floor(iframeRect.top + rect.top - topPadding + window.scrollY))
+  const right = Math.ceil(iframeRect.left + rect.left + rect.width + horizontalPadding + window.scrollX)
+  const bottom = Math.ceil(iframeRect.top + rect.top + rect.height + bottomPadding + window.scrollY)
+  return {
+    x: left,
+    y: top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top),
+  }
+}
+
+function sanitizeCaptureFilePart(value: string | null | undefined): string {
+  const normalized = (value ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return normalized.slice(0, 40)
+}
+
+function buildPreviewCaptureName(selection: HtmlPreviewElementSelection) {
+  const parts = [
+    'preview-selection',
+    sanitizeCaptureFilePart(selection.tagName),
+    sanitizeCaptureFilePart(selection.id),
+    sanitizeCaptureFilePart(selection.text),
+    sanitizeCaptureFilePart(selection.className?.split(/\s+/).filter(Boolean)[0] ?? ''),
+  ].filter(Boolean)
+
+  return `${parts.join('-') || 'preview-selection'}.png`
 }
 
 function mapProxyUrlToTargetUrl(proxyUrl: string, targetUrl: string | null, proxyOrigin: string | null): string {
@@ -117,13 +183,14 @@ export function useHtmlPreviewController({
     [path, sourceHtml],
   )
   const [documentHtml, setDocumentHtml] = useState(fallbackDocument)
+  const selectionPreviewPath = isUrlPreview ? null : (path ?? null)
   const bridgeScript = useMemo(
-    () => buildHtmlPreviewBridgeScript(previewIdRef.current, path ?? null),
-    [path],
+    () => buildHtmlPreviewBridgeScript(previewIdRef.current, selectionPreviewPath),
+    [selectionPreviewPath],
   )
   const srcDoc = useMemo(
-    () => (isUrlPreview ? null : injectHtmlPreviewBridge(documentHtml, previewIdRef.current, path ?? null)),
-    [documentHtml, isUrlPreview, path],
+    () => (isUrlPreview ? null : injectHtmlPreviewBridge(documentHtml, previewIdRef.current, selectionPreviewPath)),
+    [documentHtml, isUrlPreview, selectionPreviewPath],
   )
   const selectedElementBridgePayload = useMemo(() => (
     selectedElements.map((selection) => ({
@@ -169,6 +236,29 @@ export function useHtmlPreviewController({
     if (!sessionId) return
     await window.claude.stopPreviewProxy({ sessionId }).catch(() => {})
   }, [])
+
+  const captureSelectedElement = useCallback(async (
+    selection: HtmlPreviewElementSelection,
+    captureBounds: PreviewCaptureBounds,
+  ): Promise<SelectedFile | null> => {
+    const iframeElement = iframeRef.current
+    if (!iframeElement) return null
+
+    const iframeRect = iframeElement.getBoundingClientRect()
+    if (iframeRect.width <= 0 || iframeRect.height <= 0) return null
+
+    postPreviewMessage({ action: 'prepare-capture' })
+    await waitForNextFrame()
+
+    try {
+      return await window.claude.capturePreviewElement({
+        ...clampCaptureRect(captureBounds, iframeRect),
+        suggestedName: buildPreviewCaptureName(selection),
+      }).catch(() => null)
+    } finally {
+      postPreviewMessage({ action: 'finish-capture' })
+    }
+  }, [postPreviewMessage])
 
   const reloadUrlPreviewFrame = useCallback(() => {
     setIsFrameLoading(true)
@@ -376,9 +466,25 @@ export function useHtmlPreviewController({
       }
       if (payload.action === 'element-selected') {
         if (onElementSelect && isPreviewSelectionPayload(payload.element)) {
-          onElementSelect({
-            previewPath: path ?? null,
+          const selection = {
+            previewPath: selectionPreviewPath,
             ...payload.element,
+          }
+          const selectionKey = buildPreviewSelectionKey(selection)
+          const alreadySelected = selectedElements.some((entry) => buildPreviewSelectionKey(entry) === selectionKey)
+          if (alreadySelected || !isPreviewCaptureBounds(payload.captureBounds)) {
+            onElementSelect({
+              selection,
+              captureFile: null,
+            })
+            return
+          }
+
+          void captureSelectedElement(selection, payload.captureBounds).then((captureFile) => {
+            onElementSelect({
+              selection,
+              captureFile,
+            })
           })
         }
         return
@@ -395,7 +501,7 @@ export function useHtmlPreviewController({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [minimumFrameHeight, onElementSelect, onLocationChange, path])
+  }, [captureSelectedElement, minimumFrameHeight, onElementSelect, onLocationChange, selectedElements, selectionPreviewPath])
 
   useEffect(() => {
     if (!srcDoc && !iframeUrl) return

@@ -35,6 +35,7 @@ export type AttachedFile = {
   content: string
   size: number
   fileType?: 'text' | 'image'
+  dataUrl?: string
 }
 
 export type BtwCard = {

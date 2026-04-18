@@ -1,5 +1,6 @@
-import type { ClipboardEventHandler, ReactNode } from 'react'
+import { useMemo, type ClipboardEventHandler, type ReactNode } from 'react'
 import type { Message } from '../../store/sessions'
+import { canOpenAttachmentPath, useAttachmentImageDataUrls } from '../../hooks/useAttachmentImageDataUrls'
 import { MessageMarkdown } from './messageMarkdown'
 
 type Props = {
@@ -19,25 +20,91 @@ export function UserMessageBubble({
   copyButton,
   onMarkdownCopy,
 }: Props) {
+  const attachedFiles = message.attachedFiles ?? []
+  const imageDataUrls = useAttachmentImageDataUrls(attachedFiles)
+  const imageAttachments = useMemo(
+    () => attachedFiles.filter((file) => file.fileType === 'image' && imageDataUrls[file.path]),
+    [attachedFiles, imageDataUrls],
+  )
+  const fileAttachments = useMemo(
+    () => attachedFiles.filter((file) => file.fileType !== 'image' || !imageDataUrls[file.path]),
+    [attachedFiles, imageDataUrls],
+  )
+
   return (
     <div className="flex justify-end mb-3">
       <div className="group/message max-w-[78%] flex flex-col gap-2.5 items-end">
-        {message.attachedFiles && message.attachedFiles.length > 0 && (
+        {imageAttachments.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {imageAttachments.map((file) => {
+              const dataUrl = imageDataUrls[file.path]
+              const isOpenable = canOpenAttachmentPath(file.path)
+
+              return isOpenable ? (
+                <button
+                  key={file.path}
+                  type="button"
+                  onClick={() => window.claude.openFile(file.path)}
+                  className="overflow-hidden rounded-lg text-left transition-opacity hover:opacity-95"
+                  title={file.path}
+                >
+                  <img
+                    src={dataUrl}
+                    alt={file.name}
+                    className="block max-h-52 max-w-[320px] rounded-lg border border-claude-border object-contain"
+                  />
+                </button>
+              ) : (
+                <div
+                  key={file.path}
+                  className="overflow-hidden rounded-lg"
+                  title={file.name}
+                >
+                  <img
+                    src={dataUrl}
+                    alt={file.name}
+                    className="block max-h-52 max-w-[320px] rounded-lg border border-claude-border object-contain"
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {fileAttachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 justify-end">
-            {message.attachedFiles.map((file) => (
-              <button
-                key={file.path}
-                onClick={() => window.claude.openFile(file.path)}
-                className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted hover:bg-claude-surface-2 transition-colors group"
-                title={file.path}
-              >
-                <svg className="w-3.5 h-3.5 text-claude-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span className="text-claude-text font-medium max-w-[120px] truncate">{file.name}</span>
-                <span className="text-claude-muted">{formatBytes(file.size)}</span>
-              </button>
-            ))}
+            {fileAttachments.map((file) => {
+              const isOpenable = canOpenAttachmentPath(file.path)
+              const content = (
+                <>
+                  <svg className="w-3.5 h-3.5 text-claude-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-claude-text font-medium max-w-[120px] truncate">{file.name}</span>
+                  <span className="text-claude-muted">{formatBytes(file.size)}</span>
+                </>
+              )
+
+              return isOpenable ? (
+                <button
+                  key={file.path}
+                  type="button"
+                  onClick={() => window.claude.openFile(file.path)}
+                  className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted hover:bg-claude-surface-2 transition-colors group"
+                  title={file.path}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div
+                  key={file.path}
+                  className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted"
+                  title={file.name}
+                >
+                  {content}
+                </div>
+              )
+            })}
           </div>
         )}
 

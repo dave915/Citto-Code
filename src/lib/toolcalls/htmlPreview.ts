@@ -21,6 +21,8 @@ function normalizeServerUrl(url: string): string {
   return url
     .replace(ANSI_ESCAPE_PATTERN, '')
     .trim()
+    .replace(/[*_`]+$/g, '')
+    .replace(/[.,;:!?]+$/g, '')
     .replace('0.0.0.0', 'localhost')
 }
 

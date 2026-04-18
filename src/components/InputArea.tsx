@@ -162,7 +162,7 @@ export function InputArea({
         )}
 
         <AttachmentList
-          attachedFiles={controller.attachedFiles}
+          attachedFiles={controller.visibleAttachedFiles}
           skippedFiles={controller.skippedFiles}
           language={controller.language}
           onRemoveFile={controller.handleRemoveFile}
@@ -182,7 +182,7 @@ export function InputArea({
           textareaRef={controller.textareaRef}
           language={controller.language}
           text={controller.text}
-          attachedFileCount={controller.attachedFiles.length}
+          attachedFileCount={controller.visibleAttachedFiles.length}
           isStreaming={props.isStreaming}
           allowStreamingInput={props.isStreaming}
           disabled={props.disabled || Boolean(backendSwitchNotice)}

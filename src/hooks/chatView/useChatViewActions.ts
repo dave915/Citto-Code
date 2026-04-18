@@ -17,9 +17,9 @@ import {
   buildSessionExportContent,
   type AskAboutSelectionPayload,
   type ExternalDraft,
-  type PreviewElementSelectionPayload,
 } from '../../components/chat/chatViewUtils'
 import type { AppLanguage, TranslationKey } from '../../lib/i18n'
+import type { HtmlPreviewElementCapture } from '../../lib/toolcalls/types'
 
 type UseChatViewActionsParams = {
   language: AppLanguage
@@ -59,12 +59,13 @@ export function useChatViewActions({
     })
   }
 
-  const handlePreviewElementSelection = (payload: PreviewElementSelectionPayload) => {
+  const handlePreviewElementSelection = (payload: HtmlPreviewElementCapture) => {
     setExternalDraft({
       id: createDraftId(),
       kind: 'preview-selection',
-      text: buildPreviewSelectionDraft(payload, t),
-      selection: payload,
+      text: buildPreviewSelectionDraft(payload.selection, t),
+      selection: payload.selection,
+      attachment: payload.captureFile ?? null,
     })
   }
 
