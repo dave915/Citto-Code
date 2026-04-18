@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
-import { isPowerShellScriptPath, resolveClaude } from '../../services/claude/installation'
+import { isPowerShellScriptPath, resolveClaude, shouldUseLoginShellForClaude } from '../../services/claude/installation'
 import { normalizeConfiguredModelSelection, resolveLaunchEnvForModel } from '../../services/claude-models'
 
 type LaunchClaudeProcessOptions = {
@@ -96,11 +96,17 @@ export function launchClaudeProcess({
           stdio: ['pipe', 'pipe', 'pipe'],
           shell: true,
         })
-    : spawn(userShell, ['-l', '-c', '"$0" "$@"', claudeBin, ...args], {
-        cwd: resolvedCwd,
-        env: procEnv,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
+    : shouldUseLoginShellForClaude(claudeBin)
+      ? spawn(userShell, ['-l', '-c', '"$0" "$@"', claudeBin, ...args], {
+          cwd: resolvedCwd,
+          env: procEnv,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        })
+      : spawn(claudeBin, args, {
+          cwd: resolvedCwd,
+          env: procEnv,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        })
 
   return {
     proc,

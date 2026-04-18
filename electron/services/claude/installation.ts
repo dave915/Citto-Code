@@ -8,6 +8,10 @@ export function isPowerShellScriptPath(commandPath: string): boolean {
   return commandPath.trim().toLowerCase().endsWith('.ps1')
 }
 
+export function shouldUseLoginShellForClaude(commandPath: string): boolean {
+  return commandPath.trim() === 'claude'
+}
+
 export function readEnvVar(envVars: Record<string, string> | undefined, key: string): string {
   const value = envVars?.[key]
   return typeof value === 'string' ? value.trim() : ''
@@ -152,10 +156,15 @@ export async function detectClaudeInstallation(
           shell: true,
           timeoutMs: 3000,
         })
-    : await runCommand(userShell, ['-l', '-c', '"$0" --version', commandPath], {
-        env: process.env,
-        timeoutMs: 3000,
-      })
+    : shouldUseLoginShellForClaude(commandPath)
+      ? await runCommand(userShell, ['-l', '-c', '"$0" --version', commandPath], {
+          env: sharedEnv,
+          timeoutMs: 3000,
+        })
+      : await runCommand(commandPath, ['--version'], {
+          env: sharedEnv,
+          timeoutMs: 3000,
+        })
 
   if (result.error || result.status !== 0) {
     return {
