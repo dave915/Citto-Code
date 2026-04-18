@@ -39,6 +39,7 @@
     "electron/ipc/storage.ts",
     "electron/ipc/settings.ts",
     "electron/services/fileService.ts",
+    "electron/services/previewProxyService.ts",
     "electron/services/gitService.ts",
     "electron/services/settingsDataService.ts",
     "electron/services/scheduledTaskScheduler.ts"

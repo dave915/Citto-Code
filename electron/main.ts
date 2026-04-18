@@ -42,6 +42,7 @@ import {
 } from './services/shellEnvironmentService'
 import { createSettingsDataService } from './services/settingsDataService'
 import { createPreviewWatchService } from './services/previewWatchService'
+import { createPreviewProxyService } from './services/previewProxyService'
 import { createSubagentWatchService } from './services/subagentWatchService'
 import { createTrayImage, resolveAppIconPath } from './services/trayImageService'
 import { createWorkflowExecutor } from './workflow-executor'
@@ -68,6 +69,7 @@ const workflowExecutor = createWorkflowExecutor({
 })
 const gitHeadWatchService = createGitHeadWatchService()
 const previewWatchService = createPreviewWatchService()
+const previewProxyService = createPreviewProxyService()
 const subagentWatchService = createSubagentWatchService({
   getHomePath: () => getUserHomePath(),
 })
@@ -167,6 +169,7 @@ app.whenReady().then(async () => {
     listOpenWithApps,
     openPathWithApp,
     mimeTypesByExtension: MIME_TYPES_BY_EXTENSION,
+    previewProxyService,
   })
 
   registerGitIpcHandlers({
@@ -287,6 +290,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   workflowExecutor.stop()
   gitHeadWatchService.dispose()
+  previewProxyService.dispose()
   previewWatchService.dispose()
   subagentWatchService.dispose()
   killAllClaudeProcesses()

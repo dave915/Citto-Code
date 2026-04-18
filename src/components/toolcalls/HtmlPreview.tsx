@@ -1,9 +1,37 @@
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useI18n } from '../../hooks/useI18n'
 import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import { getFileName } from './htmlPreviewDocument'
-import { useHtmlPreviewController } from './useHtmlPreviewController'
+import { type HtmlPreviewNavigationMode, useHtmlPreviewController } from './useHtmlPreviewController'
+
+type NavigationHistoryState = {
+  entries: string[]
+  index: number
+}
+
+function normalizeComparableUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return null
+
+  try {
+    return new URL(trimmed).toString()
+  } catch {
+    return trimmed
+  }
+}
+
+function buildInitialHistoryState(url: string | null): NavigationHistoryState {
+  const normalizedUrl = normalizeComparableUrl(url)
+  if (!normalizedUrl) {
+    return { entries: [], index: -1 }
+  }
+
+  return {
+    entries: [normalizedUrl],
+    index: 0,
+  }
+}
 
 function PreviewIconButton({
   active = false,
@@ -67,6 +95,7 @@ export function HtmlPreview({
   onSourceChange?: (sourceId: string) => void
 }) {
   const { t } = useI18n()
+  const pendingHistoryActionRef = useRef<'back' | 'forward' | null>(null)
   const normalizeUrlInput = (value: string) => {
     const trimmed = value.trim()
     if (!trimmed) return null
@@ -75,12 +104,68 @@ export function HtmlPreview({
   }
   const [committedUrl, setCommittedUrl] = useState<string | null>(url?.trim() || null)
   const [addressInput, setAddressInput] = useState(url?.trim() || '')
+  const [currentUrl, setCurrentUrl] = useState<string | null>(normalizeComparableUrl(url?.trim() || null))
+  const [navigationHistory, setNavigationHistory] = useState<NavigationHistoryState>(() => buildInitialHistoryState(url?.trim() || null))
+  const handlePreviewLocationChange = useCallback((payload: {
+    url: string
+    proxyUrl: string
+    navigationMode: HtmlPreviewNavigationMode
+  }) => {
+    const normalizedUrl = normalizeComparableUrl(payload.url)
+    if (!normalizedUrl) return
+
+    setCurrentUrl(normalizedUrl)
+    setAddressInput(normalizedUrl)
+    setNavigationHistory((current) => {
+      const pendingAction = pendingHistoryActionRef.current
+      pendingHistoryActionRef.current = null
+
+      if (current.entries.length === 0 || current.index < 0) {
+        return {
+          entries: [normalizedUrl],
+          index: 0,
+        }
+      }
+
+      const currentEntry = current.entries[current.index] ?? null
+      if (currentEntry === normalizedUrl) {
+        return current
+      }
+
+      if (payload.navigationMode === 'replace') {
+        const nextEntries = [...current.entries]
+        nextEntries[current.index] = normalizedUrl
+        return {
+          entries: nextEntries,
+          index: current.index,
+        }
+      }
+
+      if (pendingAction || payload.navigationMode === 'pop') {
+        const existingIndex = current.entries.findIndex((entry) => entry === normalizedUrl)
+        if (existingIndex >= 0) {
+          return {
+            entries: current.entries,
+            index: existingIndex,
+          }
+        }
+      }
+
+      const nextEntries = current.entries.slice(0, current.index + 1)
+      nextEntries.push(normalizedUrl)
+      return {
+        entries: nextEntries,
+        index: nextEntries.length - 1,
+      }
+    })
+  }, [])
   const {
     canSelectElements,
     frameHeight,
     handleIframeLoad,
     iframeRenderKey,
     iframeRef,
+    iframeUrl,
     isFrameLoading,
     isFullscreen,
     isSelectMode,
@@ -98,23 +183,30 @@ export function HtmlPreview({
     url: committedUrl,
     downloadRootPath,
     onElementSelect,
+    onLocationChange: handlePreviewLocationChange,
     selectedElements,
     hoveredSelectionKey,
   })
 
   useEffect(() => {
     const nextUrl = url?.trim() || null
+    pendingHistoryActionRef.current = null
     setCommittedUrl(nextUrl)
     setAddressInput(nextUrl ?? '')
+    setCurrentUrl(normalizeComparableUrl(nextUrl))
+    setNavigationHistory(buildInitialHistoryState(nextUrl))
   }, [url])
 
-  const openTarget = previewUrl ?? path ?? null
+  const activeUrl = currentUrl ?? normalizeComparableUrl(previewUrl)
+  const openTarget = isUrlPreview
+    ? (iframeUrl ?? activeUrl)
+    : (path ?? null)
   const previewTargetLabel = (() => {
-    if (!previewUrl) return null
+    if (!activeUrl) return null
     try {
-      return new URL(previewUrl).host
+      return new URL(activeUrl).host
     } catch {
-      return previewUrl
+      return activeUrl
     }
   })()
   const previewTitle = isUrlPreview && previewTargetLabel
@@ -141,73 +233,112 @@ export function HtmlPreview({
     if (!isUrlPreview) return
     const nextUrl = normalizeUrlInput(addressInput)
     if (!nextUrl) return
-    setCommittedUrl(nextUrl)
-    setAddressInput(nextUrl)
+    const normalizedNextUrl = normalizeComparableUrl(nextUrl)
+    if (!normalizedNextUrl) return
+    if (normalizedNextUrl === activeUrl) {
+      setAddressInput(normalizedNextUrl)
+      return
+    }
+    pendingHistoryActionRef.current = null
+    setCommittedUrl(normalizedNextUrl)
+    setAddressInput(normalizedNextUrl)
   }
   const handleAddressKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter') return
     event.preventDefault()
     handleAddressSubmit()
   }
+  const canGoBack = navigationHistory.index > 0
+  const canGoForward = navigationHistory.index >= 0 && navigationHistory.index < navigationHistory.entries.length - 1
+  const handleNavigateBack = () => {
+    if (!canGoBack) return
+    const nextUrl = navigationHistory.entries[navigationHistory.index - 1] ?? null
+    if (!nextUrl) return
+    pendingHistoryActionRef.current = 'back'
+    setCommittedUrl(nextUrl)
+    setAddressInput(nextUrl)
+  }
+  const handleNavigateForward = () => {
+    if (!canGoForward) return
+    const nextUrl = navigationHistory.entries[navigationHistory.index + 1] ?? null
+    if (!nextUrl) return
+    pendingHistoryActionRef.current = 'forward'
+    setCommittedUrl(nextUrl)
+    setAddressInput(nextUrl)
+  }
+  const utilityActionButtons = (
+    <>
+      {canDownloadPreview ? (
+        <PreviewIconButton title={t('toolcall.htmlPreview.download')} onClick={() => { void handleDownload() }}>
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v10" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="m8 10 4 4 4-4" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 18h14" />
+          </svg>
+        </PreviewIconButton>
+      ) : null}
+
+      {openTarget ? (
+        <PreviewIconButton title={t('toolcall.htmlPreview.openInBrowser')} onClick={() => { void window.claude.openInBrowser(openTarget) }}>
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h5v5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 14 19 5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 14v5h-5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 10V5h5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 19l5-5" />
+          </svg>
+        </PreviewIconButton>
+      ) : null}
+
+      <PreviewIconButton title={isFullscreen ? t('toolcall.htmlPreview.exitFullscreen') : t('toolcall.htmlPreview.maximize')} onClick={toggleFullscreen}>
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          {isFullscreen ? (
+            <>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 15H5v4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h4V5" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m5 19 5-5" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19 5-5 5" />
+            </>
+          ) : (
+            <>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H5v4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19h4v-4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m5 5 5 5" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19 19-5-5" />
+            </>
+          )}
+        </svg>
+      </PreviewIconButton>
+    </>
+  )
 
   const renderFrame = (fullscreen: boolean) => (
     <div className={`flex h-full min-h-0 min-w-0 flex-1 flex-col ${fullscreen ? 'bg-claude-panel' : 'overflow-hidden rounded-2xl border border-claude-border bg-claude-panel'}`}>
-      <div className="flex h-10 items-center gap-2.5 border-b border-claude-border px-3">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-medium text-claude-text">{previewTitle}</div>
+      {!isUrlPreview ? (
+        <div className="flex h-10 items-center gap-2.5 border-b border-claude-border px-3">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-medium text-claude-text">{previewTitle}</div>
+          </div>
+          {utilityActionButtons}
         </div>
-
-        {canDownloadPreview ? (
-          <PreviewIconButton title={t('toolcall.htmlPreview.download')} onClick={() => { void handleDownload() }}>
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v10" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="m8 10 4 4 4-4" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 18h14" />
-            </svg>
-          </PreviewIconButton>
-        ) : null}
-
-        {openTarget ? (
-          <PreviewIconButton title={t('toolcall.htmlPreview.openInBrowser')} onClick={() => { void window.claude.openInBrowser(openTarget) }}>
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h5v5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 14 19 5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 14v5h-5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 10V5h5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 19l5-5" />
-            </svg>
-          </PreviewIconButton>
-        ) : null}
-
-        <PreviewIconButton title={isFullscreen ? t('toolcall.htmlPreview.exitFullscreen') : t('toolcall.htmlPreview.maximize')} onClick={toggleFullscreen}>
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            {isFullscreen ? (
-              <>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15H5v4" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h4V5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="m5 19 5-5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="m19 5-5 5" />
-              </>
-            ) : (
-              <>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H5v4" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19h4v-4" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="m5 5 5 5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="m19 19-5-5" />
-              </>
-            )}
-          </svg>
-        </PreviewIconButton>
-      </div>
+      ) : null}
 
       <div className="flex h-10 items-center gap-1.5 border-b border-claude-border bg-claude-panel px-3">
-        <PreviewIconButton title={t('toolcall.htmlPreview.backUnavailable')} ariaDisabled>
+        <PreviewIconButton
+          title={canGoBack ? t('toolcall.htmlPreview.back') : t('toolcall.htmlPreview.backUnavailable')}
+          ariaDisabled={!canGoBack}
+          onClick={handleNavigateBack}
+        >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6" />
           </svg>
         </PreviewIconButton>
 
-        <PreviewIconButton title={t('toolcall.htmlPreview.forwardUnavailable')} ariaDisabled>
+        <PreviewIconButton
+          title={canGoForward ? t('toolcall.htmlPreview.forward') : t('toolcall.htmlPreview.forwardUnavailable')}
+          ariaDisabled={!canGoForward}
+          onClick={handleNavigateForward}
+        >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
           </svg>
@@ -273,6 +404,8 @@ export function HtmlPreview({
             </svg>
           </PreviewIconButton>
         ) : null}
+
+        {isUrlPreview ? utilityActionButtons : null}
       </div>
 
       <div className="relative min-h-0 flex-1 bg-claude-bg">
@@ -280,8 +413,8 @@ export function HtmlPreview({
           key={iframeRenderKey}
           ref={iframeRef}
           title={openTarget ? `${openTarget} preview` : 'html-preview'}
-          {...(srcDoc ? { srcDoc } : previewUrl ? { src: previewUrl } : {})}
-          sandbox={previewUrl ? 'allow-scripts allow-forms allow-modals allow-same-origin' : 'allow-scripts allow-forms allow-modals'}
+          {...(srcDoc ? { srcDoc } : iframeUrl ? { src: iframeUrl } : {})}
+          sandbox={isUrlPreview ? 'allow-scripts allow-forms allow-modals allow-same-origin' : 'allow-scripts allow-forms allow-modals'}
           onLoad={handleIframeLoad}
           style={fullscreen ? undefined : { height: isUrlPreview ? '100%' : `${frameHeight}px` }}
           className={fullscreen ? 'block h-full w-full bg-white' : 'block w-full bg-white'}

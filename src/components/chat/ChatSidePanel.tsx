@@ -474,7 +474,7 @@ export function ChatSidePanel({
         )
       : panel === 'preview'
         ? (
-            <div className="h-full min-h-0 bg-claude-panel p-3">
+            <div className="h-full min-h-0">
               <HtmlPreviewPanel
                 activeSource={activeHtmlPreviewSource}
                 sources={htmlPreviewSources}
@@ -553,6 +553,14 @@ export function ChatSidePanel({
               />
             )
 
+    const sectionBody = panel === 'preview'
+      ? content
+      : (
+          <SectionChrome title={title} action={action}>
+            {content}
+          </SectionChrome>
+        )
+
     return (
       <div
         key={panel}
@@ -562,9 +570,7 @@ export function ChatSidePanel({
         className={`flex min-h-0 flex-col ${isLast ? 'flex-1' : 'shrink-0'}`}
         style={wrapperStyle}
       >
-        <SectionChrome title={title} action={action}>
-          {content}
-        </SectionChrome>
+        {sectionBody}
 
         {!isLast ? (
           <div

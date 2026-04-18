@@ -190,8 +190,8 @@ ${normalizedHtml}
   return `<!doctype html>\n${documentNode.documentElement.outerHTML}`
 }
 
-export function injectHtmlPreviewBridge(documentHtml: string, previewId: string, previewPath: string | null): string {
-  const bridgeScript = `<script>
+export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: string | null): string {
+  return `<script>
 (() => {
   const previewId = ${JSON.stringify(previewId)};
   const previewPath = ${JSON.stringify(previewPath)};
@@ -258,6 +258,21 @@ export function injectHtmlPreviewBridge(documentHtml: string, previewId: string,
       previewId,
       action: 'escape',
     }, '*');
+  };
+
+  const postLocationChange = (navigationMode) => {
+    parent.postMessage({
+      __claudeHtmlPreview: true,
+      previewId,
+      action: 'location-change',
+      url: window.location.href,
+      navigationMode,
+    }, '*');
+  };
+
+  const announceNavigation = (navigationMode) => {
+    postLocationChange(navigationMode);
+    scheduleMeasure();
   };
 
   const handleKeyDown = (event) => {
@@ -670,9 +685,31 @@ export function injectHtmlPreviewBridge(documentHtml: string, previewId: string,
     }
   };
 
-  window.addEventListener('load', scheduleMeasure);
+  const wrapHistoryMethod = (methodName, navigationMode) => {
+    const originalMethod = history[methodName];
+    if (typeof originalMethod !== 'function') return;
+
+    history[methodName] = function(...args) {
+      const result = originalMethod.apply(this, args);
+      announceNavigation(navigationMode);
+      return result;
+    };
+  };
+
+  wrapHistoryMethod('pushState', 'push');
+  wrapHistoryMethod('replaceState', 'replace');
+
+  window.addEventListener('load', () => {
+    scheduleMeasure();
+    postLocationChange('load');
+  });
   window.addEventListener('resize', scheduleMeasure);
-  window.addEventListener('DOMContentLoaded', scheduleMeasure);
+  window.addEventListener('DOMContentLoaded', () => {
+    scheduleMeasure();
+    postLocationChange('load');
+  });
+  window.addEventListener('popstate', () => announceNavigation('pop'));
+  window.addEventListener('hashchange', () => announceNavigation('push'));
   window.addEventListener('keydown', handleKeyDown, true);
   window.addEventListener('message', handleMessage);
   document.addEventListener('keydown', handleKeyDown, true);
@@ -700,10 +737,15 @@ export function injectHtmlPreviewBridge(documentHtml: string, previewId: string,
   }
 
   setTimeout(scheduleMeasure, 0);
+  setTimeout(() => postLocationChange('load'), 0);
   setTimeout(scheduleMeasure, 120);
   setTimeout(scheduleMeasure, 500);
 })();
 </script>`
+}
+
+export function injectHtmlPreviewBridge(documentHtml: string, previewId: string, previewPath: string | null): string {
+  const bridgeScript = buildHtmlPreviewBridgeScript(previewId, previewPath)
 
   if (/<\/body>/i.test(documentHtml)) {
     return documentHtml.replace(/<\/body>/i, `${bridgeScript}\n</body>`)

@@ -55,9 +55,10 @@
 ### File Access And Preview
 
 1. 렌더러의 `src/hooks/useFileExplorer.ts`, `src/hooks/useInputMentions.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/toolcalls/useHtmlPreviewController.ts`가 파일 탐색, 첨부, open-with, preview 저장 요청을 만든다.
-2. `electron/preload/claudeApi.ts`가 폴더/파일 선택, 파일 읽기, preview URL 읽기, 텍스트/zip 저장, OS 앱 열기 요청을 브리지한다.
-3. `electron/ipc/files.ts`가 디렉터리 열람, preview URL allowlist, export/save, 브라우저/앱 handoff를 담당한다.
-4. `electron/services/fileService.ts`가 첨부 파일 읽기, MIME 판단, macOS open-with 앱 탐색과 shell open 동작을 담당한다.
+2. `electron/preload/claudeApi.ts`가 폴더/파일 선택, 파일 읽기, preview proxy 세션 start/update/stop, 텍스트/zip 저장, OS 앱 열기 요청을 브리지한다.
+3. `electron/ipc/files.ts`가 디렉터리 열람, preview proxy IPC, export/save, 브라우저/앱 handoff를 담당한다.
+4. `electron/services/previewProxyService.ts`가 localhost/127.0.0.1 대상만 허용하는 로컬 프록시를 띄우고, 응답의 frame/CSP 계열 헤더를 정리한 뒤 HTML에 preview bridge를 주입한다.
+5. `electron/services/fileService.ts`가 첨부 파일 읽기, MIME 판단, macOS open-with 앱 탐색과 shell open 동작을 담당한다.
 
 ### Quick Panel
 
@@ -97,16 +98,17 @@
 - `electron/services/claude-models.ts` <-> `electron/ipc/claude/processLauncher.ts`
 - `electron/services/gitHeadWatchService.ts` <-> Git panel refresh hooks
 - `electron/ipc/files.ts` <-> `electron/preload/claudeApi.ts` <-> `src/hooks/useFileExplorer.ts` / `src/hooks/useChatOpenWith.ts` / `src/components/toolcalls/useHtmlPreviewController.ts`
+- `src/components/toolcalls/HtmlPreview.tsx` / `src/components/toolcalls/useHtmlPreviewController.ts` <-> `electron/preload/claudeApi.ts` <-> `electron/services/previewProxyService.ts`
 - `src/components/toolcalls/HtmlPreview.tsx` / `src/components/toolcalls/useHtmlPreviewController.ts` <-> `electron/preload/claudeApi.ts` <-> `electron/services/previewWatchService.ts`
 - `src/hooks/useAppDesktopEffects.ts` <-> `electron/main/windowController.ts` <-> `electron/ipc/quickPanel.ts` <-> `electron/preload/quickPanelApi.ts` <-> `src/quick-panel/QuickPanel.tsx`
 
 ## Fast File Map By Intent
 
-- 채팅 레이아웃/패널: `src/components/ChatView.tsx`, `src/components/chat/ChatViewMainContent.tsx`, `src/components/chat/ChatHeader.tsx`, `src/components/chat/ChatSidePanel.tsx`, `src/components/chat/HtmlPreviewPanel.tsx`, `src/components/app/AppMainContent.tsx`, `src/hooks/useChatViewController.ts`, `src/hooks/useChatViewLayout.ts`, `src/hooks/useChatViewJumpState.ts`, `src/hooks/useAppPanels.ts`, `src/components/chat/*`, `src/components/message/*`, `src/components/toolcalls/HtmlPreview.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `src/components/toolcalls/htmlPreviewDocument.ts`, `electron/services/previewWatchService.ts`
+- 채팅 레이아웃/패널: `src/components/ChatView.tsx`, `src/components/chat/ChatViewMainContent.tsx`, `src/components/chat/ChatHeader.tsx`, `src/components/chat/ChatSidePanel.tsx`, `src/components/chat/HtmlPreviewPanel.tsx`, `src/components/app/AppMainContent.tsx`, `src/hooks/useChatViewController.ts`, `src/hooks/useChatViewLayout.ts`, `src/hooks/useChatViewJumpState.ts`, `src/hooks/useAppPanels.ts`, `src/components/chat/*`, `src/components/message/*`, `src/components/toolcalls/HtmlPreview.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `src/components/toolcalls/htmlPreviewDocument.ts`, `electron/services/previewProxyService.ts`, `electron/services/previewWatchService.ts`
 - 앱 루트 오케스트레이션: `src/App.tsx`, `src/hooks/useAppController.ts`, `src/hooks/useAppPanels.ts`, `src/components/app/*`
 - 워크플로우 빌더: `src/components/WorkflowsView.tsx`, `src/components/workflow/*`, `src/store/workflowStore.ts`, `src/store/workflowTypes.ts`, `electron/workflow-executor.ts`, `electron/services/claude-spawn.ts`
 - 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/components/input/useInputAreaController.ts`, `src/hooks/useInput*`
-- 파일/OS 브리지: `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `electron/ipc/files.ts`, `electron/services/fileService.ts`
+- 파일/OS 브리지: `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `electron/ipc/files.ts`, `electron/services/previewProxyService.ts`, `electron/services/fileService.ts`
 - 퀵 패널: `src/quick-panel/*`, `src/hooks/useAppDesktopEffects.ts`, `src/components/settings/general/QuickPanelSection.tsx`, `electron/main/windowController.ts`, `electron/ipc/quickPanel.ts`, `electron/preload/quickPanelApi.ts`
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamSelectedAgentMessageCard.tsx`, `src/components/team/TeamSelectedAgentMessagePopup.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/teamSelectedAgentShared.tsx`, `src/components/team/teamOverlayShared.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`

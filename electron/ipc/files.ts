@@ -4,6 +4,7 @@ import { dirname, extname, join } from 'path'
 import { existsSync, mkdirSync, readFile as fsReadFile, readdirSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { pathToFileURL } from 'url'
 import type { OpenWithApp, SelectedFile } from '../preload'
+import type { PreviewProxySession } from '../services/previewProxyService'
 
 type ReadFileOutcome =
   | { ok: true; file: SelectedFile }
@@ -17,23 +18,10 @@ type RegisterFileIpcHandlersOptions = {
   listOpenWithApps: () => Promise<OpenWithApp[]>
   openPathWithApp: (targetPath: string, appId: string) => Promise<{ ok: boolean; error?: string }>
   mimeTypesByExtension: Record<string, string>
-}
-
-function isLocalPreviewHost(hostname: string): boolean {
-  if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '::1' || hostname === '[::1]') {
-    return true
-  }
-
-  return /^127(?:\.\d{1,3}){3}$/.test(hostname)
-}
-
-function isAllowedPreviewUrl(rawUrl: string): boolean {
-  try {
-    const parsed = new URL(rawUrl)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
-    return isLocalPreviewHost(parsed.hostname)
-  } catch {
-    return false
+  previewProxyService: {
+    start: (sender: Electron.WebContents, params: { targetUrl: string; bridgeScript: string }) => Promise<PreviewProxySession | null>
+    update: (params: { sessionId: string; targetUrl: string; bridgeScript: string }) => PreviewProxySession | null
+    stop: (sessionId: string) => void
   }
 }
 
@@ -116,6 +104,7 @@ export function registerFileIpcHandlers({
   listOpenWithApps,
   openPathWithApp,
   mimeTypesByExtension,
+  previewProxyService,
 }: RegisterFileIpcHandlersOptions) {
   ipcMain.handle('claude:select-folder', async (_event, options?: { defaultPath?: string; title?: string }) => {
     const result = await dialog.showOpenDialog(getMainWindow() ?? showMainWindow(), {
@@ -272,28 +261,18 @@ export function registerFileIpcHandlers({
     })
   })
 
-  ipcMain.handle('claude:read-preview-url', async (_event, { url }: { url: string }) => {
-    if (!isAllowedPreviewUrl(url)) return null
+  ipcMain.handle(
+    'claude:start-preview-proxy',
+    (event, params: { targetUrl: string; bridgeScript: string }) => previewProxyService.start(event.sender, params),
+  )
 
-    try {
-      const response = await fetch(url, {
-        redirect: 'follow',
-        headers: {
-          Accept: 'text/html,application/xhtml+xml',
-        },
-      })
-      if (!response.ok) return null
+  ipcMain.handle(
+    'claude:update-preview-proxy',
+    (_event, params: { sessionId: string; targetUrl: string; bridgeScript: string }) => previewProxyService.update(params),
+  )
 
-      const finalUrl = response.url || url
-      if (!isAllowedPreviewUrl(finalUrl)) return null
-
-      const html = await response.text()
-      if (!html.trim()) return null
-
-      return { url: finalUrl, html }
-    } catch {
-      return null
-    }
+  ipcMain.handle('claude:stop-preview-proxy', (_event, { sessionId }: { sessionId: string }) => {
+    previewProxyService.stop(sessionId)
   })
 
   ipcMain.handle('claude:write-file-abs', (_event, { filePath, content }: { filePath: string; content: string }) => {

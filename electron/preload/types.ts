@@ -212,6 +212,12 @@ export type PreviewFileChangedEvent = {
   filePath: string
 }
 
+export type PreviewProxySession = {
+  sessionId: string
+  proxyUrl: string
+  targetUrl: string
+}
+
 export type WorkflowFiredEvent = {
   workflowId: string
   workflowName: string
@@ -373,7 +379,9 @@ export type ClaudeAPI = {
   listCurrentDir: (path: string) => Promise<DirEntry[]>
   readFile: (filePath: string) => Promise<SelectedFile | null>
   readFileDataUrl: (filePath: string) => Promise<string | null>
-  readPreviewUrl: (url: string) => Promise<{ url: string; html: string } | null>
+  startPreviewProxy: (params: { targetUrl: string; bridgeScript: string }) => Promise<PreviewProxySession | null>
+  updatePreviewProxy: (params: { sessionId: string; targetUrl: string; bridgeScript: string }) => Promise<PreviewProxySession | null>
+  stopPreviewProxy: (params: { sessionId: string }) => Promise<void>
   getGitStatus: (cwd: string) => Promise<GitRepoStatus>
   getGitDiff: (params: { cwd: string; filePath: string }) => Promise<GitDiffResult>
   getGitLog: (params: { cwd: string; limit?: number }) => Promise<GitLogResult>

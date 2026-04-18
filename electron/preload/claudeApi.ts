@@ -50,7 +50,9 @@ export const claudeAPI: ClaudeAPI = {
     return outcome?.ok ? outcome.file : null
   },
   readFileDataUrl: (filePath) => ipcRenderer.invoke('claude:read-file-data-url', { filePath }),
-  readPreviewUrl: (url) => ipcRenderer.invoke('claude:read-preview-url', { url }),
+  startPreviewProxy: (params) => ipcRenderer.invoke('claude:start-preview-proxy', params),
+  updatePreviewProxy: (params) => ipcRenderer.invoke('claude:update-preview-proxy', params),
+  stopPreviewProxy: (params) => ipcRenderer.invoke('claude:stop-preview-proxy', params),
   getGitStatus: (cwd) => ipcRenderer.invoke('claude:get-git-status', { cwd }),
   getGitDiff: (params) => ipcRenderer.invoke('claude:get-git-diff', params),
   getGitLog: (params) => ipcRenderer.invoke('claude:get-git-log', params),

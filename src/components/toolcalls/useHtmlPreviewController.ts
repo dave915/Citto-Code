@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
 import { buildPreviewSelectionKey } from '../chat/chatViewUtils'
 import {
+  buildHtmlPreviewBridgeScript,
   buildHtmlPreviewDocument,
-  buildRemoteHtmlPreviewDocument,
   buildSuggestedSavePath,
   getFileName,
   getPreviewMinimumHeight,
@@ -20,7 +20,11 @@ type HtmlPreviewMessagePayload = {
   enabled?: unknown
   element?: unknown
   elements?: unknown
+  url?: unknown
+  navigationMode?: unknown
 }
+
+export type HtmlPreviewNavigationMode = 'load' | 'push' | 'replace' | 'pop' | 'unknown'
 
 type UseHtmlPreviewControllerOptions = {
   html?: string | null
@@ -28,6 +32,11 @@ type UseHtmlPreviewControllerOptions = {
   url?: string | null
   downloadRootPath?: string | null
   onElementSelect?: (payload: HtmlPreviewElementSelection) => void
+  onLocationChange?: (payload: {
+    url: string
+    proxyUrl: string
+    navigationMode: HtmlPreviewNavigationMode
+  }) => void
   selectedElements?: HtmlPreviewElementSelection[]
   hoveredSelectionKey?: string | null
 }
@@ -45,26 +54,52 @@ function isPreviewSelectionPayload(value: unknown): value is Omit<HtmlPreviewEle
   return typeof (value as { selector?: unknown }).selector === 'string'
 }
 
+function normalizeNavigationMode(value: unknown): HtmlPreviewNavigationMode {
+  return value === 'load' || value === 'push' || value === 'replace' || value === 'pop'
+    ? value
+    : 'unknown'
+}
+
+function mapProxyUrlToTargetUrl(proxyUrl: string, targetUrl: string | null, proxyOrigin: string | null): string {
+  if (!targetUrl || !proxyOrigin) return proxyUrl
+
+  try {
+    const resolvedProxyUrl = new URL(proxyUrl)
+    if (resolvedProxyUrl.origin !== proxyOrigin) return proxyUrl
+
+    const resolvedTargetUrl = new URL(targetUrl)
+    return new URL(
+      `${resolvedProxyUrl.pathname}${resolvedProxyUrl.search}${resolvedProxyUrl.hash}`,
+      `${resolvedTargetUrl.protocol}//${resolvedTargetUrl.host}`,
+    ).toString()
+  } catch {
+    return proxyUrl
+  }
+}
+
 export function useHtmlPreviewController({
   html,
   path,
   url,
   downloadRootPath,
   onElementSelect,
+  onLocationChange,
   selectedElements = [],
   hoveredSelectionKey = null,
 }: UseHtmlPreviewControllerOptions) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previewIdRef = useRef(`html-preview-${Math.random().toString(36).slice(2)}`)
+  const previewProxySessionIdRef = useRef<string | null>(null)
+  const previewProxyOriginRef = useRef<string | null>(null)
+  const targetUrlRef = useRef<string | null>(url?.trim() || null)
   const urlLoadTimerRef = useRef<number | null>(null)
-  const urlRetryTimerRef = useRef<number | null>(null)
   const [sourceHtml, setSourceHtml] = useState(html ?? '')
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [iframeRenderKey, setIframeRenderKey] = useState(0)
   const previewUrl = url?.trim() || null
   const isUrlPreview = Boolean(previewUrl)
+  const [iframeUrl, setIframeUrl] = useState<string | null>(null)
   const [isFrameLoading, setIsFrameLoading] = useState(isUrlPreview)
-  const [hasInteractiveUrlDocument, setHasInteractiveUrlDocument] = useState(false)
   const watchRootPath = useMemo(() => getWatchRootPath(path), [path])
   const isViewportLayout = useMemo(
     () => (isUrlPreview ? true : isViewportSizedPreview(sourceHtml)),
@@ -82,10 +117,13 @@ export function useHtmlPreviewController({
     [path, sourceHtml],
   )
   const [documentHtml, setDocumentHtml] = useState(fallbackDocument)
-  const usesInteractiveDocument = !isUrlPreview || hasInteractiveUrlDocument
+  const bridgeScript = useMemo(
+    () => buildHtmlPreviewBridgeScript(previewIdRef.current, path ?? null),
+    [path],
+  )
   const srcDoc = useMemo(
-    () => (usesInteractiveDocument ? injectHtmlPreviewBridge(documentHtml, previewIdRef.current, path ?? null) : null),
-    [documentHtml, path, usesInteractiveDocument],
+    () => (isUrlPreview ? null : injectHtmlPreviewBridge(documentHtml, previewIdRef.current, path ?? null)),
+    [documentHtml, isUrlPreview, path],
   )
   const selectedElementBridgePayload = useMemo(() => (
     selectedElements.map((selection) => ({
@@ -100,12 +138,6 @@ export function useHtmlPreviewController({
       ariaLabel: selection.ariaLabel,
     }))
   ), [selectedElements])
-
-  const applyUrlPreviewDocument = useCallback((nextHtml: string, nextUrl: string) => {
-    setDocumentHtml(buildRemoteHtmlPreviewDocument(nextHtml, nextUrl))
-    setHasInteractiveUrlDocument(true)
-    setIframeRenderKey((current) => current + 1)
-  }, [])
 
   const postPreviewMessage = useCallback((payload: Record<string, unknown>) => {
     iframeRef.current?.contentWindow?.postMessage({
@@ -130,6 +162,19 @@ export function useHtmlPreviewController({
     })
   }, [hoveredSelectionKey, isSelectMode, postPreviewMessage, selectedElementBridgePayload])
 
+  const stopPreviewProxySession = useCallback(async () => {
+    const sessionId = previewProxySessionIdRef.current
+    previewProxySessionIdRef.current = null
+    previewProxyOriginRef.current = null
+    if (!sessionId) return
+    await window.claude.stopPreviewProxy({ sessionId }).catch(() => {})
+  }, [])
+
+  const reloadUrlPreviewFrame = useCallback(() => {
+    setIsFrameLoading(true)
+    setIframeRenderKey((current) => current + 1)
+  }, [])
+
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
 
@@ -147,15 +192,14 @@ export function useHtmlPreviewController({
   }, [html])
 
   useEffect(() => {
+    targetUrlRef.current = previewUrl
+  }, [previewUrl])
+
+  useEffect(() => {
     if (urlLoadTimerRef.current !== null) {
       window.clearTimeout(urlLoadTimerRef.current)
       urlLoadTimerRef.current = null
     }
-    if (urlRetryTimerRef.current !== null) {
-      window.clearTimeout(urlRetryTimerRef.current)
-      urlRetryTimerRef.current = null
-    }
-    setHasInteractiveUrlDocument(false)
     setIsFrameLoading(isUrlPreview)
   }, [isUrlPreview, previewUrl])
 
@@ -163,16 +207,14 @@ export function useHtmlPreviewController({
     if (urlLoadTimerRef.current !== null) {
       window.clearTimeout(urlLoadTimerRef.current)
     }
-    if (urlRetryTimerRef.current !== null) {
-      window.clearTimeout(urlRetryTimerRef.current)
-    }
-  }, [])
+    void stopPreviewProxySession()
+  }, [stopPreviewProxySession])
 
   useEffect(() => {
-    if (((!path && !isUrlPreview) || (isUrlPreview && !hasInteractiveUrlDocument)) && isSelectMode) {
+    if (((!path && !isUrlPreview) || (isUrlPreview && !iframeUrl)) && isSelectMode) {
       setIsSelectMode(false)
     }
-  }, [hasInteractiveUrlDocument, isSelectMode, isUrlPreview, path])
+  }, [iframeUrl, isSelectMode, isUrlPreview, path])
 
   useEffect(() => {
     let cancelled = false
@@ -180,32 +222,8 @@ export function useHtmlPreviewController({
     setFrameHeight(minimumFrameHeight)
 
     if (isUrlPreview) {
-      const loadUrlPreviewDocument = async () => {
-        if (!previewUrl) return
-
-        const previewDocument = await window.claude.readPreviewUrl(previewUrl).catch(() => null)
-        if (cancelled) return
-
-        if (previewDocument?.html) {
-          setIsFrameLoading(true)
-          applyUrlPreviewDocument(previewDocument.html, previewDocument.url)
-          return
-        }
-
-        urlRetryTimerRef.current = window.setTimeout(() => {
-          urlRetryTimerRef.current = null
-          void loadUrlPreviewDocument()
-        }, 600)
-      }
-
-      void loadUrlPreviewDocument()
-
       return () => {
         cancelled = true
-        if (urlRetryTimerRef.current !== null) {
-          window.clearTimeout(urlRetryTimerRef.current)
-          urlRetryTimerRef.current = null
-        }
       }
     }
 
@@ -220,7 +238,67 @@ export function useHtmlPreviewController({
     return () => {
       cancelled = true
     }
-  }, [applyUrlPreviewDocument, fallbackDocument, isUrlPreview, minimumFrameHeight, path, previewUrl, sourceHtml])
+  }, [fallbackDocument, isUrlPreview, minimumFrameHeight, path, sourceHtml])
+
+  useEffect(() => {
+    if (!isUrlPreview || !previewUrl) {
+      setIframeUrl(null)
+      setIsFrameLoading(false)
+      previewProxyOriginRef.current = null
+      void stopPreviewProxySession()
+      return
+    }
+
+    let cancelled = false
+    const existingSessionId = previewProxySessionIdRef.current
+
+    const syncPreviewProxy = async () => {
+      const session = existingSessionId
+        ? await window.claude.updatePreviewProxy({
+          sessionId: existingSessionId,
+          targetUrl: previewUrl,
+          bridgeScript,
+        }).catch(() => null)
+        : await window.claude.startPreviewProxy({
+          targetUrl: previewUrl,
+          bridgeScript,
+        }).catch(() => null)
+
+      if (cancelled) {
+        if (!existingSessionId && session?.sessionId) {
+          await window.claude.stopPreviewProxy({ sessionId: session.sessionId }).catch(() => {})
+        }
+        return
+      }
+
+      if (!session) {
+        setIframeUrl(null)
+        setIsFrameLoading(false)
+        if (existingSessionId) {
+          await stopPreviewProxySession()
+        }
+        return
+      }
+
+      previewProxySessionIdRef.current = session.sessionId
+      targetUrlRef.current = session.targetUrl
+      try {
+        previewProxyOriginRef.current = new URL(session.proxyUrl).origin
+      } catch {
+        previewProxyOriginRef.current = null
+      }
+      setIframeUrl(session.proxyUrl)
+      if (existingSessionId) {
+        reloadUrlPreviewFrame()
+      }
+    }
+
+    void syncPreviewProxy()
+
+    return () => {
+      cancelled = true
+    }
+  }, [bridgeScript, isUrlPreview, previewUrl, reloadUrlPreviewFrame, stopPreviewProxySession])
 
   useEffect(() => {
     setFrameHeight((current) => (current < minimumFrameHeight ? minimumFrameHeight : current))
@@ -233,12 +311,10 @@ export function useHtmlPreviewController({
     let cancelled = false
 
     const handleRefresh = async () => {
+      if (cancelled) return
+
       if (isUrlPreview) {
-        if (!previewUrl) return
-        const previewDocument = await window.claude.readPreviewUrl(previewUrl).catch(() => null)
-        if (cancelled || !previewDocument?.html) return
-        setIsFrameLoading(true)
-        applyUrlPreviewDocument(previewDocument.html, previewDocument.url)
+        reloadUrlPreviewFrame()
         return
       }
 
@@ -269,7 +345,7 @@ export function useHtmlPreviewController({
         void window.claude.unwatchPreviewFiles({ watchId: activeWatchId })
       }
     }
-  }, [applyUrlPreviewDocument, isUrlPreview, path, previewUrl, watchRootPath])
+  }, [isUrlPreview, path, reloadUrlPreviewFrame, watchRootPath])
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -281,6 +357,23 @@ export function useHtmlPreviewController({
       const payload = event.data as HtmlPreviewMessagePayload
       if (payload.__claudeHtmlPreview !== true) return
       if (payload.previewId !== previewIdRef.current) return
+      if (payload.action === 'location-change') {
+        if (typeof payload.url === 'string' && payload.url.trim()) {
+          const proxyUrl = payload.url.trim()
+          const resolvedUrl = mapProxyUrlToTargetUrl(
+            proxyUrl,
+            targetUrlRef.current,
+            previewProxyOriginRef.current,
+          )
+          setIframeUrl(proxyUrl)
+          onLocationChange?.({
+            url: resolvedUrl,
+            proxyUrl,
+            navigationMode: normalizeNavigationMode(payload.navigationMode),
+          })
+        }
+        return
+      }
       if (payload.action === 'element-selected') {
         if (onElementSelect && isPreviewSelectionPayload(payload.element)) {
           onElementSelect({
@@ -302,12 +395,12 @@ export function useHtmlPreviewController({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [minimumFrameHeight, onElementSelect, path])
+  }, [minimumFrameHeight, onElementSelect, onLocationChange, path])
 
   useEffect(() => {
-    if (!srcDoc) return
+    if (!srcDoc && !iframeUrl) return
     syncInteractivePreviewState()
-  }, [srcDoc, syncInteractivePreviewState])
+  }, [iframeUrl, srcDoc, syncInteractivePreviewState])
 
   useEffect(() => {
     if (!isFullscreen || typeof document === 'undefined' || typeof window === 'undefined') return undefined
@@ -350,22 +443,9 @@ export function useHtmlPreviewController({
   }, [documentHtml, downloadRootPath, isUrlPreview, path])
 
   const refreshPreview = useCallback(async () => {
-    if (urlRetryTimerRef.current !== null) {
-      window.clearTimeout(urlRetryTimerRef.current)
-      urlRetryTimerRef.current = null
-    }
-
     if (isUrlPreview) {
-      if (!previewUrl) return
-      setIsFrameLoading(true)
-
-      const previewDocument = await window.claude.readPreviewUrl(previewUrl).catch(() => null)
-      if (!previewDocument?.html) {
-        setIsFrameLoading(false)
-        return
-      }
-
-      applyUrlPreviewDocument(previewDocument.html, previewDocument.url)
+      if (!iframeUrl) return
+      reloadUrlPreviewFrame()
       return
     }
 
@@ -378,7 +458,7 @@ export function useHtmlPreviewController({
     }
 
     setSourceHtml(html ?? '')
-  }, [applyUrlPreviewDocument, html, isUrlPreview, path, previewUrl])
+  }, [html, iframeUrl, isUrlPreview, path, reloadUrlPreviewFrame])
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((value) => !value)
@@ -389,10 +469,10 @@ export function useHtmlPreviewController({
   }, [])
 
   const toggleSelectMode = useCallback(() => {
-    if (isUrlPreview && !hasInteractiveUrlDocument) return
+    if (isUrlPreview && !iframeUrl) return
     if (!path && !isUrlPreview) return
     setIsSelectMode((value) => !value)
-  }, [hasInteractiveUrlDocument, isUrlPreview, path])
+  }, [iframeUrl, isUrlPreview, path])
 
   const handleIframeLoad = useCallback(() => {
     if (isUrlPreview) {
@@ -404,18 +484,19 @@ export function useHtmlPreviewController({
         urlLoadTimerRef.current = null
       }, 120)
     }
-    if (!srcDoc) return
+    if (!srcDoc && !iframeUrl) return
     postPreviewMessage({ action: 'request-measure' })
     syncInteractivePreviewState()
-  }, [isUrlPreview, postPreviewMessage, srcDoc, syncInteractivePreviewState])
+  }, [iframeUrl, isUrlPreview, postPreviewMessage, srcDoc, syncInteractivePreviewState])
 
   return {
-    canSelectElements: !isUrlPreview || hasInteractiveUrlDocument,
+    canSelectElements: !isUrlPreview || Boolean(iframeUrl),
     documentHtml,
     frameHeight,
     handleIframeLoad,
     iframeRenderKey,
     iframeRef,
+    iframeUrl,
     isFrameLoading,
     isFullscreen,
     isSelectMode,
