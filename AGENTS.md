@@ -27,6 +27,7 @@
 - 메인 프로세스: `electron/main.ts`
 - Preload 경계: `electron/preload.ts`, `electron/preload/claudeApi.ts`, `electron/preload/quickPanelApi.ts`
 - Claude IPC: `electron/ipc/claude.ts`, `electron/ipc/claude/*`
+- 파일/OS IPC: `electron/ipc/files.ts`, `electron/services/fileService.ts`, `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/toolcalls/useHtmlPreviewController.ts`
 - Git IPC/서비스: `electron/ipc/git.ts`, `electron/services/gitService.ts`, `electron/services/git/*`
 - Quick Panel: `src/quick-panel/*`, `src/hooks/useAppDesktopEffects.ts`, `electron/ipc/quickPanel.ts`, `electron/preload/quickPanelApi.ts`, `electron/main/windowController.ts`
 - 레거시 예약 작업 마이그레이션: `src/main.tsx`, `electron/persistence.ts`, `electron/ipc/storage.ts`, `electron/services/scheduledTaskScheduler.ts`

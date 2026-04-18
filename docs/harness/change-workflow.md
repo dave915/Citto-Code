@@ -11,6 +11,7 @@
   - renderer + preload + main IPC
   - scheduler/persistence
   - git integration
+  - file/preview/open-with integration
   - settings/MCP/skill IO
 
 ## 2. Read Only The Owning Files
@@ -105,3 +106,8 @@
 
 - 시작 파일: `src/hooks/git/*`, `electron/ipc/git.ts`, `electron/services/gitService.ts`
 - 먼저 확인할 것: staged/unstaged 반영, branch watch refresh, 외부 변경 동기화
+
+### 파일/preview/open-with 변경
+
+- 시작 파일: `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/toolcalls/useHtmlPreviewController.ts`, `electron/ipc/files.ts`
+- 먼저 확인할 것: preview URL allowlist, 저장/압축 경로 처리, open-with OS 분기, 파일 탐색/첨부 결과 shape

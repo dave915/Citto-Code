@@ -121,6 +121,33 @@
   - preview watcher cleanup 누락
   - localhost preview와 static HTML preview가 잘못 전환됨
 
+## File And OS Integration
+
+- 파일:
+  - `src/hooks/useFileExplorer.ts`
+  - `src/hooks/useChatOpenWith.ts`
+  - `src/hooks/useInputAttachments.ts`
+  - `src/hooks/useInputMentions.ts`
+  - `src/components/chat/FilePanel.tsx`
+  - `src/components/chat/PreviewPane.tsx`
+  - `src/components/toolcalls/useHtmlPreviewController.ts`
+  - `electron/preload/claudeApi.ts`
+  - `electron/ipc/files.ts`
+  - `electron/services/fileService.ts`
+- 책임:
+  - 파일 트리 조회와 preview 로딩
+  - 첨부 파일 선택과 mention 파일 검색
+  - HTML preview 문서 fetch, 텍스트 저장, zip export
+  - OS 기본 앱/open-with 연결과 macOS 앱 아이콘 로딩
+  - `electron/ipc/files.ts`는 파일/폴더 선택 dialog, preview URL allowlist, 저장/export, open-in-browser/open-with 핸들러를 담당한다.
+  - `electron/services/fileService.ts`는 첨부 파일 읽기와 open-with 앱 탐색 같은 OS 의존 로직을 담당한다.
+  - 렌더러는 `window.claude`만 통해 접근하고, 파일 탐색/미리보기 상태는 hook 쪽에서 수명주기를 관리한다.
+- 흔한 회귀:
+  - 숨김 파일/경로 정규화 차이로 파일 탐색 결과가 어긋남
+  - preview URL allowlist가 느슨해지거나 localhost preview가 막힘
+  - 저장/export 경로 처리 오류로 잘못된 위치에 파일이 생성됨
+  - macOS가 아닌 환경에서 open-with 분기 누락
+
 ## Quick Panel
 
 - 파일:

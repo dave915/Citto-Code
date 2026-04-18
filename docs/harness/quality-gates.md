@@ -52,6 +52,12 @@
 - 권한 요청 승인/거절
 - tool call 및 HTML preview 노출
 
+### File And Preview
+
+- 파일 트리 로딩과 폴더 이동
+- 텍스트/이미지 preview와 open-with 또는 기본 열기
+- HTML preview 저장 또는 zip export
+
 ### Quick Panel
 
 - 글로벌 단축키로 열기/닫기
