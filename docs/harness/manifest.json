@@ -1,0 +1,81 @@
+{
+  "requiredFiles": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/harness/README.md",
+    "docs/harness/architecture-map.md",
+    "docs/harness/change-workflow.md",
+    "docs/harness/quality-gates.md",
+    "docs/harness/area-ownership.md",
+    "docs/harness/task-template.md",
+    "docs/harness/manifest.json"
+  ],
+  "criticalPaths": [
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/components/ChatView.tsx",
+    "src/components/InputArea.tsx",
+    "src/components/chat/ChatMessagePane.tsx",
+    "src/store/sessions.ts",
+    "src/store/sessionStoreState.ts",
+    "src/store/sessionStoreMutators.ts",
+    "src/store/workflowStore.ts",
+    "src/hooks/useClaudeStream.ts",
+    "src/hooks/useAppDesktopEffects.ts",
+    "src/hooks/useFileExplorer.ts",
+    "src/hooks/useChatOpenWith.ts",
+    "src/components/toolcalls/useHtmlPreviewController.ts",
+    "src/quick-panel/QuickPanel.tsx",
+    "electron/main.ts",
+    "electron/persistence.ts",
+    "electron/main/windowController.ts",
+    "electron/preload.ts",
+    "electron/preload/claudeApi.ts",
+    "electron/preload/quickPanelApi.ts",
+    "electron/ipc/claude.ts",
+    "electron/ipc/files.ts",
+    "electron/ipc/git.ts",
+    "electron/ipc/quickPanel.ts",
+    "electron/ipc/storage.ts",
+    "electron/ipc/settings.ts",
+    "electron/services/fileService.ts",
+    "electron/services/gitService.ts",
+    "electron/services/settingsDataService.ts",
+    "electron/services/scheduledTaskScheduler.ts"
+  ],
+  "requiredScripts": [
+    "typecheck:web",
+    "typecheck:node",
+    "typecheck",
+    "harness:check:docs",
+    "harness:check",
+    "harness:check:strict",
+    "build"
+  ],
+  "rendererGuard": {
+    "roots": [
+      "src"
+    ],
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx"
+    ],
+    "excludeSuffixes": [
+      ".d.ts"
+    ],
+    "blockedExactModules": [
+      "electron",
+      "fs",
+      "path",
+      "child_process"
+    ],
+    "blockedModulePrefixes": [
+      "node:",
+      "fs/",
+      "path/",
+      "child_process/"
+    ]
+  }
+}

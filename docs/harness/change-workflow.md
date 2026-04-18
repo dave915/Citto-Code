@@ -5,6 +5,7 @@
 ## 1. Scope The Change
 
 - 먼저 변경이 어느 경계에 속하는지 고른다.
+- 사용자가 특정 화면 이름만 말했더라도, 실제 scope는 그 화면 파일이 아니라 바뀌는 사용자 동작과 공유 상태/공유 UI 경계로 판단한다.
 - 가능한 분류:
   - renderer-only
   - renderer + store
@@ -17,8 +18,16 @@
 ## 2. Read Only The Owning Files
 
 - 항상 [Area Ownership](./area-ownership.md)의 파일 세트를 먼저 읽는다.
+- 같은 component, hook, store action, selector, persisted shape를 소비하는 인접 surface를 `rg`로 먼저 찾는다.
 - 인접 모듈은 실제 연결부만 본다.
 - 전체 리포지터리를 넓게 읽지 않는다.
+
+## Adjacent Surface Rule
+
+- screen-first가 아니라 behavior-first로 범위를 잡는다.
+- 한 화면의 표시나 상호작용을 바꾸면, 같은 동작을 공유하는 다른 화면, 패널, modal, drilldown, quick panel 진입점이 있는지 먼저 확인한다.
+- 같은 hook/store/component/action을 소비하는 다른 surface가 있으면 함께 맞추거나, 이번 변경 범위에서 제외한 이유를 결과에 남긴다.
+- 관련 surface를 확인하지 않고 “말한 화면만 수정”한 상태는 완료로 보지 않는다.
 
 ## Default Execution Posture
 
@@ -56,6 +65,7 @@
 - 주요 데이터 흐름이 바뀜
 - 품질 게이트가 늘어남
 - 특정 영역의 수정 규칙이 달라짐
+- machine-checked path/script/import guard가 바뀌면 `docs/harness/manifest.json`도 같이 수정한다.
 
 ## 5. Run The Smallest Meaningful Validation
 
@@ -69,6 +79,7 @@
 - 무엇이 바뀌었는지
 - 어떤 경계를 건드렸는지
 - 어떤 명령으로 검증했는지
+- 어떤 인접 surface를 같이 확인했는지, 또는 왜 제외했는지
 - 남은 수동 확인 포인트가 무엇인지
 - 작업이 아직 안 끝났다면 다음에 바로 이어질 가장 명백한 한 단계를 함께 적는다.
 
@@ -79,6 +90,7 @@
 - 건드린 코드가 이전보다 명확하거나 중복이 줄었다.
 - 자동 검증이 모두 green이다.
 - 영향받는 흐름에 성능, 반응성, cleanup 회귀가 없다.
+- 같은 동작을 공유하는 인접 surface와 동작 불일치가 없다.
 
 ## Change Recipes
 

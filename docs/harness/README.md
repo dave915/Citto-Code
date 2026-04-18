@@ -7,6 +7,7 @@
 - 에이전트가 이 프로젝트를 읽고, 바꾸고, 검증하는 최소 규칙을 담는다.
 - 기존 문서는 참고 자료가 아니라 아카이브로 취급한다.
 - 구조 변경이 생기면 이 디렉터리가 먼저 갱신되어야 한다.
+- machine-checked entry point, required script, renderer import guard 목록은 `docs/harness/manifest.json`에 둔다.
 
 ## Start Here
 
@@ -40,3 +41,4 @@ npm run build
 - IPC 채널 추가 또는 기존 payload 변경
 - 저장소의 canonical workflow 변경
 - 품질 게이트 추가 또는 제거
+- machine-readable harness manifest 변경

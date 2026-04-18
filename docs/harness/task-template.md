@@ -15,6 +15,10 @@
 ## Files To Read First
 - 시작 파일 2-5개
 
+## Adjacent Surfaces
+- 같은 동작을 공유하는 다른 화면, 패널, modal, hook, store action
+- 이번 작업에서 같이 맞출 곳과 제외할 곳
+
 ## Invariants
 - 절대 깨지면 안 되는 동작
 
@@ -28,6 +32,7 @@
 
 ## Done When
 - 완료 조건 2-4개
+- 같은 동작을 공유하는 인접 surface와 표시/동작이 어긋나지 않는다.
 ```
 
 ## Example
@@ -47,6 +52,10 @@
 - `src/components/chat/GitPanel.tsx`
 - `electron/services/gitHeadWatchService.ts`
 
+## Adjacent Surfaces
+- Git 상태를 보여주는 다른 패널과 branch 표시
+- 이번 작업에서는 Git 패널과 branch watch 흐름을 함께 확인
+
 ## Invariants
 - 현재 세션의 cwd 기준으로만 감시한다.
 - watch 해제 누락이 없어야 한다.
@@ -59,6 +68,7 @@
 ## Done When
 - 브랜치 이름과 상태가 즉시 갱신된다.
 - 기존 Git 패널 기능이 깨지지 않는다.
+- 같은 Git 상태를 보여주는 다른 surface와 표시가 어긋나지 않는다.
 ```
 
 ## Refactoring Tasks
@@ -69,6 +79,7 @@
 - 건드린 코드가 이전보다 더 명확하고 단순하거나 중복이 줄었다.
 - 기능 추가나 버그 수정이 리팩토링 안에 섞이지 않았다.
 - 해당 자동 검증이 모두 green이고, 필요한 수동 smoke가 끝났다.
+- 같은 동작을 공유하는 인접 surface와 불일치가 생기지 않았다.
 
 ## Default Execution Mode
 

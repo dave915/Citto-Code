@@ -4,64 +4,44 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-
-const requiredFiles = [
-  'AGENTS.md',
-  'CLAUDE.md',
-  'docs/harness/README.md',
-  'docs/harness/architecture-map.md',
-  'docs/harness/change-workflow.md',
-  'docs/harness/quality-gates.md',
-  'docs/harness/area-ownership.md',
-  'docs/harness/task-template.md',
-]
-
-const criticalPaths = [
-  'src/main.tsx',
-  'src/App.tsx',
-  'src/components/ChatView.tsx',
-  'src/components/InputArea.tsx',
-  'src/components/chat/ChatMessagePane.tsx',
-  'src/store/sessions.ts',
-  'src/store/sessionStoreState.ts',
-  'src/store/sessionStoreMutators.ts',
-  'src/store/workflowStore.ts',
-  'src/hooks/useClaudeStream.ts',
-  'src/hooks/useAppDesktopEffects.ts',
-  'src/hooks/useFileExplorer.ts',
-  'src/hooks/useChatOpenWith.ts',
-  'src/components/toolcalls/useHtmlPreviewController.ts',
-  'src/quick-panel/QuickPanel.tsx',
-  'electron/main.ts',
-  'electron/persistence.ts',
-  'electron/main/windowController.ts',
-  'electron/preload.ts',
-  'electron/preload/claudeApi.ts',
-  'electron/preload/quickPanelApi.ts',
-  'electron/ipc/claude.ts',
-  'electron/ipc/files.ts',
-  'electron/ipc/git.ts',
-  'electron/ipc/quickPanel.ts',
-  'electron/ipc/storage.ts',
-  'electron/ipc/settings.ts',
-  'electron/services/fileService.ts',
-  'electron/services/gitService.ts',
-  'electron/services/settingsDataService.ts',
-  'electron/services/scheduledTaskScheduler.ts',
-]
-
-const requiredScripts = [
-  'typecheck:web',
-  'typecheck:node',
-  'typecheck',
-  'harness:check:docs',
-  'harness:check',
-  'harness:check:strict',
-  'build',
-]
+const manifestRef = 'docs/harness/manifest.json'
 
 function resolveFromRoot(...segments) {
   return path.join(rootDir, ...segments)
+}
+
+function readJsonFile(filePath, errors) {
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8'))
+  } catch (error) {
+    errors.push(`invalid JSON in ${path.relative(rootDir, filePath)}: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
+}
+
+function readManifestStringArray(manifest, key, errors) {
+  const value = manifest?.[key]
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.trim().length === 0)) {
+    errors.push(`manifest field must be a string array: ${key}`)
+    return []
+  }
+  return value
+}
+
+function readRendererGuard(manifest, errors) {
+  const value = manifest?.rendererGuard
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    errors.push('manifest field must be an object: rendererGuard')
+    return null
+  }
+
+  return {
+    roots: readManifestStringArray(value, 'roots', errors),
+    extensions: readManifestStringArray(value, 'extensions', errors),
+    excludeSuffixes: readManifestStringArray(value, 'excludeSuffixes', errors),
+    blockedExactModules: readManifestStringArray(value, 'blockedExactModules', errors),
+    blockedModulePrefixes: readManifestStringArray(value, 'blockedModulePrefixes', errors),
+  }
 }
 
 function collectMarkdownFiles() {
@@ -184,17 +164,93 @@ function validateBacktickPathTokens(markdownFile, content, errors) {
   }
 }
 
+function collectFilesRecursively(directory) {
+  if (!existsSync(directory) || !statSync(directory).isDirectory()) {
+    return []
+  }
+
+  const files = []
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const absolutePath = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...collectFilesRecursively(absolutePath))
+      continue
+    }
+    if (entry.isFile()) {
+      files.push(absolutePath)
+    }
+  }
+  return files
+}
+
+function collectModuleSpecifiers(content) {
+  const patterns = [
+    /\bimport\s+(?:[^'"`]+?\sfrom\s*)?['"]([^'"]+)['"]/g,
+    /\bexport\s+[^'"`]+?\sfrom\s*['"]([^'"]+)['"]/g,
+    /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ]
+
+  const specifiers = new Set()
+  for (const pattern of patterns) {
+    for (const match of content.matchAll(pattern)) {
+      const specifier = match[1]?.trim()
+      if (specifier) {
+        specifiers.add(specifier)
+      }
+    }
+  }
+  return [...specifiers]
+}
+
+function isBlockedRendererModule(specifier, rendererGuard) {
+  return rendererGuard.blockedExactModules.includes(specifier)
+    || rendererGuard.blockedModulePrefixes.some((prefix) => specifier.startsWith(prefix))
+}
+
+function validateRendererImports(rendererGuard, errors) {
+  if (!rendererGuard) {
+    return
+  }
+
+  for (const root of rendererGuard.roots) {
+    const absoluteRoot = resolveFromRoot(root)
+    if (!existsSync(absoluteRoot) || !statSync(absoluteRoot).isDirectory()) {
+      errors.push(`missing renderer guard root: ${root}`)
+      continue
+    }
+
+    const files = collectFilesRecursively(absoluteRoot)
+      .filter((filePath) => rendererGuard.extensions.includes(path.extname(filePath)))
+      .filter((filePath) => !rendererGuard.excludeSuffixes.some((suffix) => filePath.endsWith(suffix)))
+
+    for (const filePath of files) {
+      const content = readFileSync(filePath, 'utf8')
+      for (const specifier of collectModuleSpecifiers(content)) {
+        if (isBlockedRendererModule(specifier, rendererGuard)) {
+          errors.push(`renderer direct import blocked in ${path.relative(rootDir, filePath)}: ${specifier}`)
+        }
+      }
+    }
+  }
+}
+
 const errors = []
+const manifestPath = resolveFromRoot(manifestRef)
+
+if (!existsSync(manifestPath)) {
+  errors.push(`missing harness manifest: ${manifestRef}`)
+}
+
+const manifest = existsSync(manifestPath) ? readJsonFile(manifestPath, errors) : null
+const requiredFiles = manifest ? readManifestStringArray(manifest, 'requiredFiles', errors) : []
+const criticalPaths = manifest ? readManifestStringArray(manifest, 'criticalPaths', errors) : []
+const requiredScripts = manifest ? readManifestStringArray(manifest, 'requiredScripts', errors) : []
+const rendererGuard = manifest ? readRendererGuard(manifest, errors) : null
 
 for (const file of requiredFiles) {
   if (!existsSync(resolveFromRoot(file))) {
     errors.push(`missing required harness file: ${file}`)
-  }
-}
-
-for (const file of criticalPaths) {
-  if (!existsSync(resolveFromRoot(file))) {
-    errors.push(`missing critical code path referenced by harness: ${file}`)
   }
 }
 
@@ -230,6 +286,14 @@ const claudeFile = readFileSync(resolveFromRoot('CLAUDE.md'), 'utf8')
 if (!claudeFile.includes('AGENTS.md')) {
   errors.push('CLAUDE.md must reference AGENTS.md')
 }
+
+for (const file of criticalPaths) {
+  if (!existsSync(resolveFromRoot(file))) {
+    errors.push(`missing critical code path referenced by manifest: ${file}`)
+  }
+}
+
+validateRendererImports(rendererGuard, errors)
 
 if (errors.length > 0) {
   console.error('Harness check failed:')

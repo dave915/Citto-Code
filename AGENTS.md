@@ -6,6 +6,7 @@
 ## Canonical Docs
 
 - 이 저장소의 하네스 문서는 `docs/harness/`만 신뢰한다.
+- machine-readable path/script/import guard 목록은 `docs/harness/manifest.json`을 canonical source로 둔다.
 - 기존 `docs/spec-v1/`, `docs/issues-v1/`, `docs/en/`, 루트 `README.md`는 기본적으로 무시한다.
 - 사용자가 기존 문서를 직접 비교하거나 갱신하라고 요청한 경우에만 예외로 읽는다.
 
@@ -19,6 +20,8 @@
 6. 필요하면 `docs/harness/task-template.md`
 
 ## Entry Points
+
+정확한 machine-checked 경로 목록과 required npm script, renderer import guard는 `docs/harness/manifest.json`을 기준으로 한다. 아래 목록은 사람이 읽기 위한 요약이다.
 
 - 앱 부트스트랩: `src/main.tsx`, `src/App.tsx`
 - 렌더러 핵심 화면: `src/components/ChatView.tsx`, `src/components/InputArea.tsx`, `src/components/chat/ChatMessagePane.tsx`
@@ -35,14 +38,14 @@
 
 ## Working Loop
 
-1. 변경 요청을 기능 축으로 분류한다.
-2. `docs/harness/area-ownership.md`에서 해당 영역과 인접 경계를 확인한다.
+1. 변경 요청을 기능 축과 사용자 동작 기준으로 분류한다. 사용자가 특정 화면만 지목해도 scope는 화면 파일이 아니라 그 동작을 공유하는 영역으로 본다.
+2. `docs/harness/area-ownership.md`에서 해당 영역과 인접 경계를 확인하고, 같은 component/hook/store action/state shape를 소비하는 인접 surface를 먼저 찾는다.
 3. 필요한 파일만 읽고 최소 경계 안에서 수정한다.
 4. 같은 요청 안에서 다음 명백한 구현/통합/검증 단계가 남아 있으면 사용자 확인을 기다리지 말고 이어서 진행한다.
 5. 구조나 흐름이 바뀌면 `docs/harness/`를 같이 수정한다.
 6. 최소 `npm run harness:check`를 실행한다.
 7. TypeScript를 건드렸다면 `npm run typecheck` 또는 `npm run harness:check:strict`까지 실행한다.
-8. 결과를 사용자에게 `변경 내용`, `검증`, `남은 리스크` 순으로 짧게 정리한다.
+8. 결과를 사용자에게 `변경 내용`, `검증`, `남은 리스크` 순으로 짧게 정리하고, 확인한 인접 surface 또는 의도적으로 제외한 surface가 있으면 이유를 함께 적는다.
 
 ## Default Execution Mode
 
@@ -62,4 +65,5 @@
 - IPC 계약을 바꾸면 preload 타입과 렌더러 호출부를 같이 맞춘다.
 - 세션/예약 작업의 persisted shape를 바꾸면 마이그레이션 영향부터 확인한다.
 - 스트림, watcher, timer를 추가하면 해제 경로도 같은 변경에서 보장한다.
+- 특정 화면만 수정하더라도 같은 사용자 동작을 공유하는 다른 진입점과 표시 surface를 확인하지 않으면 완료로 보지 않는다.
 - 새 구조를 도입했으면 문서가 코드보다 뒤처지지 않게 같은 PR에서 갱신한다.

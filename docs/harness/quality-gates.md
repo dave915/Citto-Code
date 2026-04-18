@@ -35,13 +35,15 @@
 - persisted state shape 변경이 기존 사용자 데이터를 깨지 않는가
 - macOS/Windows 분기 로직이 새 변경에서도 유지되는가
 - 구조 변화가 `docs/harness/`에 반영되었는가
+- renderer direct import guard와 harness manifest가 현재 구조를 반영하는가
+- 같은 사용자 동작을 공유하는 인접 surface를 확인했는가, 제외했다면 이유가 남아 있는가
 
 ## Current Test Strategy
 
 - 정적 검증: TypeScript typecheck
-- 구조 검증: harness docs/link/path validation
+- 구조 검증: harness docs/link/path validation, manifest 기반 critical path/script 검증, renderer direct import guard
 - 통합 검증: Electron build
-- 수동 검증: 실제 채팅, Git 패널, 워크플로우 빌더, 설정 화면에서 smoke test
+- 수동 검증: 실제 채팅, Git 패널, 워크플로우 빌더, 설정 화면에서 smoke test, 그리고 같은 동작을 쓰는 인접 surface 일관성 확인
 
 ## Manual Smoke Matrix
 
