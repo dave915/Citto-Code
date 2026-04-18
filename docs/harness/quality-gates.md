@@ -7,6 +7,7 @@
 ### Always
 
 - `npm run harness:check`
+- `npm run harness:check:preview-ui`는 HTML preview 높이 판정처럼 "수정했는데 UI에는 안 먹는" 회귀를 fixture 기반으로 자동 확인한다.
 
 ### For TypeScript Changes
 
@@ -42,6 +43,7 @@
 
 - 정적 검증: TypeScript typecheck
 - 구조 검증: harness docs/link/path validation, manifest 기반 critical path/script 검증, renderer direct import guard
+- 타깃 회귀 검증: HTML preview UI sizing fixture 기반 자동 하네스
 - 통합 검증: Electron build
 - 수동 검증: 실제 채팅, Git 패널, 워크플로우 빌더, 설정 화면에서 smoke test, 그리고 같은 동작을 쓰는 인접 surface 일관성 확인
 

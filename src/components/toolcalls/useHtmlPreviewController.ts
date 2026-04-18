@@ -11,6 +11,7 @@ import {
   injectHtmlPreviewBridge,
   inlineHtmlPreviewAssets,
   isViewportSizedPreview,
+  resolvePreviewFrameHeight,
 } from './htmlPreviewDocument'
 
 type HtmlPreviewMessagePayload = {
@@ -495,13 +496,19 @@ export function useHtmlPreviewController({
       }
 
       const nextHeight = typeof payload.height === 'number' ? payload.height : Number(payload.height)
-      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return
-      setFrameHeight(Math.max(minimumFrameHeight, Math.min(Math.ceil(nextHeight), 1600)))
+      const resolvedHeight = resolvePreviewFrameHeight({
+        isUrlPreview,
+        isViewportLayout,
+        measuredHeight: nextHeight,
+        minimumFrameHeight,
+      })
+      if (resolvedHeight === null) return
+      setFrameHeight(resolvedHeight)
     }
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [captureSelectedElement, minimumFrameHeight, onElementSelect, onLocationChange, selectedElements, selectionPreviewPath])
+  }, [captureSelectedElement, isUrlPreview, isViewportLayout, minimumFrameHeight, onElementSelect, onLocationChange, selectedElements, selectionPreviewPath])
 
   useEffect(() => {
     if (!srcDoc && !iframeUrl) return
@@ -591,6 +598,13 @@ export function useHtmlPreviewController({
       }, 120)
     }
     if (!srcDoc && !iframeUrl) return
+    if (!isUrlPreview) {
+      try {
+        iframeRef.current?.contentWindow?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      } catch {
+        // Ignore cross-origin or transient load failures during preview scroll reset.
+      }
+    }
     postPreviewMessage({ action: 'request-measure' })
     syncInteractivePreviewState()
   }, [iframeUrl, isUrlPreview, postPreviewMessage, srcDoc, syncInteractivePreviewState])

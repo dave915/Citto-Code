@@ -853,16 +853,8 @@ export function buildSuggestedSavePath(filePath: string | null | undefined): str
   return `${dirPath}/${baseName}-download${extension}`
 }
 
-export function isViewportSizedPreview(html: string): boolean {
-  const normalized = normalizeNewlines(html)
-  const hasViewportHeight = /(?:min-height|height)\s*:\s*100(?:d|s|l)?vh/i.test(normalized)
-  const hasFixedLayout = /position\s*:\s*fixed/i.test(normalized) || /inset\s*:\s*0/i.test(normalized)
-  const hidesOverflow = /overflow\s*:\s*hidden/i.test(normalized)
-  return hasViewportHeight && (hasFixedLayout || hidesOverflow)
-}
-
-export function getPreviewMinimumHeight(isViewportLayout: boolean, windowHeight: number): number {
-  if (!isViewportLayout) return 420
-  if (!windowHeight || !Number.isFinite(windowHeight)) return 620
-  return Math.max(560, Math.min(Math.round(windowHeight * 0.72), 920))
-}
+export {
+  getPreviewMinimumHeight,
+  isViewportSizedPreview,
+  resolvePreviewFrameHeight,
+} from './htmlPreviewSizing'

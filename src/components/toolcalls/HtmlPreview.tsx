@@ -410,7 +410,7 @@ export function HtmlPreview({
 
       <div className="relative min-h-0 flex-1 bg-claude-bg">
         <iframe
-          key={iframeRenderKey}
+          key={isUrlPreview ? `url:${iframeRenderKey}` : `file:${path ?? 'inline'}:${iframeRenderKey}`}
           ref={iframeRef}
           title={openTarget ? `${openTarget} preview` : 'html-preview'}
           {...(srcDoc ? { srcDoc } : iframeUrl ? { src: iframeUrl } : {})}

@@ -49,6 +49,7 @@
     "typecheck:node",
     "typecheck",
     "harness:check:docs",
+    "harness:check:preview-ui",
     "harness:check",
     "harness:check:strict",
     "build"
