@@ -41,13 +41,30 @@ function stripShellQuotes(value: string): string {
   return trimmed
 }
 
+function extractAbsolutePathField(toolInput: unknown, keys: string[]): string | null {
+  if (!toolInput || typeof toolInput !== 'object') return null
+
+  for (const key of keys) {
+    const rawValue = (toolInput as Record<string, unknown>)[key]
+    if (typeof rawValue !== 'string') continue
+    const value = stripShellQuotes(rawValue)
+    if (!value.startsWith('/')) continue
+    return normalizePath(value)
+  }
+
+  return null
+}
+
 function extractCommandRootPath(toolInput: unknown): string | null {
+  const explicitRootPath = extractAbsolutePathField(toolInput, ['cwd', 'workdir'])
+  if (explicitRootPath) return explicitRootPath
+
   if (!toolInput || typeof toolInput !== 'object') return null
   const command = String((toolInput as { command?: unknown }).command ?? '').trim()
   if (!command) return null
 
   const normalizedCommand = command.replace(/\r\n?/g, '\n')
-  const match = normalizedCommand.match(/(?:^|\n)\s*cd\s+((?:"[^"]+"|'[^']+'|[^&;\n])+)\s*(?:&&|;|\n)/)
+  const match = normalizedCommand.match(/(?:^|\n)\s*cd\s+((?:"[^"]+"|'[^']+'|[^&;\n])+)\s*(?:(?:&&|;|\n)|$)/)
   if (!match?.[1]) return null
 
   const targetPath = stripShellQuotes(match[1])

@@ -69,7 +69,33 @@ function buildHtmlPreviewSourceId(candidate: HtmlPreviewCandidate) {
     : `file:${candidate.path}`
 }
 
-function findLatestHtmlPreviewState(messages: Message[]) {
+function normalizeSessionPath(path: string | null | undefined) {
+  const trimmed = path?.trim() ?? ''
+  if (!trimmed || trimmed === '~') return null
+  return trimmed.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+}
+
+function areRelatedPaths(left: string | null | undefined, right: string | null | undefined) {
+  const normalizedLeft = normalizeSessionPath(left)
+  const normalizedRight = normalizeSessionPath(right)
+  if (!normalizedLeft || !normalizedRight) return false
+  return (
+    normalizedLeft === normalizedRight
+    || normalizedLeft.startsWith(`${normalizedRight}/`)
+    || normalizedRight.startsWith(`${normalizedLeft}/`)
+  )
+}
+
+function isSessionOwnedHtmlPreviewSource(source: HtmlPreviewSource, sessionCwd: string) {
+  if (source.kind !== 'url' || source.candidate.kind !== 'url') return true
+
+  return (
+    areRelatedPaths(source.candidate.rootPath, sessionCwd)
+    || areRelatedPaths(source.candidate.path, sessionCwd)
+  )
+}
+
+function findLatestHtmlPreviewState(messages: Message[], sessionCwd: string) {
   let latestHtmlPreviewActivityId: string | null = null
   let latestUrlSource: HtmlPreviewSource | null = null
   let latestFileSource: HtmlPreviewSource | null = null
@@ -106,9 +132,13 @@ function findLatestHtmlPreviewState(messages: Message[]) {
     }
   }
 
+  const htmlPreviewSources = [latestUrlSource, latestFileSource]
+    .filter((value): value is HtmlPreviewSource => value !== null)
+    .filter((source) => isSessionOwnedHtmlPreviewSource(source, sessionCwd))
+
   return {
-    latestHtmlPreviewActivityId,
-    htmlPreviewSources: [latestUrlSource, latestFileSource].filter((value): value is HtmlPreviewSource => value !== null),
+    latestHtmlPreviewActivityId: htmlPreviewSources.length > 0 ? latestHtmlPreviewActivityId : null,
+    htmlPreviewSources,
   }
 }
 
@@ -182,7 +212,7 @@ export function buildChatViewDerivedState({
   const {
     latestHtmlPreviewActivityId,
     htmlPreviewSources,
-  } = findLatestHtmlPreviewState(session.messages)
+  } = findLatestHtmlPreviewState(session.messages, session.cwd)
 
   return {
     isNewSession: !session.messages.some(isMeaningfulMessage),
