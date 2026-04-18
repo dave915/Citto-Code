@@ -48,11 +48,13 @@ export function UserMessageBubble({
                   className="overflow-hidden rounded-lg text-left transition-opacity hover:opacity-95"
                   title={file.path}
                 >
-                  <img
-                    src={dataUrl}
-                    alt={file.name}
-                    className="block max-h-52 max-w-[320px] rounded-lg border border-claude-border object-contain"
-                  />
+                  <div className="h-[52px] w-[52px] overflow-hidden rounded-xl border border-claude-border bg-claude-panel">
+                    <img
+                      src={dataUrl}
+                      alt={file.name}
+                      className="block h-full w-full object-cover"
+                    />
+                  </div>
                 </button>
               ) : (
                 <div
@@ -60,11 +62,13 @@ export function UserMessageBubble({
                   className="overflow-hidden rounded-lg"
                   title={file.name}
                 >
-                  <img
-                    src={dataUrl}
-                    alt={file.name}
-                    className="block max-h-52 max-w-[320px] rounded-lg border border-claude-border object-contain"
-                  />
+                  <div className="h-[52px] w-[52px] overflow-hidden rounded-xl border border-claude-border bg-claude-panel">
+                    <img
+                      src={dataUrl}
+                      alt={file.name}
+                      className="block h-full w-full object-cover"
+                    />
+                  </div>
                 </div>
               )
             })}
