@@ -52,11 +52,23 @@
 - 권한 요청 승인/거절
 - tool call 및 HTML preview 노출
 
+### Quick Panel
+
+- 글로벌 단축키로 열기/닫기
+- 최근 프로젝트 목록 또는 폴더 선택이 올바른 cwd로 반영되는지 확인
+- submit 후 메인 윈도우가 열리고 세션 생성/전송으로 이어지는지 확인
+
 ### Git
 
 - 상태 로딩
 - diff 미리보기
 - 브랜치 전환 또는 외부 브랜치 감지
+
+### Team And Subagents
+
+- 팀 실행 시작
+- 실시간 텍스트 스트리밍과 완료 상태 반영
+- detail modal 또는 drilldown transcript 로딩
 
 ### Workflow Builder
 

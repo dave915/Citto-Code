@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -20,12 +20,18 @@ const criticalPaths = [
   'src/main.tsx',
   'src/App.tsx',
   'src/components/ChatView.tsx',
+  'src/components/chat/ChatMessagePane.tsx',
   'src/store/sessions.ts',
   'src/hooks/useClaudeStream.ts',
+  'src/hooks/useAppDesktopEffects.ts',
+  'src/quick-panel/QuickPanel.tsx',
   'electron/main.ts',
+  'electron/main/windowController.ts',
   'electron/preload.ts',
   'electron/preload/claudeApi.ts',
+  'electron/preload/quickPanelApi.ts',
   'electron/ipc/claude.ts',
+  'electron/ipc/quickPanel.ts',
   'electron/services/scheduledTaskScheduler.ts',
 ]
 
@@ -66,6 +72,102 @@ function collectLocalLinks(filePath, content) {
     .map((target) => target.split('#')[0])
 }
 
+function collectBacktickTokens(content) {
+  return [...content.matchAll(/`([^`\n]+)`/g)]
+    .map((match) => match[1]?.trim() ?? '')
+    .filter(Boolean)
+}
+
+function isPathLikeToken(token) {
+  if (!token || /\s/.test(token)) return false
+  if (token.includes('->')) return false
+
+  return [
+    'AGENTS.md',
+    'CLAUDE.md',
+    'README.md',
+    'package.json',
+    'package-lock.json',
+    'tsconfig.json',
+    'tsconfig.web.json',
+    'tsconfig.node.json',
+    'electron.vite.config.ts',
+    'tailwind.config.js',
+    'postcss.config.js',
+    'index.html',
+    'quick-panel.html',
+  ].includes(token)
+    || [
+      'docs/',
+      'src/',
+      'electron/',
+      'scripts/',
+      'build/',
+    ].some((prefix) => token.startsWith(prefix))
+}
+
+function segmentToPattern(segment) {
+  const escaped = segment.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+  return new RegExp(`^${escaped}$`)
+}
+
+function resolveGlobMatches(currentPath, segments, index) {
+  if (index >= segments.length) {
+    return [currentPath]
+  }
+
+  const segment = segments[index]
+  if (!segment.includes('*')) {
+    const nextPath = path.join(currentPath, segment)
+    if (!existsSync(nextPath)) {
+      return []
+    }
+    return resolveGlobMatches(nextPath, segments, index + 1)
+  }
+
+  if (!existsSync(currentPath) || !statSync(currentPath).isDirectory()) {
+    return []
+  }
+
+  const matcher = segmentToPattern(segment)
+  return readdirSync(currentPath)
+    .filter((entry) => matcher.test(entry))
+    .flatMap((entry) => resolveGlobMatches(path.join(currentPath, entry), segments, index + 1))
+}
+
+function validateBacktickPathTokens(markdownFile, content, errors) {
+  const backtickTokens = collectBacktickTokens(content)
+
+  for (const token of backtickTokens) {
+    if (!isPathLikeToken(token)) {
+      continue
+    }
+
+    if (token.includes('*')) {
+      const segments = token.split('/').filter(Boolean)
+      const firstGlobIndex = segments.findIndex((segment) => segment.includes('*'))
+      const parentSegments = firstGlobIndex >= 0 ? segments.slice(0, firstGlobIndex) : segments
+      const parentPath = resolveFromRoot(...parentSegments)
+
+      if (!existsSync(parentPath) || !statSync(parentPath).isDirectory()) {
+        errors.push(`missing glob parent in ${markdownFile}: ${token}`)
+        continue
+      }
+
+      const matches = resolveGlobMatches(rootDir, segments, 0)
+      if (matches.length === 0) {
+        errors.push(`glob has no matches in ${markdownFile}: ${token}`)
+      }
+      continue
+    }
+
+    const resolved = resolveFromRoot(token)
+    if (!existsSync(resolved)) {
+      errors.push(`missing backtick path in ${markdownFile}: ${token}`)
+    }
+  }
+}
+
 const errors = []
 
 for (const file of requiredFiles) {
@@ -104,6 +206,8 @@ for (const markdownFile of collectMarkdownFiles()) {
       errors.push(`broken local link in ${markdownFile}: ${target}`)
     }
   }
+
+  validateBacktickPathTokens(markdownFile, content, errors)
 }
 
 const claudeFile = readFileSync(resolveFromRoot('CLAUDE.md'), 'utf8')

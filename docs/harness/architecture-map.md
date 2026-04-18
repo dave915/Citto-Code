@@ -16,13 +16,16 @@
 
 - `electron/preload.ts`
 - `electron/preload/claudeApi.ts`
+- `electron/preload/quickPanelApi.ts`
 - 역할: 렌더러에 노출할 안전한 API만 브리지로 공개
 
 ### Renderer
 
 - `src/main.tsx`
 - `src/App.tsx`
-- 역할: 상태 초기화, 화면 조합, 세션 기반 UX 렌더링
+- `src/quick-panel/main.tsx`
+- `src/quick-panel/QuickPanel.tsx`
+- 역할: 상태 초기화, 메인 앱/퀵 패널 UX 렌더링
 
 ## Core Flows
 
@@ -48,6 +51,13 @@
 2. `electron/ipc/git.ts`가 IPC를 받아 서비스로 전달한다.
 3. `electron/services/gitService.ts`와 `electron/services/git/*`가 실제 Git 명령 실행과 읽기/쓰기 처리를 맡는다.
 4. `electron/services/gitHeadWatchService.ts`가 외부 브랜치 전환을 감시한다.
+
+### Quick Panel
+
+1. `src/hooks/useAppDesktopEffects.ts`가 최근 프로젝트 목록과 단축키 설정을 메인 프로세스로 동기화하고, `quick-panel:message`를 메인 채팅 세션 생성 흐름으로 다시 연결한다.
+2. `electron/main/windowController.ts`가 글로벌 단축키 등록, 퀵 패널 윈도우 생성/위치/포커스 복원, 폴더 선택 모달을 담당한다.
+3. `electron/ipc/quickPanel.ts`와 `electron/preload/quickPanelApi.ts`가 프로젝트 목록 조회, 단축키 갱신, submit/hide, 폴더 선택 요청을 브리지한다.
+4. `src/quick-panel/QuickPanel.tsx`가 프로젝트 선택, blur/escape cleanup, cwd 포함 submit을 담당한다.
 
 ### Scheduled Tasks
 
@@ -80,6 +90,7 @@
 - `electron/services/claude-models.ts` <-> `electron/ipc/claude/processLauncher.ts`
 - `electron/services/gitHeadWatchService.ts` <-> Git panel refresh hooks
 - `src/components/toolcalls/HtmlPreview.tsx` / `src/components/toolcalls/useHtmlPreviewController.ts` <-> `electron/preload/claudeApi.ts` <-> `electron/services/previewWatchService.ts`
+- `src/hooks/useAppDesktopEffects.ts` <-> `electron/main/windowController.ts` <-> `electron/ipc/quickPanel.ts` <-> `electron/preload/quickPanelApi.ts` <-> `src/quick-panel/QuickPanel.tsx`
 
 ## Fast File Map By Intent
 
@@ -87,6 +98,7 @@
 - 앱 루트 오케스트레이션: `src/App.tsx`, `src/hooks/useAppController.ts`, `src/hooks/useAppPanels.ts`, `src/components/app/*`
 - 워크플로우 빌더: `src/components/WorkflowsView.tsx`, `src/components/workflow/*`, `src/store/workflowStore.ts`, `src/store/workflowTypes.ts`, `electron/workflow-executor.ts`, `electron/services/claude-spawn.ts`
 - 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/components/input/useInputAreaController.ts`, `src/hooks/useInput*`
+- 퀵 패널: `src/quick-panel/*`, `src/hooks/useAppDesktopEffects.ts`, `src/components/settings/general/QuickPanelSection.tsx`, `electron/main/windowController.ts`, `electron/ipc/quickPanel.ts`, `electron/preload/quickPanelApi.ts`
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamSelectedAgentMessageCard.tsx`, `src/components/team/TeamSelectedAgentMessagePopup.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/teamSelectedAgentShared.tsx`, `src/components/team/teamOverlayShared.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`

@@ -21,14 +21,15 @@
 ## Entry Points
 
 - 앱 부트스트랩: `src/main.tsx`, `src/App.tsx`
-- 렌더러 핵심 화면: `src/components/ChatView.tsx`, `src/components/InputArea.tsx`
-- 세션 상태: `src/store/sessions.ts`, `src/store/sessionStoreState.ts`
+- 렌더러 핵심 화면: `src/components/ChatView.tsx`, `src/components/InputArea.tsx`, `src/components/chat/ChatMessagePane.tsx`
+- 세션 상태: `src/store/sessions.ts`, `src/store/sessionStoreState.ts`, `src/store/sessionStoreMutators.ts`
 - Claude 스트리밍: `src/hooks/useClaudeStream.ts`, `src/hooks/claudeStream/*`
 - 메인 프로세스: `electron/main.ts`
-- Preload 경계: `electron/preload.ts`, `electron/preload/claudeApi.ts`
-- Claude IPC: `electron/ipc/claude.ts`
+- Preload 경계: `electron/preload.ts`, `electron/preload/claudeApi.ts`, `electron/preload/quickPanelApi.ts`
+- Claude IPC: `electron/ipc/claude.ts`, `electron/ipc/claude/*`
 - Git IPC/서비스: `electron/ipc/git.ts`, `electron/services/gitService.ts`, `electron/services/git/*`
-- 예약 작업: `src/store/scheduledTasks.ts`, `electron/services/scheduledTaskScheduler.ts`
+- Quick Panel: `src/quick-panel/*`, `src/hooks/useAppDesktopEffects.ts`, `electron/ipc/quickPanel.ts`, `electron/preload/quickPanelApi.ts`, `electron/main/windowController.ts`
+- 레거시 예약 작업 마이그레이션: `src/main.tsx`, `electron/persistence.ts`, `electron/ipc/storage.ts`, `electron/services/scheduledTaskScheduler.ts`
 - 설정 데이터: `electron/ipc/settings.ts`, `electron/services/settingsDataService.ts`, `electron/services/settingsData/*`
 
 ## Working Loop
