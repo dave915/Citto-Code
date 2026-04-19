@@ -209,9 +209,6 @@ export function HtmlPreview({
       return activeUrl
     }
   })()
-  const previewTitle = isUrlPreview && previewTargetLabel
-    ? t('toolcall.htmlPreview.urlTitle', { target: previewTargetLabel })
-    : getFileName(path)
   const addressLabel = openTarget ?? t('toolcall.htmlPreview.localAddress')
   const showSourceSelector = sourceOptions.length > 1
   const canDownloadPreview = Boolean(path || isUrlPreview)
@@ -314,15 +311,6 @@ export function HtmlPreview({
 
   const renderFrame = (fullscreen: boolean) => (
     <div className={`flex h-full min-h-0 min-w-0 flex-1 flex-col ${fullscreen ? 'bg-claude-panel' : 'overflow-hidden rounded-2xl border border-claude-border bg-claude-panel'}`}>
-      {!isUrlPreview ? (
-        <div className="flex h-10 items-center gap-2.5 border-b border-claude-border px-3">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-medium text-claude-text">{previewTitle}</div>
-          </div>
-          {utilityActionButtons}
-        </div>
-      ) : null}
-
       <div className="flex h-10 items-center gap-1.5 border-b border-claude-border bg-claude-panel px-3">
         <PreviewIconButton
           title={canGoBack ? t('toolcall.htmlPreview.back') : t('toolcall.htmlPreview.backUnavailable')}
@@ -405,7 +393,7 @@ export function HtmlPreview({
           </PreviewIconButton>
         ) : null}
 
-        {isUrlPreview ? utilityActionButtons : null}
+        {utilityActionButtons}
       </div>
 
       <div className={`relative min-h-0 flex-1 bg-claude-bg ${isUrlPreview ? 'overflow-hidden' : 'overflow-auto'}`}>
