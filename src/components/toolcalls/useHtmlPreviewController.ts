@@ -127,7 +127,23 @@ function buildPreviewCaptureName(selection: HtmlPreviewElementSelection) {
   return `${parts.join('-') || 'preview-selection'}.png`
 }
 
-function mapProxyUrlToTargetUrl(proxyUrl: string, targetUrl: string | null, proxyOrigin: string | null): string {
+function stripProxySessionPath(pathname: string, sessionId: string | null): string {
+  if (!sessionId) return pathname
+
+  const sessionPrefix = `/__citto_preview/${encodeURIComponent(sessionId)}`
+  if (pathname === sessionPrefix) return '/'
+  if (pathname.startsWith(`${sessionPrefix}/`)) {
+    return pathname.slice(sessionPrefix.length) || '/'
+  }
+  return pathname
+}
+
+function mapProxyUrlToTargetUrl(
+  proxyUrl: string,
+  targetUrl: string | null,
+  proxyOrigin: string | null,
+  proxySessionId: string | null,
+): string {
   if (!targetUrl || !proxyOrigin) return proxyUrl
 
   try {
@@ -135,8 +151,9 @@ function mapProxyUrlToTargetUrl(proxyUrl: string, targetUrl: string | null, prox
     if (resolvedProxyUrl.origin !== proxyOrigin) return proxyUrl
 
     const resolvedTargetUrl = new URL(targetUrl)
+    const strippedPathname = stripProxySessionPath(resolvedProxyUrl.pathname, proxySessionId)
     return new URL(
-      `${resolvedProxyUrl.pathname}${resolvedProxyUrl.search}${resolvedProxyUrl.hash}`,
+      `${strippedPathname}${resolvedProxyUrl.search}${resolvedProxyUrl.hash}`,
       `${resolvedTargetUrl.protocol}//${resolvedTargetUrl.host}`,
     ).toString()
   } catch {
@@ -455,6 +472,7 @@ export function useHtmlPreviewController({
             proxyUrl,
             targetUrlRef.current,
             previewProxyOriginRef.current,
+            previewProxySessionIdRef.current,
           )
           setIframeUrl(proxyUrl)
           onLocationChange?.({

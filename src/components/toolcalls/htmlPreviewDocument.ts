@@ -226,6 +226,29 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
     return value.replace(/[^a-zA-Z0-9_-]/g, '\\\\$&');
   };
 
+  const proxySessionPathMatch = window.location.pathname.match(/^\\/__citto_preview\\/[^/]+/);
+  const proxySessionPathPrefix = proxySessionPathMatch ? proxySessionPathMatch[0] : '';
+
+  const rewriteProxyNavigationUrl = (value) => {
+    if (!proxySessionPathPrefix || value === null || value === undefined) return value;
+
+    try {
+      const resolvedUrl = new URL(String(value), window.location.href);
+      if (resolvedUrl.origin !== window.location.origin) return resolvedUrl.toString();
+      if (
+        resolvedUrl.pathname === proxySessionPathPrefix
+        || resolvedUrl.pathname.startsWith(proxySessionPathPrefix + '/')
+      ) {
+        return resolvedUrl.toString();
+      }
+
+      resolvedUrl.pathname = proxySessionPathPrefix + (resolvedUrl.pathname === '/' ? '' : resolvedUrl.pathname);
+      return resolvedUrl.toString();
+    } catch {
+      return value;
+    }
+  };
+
   const measureHeight = () => {
     const body = document.body;
     const doc = document.documentElement;
@@ -660,13 +683,34 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
   };
 
   const handleClick = (event) => {
-    if (!selectionEnabled) return;
     const element = event.target instanceof HTMLElement ? event.target : null;
     if (!element) return;
+    if (!selectionEnabled) {
+      const anchor = element.closest('a[href]');
+      if (anchor instanceof HTMLAnchorElement) {
+        const rewrittenHref = rewriteProxyNavigationUrl(anchor.getAttribute('href') || anchor.href);
+        if (typeof rewrittenHref === 'string' && rewrittenHref !== anchor.href) {
+          anchor.href = rewrittenHref;
+        }
+      }
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     clearHover();
     postElementSelection(element);
+  };
+
+  const handleSubmit = (event) => {
+    if (selectionEnabled) return;
+    const form = event.target instanceof HTMLFormElement ? event.target : null;
+    if (!form) return;
+
+    const actionValue = form.getAttribute('action');
+    const rewrittenAction = rewriteProxyNavigationUrl(actionValue || window.location.href);
+    if (typeof rewrittenAction === 'string' && rewrittenAction !== form.action) {
+      form.action = rewrittenAction;
+    }
   };
 
   const handleMessage = (event) => {
@@ -717,6 +761,9 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
     if (typeof originalMethod !== 'function') return;
 
     history[methodName] = function(...args) {
+      if (args.length >= 3 && args[2] !== undefined) {
+        args[2] = rewriteProxyNavigationUrl(args[2]);
+      }
       const result = originalMethod.apply(this, args);
       announceNavigation(navigationMode);
       return result;
@@ -742,6 +789,7 @@ export function buildHtmlPreviewBridgeScript(previewId: string, previewPath: str
   document.addEventListener('keydown', handleKeyDown, true);
   document.addEventListener('mousemove', handlePointerMove, true);
   document.addEventListener('click', handleClick, true);
+  document.addEventListener('submit', handleSubmit, true);
 
   if (document.fonts && typeof document.fonts.ready?.then === 'function') {
     document.fonts.ready.then(scheduleMeasure).catch(() => {});

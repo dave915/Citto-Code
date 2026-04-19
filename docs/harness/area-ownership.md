@@ -141,7 +141,7 @@
   - HTML preview 프록시 세션 관리, preview element PNG capture, 텍스트 저장, zip export
   - OS 기본 앱/open-with 연결과 macOS 앱 아이콘 로딩
   - `electron/ipc/files.ts`는 파일/폴더 선택 dialog, preview proxy start/update/stop, 저장/export, open-in-browser/open-with 핸들러를 담당한다.
-  - `electron/services/previewProxyService.ts`는 localhost 미리보기만 허용하고, 응답 헤더 정리와 bridge script 주입, renderer 종료 시 proxy cleanup을 담당한다.
+  - `electron/services/previewProxyService.ts`는 localhost 미리보기만 허용하고, 고정 포트 session-aware 프록시 라우팅, 응답 헤더 정리와 bridge script 주입, renderer 종료 시 proxy cleanup을 담당한다.
   - `electron/services/fileService.ts`는 첨부 파일 읽기와 open-with 앱 탐색 같은 OS 의존 로직을 담당한다.
   - 렌더러는 `window.claude`만 통해 접근하고, 파일 탐색/미리보기 상태는 hook 쪽에서 수명주기를 관리한다.
 - 흔한 회귀:

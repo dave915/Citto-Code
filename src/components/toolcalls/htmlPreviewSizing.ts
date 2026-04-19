@@ -2,14 +2,44 @@ function normalizeNewlines(value: string): string {
   return value.replace(/\r\n?/g, '\n')
 }
 
+function isRootSelector(selector: string): boolean {
+  return /(^|[\s>+~,])(?:html|body|main|:root|#root|#app)(?=$|[\s>+~,.#[:])/i.test(selector)
+}
+
+function collectRootLayoutStyles(html: string): string {
+  const cssBlocks: string[] = []
+  const blockRegex = /([^{}]+)\{([^{}]*)\}/g
+
+  for (const match of html.matchAll(blockRegex)) {
+    const selector = match[1]?.trim() ?? ''
+    const declarations = match[2]?.trim() ?? ''
+    if (!selector || !declarations || !isRootSelector(selector)) continue
+    cssBlocks.push(declarations)
+  }
+
+  const inlineStyleRegex = /<(html|body|main)\b[^>]*\sstyle=(["'])(.*?)\2/gi
+  for (const match of html.matchAll(inlineStyleRegex)) {
+    const declarations = match[3]?.trim() ?? ''
+    if (!declarations) continue
+    cssBlocks.push(declarations)
+  }
+
+  return cssBlocks.join('\n')
+}
+
 export function isViewportSizedPreview(html: string): boolean {
   const normalized = normalizeNewlines(html)
-  const hasViewportHeight = /(?:min-height|height)\s*:\s*100(?:d|s|l)?vh/i.test(normalized)
-  const hasFixedLayout = /position\s*:\s*fixed/i.test(normalized) || /inset\s*:\s*0/i.test(normalized)
-  const hidesOverflow = /overflow\s*:\s*hidden/i.test(normalized)
-  const hasCenteredViewportLayout = /display\s*:\s*(?:flex|inline-flex|grid|inline-grid)/i.test(normalized)
-    && /justify-content\s*:\s*center/i.test(normalized)
-    && /align-items\s*:\s*center/i.test(normalized)
+  const rootLayoutStyles = collectRootLayoutStyles(normalized)
+  if (!rootLayoutStyles) return false
+
+  const hasViewportHeight = /(?:min-height|height)\s*:\s*100(?:d|s|l)?vh/i.test(rootLayoutStyles)
+  const hasFixedLayout = /position\s*:\s*fixed/i.test(rootLayoutStyles) || /inset\s*:\s*0/i.test(rootLayoutStyles)
+  const hidesOverflow = /overflow\s*:\s*hidden/i.test(rootLayoutStyles)
+  const hasCenteredViewportLayout = /display\s*:\s*(?:flex|inline-flex|grid|inline-grid)/i.test(rootLayoutStyles)
+    && (
+      (/justify-content\s*:\s*center/i.test(rootLayoutStyles) && /align-items\s*:\s*center/i.test(rootLayoutStyles))
+      || /place-items\s*:\s*center/i.test(rootLayoutStyles)
+    )
   return hasViewportHeight && (hasFixedLayout || hidesOverflow || hasCenteredViewportLayout)
 }
 

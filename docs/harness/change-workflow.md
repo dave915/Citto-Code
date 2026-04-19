@@ -124,3 +124,4 @@
 - 시작 파일: `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/toolcalls/useHtmlPreviewController.ts`, `electron/ipc/files.ts`
 - 먼저 확인할 것: preview URL allowlist, 저장/압축 경로 처리, open-with OS 분기, 파일 탐색/첨부 결과 shape
 - preview UI sizing/viewport heuristic를 건드렸다면 `npm run harness:check:preview-ui`까지 green인지 확인한다.
+- preview proxy URL 라우팅, redirect, target update를 건드렸다면 `npm run harness:check:preview-proxy`까지 green인지 확인한다.

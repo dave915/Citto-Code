@@ -57,7 +57,7 @@
 1. 렌더러의 `src/hooks/useFileExplorer.ts`, `src/hooks/useInputMentions.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/toolcalls/useHtmlPreviewController.ts`가 파일 탐색, 첨부, open-with, preview 저장 요청을 만든다.
 2. `electron/preload/claudeApi.ts`가 폴더/파일 선택, 파일 읽기, preview proxy 세션 start/update/stop, preview element capture, 텍스트/zip 저장, OS 앱 열기 요청을 브리지한다.
 3. `electron/ipc/files.ts`가 디렉터리 열람, preview proxy IPC, preview element PNG capture, export/save, 브라우저/앱 handoff를 담당한다.
-4. `electron/services/previewProxyService.ts`가 localhost/127.0.0.1 대상만 허용하는 로컬 프록시를 띄우고, 응답의 frame/CSP 계열 헤더를 정리한 뒤 HTML에 preview bridge를 주입한다.
+4. `electron/services/previewProxyService.ts`가 localhost/127.0.0.1 대상만 허용하는 고정 포트 로컬 프록시를 띄우고, session-aware path로 요청을 라우팅하면서 응답의 frame/CSP 계열 헤더를 정리한 뒤 HTML에 preview bridge를 주입한다.
 5. `electron/services/fileService.ts`가 첨부 파일 읽기, MIME 판단, macOS open-with 앱 탐색과 shell open 동작을 담당한다.
 
 ### Quick Panel

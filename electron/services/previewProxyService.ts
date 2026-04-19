@@ -1,6 +1,5 @@
 import http, { ServerResponse, type IncomingMessage, type Server } from 'http'
 import type { Socket } from 'net'
-import type { AddressInfo } from 'net'
 import type { WebContents } from 'electron'
 import httpProxy from 'http-proxy'
 
@@ -10,15 +9,28 @@ export type PreviewProxySession = {
   targetUrl: string
 }
 
+type CreatePreviewProxyServiceOptions = {
+  port?: number
+}
+
 type PreviewProxyState = {
   id: string
   sender: WebContents
-  server: Server
-  proxy: httpProxy
-  port: number
   targetUrl: string
   bridgeScript: string
 }
+
+type ProxyBoundRequest = IncomingMessage & {
+  __cittoPreviewState?: PreviewProxyState
+}
+
+type ResolvedProxyRequest = {
+  state: PreviewProxyState
+  forwardedPath: string
+}
+
+const FIXED_PROXY_PORT = 43135
+const SESSION_PATH_PREFIX = '/__citto_preview'
 
 const STRIPPED_RESPONSE_HEADERS = new Set([
   'content-security-policy',
@@ -27,6 +39,7 @@ const STRIPPED_RESPONSE_HEADERS = new Set([
   'cross-origin-opener-policy',
   'cross-origin-embedder-policy',
   'cross-origin-resource-policy',
+  'referrer-policy',
 ])
 
 const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
@@ -59,14 +72,18 @@ function normalizeTargetUrl(rawUrl: string): string | null {
   }
 }
 
-function buildProxyOrigin(port: number): string {
+function buildProxyOrigin(port = FIXED_PROXY_PORT): string {
   return `http://127.0.0.1:${port}`
 }
 
-function buildProxyUrl(targetUrl: string, port: number): string {
+function buildSessionPathPrefix(sessionId: string): string {
+  return `${SESSION_PATH_PREFIX}/${encodeURIComponent(sessionId)}`
+}
+
+function buildProxyUrl(sessionId: string, targetUrl: string, port = FIXED_PROXY_PORT): string {
   const parsed = new URL(targetUrl)
   const pathname = parsed.pathname || '/'
-  return `${buildProxyOrigin(port)}${pathname}${parsed.search}${parsed.hash}`
+  return `${buildProxyOrigin(port)}${buildSessionPathPrefix(sessionId)}${pathname}${parsed.search}${parsed.hash}`
 }
 
 function buildTargetOrigin(targetUrl: string): string {
@@ -119,20 +136,106 @@ function buildFallbackCandidateUrl(state: PreviewProxyState, pathname: string, s
   return new URL(`${pathname}${search}`, buildTargetOrigin(state.targetUrl)).toString()
 }
 
-function rewriteLocationHeader(location: string, state: PreviewProxyState): string {
+function rewriteLocationHeader(location: string, state: PreviewProxyState, port = FIXED_PROXY_PORT): string {
   try {
     const resolved = new URL(location, state.targetUrl)
     if (!isLocalPreviewHost(resolved.hostname)) return location
-    return buildProxyUrl(resolved.toString(), state.port)
+    return buildProxyUrl(state.id, resolved.toString(), port)
   } catch {
     return location
   }
 }
 
+function getTargetPathAndSearch(targetUrl: string): string {
+  const parsed = new URL(targetUrl)
+  return `${parsed.pathname || '/'}${parsed.search}`
+}
+
+function extractSessionPath(pathname: string): { sessionId: string; strippedPath: string; explicitPath: boolean } | null {
+  if (!pathname.startsWith(`${SESSION_PATH_PREFIX}/`)) return null
+
+  const remainder = pathname.slice(SESSION_PATH_PREFIX.length + 1)
+  if (!remainder) return null
+
+  const slashIndex = remainder.indexOf('/')
+  const encodedSessionId = slashIndex >= 0 ? remainder.slice(0, slashIndex) : remainder
+  if (!encodedSessionId) return null
+
+  let sessionId = ''
+  try {
+    sessionId = decodeURIComponent(encodedSessionId)
+  } catch {
+    return null
+  }
+
+  if (!sessionId) return null
+
+  return {
+    sessionId,
+    strippedPath: slashIndex >= 0 ? (remainder.slice(slashIndex) || '/') : '/',
+    explicitPath: slashIndex >= 0,
+  }
+}
+
+function resolveProxyRequest(
+  request: IncomingMessage,
+  sessions: Map<string, PreviewProxyState>,
+  port = FIXED_PROXY_PORT,
+): ResolvedProxyRequest | null {
+  const requestUrl = new URL(request.url ?? '/', buildProxyOrigin(port))
+  const directSessionPath = extractSessionPath(requestUrl.pathname)
+
+  if (directSessionPath) {
+    const state = sessions.get(directSessionPath.sessionId)
+    if (state) {
+      const forwardedPath = directSessionPath.explicitPath
+        ? `${directSessionPath.strippedPath}${requestUrl.search}`
+        : getTargetPathAndSearch(state.targetUrl)
+      return {
+        state,
+        forwardedPath,
+      }
+    }
+  }
+
+  const refererHeader = Array.isArray(request.headers.referer)
+    ? request.headers.referer[0]
+    : request.headers.referer
+  if (!refererHeader) return null
+
+  try {
+    const refererUrl = new URL(refererHeader)
+    if (refererUrl.origin !== buildProxyOrigin(port)) return null
+
+    const refererSessionPath = extractSessionPath(refererUrl.pathname)
+    if (!refererSessionPath) return null
+
+    const state = sessions.get(refererSessionPath.sessionId)
+    if (!state) return null
+
+    return {
+      state,
+      forwardedPath: `${requestUrl.pathname || '/'}${requestUrl.search}`,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeMissingPreviewSession(response: ServerResponse, requestedUrl: string) {
+  if (response.headersSent) return
+
+  response.writeHead(404, {
+    'content-type': 'text/plain; charset=utf-8',
+    'cache-control': 'no-store',
+  })
+  response.end(`Preview proxy session not found for ${requestedUrl}`)
+}
+
 function buildForwardedHeaders(
   proxyRes: IncomingMessage,
   state: PreviewProxyState,
-  options: { dropContentLength: boolean },
+  options: { dropContentLength: boolean; port?: number },
 ) {
   const headers: Record<string, string | string[]> = {}
 
@@ -147,7 +250,7 @@ function buildForwardedHeaders(
     if (normalizedName === 'location') {
       const locationValue = Array.isArray(value) ? value[0] : value
       if (locationValue) {
-        headers[name] = rewriteLocationHeader(locationValue, state)
+        headers[name] = rewriteLocationHeader(locationValue, state, options.port)
       }
       continue
     }
@@ -316,10 +419,11 @@ async function handleProxyResponse(
   request: IncomingMessage,
   response: ServerResponse,
   state: PreviewProxyState,
+  port?: number,
 ) {
   const statusCode = proxyRes.statusCode ?? 200
   if (!isHtmlResponse(proxyRes.headers['content-type'])) {
-    response.writeHead(statusCode, buildForwardedHeaders(proxyRes, state, { dropContentLength: false }))
+    response.writeHead(statusCode, buildForwardedHeaders(proxyRes, state, { dropContentLength: false, port }))
     proxyRes.pipe(response)
     return
   }
@@ -353,7 +457,7 @@ async function handleProxyResponse(
 
     const html = Buffer.concat(chunks).toString('utf8')
     const injectedHtml = injectBridgeScript(html, state.bridgeScript)
-    response.writeHead(statusCode, buildForwardedHeaders(proxyRes, state, { dropContentLength: true }))
+    response.writeHead(statusCode, buildForwardedHeaders(proxyRes, state, { dropContentLength: true, port }))
     response.end(injectedHtml)
   })
   proxyRes.on('error', (error) => {
@@ -369,10 +473,18 @@ async function closeServer(server: Server) {
   })
 }
 
-export function createPreviewProxyService() {
+export function createPreviewProxyService(options: CreatePreviewProxyServiceOptions = {}) {
   const sessions = new Map<string, PreviewProxyState>()
   const sessionIdsBySenderId = new Map<number, Set<string>>()
   const observedSenderIds = new Set<number>()
+  const proxyPort = options.port ?? FIXED_PROXY_PORT
+  const proxy = httpProxy.createProxyServer({
+    changeOrigin: true,
+    secure: false,
+    ws: true,
+    xfwd: true,
+  })
+  let server: Server | null = null
   let nextSessionId = 1
 
   function cleanupSession(sessionId: string) {
@@ -387,13 +499,6 @@ export function createPreviewProxyService() {
         sessionIdsBySenderId.delete(state.sender.id)
       }
     }
-
-    try {
-      state.proxy.close()
-    } catch {
-      // Ignore close errors during teardown.
-    }
-    void closeServer(state.server)
   }
 
   function cleanupSender(senderId: number) {
@@ -416,10 +521,109 @@ export function createPreviewProxyService() {
   function toSessionInfo(state: PreviewProxyState): PreviewProxySession {
     return {
       sessionId: state.id,
-      proxyUrl: buildProxyUrl(state.targetUrl, state.port),
+      proxyUrl: buildProxyUrl(state.id, state.targetUrl, proxyPort),
       targetUrl: state.targetUrl,
     }
   }
+
+  async function ensureServer(): Promise<boolean> {
+    if (server?.listening) return true
+
+    if (!server) {
+      server = http.createServer((request, response) => {
+        const resolvedRequest = resolveProxyRequest(request, sessions, proxyPort)
+        if (!resolvedRequest) {
+          writeMissingPreviewSession(response, request.url ?? '/')
+          return
+        }
+
+        const boundRequest = request as ProxyBoundRequest
+        boundRequest.__cittoPreviewState = resolvedRequest.state
+        boundRequest.url = resolvedRequest.forwardedPath
+
+        proxy.web(boundRequest, response, {
+          changeOrigin: true,
+          ignorePath: false,
+          secure: false,
+          selfHandleResponse: true,
+          target: buildTargetOrigin(resolvedRequest.state.targetUrl),
+          xfwd: true,
+        })
+      })
+
+      server.on('upgrade', (request, socket, head) => {
+        const resolvedRequest = resolveProxyRequest(request, sessions, proxyPort)
+        if (!resolvedRequest) {
+          if (!socket.destroyed) socket.destroy()
+          return
+        }
+
+        const boundRequest = request as ProxyBoundRequest
+        boundRequest.__cittoPreviewState = resolvedRequest.state
+        boundRequest.url = resolvedRequest.forwardedPath
+
+        proxy.ws(boundRequest, socket, head, {
+          changeOrigin: true,
+          ignorePath: false,
+          secure: false,
+          target: buildTargetOrigin(resolvedRequest.state.targetUrl),
+          xfwd: true,
+        })
+      })
+
+      server.on('clientError', (_error, socket: Socket) => {
+        if (!socket.destroyed) {
+          socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
+        }
+      })
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      if (!server) {
+        reject(new Error('Preview proxy server is unavailable'))
+        return
+      }
+      server.once('error', reject)
+      server.listen(proxyPort, '127.0.0.1', () => {
+        server?.off('error', reject)
+        resolve()
+      })
+    }).catch(() => false)
+
+    return Boolean(server?.listening)
+  }
+
+  proxy.on('proxyReq', (proxyReq) => {
+    proxyReq.setHeader('accept-encoding', 'identity')
+    proxyReq.setHeader('x-citto-preview-proxy', '1')
+  })
+
+  proxy.on('proxyRes', (proxyRes, request, response) => {
+    const state = (request as ProxyBoundRequest).__cittoPreviewState
+    if (!state || !(response instanceof ServerResponse)) {
+      if (response instanceof ServerResponse && !response.headersSent) {
+        response.writeHead(500, {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-store',
+        })
+        response.end('Preview proxy request was not bound to a session.')
+      }
+      return
+    }
+
+    void handleProxyResponse(proxyRes, request, response, state, proxyPort)
+  })
+
+  proxy.on('error', (error, request, response) => {
+    const state = (request as ProxyBoundRequest | undefined)?.__cittoPreviewState
+    if (response instanceof ServerResponse) {
+      if (state) {
+        writeProxyFailure(response, state.targetUrl, state.bridgeScript, String(error))
+        return
+      }
+      writeMissingPreviewSession(response, request?.url ?? '/')
+    }
+  })
 
   async function start(
     sender: WebContents,
@@ -428,86 +632,16 @@ export function createPreviewProxyService() {
     const normalizedTargetUrl = normalizeTargetUrl(params.targetUrl)
     if (!normalizedTargetUrl) return null
 
-    const sessionId = `preview-proxy-${nextSessionId++}`
-    const proxy = httpProxy.createProxyServer({
-      changeOrigin: true,
-      secure: false,
-      ws: true,
-      xfwd: true,
-    })
+    const serverReady = await ensureServer()
+    if (!serverReady) return null
 
-    const server = http.createServer((request, response) => {
-      proxy.web(request, response, {
-        changeOrigin: true,
-        ignorePath: false,
-        secure: false,
-        selfHandleResponse: true,
-        target: buildTargetOrigin(state.targetUrl),
-        xfwd: true,
-      })
-    })
+    const sessionId = `preview-proxy-${nextSessionId++}`
 
     const state: PreviewProxyState = {
       id: sessionId,
       sender,
-      server,
-      proxy,
-      port: 0,
       targetUrl: normalizedTargetUrl,
       bridgeScript: params.bridgeScript,
-    }
-
-    proxy.on('proxyReq', (proxyReq) => {
-      proxyReq.setHeader('accept-encoding', 'identity')
-      proxyReq.setHeader('x-citto-preview-proxy', '1')
-    })
-
-    proxy.on('proxyRes', (proxyRes, _request, response) => {
-      void handleProxyResponse(proxyRes, _request, response as ServerResponse, state)
-    })
-
-    proxy.on('error', (error, _request, response) => {
-      if (response instanceof ServerResponse) {
-        writeProxyFailure(response, state.targetUrl, state.bridgeScript, String(error))
-      }
-    })
-
-    server.on('upgrade', (request, socket, head) => {
-      proxy.ws(request, socket, head, {
-        changeOrigin: true,
-        ignorePath: false,
-        secure: false,
-        target: buildTargetOrigin(state.targetUrl),
-        xfwd: true,
-      })
-    })
-
-    server.on('clientError', (_error, socket: Socket) => {
-      if (!socket.destroyed) {
-        socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
-      }
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, '127.0.0.1', () => {
-        server.off('error', reject)
-        resolve()
-      })
-    }).catch((error) => {
-      try {
-        proxy.close()
-      } catch {
-        // Ignore close errors during failed startup.
-      }
-      throw error
-    })
-
-    const address = server.address()
-    state.port = typeof address === 'object' && address ? (address as AddressInfo).port : 0
-    if (!state.port) {
-      cleanupSession(sessionId)
-      return null
     }
 
     observeSender(sender)
@@ -538,6 +672,17 @@ export function createPreviewProxyService() {
   function dispose() {
     for (const sessionId of [...sessions.keys()]) {
       cleanupSession(sessionId)
+    }
+
+    try {
+      proxy.close()
+    } catch {
+      // Ignore close errors during teardown.
+    }
+
+    if (server) {
+      void closeServer(server)
+      server = null
     }
   }
 

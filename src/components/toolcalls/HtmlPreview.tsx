@@ -408,7 +408,7 @@ export function HtmlPreview({
         {isUrlPreview ? utilityActionButtons : null}
       </div>
 
-      <div className="relative min-h-0 flex-1 bg-claude-bg">
+      <div className={`relative min-h-0 flex-1 bg-claude-bg ${isUrlPreview ? 'overflow-hidden' : 'overflow-auto'}`}>
         <iframe
           key={isUrlPreview ? `url:${iframeRenderKey}` : `file:${path ?? 'inline'}:${iframeRenderKey}`}
           ref={iframeRef}

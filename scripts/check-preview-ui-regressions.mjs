@@ -45,6 +45,10 @@ const flowContentHtml = readFileSync(
   resolveFromRoot('scripts', 'fixtures', 'html-preview', 'flow-content.html'),
   'utf8',
 )
+const routingDemoHtml = readFileSync(
+  resolveFromRoot('scripts', 'fixtures', 'html-preview', 'routing-demo.html'),
+  'utf8',
+)
 
 assert.equal(
   isViewportSizedPreview(centeredViewportHtml),
@@ -55,6 +59,11 @@ assert.equal(
   isViewportSizedPreview(flowContentHtml),
   false,
   'regular document flow fixture must not be treated as a viewport layout',
+)
+assert.equal(
+  isViewportSizedPreview(routingDemoHtml),
+  false,
+  'pages with root min-height:100vh must not be misclassified just because child elements use fixed positioning or centered flex layouts',
 )
 
 const viewportMinimumHeight = getPreviewMinimumHeight(true, 1000)
@@ -81,6 +90,16 @@ assert.equal(
   }),
   640,
   'document flow previews must still honor measured content height',
+)
+assert.equal(
+  resolvePreviewFrameHeight({
+    isUrlPreview: false,
+    isViewportLayout: false,
+    measuredHeight: 980,
+    minimumFrameHeight: 420,
+  }),
+  980,
+  'long static previews that were previously misclassified as viewport layouts must expand to their measured content height',
 )
 
 assert.deepEqual(
