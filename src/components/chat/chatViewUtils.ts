@@ -72,7 +72,11 @@ function buildHtmlPreviewSourceId(candidate: HtmlPreviewCandidate) {
 function normalizeSessionPath(path: string | null | undefined) {
   const trimmed = path?.trim() ?? ''
   if (!trimmed || trimmed === '~') return null
-  return trimmed.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+  return trimmed
+    .normalize('NFC')
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+    .replace(/\/$/, '')
 }
 
 function areRelatedPaths(left: string | null | undefined, right: string | null | undefined) {

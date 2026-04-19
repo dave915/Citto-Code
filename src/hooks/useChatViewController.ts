@@ -24,6 +24,10 @@ import {
   type FileConflict,
   type PreviewElementSelectionPayload,
 } from '../components/chat/chatViewUtils'
+import {
+  resolveHtmlPreviewSourceSelection,
+  type HtmlPreviewSourceSelectionMode,
+} from '../components/chat/htmlPreviewSourceSelection'
 import type { AppLanguage, TranslationKey } from '../lib/i18n'
 
 const HEADER_OPEN_WITH_MIN_WIDTH = 640
@@ -52,6 +56,8 @@ export function useChatViewController({
 }: Params) {
   const openWithMenuRef = useRef<HTMLDivElement>(null)
   const previousHtmlPreviewActivityIdRef = useRef<string | null>(null)
+  const latestHtmlPreviewSourceActivityIdRef = useRef<string | null>(null)
+  const htmlPreviewSourceSelectionModeRef = useRef<HtmlPreviewSourceSelectionMode>('auto')
   const [openPanels, setOpenPanels] = useState<ChatViewRightPanel[]>([])
   const [selectedHtmlPreviewSourceId, setSelectedHtmlPreviewSourceId] = useState<string | null>(null)
   const [selectedPreviewElements, setSelectedPreviewElements] = useState<PreviewElementSelectionPayload[]>([])
@@ -213,6 +219,8 @@ export function useChatViewController({
 
   useEffect(() => {
     previousHtmlPreviewActivityIdRef.current = null
+    latestHtmlPreviewSourceActivityIdRef.current = null
+    htmlPreviewSourceSelectionModeRef.current = 'auto'
     setOpenPanels([])
     setSelectedHtmlPreviewSourceId(null)
     setSelectedPreviewElements([])
@@ -221,18 +229,26 @@ export function useChatViewController({
   }, [session.id])
 
   useEffect(() => {
-    if (htmlPreviewSources.length === 0) {
-      setSelectedHtmlPreviewSourceId(null)
+    if (latestHtmlPreviewActivityId === latestHtmlPreviewSourceActivityIdRef.current) return
+
+    latestHtmlPreviewSourceActivityIdRef.current = latestHtmlPreviewActivityId
+    htmlPreviewSourceSelectionModeRef.current = 'auto'
+    setSelectedHtmlPreviewSourceId(null)
+  }, [latestHtmlPreviewActivityId])
+
+  useEffect(() => {
+    const nextSelection = resolveHtmlPreviewSourceSelection({
+      sources: htmlPreviewSources,
+      selectedSourceId: selectedHtmlPreviewSourceId,
+      selectionMode: htmlPreviewSourceSelectionModeRef.current,
+    })
+
+    htmlPreviewSourceSelectionModeRef.current = nextSelection.selectionMode
+    if (nextSelection.selectedSourceId === selectedHtmlPreviewSourceId) {
       return
     }
 
-    const hasSelectedSource = selectedHtmlPreviewSourceId
-      ? htmlPreviewSources.some((source) => source.id === selectedHtmlPreviewSourceId)
-      : false
-    if (hasSelectedSource) return
-
-    const defaultSource = htmlPreviewSources.find((source) => source.kind === 'url') ?? htmlPreviewSources[0]
-    setSelectedHtmlPreviewSourceId(defaultSource.id)
+    setSelectedHtmlPreviewSourceId(nextSelection.selectedSourceId)
   }, [htmlPreviewSources, selectedHtmlPreviewSourceId])
 
   const clearSelectedPreviewElements = useCallback(() => {
@@ -242,6 +258,7 @@ export function useChatViewController({
   }, [])
 
   const handleSelectHtmlPreviewSource = useCallback((sourceId: string) => {
+    htmlPreviewSourceSelectionModeRef.current = 'manual'
     setSelectedHtmlPreviewSourceId(sourceId)
     setSelectedPreviewElements([])
     setHoveredPreviewSelectionKey(null)

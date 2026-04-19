@@ -8,7 +8,7 @@ import type {
   PermissionMode,
   Session,
 } from '../store/sessions'
-import { getProjectNameFromPath } from '../store/sessions'
+import { getProjectNameFromPath } from './sessionUtils'
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 const AUTO_HTML_PREVIEW_TRIGGER_PATTERNS = [
@@ -64,14 +64,26 @@ const AUTO_HTML_PREVIEW_REAL_APP_PATTERNS = [
   /\bpnpm\s+install\b/i,
   /\byarn\s+install\b/i,
   /\bbun\s+install\b/i,
-  /\blocalhost(?::\d+)?\b/i,
-  /\bdev\s+server\b/i,
   /\b(vite|next(?:\.js)?|astro|react|vue|svelte)\s+(?:app|project)\b/i,
   /vite\s*(?:react|vue|svelte)?\s*앱/i,
   /리액트\s*앱/,
   /의존성\s*설치/,
-  /서버(?:를|는)?\s*(?:계속\s*)?(?:켜|실행|띄|열)/,
-  /계속\s*켜둔\s*채/,
+]
+const AUTO_HTML_PREVIEW_LOCAL_SERVER_PATTERNS = [
+  /로컬\s*서버/,
+  /서버\s*데모/,
+  /\blocal\s+server\b/i,
+  /\blocalhost(?::\d+)?\b/i,
+]
+const AUTO_HTML_PREVIEW_LOCAL_SERVER_CONTEXT_PATTERNS = [
+  /redirect/i,
+  /rewrite/i,
+  /라우팅/,
+  /\broute\b/i,
+  /주소창/,
+  /뒤로가기/,
+  /앞으로가기/,
+  /\/[a-z0-9._-]+(?:\/[a-z0-9._-]+)*(?:\.html)?/i,
 ]
 const AUTO_HTML_PREVIEW_PATH_MARKER = '/.citto-code/previews/'
 
@@ -223,10 +235,47 @@ export function shouldAutoGenerateHtmlPreview(
   return AUTO_HTML_PREVIEW_TRIGGER_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
+function isLocalServerPreviewRequest(text: string): boolean {
+  const normalized = text.trim()
+  if (!normalized) return false
+
+  const hasLocalServerIntent = AUTO_HTML_PREVIEW_LOCAL_SERVER_PATTERNS.some((pattern) => pattern.test(normalized))
+  if (!hasLocalServerIntent) return false
+
+  return (
+    AUTO_HTML_PREVIEW_EXPLICIT_PATTERNS.some((pattern) => pattern.test(normalized))
+    || AUTO_HTML_PREVIEW_TRIGGER_PATTERNS.some((pattern) => pattern.test(normalized))
+    || AUTO_HTML_PREVIEW_LOCAL_SERVER_CONTEXT_PATTERNS.some((pattern) => pattern.test(normalized))
+  )
+}
+
 export function buildAutoHtmlPreviewInstruction(userText: string, cwd: string, language?: AppLanguage): string {
   const resolvedLanguage = resolveAppLanguage(language)
   const previewRoot = joinPromptPath(cwd || '~', `.citto-code/previews/visual-demo-${formatAutoPreviewTimestamp()}`)
   const indexPath = joinPromptPath(previewRoot, 'index.html')
+
+  if (isLocalServerPreviewRequest(userText)) {
+    return [
+      '<system-reminder>',
+      translate(resolvedLanguage, 'runtime.autoPreview.serverAnswerAsDemo'),
+      translate(resolvedLanguage, 'runtime.autoPreview.serverOutputRoot', { path: previewRoot }),
+      translate(resolvedLanguage, 'runtime.autoPreview.useWriteTools'),
+      translate(resolvedLanguage, 'runtime.autoPreview.requestPermissionViaTool'),
+      translate(resolvedLanguage, 'runtime.autoPreview.afterPermission'),
+      translate(resolvedLanguage, 'runtime.autoPreview.noFullCode'),
+      translate(resolvedLanguage, 'runtime.autoPreview.serverNoFrameworks'),
+      translate(resolvedLanguage, 'runtime.autoPreview.serverAllowMultipleFiles'),
+      translate(resolvedLanguage, 'runtime.autoPreview.serverStartLocalServer'),
+      translate(resolvedLanguage, 'runtime.autoPreview.serverRespectRoutes'),
+      translate(resolvedLanguage, 'runtime.autoPreview.serverReadEntryAfter', { path: indexPath }),
+      translate(resolvedLanguage, 'runtime.autoPreview.keepTone'),
+      translate(resolvedLanguage, 'runtime.autoPreview.visualQuality'),
+      translate(resolvedLanguage, 'runtime.autoPreview.assumeMissingInfo'),
+      translate(resolvedLanguage, 'runtime.autoPreview.keepFinalShort'),
+      translate(resolvedLanguage, 'runtime.autoPreview.userRequest', { request: userText.trim() }),
+      '</system-reminder>',
+    ].join('\n')
+  }
 
   return [
     '<system-reminder>',

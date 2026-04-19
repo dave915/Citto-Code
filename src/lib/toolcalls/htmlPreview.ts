@@ -11,6 +11,7 @@ import type { HtmlPreviewCandidate } from './types'
 const ANSI_ESCAPE_PATTERN = /\u001B\[[0-9;]*m/g
 const DIRECT_LOCAL_SERVER_URL_PATTERN = /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0):\d+(?:\/[^\s"'<>)]*)?/i
 const LOCAL_SERVER_OUTPUT_PATTERNS = [
+  /Server running at\s+(https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0):\d+(?:\/[^\s"'<>)]*)?)/i,
   /Local:\s+(https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0):\d+(?:\/[^\s"'<>)]*)?)/i,
   /started server on [^:\n]+:(\d+)/i,
   /listening on(?: port)?\s*:?\s*(\d+)/i,
@@ -93,10 +94,13 @@ function extractLocalServerUrl(toolCall: ToolCallBlockType): string | null {
     if (match[1]) return `http://localhost:${match[1]}`
   }
 
-  if (!isLikelyServerCommand(toolCall.toolInput)) return null
-
   const directUrlMatch = output.match(DIRECT_LOCAL_SERVER_URL_PATTERN)
-  return directUrlMatch?.[0] ? normalizeServerUrl(directUrlMatch[0]) : null
+  if (directUrlMatch?.[0]) {
+    return normalizeServerUrl(directUrlMatch[0])
+  }
+
+  if (!isLikelyServerCommand(toolCall.toolInput)) return null
+  return null
 }
 
 function extractLocalServerUrlFromText(text: string): string | null {
