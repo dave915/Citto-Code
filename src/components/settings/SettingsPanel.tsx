@@ -75,27 +75,27 @@ export function SettingsPanel({
     <div className="flex h-full bg-claude-bg">
       {/* Left sidebar */}
       <aside className="flex w-52 shrink-0 flex-col border-r border-claude-border bg-claude-sidebar">
-        {/* macOS traffic-light spacer */}
-        <div className="draggable-region pt-8" />
+        {/* macOS traffic-light spacer — same height as Sidebar */}
+        <div className="draggable-region pt-10" />
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2 px-4 pb-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-claude-text">{t('settings.title')}</p>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-claude-muted">작업 환경과 연결을 조정합니다</p>
-          </div>
-          <AppButton
+        {/* Title row */}
+        <div className="flex items-center justify-between px-4 pb-1">
+          <p className="text-sm font-semibold text-claude-text">{t('settings.title')}</p>
+          <button
             onClick={onClose}
-            size="icon"
-            tone="ghost"
-            className="shrink-0"
+            className="rounded-md p-1 text-claude-muted/60 transition-colors hover:text-claude-text"
             title={t('settings.close')}
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </AppButton>
+          </button>
         </div>
+
+        {/* Subtitle */}
+        <p className="px-4 pb-3 text-[11px] leading-relaxed text-claude-muted/70">
+          작업 환경과 연결을 조정합니다
+        </p>
 
         {/* Active section + column labels */}
         <div className="border-t border-claude-border/40 px-4 py-2.5">
