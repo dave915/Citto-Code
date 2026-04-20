@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 import { createPortal } from 'react-dom'
 import { useI18n } from '../../hooks/useI18n'
 import type { HtmlPreviewElementCapture, HtmlPreviewElementSelection } from '../../lib/toolcalls/types'
+import { appFieldClassName } from '../ui/appDesignSystem'
 import { getFileName } from './htmlPreviewDocument'
 import { type HtmlPreviewNavigationMode, useHtmlPreviewController } from './useHtmlPreviewController'
 
@@ -310,7 +311,7 @@ export function HtmlPreview({
   )
 
   const renderFrame = (fullscreen: boolean) => (
-    <div className={`flex h-full min-h-0 min-w-0 flex-1 flex-col ${fullscreen ? 'bg-claude-panel' : 'overflow-hidden rounded-2xl border border-claude-border bg-claude-panel'}`}>
+    <div className={`flex h-full min-h-0 min-w-0 flex-1 flex-col ${fullscreen ? 'bg-claude-panel' : 'overflow-hidden rounded-lg border border-claude-border bg-claude-panel'}`}>
       <div className="flex h-10 items-center gap-1.5 border-b border-claude-border bg-claude-panel px-3">
         <PreviewIconButton
           title={canGoBack ? t('toolcall.htmlPreview.back') : t('toolcall.htmlPreview.backUnavailable')}
@@ -345,7 +346,7 @@ export function HtmlPreview({
               aria-label={t('toolcall.htmlPreview.sourceSelector')}
               value={activeSourceId ?? sourceOptions[0]?.id ?? ''}
               onChange={(event) => onSourceChange?.(event.target.value)}
-              className="h-8 w-full appearance-none rounded-xl border border-claude-border bg-claude-bg pl-3 pr-8 text-[11px] text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+              className={`${appFieldClassName} h-8 appearance-none bg-claude-bg pl-3 pr-8 text-[11px]`}
             >
               {sourceOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -367,10 +368,10 @@ export function HtmlPreview({
             onBlur={handleAddressSubmit}
             placeholder={addressPlaceholder}
             title={t('toolcall.htmlPreview.urlInputHint')}
-            className="min-w-0 flex-1 rounded-xl border border-claude-border bg-claude-bg px-3 py-1.5 text-[11px] text-claude-text outline-none transition-colors placeholder:text-claude-muted/70 focus:border-claude-border focus:ring-1 focus:ring-white/10"
+            className={`${appFieldClassName} min-w-0 flex-1 bg-claude-bg px-3 py-1.5 text-[11px]`}
           />
         ) : (
-          <div className="min-w-0 flex-1 rounded-xl border border-claude-border bg-claude-bg px-3 py-1.5">
+          <div className="min-w-0 flex-1 rounded-lg border border-claude-border bg-claude-bg px-3 py-1.5">
             <div className="truncate text-[11px] text-claude-muted">{addressLabel}</div>
           </div>
         )}
@@ -418,7 +419,7 @@ export function HtmlPreview({
             }}
           >
             <div className="flex flex-col items-center gap-4 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-claude-muted">
+              <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-claude-border bg-claude-surface text-claude-muted">
                 <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
                   <rect x="3.5" y="5" width="17" height="11" rx="2.5" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 19h6" />

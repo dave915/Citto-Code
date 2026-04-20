@@ -49,10 +49,10 @@ function SidebarActionButton({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-xl px-3 py-1.5 text-[13px] font-medium outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px] font-medium outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
         active
-          ? 'bg-claude-surface text-claude-text'
-          : 'bg-transparent text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
+          ? 'border-claude-border bg-claude-surface text-claude-text'
+          : 'border-transparent bg-transparent text-claude-text hover:border-claude-border/60 hover:bg-claude-sidebar-hover hover:text-claude-text'
       }`}
       title={title ?? label}
     >
@@ -198,7 +198,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="flex h-full w-full flex-shrink-0 select-none flex-col border-r border-white/5 bg-claude-sidebar">
+    <aside className="flex h-full w-full flex-shrink-0 select-none flex-col border-r border-claude-border bg-claude-sidebar">
       <div className="pt-10 pb-1 draggable-region" />
 
       <div className="mb-1.5 flex flex-col gap-0.5 px-2.5">

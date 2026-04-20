@@ -61,7 +61,7 @@ export function AgentStatusBar({ session, onDrillDown }: Props) {
 
   return (
     <>
-      <div className="mb-2 rounded-xl border border-claude-border/75 bg-claude-panel/40 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.015)]">
+      <div className="mb-2 rounded-lg border border-claude-border/75 bg-claude-panel/40 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.015)]">
         <div
           role="button"
           tabIndex={0}

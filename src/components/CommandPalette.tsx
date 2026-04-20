@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '../hooks/useI18n'
 import { searchSessionMessages, searchSessions, type Session } from '../store/sessions'
+import { AppChip, AppPanel } from './ui/appDesignSystem'
 
 type CommandPaletteItem =
   | { id: string; kind: 'action'; label: string; description: string; onSelect: () => void }
@@ -146,7 +147,7 @@ export function CommandPalette({
         className="absolute inset-0 cursor-default"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[16px] border border-claude-border bg-claude-panel shadow-2xl">
+      <AppPanel className="relative z-10 w-full max-w-2xl overflow-hidden rounded-lg p-0 shadow-2xl">
         <div className="border-b border-claude-border bg-claude-surface px-4 py-3">
           <input
             ref={inputRef}
@@ -193,7 +194,7 @@ export function CommandPalette({
                     active ? 'bg-claude-surface-2' : 'hover:bg-claude-surface'
                   }`}
                 >
-                  <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl border border-claude-border bg-claude-surface text-claude-text">
+                  <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-claude-border bg-claude-surface text-claude-text">
                     {item.kind === 'action' ? (
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
@@ -213,13 +214,9 @@ export function CommandPalette({
                     <div className="flex items-center gap-2">
                       <div className="truncate text-sm font-medium text-claude-text">{item.label}</div>
                       {item.kind === 'message' && (
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          item.role === 'user'
-                            ? 'bg-sky-500/10 text-sky-200'
-                            : 'bg-emerald-500/10 text-emerald-200'
-                        }`}>
+                        <AppChip tone={item.role === 'user' ? 'neutral' : 'success'} className="px-2 py-0.5 text-[10px]">
                           {item.role === 'user' ? t('commandPalette.userBadge') : t('commandPalette.aiBadge')}
-                        </span>
+                        </AppChip>
                       )}
                     </div>
                     <div className="truncate text-xs text-claude-muted">{item.description}</div>
@@ -233,7 +230,7 @@ export function CommandPalette({
             </div>
           )}
         </div>
-      </div>
+      </AppPanel>
     </div>
   )
 }

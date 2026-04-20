@@ -40,7 +40,7 @@ export function OpenWithAppIcon({
   }
 
   return (
-    <span className={`flex items-center justify-center rounded-xl bg-claude-surface text-claude-muted ${className}`}>
+    <span className={`flex items-center justify-center rounded-lg bg-claude-surface text-claude-muted ${className}`}>
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h9v9" />

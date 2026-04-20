@@ -54,7 +54,7 @@ export function OpenWithMenu({
       </div>
 
       {openWithMenuOpen && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-3xl border border-claude-border bg-claude-panel p-2">
+        <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-lg border border-claude-border bg-claude-panel p-2 shadow-2xl">
           <p className="px-3 pb-2 pt-1 text-xs font-semibold text-claude-muted">{t('openWith.menuTitle')}</p>
           {openWithLoading ? (
             <div className="flex items-center justify-center px-3 py-8 text-claude-muted">
@@ -70,7 +70,7 @@ export function OpenWithMenu({
                 <button
                   key={app.id}
                   onClick={() => void onOpenWith(app.id)}
-                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-surface"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-surface"
                 >
                   <OpenWithAppIcon app={app} className="h-8 w-8" />
                   <span className="flex-1">{app.label}</span>

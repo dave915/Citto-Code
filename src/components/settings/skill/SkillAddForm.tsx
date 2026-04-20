@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
+import { AppButton, appFieldClassName } from '../../ui/appDesignSystem'
 
 type Props = {
   open: boolean
@@ -26,7 +27,7 @@ export function SkillAddForm({
   if (!open) return null
 
   return (
-    <div className="mb-3 space-y-2 rounded-xl border border-claude-border bg-claude-surface p-3">
+    <div className="mb-3 space-y-2 rounded-lg border border-claude-border bg-claude-bg/70 p-3">
       <p className="text-xs font-semibold text-claude-text">{t('settings.skill.addNew')}</p>
       <p className="text-xs text-claude-muted">{t('settings.skill.addNewDescription')}</p>
       <input
@@ -35,23 +36,22 @@ export function SkillAddForm({
         onChange={(event) => onNameChange(event.target.value)}
         onKeyDown={(event) => event.key === 'Enter' && void onCreate()}
         placeholder={t('settings.skill.namePlaceholder')}
-        className="w-full rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono focus:border-claude-border focus:outline-none focus:ring-1 focus:ring-white/10"
+        className={`${appFieldClassName} font-mono text-xs`}
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex gap-2">
-        <button
+        <AppButton
           onClick={() => void onCreate()}
           disabled={creating}
-          className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a] disabled:opacity-50"
         >
           {creating ? t('common.creating') : t('common.create')}
-        </button>
-        <button
+        </AppButton>
+        <AppButton
           onClick={onCancel}
-          className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
+          tone="ghost"
         >
           {t('common.cancel')}
-        </button>
+        </AppButton>
       </div>
     </div>
   )

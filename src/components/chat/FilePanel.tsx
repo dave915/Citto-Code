@@ -61,7 +61,7 @@ export function FilePanel({
       )}
 
       <div
-        className={`min-w-0 overflow-y-auto px-2 py-3 ${showPreviewPane ? 'border-l border-claude-border bg-claude-panel' : 'flex-1 bg-claude-panel'}`}
+        className={`min-w-0 overflow-y-auto px-2 py-3 ${showPreviewPane ? 'border-l border-claude-border bg-claude-panel/65' : 'flex-1 bg-claude-panel/65'}`}
         style={showPreviewPane ? { width: `${explorerWidth}px` } : undefined}
       >
         {loadingPaths.__root__ ? (

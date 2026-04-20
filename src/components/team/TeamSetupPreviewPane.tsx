@@ -2,6 +2,7 @@ import type { ModelInfo } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import { normalizeConfiguredModelSelection } from '../../lib/modelSelection'
 import { AgentPixelIcon } from './AgentPixelIcon'
+import { TeamButton, TeamChip, TeamEyebrow, TeamPanel, teamFieldClassName } from './teamDesignSystem'
 import {
   localizeTeamSetupSelectedAgent,
   type TeamSetupSelectedAgent,
@@ -27,8 +28,8 @@ function SelectedAgentBadge({
   )
 
   return (
-    <div
-      className="space-y-2 rounded-lg border border-claude-border bg-claude-bg px-2 py-2"
+    <TeamPanel
+      className="space-y-2 bg-claude-bg px-2 py-2 shadow-none"
       style={{ borderColor: `${agent.color}66` }}
     >
       <div className="flex items-center gap-2">
@@ -36,15 +37,11 @@ function SelectedAgentBadge({
           <AgentPixelIcon type={agent.iconType} size={24} color={agent.color} />
           <span className="truncate text-sm text-claude-text">{agent.name}</span>
         </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="ml-1 rounded p-0.5 text-claude-text-muted hover:text-red-400"
-        >
+        <TeamButton onClick={onRemove} size="icon" tone="ghost" className="ml-1 h-6 w-6">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-        </button>
+        </TeamButton>
       </div>
 
       <label className="block">
@@ -52,7 +49,7 @@ function SelectedAgentBadge({
         <select
           value={normalizedSelectedModel ?? ''}
           onChange={(event) => onModelChange(event.target.value || null)}
-          className="h-9 w-full rounded-lg border border-claude-border bg-claude-panel px-2.5 text-xs text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+          className={`${teamFieldClassName} h-9 bg-claude-surface px-2.5 text-xs`}
         >
           <option value="">{t('input.modelPicker.defaultModel')}</option>
           {selectedModelMissing ? <option value={normalizedSelectedModel ?? ''}>{normalizedSelectedModel}</option> : null}
@@ -68,7 +65,7 @@ function SelectedAgentBadge({
               : t('input.modelPicker.ollamaHint')}
         </p>
       </label>
-    </div>
+    </TeamPanel>
   )
 }
 
@@ -107,7 +104,7 @@ export function TeamSetupPreviewPane({
             {t('team.setup.field.teamName')}
           </label>
           <input
-            className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text focus:border-blue-500 focus:outline-none"
+            className={teamFieldClassName}
             value={teamName}
             onChange={(event) => onTeamNameChange(event.target.value)}
           />
@@ -115,17 +112,15 @@ export function TeamSetupPreviewPane({
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-claude-text">
+            <TeamEyebrow className="text-claude-text">
               {t('team.setup.selectedAgents')}
-            </p>
-            <span className="text-xs text-claude-text/80">
-              {selectedCountLabel}
-            </span>
+            </TeamEyebrow>
+            <TeamChip>{selectedCountLabel}</TeamChip>
           </div>
 
           {selectedAgents.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-claude-border p-6 text-center">
-              <p className="text-sm text-claude-text/80">
+            <div className="rounded-lg border border-dashed border-claude-border p-6 text-center">
+              <p className="text-sm text-claude-muted">
                 {t('team.setup.selectFromLeft')}
               </p>
             </div>
@@ -146,18 +141,18 @@ export function TeamSetupPreviewPane({
         </div>
 
         {selectedAgents.length >= 2 && (
-          <div className="rounded-xl border border-claude-border bg-claude-surface/55 p-3">
-            <p className="mb-2 text-xs font-medium text-claude-text">{t('team.setup.discussionOrder')}</p>
+          <TeamPanel className="bg-claude-surface/55 p-3 shadow-none">
+            <TeamEyebrow className="mb-2 text-claude-text">{t('team.setup.discussionOrder')}</TeamEyebrow>
             <div className="space-y-1">
               {selectedAgents.map((agent, index) => {
                 const localizedAgent = localizeTeamSetupSelectedAgent(agent, language)
                 return (
                   <div key={agent.id} className="flex items-center gap-2">
-                    <span className="w-4 text-xs text-claude-text/80">{index + 1}.</span>
+                    <span className="w-4 text-xs text-claude-muted">{index + 1}.</span>
                     <AgentPixelIcon type={agent.iconType} size={20} color={agent.color} />
                     <span className="text-xs text-claude-text">{localizedAgent.name}</span>
                     {index > 0 && (
-                      <span className="text-xs text-claude-text/80">
+                      <span className="text-xs text-claude-muted">
                         {t('team.setup.discussionOrderReference', { count: index })}
                       </span>
                     )}
@@ -165,26 +160,22 @@ export function TeamSetupPreviewPane({
                 )
               })}
             </div>
-          </div>
+          </TeamPanel>
         )}
       </div>
 
       <div className="space-y-2 border-t border-claude-border p-4">
-        <button
-          type="button"
+        <TeamButton
           onClick={onConfirm}
           disabled={selectedAgents.length < 2}
-          className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+          tone="accent"
+          className="w-full"
         >
           {t('team.setup.startTeam')}
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full rounded-xl py-2 text-sm text-claude-text transition-colors hover:bg-claude-surface/35"
-        >
+        </TeamButton>
+        <TeamButton onClick={onClose} tone="ghost" className="w-full">
           {t('common.cancel')}
-        </button>
+        </TeamButton>
       </div>
     </div>
   )

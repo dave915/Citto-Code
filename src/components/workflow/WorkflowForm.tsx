@@ -15,6 +15,7 @@ import {
   workflowToInput,
 } from './editorShared'
 import { getConditionOperatorLabel, getStepDisplayLabel } from './utils'
+import { AppButton, AppSwitch, appFieldClassName, cx } from '../ui/appDesignSystem'
 
 type Props = {
   initialWorkflow?: Workflow | null
@@ -143,21 +144,20 @@ export function WorkflowForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-white/10 bg-claude-bg shadow-2xl">
-      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+    <form
+      onSubmit={handleSubmit}
+      className="overflow-hidden rounded-lg border border-claude-border bg-claude-panel/90 shadow-[0_16px_36px_rgba(0,0,0,0.18)]"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-claude-border px-5 py-4">
         <div>
           <h2 className="text-lg font-semibold text-claude-text">
             {initialWorkflow ? t('workflow.form.editTitle') : t('workflow.form.addTitle')}
           </h2>
           <p className="mt-1 text-sm text-claude-muted">{t('workflow.form.description')}</p>
         </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-sm text-claude-text transition-colors hover:bg-claude-sidebar-hover"
-        >
+        <AppButton onClick={onCancel} tone="ghost">
           {t('workflow.form.cancel')}
-        </button>
+        </AppButton>
       </div>
 
       <div className="max-h-[85vh] space-y-6 overflow-y-auto px-5 py-5">
@@ -168,7 +168,7 @@ export function WorkflowForm({
               value={draft.name}
               onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
               placeholder={t('workflow.form.namePlaceholder')}
-              className="h-10 w-full rounded-lg border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+              className={`${appFieldClassName} h-10 bg-claude-bg`}
             />
           </label>
 
@@ -226,18 +226,27 @@ export function WorkflowForm({
 
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-claude-text">{t('workflow.form.active')}</span>
-                <button
-                  type="button"
-                  onClick={() => setDraft((current) => ({ ...current, active: !current.active }))}
-                  className={`flex h-10 w-full items-center justify-between rounded-lg border px-3 text-sm transition-colors ${
+                <div
+                  className={cx(
+                    'flex min-h-[44px] items-center justify-between gap-3 rounded-lg border px-3 py-2',
                     draft.active
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
-                      : 'border-claude-border bg-claude-panel text-claude-text'
-                  }`}
+                      ? 'border-emerald-500/24 bg-emerald-500/10'
+                      : 'border-claude-border bg-claude-bg',
+                  )}
                 >
-                  <span>{draft.active ? t('workflow.details.active') : t('workflow.details.inactive')}</span>
-                  <span className="text-xs text-claude-muted">{t('workflow.form.activeDescription')}</span>
-                </button>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-claude-text">
+                      {draft.active ? t('workflow.details.active') : t('workflow.details.inactive')}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-claude-muted">
+                      {t('workflow.form.activeDescription')}
+                    </div>
+                  </div>
+                  <AppSwitch
+                    checked={draft.active}
+                    onClick={() => setDraft((current) => ({ ...current, active: !current.active }))}
+                  />
+                </div>
               </label>
 
               {draft.trigger.frequency !== 'hourly' ? (
@@ -262,7 +271,7 @@ export function WorkflowForm({
                           : current
                       ))
                     }}
-                    className="h-10 w-full rounded-lg border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                    className={`${appFieldClassName} h-10 bg-claude-bg`}
                   />
                 </label>
               ) : null}
@@ -288,7 +297,7 @@ export function WorkflowForm({
                         : current
                     ))
                   }}
-                  className="h-10 w-full rounded-lg border border-claude-border bg-claude-panel px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                  className={`${appFieldClassName} h-10 bg-claude-bg`}
                 />
               </label>
 
@@ -334,72 +343,58 @@ export function WorkflowForm({
               <p className="mt-1 text-sm text-claude-muted">{t('workflow.form.stepsDescription')}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => addStep('agent')}
-                className="rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-sm text-claude-text transition-colors hover:bg-claude-sidebar-hover"
-              >
+              <AppButton onClick={() => addStep('agent')}>
                 {t('workflow.form.addAgent')}
-              </button>
-              <button
-                type="button"
-                onClick={() => addStep('condition')}
-                className="rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-sm text-claude-text transition-colors hover:bg-claude-sidebar-hover"
-              >
+              </AppButton>
+              <AppButton onClick={() => addStep('condition')}>
                 {t('workflow.form.addCondition')}
-              </button>
-              <button
-                type="button"
-                onClick={() => addStep('loop')}
-                className="rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-sm text-claude-text transition-colors hover:bg-claude-sidebar-hover"
-              >
+              </AppButton>
+              <AppButton onClick={() => addStep('loop')}>
                 {t('workflow.form.addLoop')}
-              </button>
+              </AppButton>
             </div>
           </div>
 
           {draft.steps.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed border-claude-border bg-claude-panel/40 px-4 py-6 text-sm text-claude-muted">
+            <div className="mt-4 rounded-lg border border-dashed border-claude-border bg-claude-surface/35 px-4 py-6 text-sm text-claude-muted">
               {t('workflow.form.noSteps')}
             </div>
           ) : (
             <div className="mt-4 space-y-4">
               {draft.steps.map((step, index) => (
-                <div key={step.id} className="rounded-lg border border-white/8 bg-claude-panel/50 px-4 py-4">
+                <div key={step.id} className="rounded-lg border border-claude-border bg-claude-surface/55 px-4 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-claude-text">{getStepDisplayLabel(step, index, language)}</p>
                       <p className="mt-1 text-xs text-claude-muted">{step.id}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
+                      <AppButton
                         onClick={() => moveStep(index, -1)}
                         disabled={index === 0}
-                        className="rounded-lg border border-claude-border bg-claude-bg px-3 py-1.5 text-xs text-claude-text transition-colors hover:bg-claude-sidebar-hover disabled:cursor-not-allowed disabled:opacity-40"
+                        className="h-7 px-2.5 text-[11px]"
                       >
                         {t('workflow.form.moveUp')}
-                      </button>
-                      <button
-                        type="button"
+                      </AppButton>
+                      <AppButton
                         onClick={() => moveStep(index, 1)}
                         disabled={index === draft.steps.length - 1}
-                        className="rounded-lg border border-claude-border bg-claude-bg px-3 py-1.5 text-xs text-claude-text transition-colors hover:bg-claude-sidebar-hover disabled:cursor-not-allowed disabled:opacity-40"
+                        className="h-7 px-2.5 text-[11px]"
                       >
                         {t('workflow.form.moveDown')}
-                      </button>
-                      <button
-                        type="button"
+                      </AppButton>
+                      <AppButton
                         onClick={() => {
                           setDraft((current) => ({
                             ...current,
                             steps: current.steps.filter((_, stepIndex) => stepIndex !== index),
                           }))
                         }}
-                        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-100 transition-colors hover:bg-red-500/20"
+                        tone="danger"
+                        className="h-7 px-2.5 text-[11px]"
                       >
                         {t('workflow.form.removeStep')}
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
 
@@ -409,7 +404,7 @@ export function WorkflowForm({
                       <input
                         value={step.label}
                         onChange={(event) => updateStep(index, (current) => ({ ...current, label: event.target.value }))}
-                        className="h-10 w-full rounded-lg border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                        className={`${appFieldClassName} h-10 bg-claude-bg`}
                       />
                     </label>
 
@@ -435,7 +430,7 @@ export function WorkflowForm({
                           <input
                             value={step.cwd}
                             onChange={(event) => updateStep(index, (current) => current.type === 'agent' ? { ...current, cwd: event.target.value } : current)}
-                            className="h-10 w-full rounded-lg border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                            className={`${appFieldClassName} h-10 bg-claude-bg`}
                           />
                         </label>
 
@@ -445,7 +440,7 @@ export function WorkflowForm({
                             value={step.model ?? ''}
                             onChange={(event) => updateStep(index, (current) => current.type === 'agent' ? { ...current, model: event.target.value } : current)}
                             placeholder={t('workflow.form.modelPlaceholder')}
-                            className="h-10 w-full rounded-lg border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                            className={`${appFieldClassName} h-10 bg-claude-bg`}
                           />
                         </label>
 
@@ -472,7 +467,7 @@ export function WorkflowForm({
                             value={step.systemPrompt}
                             onChange={(event) => updateStep(index, (current) => current.type === 'agent' ? { ...current, systemPrompt: event.target.value } : current)}
                             rows={3}
-                            className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                            className={`${appFieldClassName} min-h-[88px] resize-y bg-claude-bg`}
                           />
                         </label>
 
@@ -482,7 +477,7 @@ export function WorkflowForm({
                             value={step.prompt}
                             onChange={(event) => updateStep(index, (current) => current.type === 'agent' ? { ...current, prompt: event.target.value } : current)}
                             rows={5}
-                            className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                            className={`${appFieldClassName} min-h-[132px] resize-y bg-claude-bg`}
                           />
                         </label>
                       </>
@@ -515,7 +510,7 @@ export function WorkflowForm({
                             value={step.value}
                             disabled={step.operator === 'always_true'}
                             onChange={(event) => updateStep(index, (current) => current.type === 'condition' ? { ...current, value: event.target.value } : current)}
-                            className="h-10 w-full rounded-lg border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            className={`${appFieldClassName} h-10 bg-claude-bg disabled:cursor-not-allowed disabled:opacity-50`}
                           />
                         </label>
 
@@ -576,7 +571,7 @@ export function WorkflowForm({
                                   maxIterations: Number(event.target.value) || 1,
                                 }
                               : current)}
-                            className="h-10 w-full rounded-lg border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                            className={`${appFieldClassName} h-10 bg-claude-bg`}
                           />
                         </label>
 
@@ -591,7 +586,15 @@ export function WorkflowForm({
                               {agentStepOptions.map((option) => {
                                 const checked = step.bodyStepIds.includes(option.id)
                                 return (
-                                  <label key={option.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${checked ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-claude-border bg-claude-bg text-claude-text'}`}>
+                                  <label
+                                    key={option.id}
+                                    className={cx(
+                                      'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+                                      checked
+                                        ? 'border-claude-orange/32 bg-claude-orange/10 text-claude-text'
+                                        : 'border-claude-border bg-claude-bg text-claude-text',
+                                    )}
+                                  >
                                     <input
                                       type="checkbox"
                                       checked={checked}
@@ -616,20 +619,22 @@ export function WorkflowForm({
                         <div className="block md:col-span-2">
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-sm font-medium text-claude-text">{t('workflow.form.breakCondition')}</span>
-                            <button
-                              type="button"
-                              onClick={() => updateStep(index, (current) => current.type === 'loop'
-                                ? {
-                                    ...current,
-                                    breakCondition: current.breakCondition
-                                      ? null
-                                      : { operator: 'contains', value: '' },
-                                  }
-                                : current)}
-                              className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${step.breakCondition ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-claude-border bg-claude-bg text-claude-text'}`}
-                            >
-                              {step.breakCondition ? t('workflow.form.enabled') : t('workflow.form.disabled')}
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[11px] text-claude-muted">
+                                {step.breakCondition ? t('workflow.form.enabled') : t('workflow.form.disabled')}
+                              </span>
+                              <AppSwitch
+                                checked={Boolean(step.breakCondition)}
+                                onClick={() => updateStep(index, (current) => current.type === 'loop'
+                                  ? {
+                                      ...current,
+                                      breakCondition: current.breakCondition
+                                        ? null
+                                        : { operator: 'contains', value: '' },
+                                    }
+                                  : current)}
+                              />
+                            </div>
                           </div>
 
                           {step.breakCondition ? (
@@ -669,7 +674,7 @@ export function WorkflowForm({
                                         },
                                       }
                                     : current)}
-                                  className="h-10 w-full rounded-lg border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none transition-colors focus:border-white/15 focus:ring-1 focus:ring-white/10"
+                                  className={`${appFieldClassName} h-10 bg-claude-bg`}
                                 />
                               </label>
                             </div>
@@ -691,20 +696,13 @@ export function WorkflowForm({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-end gap-3 border-t border-white/5 px-5 py-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg border border-claude-border bg-claude-panel px-4 py-2 text-sm text-claude-text transition-colors hover:bg-claude-sidebar-hover"
-        >
+      <div className="flex items-center justify-end gap-3 border-t border-claude-border px-5 py-4">
+        <AppButton onClick={onCancel}>
           {t('workflow.form.cancel')}
-        </button>
-        <button
-          type="submit"
-          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20"
-        >
+        </AppButton>
+        <AppButton type="submit" tone="success">
           {initialWorkflow ? t('workflow.form.save') : t('workflow.form.create')}
-        </button>
+        </AppButton>
       </div>
     </form>
   )

@@ -1,5 +1,7 @@
 import type { NotificationMode } from '../../../store/sessions'
 import { useI18n } from '../../../hooks/useI18n'
+import { cx } from '../../ui/appDesignSystem'
+import { SettingsSection } from '../shared'
 
 type Props = {
   notificationMode: NotificationMode
@@ -27,13 +29,11 @@ export function NotificationSection({ notificationMode, onChange }: Props) {
   ]
 
   return (
-    <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-      <p className="text-sm font-semibold text-claude-text">{t('settings.general.notifications.title')}</p>
-      <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-        {t('settings.general.notifications.description')}
-      </p>
-
-      <div className="mt-4 grid gap-2">
+    <SettingsSection
+      title={t('settings.general.notifications.title')}
+      description={t('settings.general.notifications.description')}
+    >
+      <div className="grid gap-2">
         {options.map((option) => {
           const active = notificationMode === option.value
           return (
@@ -41,11 +41,12 @@ export function NotificationSection({ notificationMode, onChange }: Props) {
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              className={`rounded-xl border p-3 text-left transition-colors ${
+              className={cx(
+                'rounded-lg border px-3 py-3 text-left transition-colors',
                 active
-                  ? 'border-[#6a6d75] bg-claude-panel'
-                  : 'border-claude-border bg-claude-panel hover:bg-claude-bg'
-              }`}
+                  ? 'border-claude-orange/30 bg-claude-bg'
+                  : 'border-claude-border bg-claude-panel/65 hover:bg-claude-bg',
+              )}
             >
               <div className="text-sm font-medium text-claude-text">{option.title}</div>
               <div className="mt-1 text-xs leading-relaxed text-claude-muted">{option.desc}</div>
@@ -53,6 +54,6 @@ export function NotificationSection({ notificationMode, onChange }: Props) {
           )
         })}
       </div>
-    </div>
+    </SettingsSection>
   )
 }

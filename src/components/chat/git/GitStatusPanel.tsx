@@ -87,7 +87,7 @@ export function GitStatusPanel({
           <button
             type="button"
             onClick={() => setFilterOpen((open) => !open)}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-2xl px-2.5 text-[12px] font-medium text-claude-text transition-colors ${
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium text-claude-text transition-colors ${
               filterOpen ? 'bg-claude-surface hover:bg-claude-surface-2' : 'bg-transparent hover:bg-claude-surface/60'
             }`}
           >
@@ -101,7 +101,7 @@ export function GitStatusPanel({
           </button>
 
           {filterOpen && (
-            <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-[10px] border border-claude-border bg-claude-panel p-1.5">
+            <div className="absolute left-0 top-full z-10 mt-2 w-[238px] rounded-lg border border-claude-border bg-claude-panel p-1.5 shadow-2xl">
               {[
                 { key: 'unstaged' as const, label: t('git.statusPanel.filter.unstaged'), count: unstagedEntries.length },
                 { key: 'staged' as const, label: t('git.statusPanel.filter.staged'), count: stagedEntries.length },
@@ -117,7 +117,7 @@ export function GitStatusPanel({
                       setFilter(option.key)
                       setFilterOpen(false)
                     }}
-                    className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left transition-colors ${
+                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors ${
                       active ? 'bg-claude-surface text-claude-text' : 'text-claude-text hover:bg-claude-surface'
                     }`}
                   >
@@ -194,7 +194,7 @@ export function GitStatusPanel({
       )}
 
       {!loading && status.clean && (
-        <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
+        <div className="rounded-lg border border-claude-border bg-claude-panel/65 px-4 py-8 text-center text-sm text-claude-muted">
           {t('git.statusPanel.clean')}
         </div>
       )}
@@ -202,7 +202,7 @@ export function GitStatusPanel({
       {!loading && !status.clean && (
         <div className="space-y-1">
           {filteredEntries.length === 0 && (
-            <div className="rounded-xl border border-claude-border bg-claude-surface px-3 py-6 text-center text-[12px] text-claude-muted">
+            <div className="rounded-lg border border-claude-border bg-claude-panel/65 px-3 py-6 text-center text-[12px] text-claude-muted">
               {t('git.statusPanel.noFiles')}
             </div>
           )}
@@ -221,7 +221,7 @@ export function GitStatusPanel({
                 <button
                   type="button"
                   onClick={() => void onSelectEntry(entry)}
-                  className={`w-full rounded-xl border px-2.5 py-2 pr-[142px] text-left transition-colors ${
+                  className={`w-full rounded-lg border px-2.5 py-2 pr-[142px] text-left transition-colors ${
                     isSelected
                       ? 'border-claude-border bg-claude-surface-2 text-claude-text'
                       : 'border-transparent bg-claude-panel text-claude-text hover:border-claude-border hover:bg-claude-surface'

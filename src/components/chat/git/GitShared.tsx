@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
 import { useI18n } from '../../../hooks/useI18n'
 import type { GitDraftAction } from '../../../lib/gitUtils'
+import { AppButton } from '../../ui/appDesignSystem'
 
 export function IconTooltipButton({
   tooltip,
@@ -56,33 +57,33 @@ export function GitDraftActions({
   const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
-      <button
-        type="button"
+      <AppButton
         onClick={() => onCreateDraft('review')}
         disabled={disabled}
-        className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+        tone="ghost"
+        className="h-7 px-2.5 text-[11px]"
       >
         {t('git.shared.review')}
-      </button>
+      </AppButton>
       {showSummary && (
-        <button
-          type="button"
+        <AppButton
           onClick={() => onCreateDraft('summary')}
           disabled={disabled}
-          className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+          tone="ghost"
+          className="h-7 px-2.5 text-[11px]"
         >
           {t('git.shared.summary')}
-        </button>
+        </AppButton>
       )}
       {showCommitMessage && (
-        <button
-          type="button"
+        <AppButton
           onClick={() => onCreateDraft('commitMessage')}
           disabled={disabled}
-          className="rounded-xl border border-claude-border px-2.5 py-1 text-[11px] text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+          tone="ghost"
+          className="h-7 px-2.5 text-[11px]"
         >
           {t('git.shared.commitMessage')}
-        </button>
+        </AppButton>
       )}
     </div>
   )

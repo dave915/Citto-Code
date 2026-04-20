@@ -2,6 +2,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useI18n } from '../../hooks/useI18n'
 import type { AgentMessage } from '../../store/teamTypes'
+import { TeamButton, TeamChip, TeamPanel } from './teamDesignSystem'
 import { TeamOverlayPortal, useCopyFeedback, useEscapeToClose } from './teamOverlayShared'
 import { StreamingCursor, ThinkingBubble } from './teamSelectedAgentShared'
 
@@ -33,37 +34,28 @@ export function TeamSelectedAgentMessagePopup({
       onClose={onClose}
       overlayClassName="z-[190]"
     >
-      <div className="relative z-10 flex max-h-[min(88vh,60rem)] w-[min(72rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-claude-border bg-claude-panel shadow-[0_26px_70px_rgba(0,0,0,0.34)]">
+      <TeamPanel className="relative z-10 flex max-h-[min(88vh,60rem)] w-[min(72rem,calc(100vw-2rem))] flex-col overflow-hidden shadow-[0_26px_70px_rgba(0,0,0,0.34)]">
         <div className="flex items-start justify-between gap-4 border-b border-claude-border/70 px-5 py-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
               <h3 className="truncate text-base font-semibold text-claude-text">{agentName}</h3>
-              <span className="rounded-full border border-claude-border/70 px-2 py-0.5 text-[11px] text-claude-text-muted">
+              <TeamChip>
                 {t('team.roundWithNumber', { round: roundIndex + 1 })}
-              </span>
+              </TeamChip>
             </div>
-            <p className="mt-1 text-xs text-claude-text-muted">{t('team.message.popupDescription')}</p>
+            <p className="mt-1 text-xs text-claude-muted">{t('team.message.popupDescription')}</p>
           </div>
 
           <div className="flex items-center gap-2">
             {message.text.trim() ? (
-              <button
-                type="button"
-                onClick={copy}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-claude-border/70 bg-claude-surface px-3 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
-                aria-label={copyLabel}
-              >
+              <TeamButton onClick={copy} tone="secondary" aria-label={copyLabel}>
                 {copyLabel}
-              </button>
+              </TeamButton>
             ) : null}
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-9 items-center rounded-lg border border-claude-border/70 bg-claude-surface px-3 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
-            >
+            <TeamButton onClick={onClose} tone="ghost">
               {t('common.close')}
-            </button>
+            </TeamButton>
           </div>
         </div>
 
@@ -71,8 +63,8 @@ export function TeamSelectedAgentMessagePopup({
           {message.thinking ? <ThinkingBubble text={message.thinking} /> : null}
 
           <div
-            className="rounded-[20px] border px-5 py-4 text-[15px] leading-8 text-claude-text"
-            style={{ borderColor: `${color}44`, backgroundColor: `${color}12` }}
+            className="rounded-lg border border-claude-border bg-claude-bg/70 px-5 py-4 text-[15px] leading-8 text-claude-text"
+            style={{ boxShadow: `inset 2px 0 0 ${color}99` }}
           >
             {message.text.trim() ? (
               <div className="overflow-x-auto">
@@ -81,12 +73,12 @@ export function TeamSelectedAgentMessagePopup({
                 </div>
               </div>
             ) : (
-              <span className="text-sm text-claude-text-muted">{t('team.message.generating')}</span>
+              <span className="text-sm text-claude-muted">{t('team.message.generating')}</span>
             )}
             {message.isStreaming && <StreamingCursor />}
           </div>
         </div>
-      </div>
+      </TeamPanel>
     </TeamOverlayPortal>
   )
 }

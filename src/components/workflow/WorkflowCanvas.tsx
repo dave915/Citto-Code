@@ -8,6 +8,7 @@ import type {
   WorkflowNodePosition,
   WorkflowStep,
 } from '../../store/workflowTypes'
+import { AppButton, AppPanel } from '../ui/appDesignSystem'
 import {
   getConditionOperatorLabel,
   getStepDisplayLabel,
@@ -278,19 +279,15 @@ function CanvasActionButton({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
+    <AppButton
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-10 items-center gap-1.5 rounded-md border px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-        primary
-          ? 'border-claude-orange/40 bg-claude-orange/20 text-claude-text hover:bg-claude-orange/25'
-          : 'border-claude-border bg-claude-surface text-claude-text hover:bg-claude-surface-2'
-      }`}
+      tone={primary ? 'accent' : 'secondary'}
+      className="h-10 px-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur"
     >
       {children}
       <span>{label}</span>
-    </button>
+    </AppButton>
   )
 }
 
@@ -886,7 +883,7 @@ export function WorkflowCanvas({
           </CanvasActionButton>
 
           {showStepMenu ? (
-            <div className="absolute bottom-[calc(100%+10px)] left-0 w-44 rounded-md border border-claude-border bg-claude-panel p-1 shadow-xl">
+            <AppPanel className="absolute bottom-[calc(100%+10px)] left-0 w-44 rounded-md p-1 shadow-xl">
               <button
                 type="button"
                 onClick={() => appendNewStep('agent')}
@@ -911,7 +908,7 @@ export function WorkflowCanvas({
                 <StepTypeIcon step={{ type: 'loop', id: '', label: '', maxIterations: 3, bodyStepIds: [], breakCondition: null }} />
                 {t('workflow.canvas.addLoop')}
               </button>
-            </div>
+            </AppPanel>
           ) : null}
         </div>
 

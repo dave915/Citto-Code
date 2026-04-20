@@ -97,7 +97,7 @@ export function HtmlPreviewPanel({
 
   if (!activeSource || !shouldShowHtmlPreview || !htmlPreviewCandidate) {
     return (
-      <div className="flex h-full items-center justify-center rounded-2xl border border-claude-border bg-claude-bg px-6 text-center text-claude-muted">
+      <div className="flex h-full items-center justify-center rounded-lg border border-claude-border bg-claude-bg px-6 text-center text-claude-muted">
         <p className="text-sm">{t('chat.preview.selectHtmlPreview')}</p>
       </div>
     )
@@ -142,7 +142,7 @@ export function HtmlPreviewPanel({
 
   if (htmlPreviewLoading) {
     return (
-      <div className="flex h-full items-center justify-center rounded-2xl border border-claude-border bg-claude-bg text-claude-muted">
+      <div className="flex h-full items-center justify-center rounded-lg border border-claude-border bg-claude-bg text-claude-muted">
         <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
         </svg>
@@ -151,7 +151,7 @@ export function HtmlPreviewPanel({
   }
 
   return (
-    <div className="flex h-full items-center justify-center rounded-2xl border border-claude-border bg-claude-bg px-6 text-center text-claude-muted">
+    <div className="flex h-full items-center justify-center rounded-lg border border-claude-border bg-claude-bg px-6 text-center text-claude-muted">
       <p className="text-sm">{t('chat.preview.selectHtmlPreview')}</p>
     </div>
   )

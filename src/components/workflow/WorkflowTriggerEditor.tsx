@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { Workflow, WorkflowTriggerFrequency } from '../../store/workflowTypes'
 import { ScheduledTaskSelect } from '../scheduledTaskForm/ScheduledTaskSelect'
+import { AppButton, AppPanel, AppSwitch, appFieldClassName } from '../ui/appDesignSystem'
 
 type Props = {
   workflow: Workflow
@@ -71,7 +72,7 @@ export function WorkflowTriggerEditor({
   }
 
   return (
-    <aside className="absolute right-4 top-4 z-40 flex h-[min(560px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden rounded-md border border-claude-border bg-claude-panel shadow-2xl">
+    <AppPanel className="absolute right-4 top-4 z-40 flex h-[min(560px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden shadow-2xl">
       <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-claude-border px-4 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -83,13 +84,9 @@ export function WorkflowTriggerEditor({
                 {workflow.name}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
-            >
+            <AppButton onClick={onCancel} tone="ghost">
               {t('workflow.form.cancel')}
-            </button>
+            </AppButton>
           </div>
         </div>
 
@@ -111,18 +108,15 @@ export function WorkflowTriggerEditor({
             {triggerType === 'schedule' ? (
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-claude-text">{t('workflow.form.active')}</span>
-                <button
-                  type="button"
-                  onClick={() => setActive((current) => !current)}
-                  className={`flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm transition-colors ${
-                    active
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
-                      : 'border-claude-border bg-claude-bg text-claude-text'
-                  }`}
-                >
-                  <span>{active ? t('workflow.details.active') : t('workflow.details.inactive')}</span>
-                  <span className="text-[11px] text-claude-muted">{t('workflow.form.activeDescription')}</span>
-                </button>
+                <div className="flex items-center justify-between rounded-md border border-claude-border bg-claude-bg px-3 py-2">
+                  <div>
+                    <span className="block text-sm text-claude-text">
+                      {active ? t('workflow.details.active') : t('workflow.details.inactive')}
+                    </span>
+                    <span className="text-[11px] text-claude-muted">{t('workflow.form.activeDescription')}</span>
+                  </div>
+                  <AppSwitch checked={active} onClick={() => setActive((current) => !current)} />
+                </div>
               </label>
             ) : null}
           </section>
@@ -150,22 +144,22 @@ export function WorkflowTriggerEditor({
               {scheduleTrigger.frequency !== 'hourly' ? (
                 <label className="block">
                   <span className="mb-2 block text-sm font-medium text-claude-text">{t('workflow.form.hour')}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={23}
-                    value={scheduleTrigger.hour}
-                    onChange={(event) => {
-                      const nextHour = Number(event.target.value)
-                      setScheduleTrigger((current) => ({
-                        ...current,
-                        hour: Number.isFinite(nextHour) ? nextHour : 0,
-                      }))
-                    }}
-                    className="h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none"
-                  />
-                </label>
-              ) : null}
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={scheduleTrigger.hour}
+                  onChange={(event) => {
+                    const nextHour = Number(event.target.value)
+                    setScheduleTrigger((current) => ({
+                      ...current,
+                      hour: Number.isFinite(nextHour) ? nextHour : 0,
+                    }))
+                  }}
+                  className={`${appFieldClassName} h-10`}
+                />
+              </label>
+            ) : null}
 
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-claude-text">{t('workflow.form.minute')}</span>
@@ -181,7 +175,7 @@ export function WorkflowTriggerEditor({
                       minute: Number.isFinite(nextMinute) ? nextMinute : 0,
                     }))
                   }}
-                  className="h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none"
+                  className={`${appFieldClassName} h-10`}
                 />
               </label>
 
@@ -218,21 +212,14 @@ export function WorkflowTriggerEditor({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-claude-border px-4 py-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-claude-border bg-claude-surface px-3 py-1.5 text-sm text-claude-text transition-colors hover:bg-claude-surface-2"
-          >
+          <AppButton onClick={onCancel} tone="ghost">
             {t('workflow.form.cancel')}
-          </button>
-          <button
-            type="submit"
-            className="rounded-md border border-claude-orange/40 bg-claude-orange/20 px-3 py-1.5 text-sm font-medium text-claude-text transition-colors hover:bg-claude-orange/25"
-          >
+          </AppButton>
+          <AppButton type="submit" tone="accent">
             {t('workflow.form.save')}
-          </button>
+          </AppButton>
         </div>
       </form>
-    </aside>
+    </AppPanel>
   )
 }

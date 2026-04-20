@@ -6,6 +6,7 @@ import guideMarkdownKo from '../../content/agent-team-guide-app.md?raw'
 import guideMarkdownEn from '../../content/agent-team-guide-app.en.md?raw'
 import { useI18n } from '../../hooks/useI18n'
 import { pickLocalized } from '../../lib/i18n'
+import { TeamButton } from './teamDesignSystem'
 
 type Props = {
   onClose: () => void
@@ -40,25 +41,20 @@ export function AgentTeamGuideModal({ onClose }: Props) {
         aria-label={closeLabel}
       />
 
-      <div className="relative z-10 flex h-[min(86vh,52rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[16px] border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
+      <div className="relative z-10 flex h-[min(86vh,52rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-lg border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
         <div className="flex shrink-0 items-center justify-between border-b border-claude-border/90 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-claude-text">{t('team.guideModal.title')}</h2>
-            <p className="text-sm text-claude-text">
+            <p className="text-sm text-claude-muted">
               {t('team.guideModal.description')}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-claude-text transition-colors hover:bg-claude-bg-hover"
-            aria-label={closeLabel}
-          >
+          <TeamButton onClick={onClose} size="icon" tone="ghost" aria-label={closeLabel}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M2 2L14 14M14 2L2 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-          </button>
+          </TeamButton>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 text-claude-text">
@@ -77,7 +73,7 @@ export function AgentTeamGuideModal({ onClose }: Props) {
               prose-tr:border-b prose-tr:border-claude-border/70
               prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-claude-text
               prose-td:px-3 prose-td:py-2 prose-td:text-claude-text
-              prose-a:text-blue-600"
+              prose-a:text-claude-orange"
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{guideMarkdown}</ReactMarkdown>
           </div>

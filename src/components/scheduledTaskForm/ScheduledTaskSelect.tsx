@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { appFieldClassName } from '../ui/appDesignSystem'
 
 export function ScheduledTaskSelect({
   value,
@@ -16,7 +17,7 @@ export function ScheduledTaskSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full appearance-none rounded-xl border border-claude-border bg-claude-panel px-3 pr-9 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+        className={`${appFieldClassName} h-10 appearance-none bg-claude-bg pr-9`}
       >
         {children}
       </select>

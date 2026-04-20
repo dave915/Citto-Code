@@ -1,5 +1,6 @@
 import type { SidebarMode } from '../../store/sessions'
 import { useI18n } from '../../hooks/useI18n'
+import { AppButton } from '../ui/appDesignSystem'
 
 export function EmptyMainState({
   sidebarMode,
@@ -23,15 +24,12 @@ export function EmptyMainState({
         <p className="mt-2 text-[15px] leading-7 text-claude-muted">
           {description}
         </p>
-        <button
-          onClick={onNewSession}
-          className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-claude-border bg-claude-surface px-4 py-3 text-sm font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
-        >
+        <AppButton onClick={onNewSession} tone="secondary" className="mt-5 h-10 px-4 text-sm">
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           {actionLabel}
-        </button>
+        </AppButton>
       </div>
     </div>
   )

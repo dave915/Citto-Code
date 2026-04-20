@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import { useWorkflowStore } from '../../store/workflowStore'
 import type { Workflow } from '../../store/workflowTypes'
+import { AppButton, AppChip, AppPanel, cx } from '../ui/appDesignSystem'
 
 type Props = {
   workflows: Workflow[]
@@ -18,9 +19,9 @@ function TriggerBadge({ workflow }: { workflow: Workflow }) {
     : t('workflow.trigger.manual')
 
   return (
-    <span className="rounded border border-claude-border bg-claude-bg px-1.5 py-0.5 text-[10px] font-medium text-claude-muted">
+    <AppChip className="px-2 py-0.5 text-[10px]" tone="neutral">
       {label}
-    </span>
+    </AppChip>
   )
 }
 
@@ -54,9 +55,10 @@ export function WorkflowList({
       <button
         type="button"
         onClick={() => setSelectorOpen(!selectorOpen)}
-        className={`inline-flex h-8 min-w-[220px] max-w-[280px] items-center justify-between gap-1.5 rounded-lg border border-claude-border px-2 py-1 text-left text-[11px] text-claude-text transition-colors ${
+        className={cx(
+          'inline-flex h-8 min-w-[220px] max-w-[280px] items-center justify-between gap-1.5 rounded-lg border border-claude-border px-2 py-1 text-left text-[11px] text-claude-text transition-colors',
           selectorOpen ? 'bg-claude-surface-2' : 'bg-claude-surface hover:bg-claude-surface-2'
-        }`}
+        )}
       >
         <div className="min-w-0 truncate font-medium">
           {selectedWorkflow?.name || t('workflow.selector.empty')}
@@ -66,19 +68,15 @@ export function WorkflowList({
         </svg>
       </button>
 
-      <button
-        type="button"
-        onClick={onCreate}
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2.5 py-1 text-[11px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
-      >
+      <AppButton onClick={onCreate} className="h-8 px-2.5 text-[11px]">
         <svg className="h-3.5 w-3.5 text-claude-muted" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path strokeLinecap="round" strokeLinejoin="round" d="M10 4v12M4 10h12" />
         </svg>
         {t('workflow.actions.new')}
-      </button>
+      </AppButton>
 
       {selectorOpen ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[320px] rounded-md border border-claude-border bg-claude-panel p-1 shadow-xl">
+        <AppPanel className="absolute left-0 top-[calc(100%+8px)] z-20 w-[320px] rounded-md p-1 shadow-xl">
           {workflows.length === 0 ? (
             <div className="px-3 py-6 text-sm text-claude-muted">
               {t('workflow.selector.emptyDescription')}
@@ -88,11 +86,12 @@ export function WorkflowList({
             return (
               <div
                 key={workflow.id}
-                className={`flex items-center gap-2 rounded-md border px-2 py-2 transition-colors ${
+                className={cx(
+                  'flex items-center gap-2 rounded-md border px-2 py-2 transition-colors',
                   active
                     ? 'border-claude-border bg-claude-surface'
                     : 'border-transparent hover:bg-claude-surface/80'
-                }`}
+                )}
               >
                 <button
                   type="button"
@@ -107,20 +106,19 @@ export function WorkflowList({
                     <TriggerBadge workflow={workflow} />
                   </div>
                 </button>
-                <button
-                  type="button"
+                <AppButton
                   onClick={() => {
                     onDuplicate(workflow.id)
                     setSelectorOpen(false)
                   }}
-                  className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
+                  className="h-7 px-2 text-[11px]"
                 >
                   {t('workflow.actions.duplicate')}
-                </button>
+                </AppButton>
               </div>
             )
           })}
-        </div>
+        </AppPanel>
       ) : null}
     </div>
   )

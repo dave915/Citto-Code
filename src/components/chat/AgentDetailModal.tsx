@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import type { SubagentCallSummary } from '../../lib/agent-subcalls'
 import { useI18n } from '../../hooks/useI18n'
 import { useSessionsStore } from '../../store/sessions'
+import { AppButton, AppChip, AppPanel } from '../ui/appDesignSystem'
 import { AgentStatusCopyButton } from './AgentStatusCopyButton'
 import { getStatusClassName, getStatusLabel } from './agentStatusShared'
 
@@ -158,8 +159,8 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
     <div className="fixed inset-0 z-[130]">
       <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
       <div className="absolute inset-0 flex items-center justify-center px-6 py-8">
-        <div
-          className="relative flex max-h-full max-w-full flex-col overflow-hidden rounded-[12px] border border-claude-border bg-claude-panel shadow-2xl"
+        <AppPanel
+          className="relative flex max-h-full max-w-full flex-col overflow-hidden rounded-lg"
           style={{ width: `${modalWidth}px`, height: `${modalHeight}px` }}
           onClick={(event) => event.stopPropagation()}
         >
@@ -178,18 +179,17 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
               </div>
             </div>
 
-            <button
-              type="button"
+            <AppButton
               onClick={onClose}
-              className="rounded-lg border border-claude-border/70 bg-claude-surface px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+              tone="ghost"
             >
               {t('common.close')}
-            </button>
+            </AppButton>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-              <section className="min-w-0 rounded-2xl border border-claude-border/70 bg-claude-bg px-4 py-3">
+              <section className="min-w-0 rounded-lg border border-claude-border/70 bg-claude-bg px-4 py-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-claude-text/90">{t('subagent.promptLabel')}</div>
                   <AgentStatusCopyButton
@@ -203,7 +203,7 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
                 </pre>
               </section>
 
-              <section className="min-w-0 rounded-2xl border border-claude-border/70 bg-claude-bg px-4 py-3">
+              <section className="min-w-0 rounded-lg border border-claude-border/70 bg-claude-bg px-4 py-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-claude-text/90">{t('subagent.resultLabel')}</div>
                   <AgentStatusCopyButton
@@ -212,7 +212,7 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
                     copiedLabel={t('common.copied')}
                   />
                 </div>
-                <div className="max-h-[18rem] overflow-auto overflow-x-hidden rounded-xl bg-claude-surface px-3 py-3">
+                <div className="max-h-[18rem] overflow-auto overflow-x-hidden rounded-lg bg-claude-surface px-3 py-3">
                   {resultText ? (
                     <div className="prose max-w-none break-words text-[13px] leading-6 [overflow-wrap:anywhere]">
                       <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
@@ -230,21 +230,21 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
 
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-claude-muted">
               {entry.transcriptPath ? (
-                <span className="rounded-full border border-claude-border/70 bg-claude-bg px-2.5 py-1 font-mono">
+                <AppChip className="font-mono">
                   {entry.transcriptPath}
-                </span>
+                </AppChip>
               ) : null}
               {entry.transcriptPath ? (
-                <button
-                  type="button"
+                <AppButton
                   onClick={() => void handleOpenSession()}
                   disabled={openingSession}
-                  className="rounded-lg border border-claude-border/70 bg-claude-surface px-2.5 py-1 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+                  tone="ghost"
+                  className="h-7 px-2.5 text-[11px]"
                 >
                   {openingSession
                     ? t('subagent.opening')
                     : t('subagent.openTranscriptSession')}
-                </button>
+                </AppButton>
               ) : null}
               {sessionError ? <span className="text-red-200">{sessionError}</span> : null}
             </div>
@@ -269,7 +269,7 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
               <path d="M8 16h8M12 20h8M16 12h4" strokeLinecap="round" />
             </svg>
           </button>
-        </div>
+        </AppPanel>
       </div>
     </div>,
     document.body,

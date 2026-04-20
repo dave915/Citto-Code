@@ -1,5 +1,6 @@
 import { useI18n } from '../../hooks/useI18n'
 import { AgentPixelIcon } from './AgentPixelIcon'
+import { TeamButton, TeamPanel, teamFieldClassName } from './teamDesignSystem'
 import { COLOR_PALETTE, type TeamSetupCustomDraft } from './teamSetupShared'
 
 type Props = {
@@ -22,7 +23,7 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
           {t('team.setup.field.name')} *
         </label>
         <input
-          className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
+          className={teamFieldClassName}
           placeholder={t('team.setup.placeholder.customName')}
           value={draft.name}
           onChange={(event) => onDraftChange({ name: event.target.value })}
@@ -34,7 +35,7 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
           {t('team.setup.field.role')}
         </label>
         <input
-          className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
+          className={teamFieldClassName}
           placeholder={t('team.setup.placeholder.customRole')}
           value={draft.role}
           onChange={(event) => onDraftChange({ role: event.target.value })}
@@ -46,7 +47,7 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
           {t('team.setup.field.description')}
         </label>
         <input
-          className="w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
+          className={teamFieldClassName}
           placeholder={t('team.setup.placeholder.customDescription')}
           value={draft.description}
           onChange={(event) => onDraftChange({ description: event.target.value })}
@@ -59,7 +60,7 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
         </label>
         <textarea
           rows={4}
-          className="w-full resize-none rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text placeholder:text-claude-text-muted focus:border-blue-500 focus:outline-none"
+          className={`${teamFieldClassName} resize-none`}
           placeholder={t('team.setup.placeholder.customSystemPrompt')}
           value={draft.systemPrompt}
           onChange={(event) => onDraftChange({ systemPrompt: event.target.value })}
@@ -85,19 +86,14 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
         </div>
       </div>
 
-      <div className="flex items-center gap-3 pt-2">
+      <TeamPanel className="flex items-center gap-3 bg-claude-surface/55 px-3 py-3 shadow-none">
         <div className="shrink-0">
           <AgentPixelIcon type="custom" size={48} color={draft.color} />
         </div>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={!draft.name.trim()}
-          className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        <TeamButton onClick={onSave} disabled={!draft.name.trim()} tone="accent" className="flex-1">
           {t('common.save')}
-        </button>
-      </div>
+        </TeamButton>
+      </TeamPanel>
     </div>
   )
 }

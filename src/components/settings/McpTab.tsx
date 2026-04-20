@@ -3,6 +3,7 @@ import {
   EmptyState,
   LoadingPlaceholder,
 } from './shared'
+import { AppButton } from '../ui/appDesignSystem'
 import { McpScopePanel } from './McpScopePanel'
 import { McpServerCard } from './McpServerCard'
 import { McpServerForm } from './McpServerForm'
@@ -63,16 +64,16 @@ export function McpTab({ projectPath }: { projectPath: string | null }) {
 
       <div className="mb-1 flex items-center justify-between">
         <p className="text-xs text-claude-muted">{listLabel}</p>
-        <button
+        <AppButton
           onClick={openAddForm}
           disabled={!canManageScope}
-          className="flex items-center gap-1 rounded-lg bg-claude-surface px-2.5 py-1 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+          tone="accent"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           {t('common.add')}
-        </button>
+        </AppButton>
       </div>
 
       {showAdd && (

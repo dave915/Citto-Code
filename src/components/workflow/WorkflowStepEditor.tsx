@@ -11,6 +11,7 @@ import {
   cloneWorkflowStep,
   CONDITION_OPERATORS,
 } from './editorShared'
+import { AppButton, AppPanel, appFieldClassName } from '../ui/appDesignSystem'
 import { getConditionOperatorLabel, getStepDisplayLabel } from './utils'
 
 type Props = {
@@ -198,7 +199,7 @@ export function WorkflowStepEditor({
   if (!currentStep || !draft || stepIndex < 0) return null
 
   return (
-    <aside className="absolute right-4 top-4 z-40 flex h-[min(640px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden rounded-md border border-claude-border bg-claude-panel shadow-2xl">
+    <AppPanel className="absolute right-4 top-4 z-40 flex h-[min(640px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden shadow-2xl">
       <div className="border-b border-claude-border px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -209,13 +210,9 @@ export function WorkflowStepEditor({
               {getStepDisplayLabel(draft, stepIndex, language)}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
-          >
+          <AppButton onClick={onCancel} tone="ghost">
             {t('workflow.form.cancel')}
-          </button>
+          </AppButton>
         </div>
 
         <div className="mt-3 flex items-center gap-2 text-[11px] text-claude-muted">
@@ -231,7 +228,7 @@ export function WorkflowStepEditor({
           <input
             value={draft.label}
             onChange={(event) => setDraft((current) => current ? { ...current, label: event.target.value } : current)}
-            className="h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none placeholder:text-claude-muted"
+            className={`${appFieldClassName} h-10`}
           />
         </label>
 
@@ -261,7 +258,7 @@ export function WorkflowStepEditor({
                   onChange={(event) => setDraft((current) => current?.type === 'agent'
                     ? { ...current, cwd: event.target.value }
                     : current)}
-                  className="h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 pr-11 text-sm text-claude-text outline-none"
+                  className={`${appFieldClassName} h-10 pr-11`}
                 />
                 <button
                   type="button"
@@ -326,27 +323,27 @@ export function WorkflowStepEditor({
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-claude-text">{t('workflow.form.prompt')}</span>
-              <textarea
-                value={draft.prompt}
-                onChange={(event) => setDraft((current) => current?.type === 'agent'
-                  ? { ...current, prompt: event.target.value }
-                  : current)}
-                rows={7}
-                className="w-full rounded-md border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text outline-none"
-              />
-            </label>
+                <textarea
+                  value={draft.prompt}
+                  onChange={(event) => setDraft((current) => current?.type === 'agent'
+                    ? { ...current, prompt: event.target.value }
+                    : current)}
+                  rows={7}
+                  className={appFieldClassName}
+                />
+              </label>
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-claude-text">{t('workflow.form.systemPrompt')}</span>
-              <textarea
-                value={draft.systemPrompt}
-                onChange={(event) => setDraft((current) => current?.type === 'agent'
-                  ? { ...current, systemPrompt: event.target.value }
-                  : current)}
-                rows={3}
-                className="w-full rounded-md border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text outline-none"
-              />
-            </label>
+                <textarea
+                  value={draft.systemPrompt}
+                  onChange={(event) => setDraft((current) => current?.type === 'agent'
+                    ? { ...current, systemPrompt: event.target.value }
+                    : current)}
+                  rows={3}
+                  className={appFieldClassName}
+                />
+              </label>
           </>
         ) : null}
 
@@ -379,7 +376,7 @@ export function WorkflowStepEditor({
                 onChange={(event) => setDraft((current) => current?.type === 'condition'
                   ? { ...current, value: event.target.value }
                   : current)}
-                className="h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none disabled:cursor-not-allowed disabled:opacity-45"
+                className={`${appFieldClassName} h-10 disabled:cursor-not-allowed disabled:opacity-45`}
               />
             </label>
 
@@ -427,7 +424,7 @@ export function WorkflowStepEditor({
                 onChange={(event) => setDraft((current) => current?.type === 'loop'
                   ? { ...current, maxIterations: Number(event.target.value) || 1 }
                   : current)}
-                className="h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none"
+                className={`${appFieldClassName} h-10`}
               />
             </label>
 
@@ -533,7 +530,7 @@ export function WorkflowStepEditor({
                             },
                           }
                         : current)}
-                      className="h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none"
+                      className={`${appFieldClassName} h-10`}
                     />
                   </label>
                 </div>
@@ -550,22 +547,14 @@ export function WorkflowStepEditor({
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-claude-border px-4 py-4">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="rounded-md border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/20"
-        >
+        <AppButton onClick={onDelete} tone="danger">
           {t('workflow.stepEditor.delete')}
-        </button>
+        </AppButton>
 
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text transition-colors hover:bg-claude-surface-2"
-        >
+        <AppButton onClick={onCancel} tone="ghost">
           {t('workflow.form.cancel')}
-        </button>
+        </AppButton>
       </div>
-    </aside>
+    </AppPanel>
   )
 }

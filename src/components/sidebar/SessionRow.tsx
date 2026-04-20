@@ -56,11 +56,11 @@ export function SessionRow({
     ? 'border-claude-border/80 bg-claude-sidebar-active text-claude-text'
     : 'border-transparent text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
   const rowSpacingCls = compact
-    ? 'gap-1.5 rounded-xl px-1.5 py-1'
+    ? 'gap-1.5 rounded-lg px-1.5 py-1'
     : dense
-      ? 'gap-1.5 rounded-xl px-2.5 py-1'
-      : 'gap-2 rounded-2xl px-3 py-2.5'
-  const buttonGapCls = compact ? 'gap-1.5 rounded-lg' : dense ? 'gap-1.5 rounded-xl' : 'gap-2 rounded-xl'
+      ? 'gap-1.5 rounded-lg px-2.5 py-1'
+      : 'gap-2 rounded-lg px-3 py-2'
+  const buttonGapCls = compact ? 'gap-1.5 rounded-lg' : dense ? 'gap-1.5 rounded-lg' : 'gap-2 rounded-lg'
   const rowAlignCls = compact || !shouldShowProjectLabel ? 'items-center' : 'items-start'
   const buttonAlignCls = compact || !shouldShowProjectLabel ? 'items-center' : 'items-start'
   const indicatorCls = compact
@@ -117,7 +117,7 @@ export function SessionRow({
                   cancelRename()
                 }
               }}
-              className="w-full rounded-xl border border-claude-border bg-claude-surface px-2.5 py-1.5 text-sm font-medium text-claude-text outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
+              className="w-full rounded-lg border border-claude-border bg-claude-surface px-2.5 py-1.5 text-sm font-medium text-claude-text outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
             />
           ) : (
             <p className={`truncate text-[13px] font-medium ${compact ? 'leading-5' : ''}`}>{displayName}</p>

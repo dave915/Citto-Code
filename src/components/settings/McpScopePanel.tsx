@@ -1,6 +1,7 @@
 import type { McpConfigScope, McpReadResult } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import { formatDisplayPath, getMcpScopeOptions } from './shared'
+import { appFieldClassName, cx } from '../ui/appDesignSystem'
 
 export function McpScopePanel({
   scope,
@@ -29,17 +30,18 @@ export function McpScopePanel({
   const currentProjectLabel = scopeInfo?.projectPath ?? effectiveProjectPath
 
   return (
-    <div className="space-y-3 rounded-xl border border-claude-border bg-claude-surface p-4">
+    <div className="space-y-3 rounded-lg border border-claude-border bg-claude-bg/70 p-4">
       <div className="flex flex-wrap gap-2">
         {scopeOptions.map((option) => (
           <button
             key={option.value}
             onClick={() => onScopeChange(option.value)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={cx(
+              'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
               scope === option.value
-                ? 'bg-claude-surface-2 text-claude-text'
-                : 'bg-claude-bg text-claude-muted hover:bg-claude-panel hover:text-claude-text'
-            }`}
+                ? 'border-claude-orange/30 bg-claude-panel text-claude-text'
+                : 'border-claude-border bg-claude-bg text-claude-muted hover:bg-claude-panel hover:text-claude-text',
+            )}
           >
             {option.label}
           </button>
@@ -57,7 +59,7 @@ export function McpScopePanel({
               <select
                 value={selectedProjectPath}
                 onChange={(event) => onSelectedProjectPathChange(event.target.value)}
-                className="w-full appearance-none rounded-xl border border-claude-border bg-claude-panel px-3 py-2 pr-10 text-xs font-mono text-claude-text focus:outline-none focus:border-claude-border focus:ring-1 focus:ring-white/10"
+                className={`${appFieldClassName} appearance-none pr-10 font-mono text-xs`}
               >
                 {availableProjectPaths.length === 0 && <option value="">{t('settings.mcp.noAvailableProjects')}</option>}
                 {availableProjectPaths.map((path) => (

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
 import { DEFAULT_PROJECT_PATH } from '../../../store/sessions'
+import { AppButton, appFieldClassName } from '../../ui/appDesignSystem'
+import { SettingsSection } from '../shared'
 
 type Props = {
   defaultProjectPath: string
@@ -25,38 +27,33 @@ export function DefaultProjectSection({ defaultProjectPath, onChange }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-      <p className="text-sm font-semibold text-claude-text">{t('settings.general.defaultProject.title')}</p>
-      <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-        {t('settings.general.defaultProject.description')}
-      </p>
-
-      <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel p-3">
-        <label className="mb-2 block text-xs font-medium text-claude-muted">{t('settings.general.defaultProject.currentPath')}</label>
+    <SettingsSection
+      title={t('settings.general.defaultProject.title')}
+      description={t('settings.general.defaultProject.description')}
+    >
+      <div className="space-y-3">
+        <label className="block text-xs font-medium text-claude-muted">{t('settings.general.defaultProject.currentPath')}</label>
         <input
           value={defaultProjectPath}
           readOnly
-          className="w-full rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text outline-none"
+          className={appFieldClassName}
           spellCheck={false}
         />
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
+          <AppButton
             onClick={() => void handleSelectDefaultProject()}
             disabled={loading}
-            className="rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-wait disabled:opacity-60"
           >
             {loading ? t('settings.general.defaultProject.opening') : t('settings.general.defaultProject.select')}
-          </button>
-          <button
-            type="button"
+          </AppButton>
+          <AppButton
             onClick={() => onChange(DEFAULT_PROJECT_PATH)}
-            className="rounded-xl border border-claude-border bg-claude-panel px-3 py-2 text-sm text-claude-muted transition-colors hover:bg-claude-bg hover:text-claude-text"
+            tone="ghost"
           >
             {t('settings.general.defaultProject.reset')}
-          </button>
+          </AppButton>
         </div>
       </div>
-    </div>
+    </SettingsSection>
   )
 }

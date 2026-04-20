@@ -163,7 +163,7 @@ export function ChatHeader({
         {!isNewSession && (
           <button
             onClick={onToggleSidebar}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
             title={`${sidebarCollapsed ? t('header.openSidebar') : t('header.closeSidebar')} (${sidebarShortcutLabel})`}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

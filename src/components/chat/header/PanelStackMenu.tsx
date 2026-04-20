@@ -53,7 +53,7 @@ export function PanelStackMenu({ items, title, onToggle }: Props) {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-claude-text transition-colors ${
+        className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-claude-text transition-colors ${
           open || activeCount > 0
             ? 'border-claude-border bg-claude-surface'
             : 'border-transparent bg-transparent text-claude-muted hover:border-claude-border hover:bg-claude-surface hover:text-claude-text'
@@ -70,7 +70,7 @@ export function PanelStackMenu({ items, title, onToggle }: Props) {
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-[10px] border border-claude-border bg-claude-panel p-2 shadow-2xl">
+        <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-lg border border-claude-border bg-claude-panel p-2 shadow-2xl">
           <div className="space-y-1">
             {items.map((item) => (
               <button

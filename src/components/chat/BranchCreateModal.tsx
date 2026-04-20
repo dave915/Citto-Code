@@ -1,5 +1,6 @@
 import type { MutableRefObject } from 'react'
 import { useI18n } from '../../hooks/useI18n'
+import { AppButton, AppPanel, appFieldClassName } from '../ui/appDesignSystem'
 
 export function BranchCreateModal({
   open,
@@ -27,8 +28,8 @@ export function BranchCreateModal({
       data-no-drag="true"
       onMouseDown={onClose}
     >
-      <div
-        className="w-full max-w-[312px] rounded-[10px] border border-claude-border bg-claude-panel p-3"
+      <AppPanel
+        className="w-full max-w-[312px] p-3"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -36,16 +37,16 @@ export function BranchCreateModal({
             <h3 className="text-[12px] font-semibold text-claude-text">{t('git.branchModal.title')}</h3>
             <p className="mt-1 text-[10px] leading-4.5 text-claude-muted">{t('git.branchModal.description')}</p>
           </div>
-          <button
-            type="button"
+          <AppButton
             onClick={onClose}
-            className="rounded-xl p-2 text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
+            size="icon"
+            tone="ghost"
             title={t('common.close')}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6 6 18" />
             </svg>
-          </button>
+          </AppButton>
         </div>
 
         <div className="mt-4">
@@ -61,28 +62,26 @@ export function BranchCreateModal({
               }
             }}
             placeholder={t('git.branchModal.placeholder')}
-            className="w-full rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+            className={`${appFieldClassName} text-[12px]`}
           />
         </div>
 
         <div className="mt-3.5 flex items-center justify-end gap-2">
-          <button
-            type="button"
+          <AppButton
             onClick={onClose}
-            className="rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
+            tone="ghost"
           >
             {t('common.cancel')}
-          </button>
-          <button
-            type="button"
+          </AppButton>
+          <AppButton
             onClick={() => void onCreate()}
             disabled={gitActionLoading || !gitNewBranchName.trim()}
-            className="rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-[11px] font-medium text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+            tone="accent"
           >
             {t('git.branchModal.createAndSwitch')}
-          </button>
+          </AppButton>
         </div>
-      </div>
+      </AppPanel>
     </div>
   )
 }

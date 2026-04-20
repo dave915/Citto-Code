@@ -3,6 +3,7 @@ import type { SelectedFile } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import type { AgentTeam } from '../../store/teamTypes'
 import { AttachmentList } from '../input/AttachmentList'
+import { TeamButton } from './teamDesignSystem'
 
 type Props = {
   activeTeam: AgentTeam
@@ -58,7 +59,7 @@ export function TeamViewComposer({
   const { language, t } = useI18n()
 
   return (
-    <div className="shrink-0 border-t border-claude-border/60 bg-claude-bg px-4 py-4">
+    <div className="shrink-0 border-t border-claude-border/60 bg-claude-bg px-4 py-3">
       <div className="w-full">
         <AttachmentList
           attachedFiles={attachedFiles}
@@ -68,9 +69,9 @@ export function TeamViewComposer({
         />
 
         <div
-          className={`relative overflow-hidden rounded-[12px] border bg-claude-panel transition-colors ${
+          className={`relative overflow-hidden rounded-lg border bg-claude-panel transition-colors ${
             isDragOver
-              ? 'border-blue-500/60 ring-1 ring-blue-500/20'
+              ? 'border-claude-orange/55 ring-1 ring-claude-orange/25'
               : 'border-claude-border'
           }`}
           onDragEnter={onDragEnter}
@@ -101,12 +102,12 @@ export function TeamViewComposer({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-claude-border/70 px-4 pb-3 pt-2.5">
-            <button
-              type="button"
+            <TeamButton
               onClick={onAttachFiles}
               disabled={activeTeam.status === 'running' || isAttaching}
               title={t('team.attachFiles')}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text disabled:opacity-30"
+              size="icon"
+              tone="ghost"
             >
               {isAttaching ? (
                 <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -117,9 +118,9 @@ export function TeamViewComposer({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
               )}
-            </button>
+            </TeamButton>
 
-            <span className="text-xs text-claude-text-muted">
+            <span className="text-xs text-claude-muted">
               {activeTeam.status === 'running'
                 ? (() => {
                     const mode = activeTeam.mode ?? 'sequential'
@@ -139,41 +140,32 @@ export function TeamViewComposer({
             <div className="flex-1" />
 
             {activeTeam.status === 'running' ? (
-              <button
-                type="button"
+              <TeamButton
                 onClick={onAbort}
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90"
+                size="icon"
+                tone="danger"
                 title={t('team.abort')}
               >
-                <svg className="h-[17px] w-[17px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <svg className="h-[15px] w-[15px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <rect x="5.25" y="5.25" width="13.5" height="13.5" rx="2.85" />
                 </svg>
-              </button>
+              </TeamButton>
             ) : (
               <>
                 {activeTeam.status === 'done' && (
                   <>
-                    <button
-                      type="button"
-                      onClick={onContinue}
-                      className="rounded-xl border border-claude-border px-3 py-1.5 text-xs font-medium text-claude-text-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-                    >
+                    <TeamButton onClick={onContinue} tone="secondary">
                       {activeTeam.mode === 'meeting'
                         ? t('team.continue.meeting', { round: activeTeam.roundNumber + 1 })
                         : activeTeam.mode === 'parallel'
                           ? t('team.continue.parallel')
                           : t('team.continue.sequential')}
-                    </button>
+                    </TeamButton>
                     {onInjectSummary && (
-                      <button
-                        type="button"
+                      <TeamButton
                         onClick={onInjectSummary}
                         disabled={injected}
-                        className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors ${
-                          injected
-                            ? 'cursor-default border-green-500/40 bg-green-500/10 text-green-400'
-                            : 'border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-                        }`}
+                        tone={injected ? 'success' : 'accent'}
                       >
                         {injected ? (
                           <>
@@ -190,22 +182,22 @@ export function TeamViewComposer({
                             {t('team.injectToChat')}
                           </>
                         )}
-                      </button>
+                      </TeamButton>
                     )}
                   </>
                 )}
 
-                <button
-                  type="button"
+                <TeamButton
                   onClick={onStart}
                   disabled={!canSubmitTask}
-                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-claude-surface-2 text-claude-text transition-colors hover:bg-claude-panel disabled:bg-claude-surface-2 disabled:text-claude-muted disabled:opacity-100"
+                  size="icon"
+                  tone="accent"
                   title={activeTeam.status === 'done' ? t('team.startNewTopic') : t('team.startDiscussion')}
                 >
-                  <svg className="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m-7 7l7-7 7 7" />
                   </svg>
-                </button>
+                </TeamButton>
               </>
             )}
           </div>

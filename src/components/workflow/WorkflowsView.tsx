@@ -5,9 +5,10 @@ import { useWorkflowStore } from '../../store/workflowStore'
 import type { Workflow, WorkflowExecution, WorkflowInput, WorkflowStep } from '../../store/workflowTypes'
 import { WorkflowCanvas } from './WorkflowCanvas'
 import { workflowToInput } from './editorShared'
-import { WorkflowList } from './WorkflowList'
+import { WorkflowSidebar } from './WorkflowSidebar'
 import { WorkflowStepEditor } from './WorkflowStepEditor'
 import { WorkflowTriggerEditor } from './WorkflowTriggerEditor'
+import { AppButton, AppChip, AppPanel, appFieldClassName } from '../ui/appDesignSystem'
 import {
   describeWorkflowTrigger,
   formatWorkflowDateTime,
@@ -112,19 +113,15 @@ function WorkflowHistoryPanel({
   )
 
   return (
-    <aside className="absolute right-4 top-4 z-30 flex h-[min(520px,calc(100%-6rem))] w-[360px] flex-col overflow-hidden rounded-md border border-claude-border bg-claude-panel shadow-2xl">
+    <AppPanel className="absolute right-4 top-4 z-30 flex h-[min(520px,calc(100%-6rem))] w-[360px] flex-col overflow-hidden shadow-2xl">
       <div className="flex items-center justify-between border-b border-claude-border px-4 py-3">
         <div>
           <div className="text-sm font-semibold text-claude-text">{t('workflow.details.history')}</div>
           <div className="mt-1 text-[11px] text-claude-muted">{workflow.name}</div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
-        >
+        <AppButton onClick={onClose} tone="ghost">
           {t('workflow.create.cancel')}
-        </button>
+        </AppButton>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -198,7 +195,7 @@ function WorkflowHistoryPanel({
           </div>
         )}
       </div>
-    </aside>
+    </AppPanel>
   )
 }
 
@@ -410,92 +407,123 @@ export function WorkflowsView({
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-claude-bg">
-      <div className="flex h-12 flex-shrink-0 items-center justify-between gap-3 border-b border-claude-border bg-claude-panel px-4">
-        <WorkflowList
-          workflows={sortedWorkflows}
-          selectedWorkflow={selectedWorkflow}
-          onSelect={(workflowId) => {
-            setSelectedWorkflowId(workflowId)
-            setActionError(null)
-          }}
-          onCreate={() => {
-            setShowCreateModal(true)
-            setCreateName('')
-            setSelectedTemplate('blank')
-            setActionError(null)
-            setEditingStepId(null)
-          }}
-          onDuplicate={handleDuplicate}
-        />
+    <div className="relative flex h-full overflow-hidden bg-claude-bg">
+      <WorkflowSidebar
+        workflows={sortedWorkflows}
+        executions={executions}
+        selectedWorkflowId={selectedWorkflowId}
+        activeWorkflowCount={sortedWorkflows.filter((workflow) => workflow.active).length}
+        onCreate={() => {
+          setShowCreateModal(true)
+          setCreateName('')
+          setSelectedTemplate('blank')
+          setActionError(null)
+          setEditingStepId(null)
+        }}
+        onSelect={(workflowId) => {
+          setSelectedWorkflowId(workflowId)
+          setActionError(null)
+        }}
+      />
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-xl text-claude-muted transition-colors hover:bg-claude-surface hover:text-claude-text"
-          aria-label={t('workflow.create.cancel')}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
-          </svg>
-        </button>
-      </div>
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-claude-border bg-claude-panel px-5 py-4">
+          {selectedWorkflow ? (
+            <div className="min-w-0">
+              {editingName ? (
+                <input
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  onBlur={commitWorkflowName}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commitWorkflowName()
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      setDraftName(selectedWorkflow.name)
+                      setEditingName(false)
+                    }
+                  }}
+                  className={`${appFieldClassName} max-w-[420px] py-2 text-lg font-semibold`}
+                  autoFocus
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingName(true)}
+                  className="max-w-full truncate text-left text-lg font-semibold text-claude-text"
+                >
+                  {selectedWorkflow.name}
+                </button>
+              )}
 
-      <div className="border-b border-claude-border bg-claude-panel px-4 py-4">
-        {selectedWorkflow ? (
-          <div className="min-w-0">
-            {editingName ? (
-              <input
-                value={draftName}
-                onChange={(event) => setDraftName(event.target.value)}
-                onBlur={commitWorkflowName}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    commitWorkflowName()
-                  }
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    setDraftName(selectedWorkflow.name)
-                    setEditingName(false)
-                  }
-                }}
-                className="w-full max-w-[420px] rounded-md border border-claude-border bg-claude-surface px-3 py-2 text-lg font-semibold text-claude-text outline-none"
-                autoFocus
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setEditingName(true)}
-                className="max-w-full truncate text-left text-lg font-semibold text-claude-text"
-              >
-                {selectedWorkflow.name}
-              </button>
-            )}
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-claude-muted">
+                {buildWorkflowSummary(selectedWorkflow, language)}
+              </p>
 
-            <p className="mt-2 text-xs leading-5 text-claude-muted">
-              {buildWorkflowSummary(selectedWorkflow, language)}
-            </p>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-claude-muted">
-              <span className="rounded-md border border-claude-border bg-claude-surface px-2 py-1 text-claude-text">
-                {describeWorkflowTrigger(selectedWorkflow, language)}
-              </span>
-              <span>{t('workflow.meta.lastRun')}: {formatWorkflowDateTime(selectedWorkflow.lastRunAt, language)}</span>
-              {selectedWorkflow.trigger.type === 'schedule' ? (
-                <span>{t('workflow.meta.nextRun')}: {formatWorkflowDateTime(selectedWorkflow.nextRunAt, language)}</span>
-              ) : null}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <AppChip>{describeWorkflowTrigger(selectedWorkflow, language)}</AppChip>
+                <AppChip>{t('workflow.meta.lastRun')}: {formatWorkflowDateTime(selectedWorkflow.lastRunAt, language)}</AppChip>
+                {selectedWorkflow.trigger.type === 'schedule' ? (
+                  <AppChip>{t('workflow.meta.nextRun')}: {formatWorkflowDateTime(selectedWorkflow.nextRunAt, language)}</AppChip>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div>
-            <div className="text-sm font-medium text-claude-text">{t('workflow.details.selectTitle')}</div>
-            <p className="mt-2 text-xs leading-5 text-claude-muted">{t('workflow.details.selectDescription')}</p>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div>
+              <div className="text-sm font-medium text-claude-text">{t('workflow.details.selectTitle')}</div>
+              <p className="mt-2 text-xs leading-5 text-claude-muted">{t('workflow.details.selectDescription')}</p>
+            </div>
+          )}
 
-      <div className="relative min-h-0 flex-1">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {selectedWorkflow ? (
+              <>
+                <AppButton
+                  tone="secondary"
+                  onClick={() => {
+                    setShowHistoryPanel((current) => !current)
+                    setEditingWorkflowId(null)
+                    setEditingStepId(null)
+                  }}
+                >
+                  {t('workflow.details.history')}
+                </AppButton>
+                <AppButton
+                  tone="secondary"
+                  onClick={() => {
+                    setEditingWorkflowId(selectedWorkflow.id)
+                    setEditingStepId(null)
+                    setShowHistoryPanel(false)
+                  }}
+                >
+                  {t('workflow.canvas.action.trigger')}
+                </AppButton>
+                {isRunning ? (
+                  <AppButton tone="danger" disabled={busyWorkflowId === selectedWorkflow.id} onClick={() => void handleCancel()}>
+                    {t('workflow.details.cancel')}
+                  </AppButton>
+                ) : (
+                  <AppButton tone="accent" disabled={busyWorkflowId === selectedWorkflow.id} onClick={() => void handleRunNow()}>
+                    {t('workflow.details.runNow')}
+                  </AppButton>
+                )}
+                <AppButton tone="secondary" onClick={() => handleDuplicate(selectedWorkflow.id)}>
+                  {t('workflow.actions.duplicate')}
+                </AppButton>
+              </>
+            ) : null}
+            <AppButton onClick={onClose} size="icon" tone="ghost" aria-label={t('workflow.create.cancel')}>
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
+              </svg>
+            </AppButton>
+          </div>
+        </div>
+
+        <div className="relative min-h-0 flex-1">
         <WorkflowCanvas
           workflow={selectedWorkflow}
           executions={workflowExecutions}
@@ -563,7 +591,7 @@ export function WorkflowsView({
         ) : null}
 
         {actionError ? (
-          <div className="absolute right-4 top-4 z-40 max-w-sm rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200 shadow-lg">
+          <div className="absolute right-4 top-4 z-40 max-w-sm rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200 shadow-lg">
             {actionError}
           </div>
         ) : null}
@@ -571,7 +599,7 @@ export function WorkflowsView({
 
       {showCreateModal ? (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-md border border-claude-border bg-claude-panel p-5 shadow-2xl">
+          <AppPanel className="w-full max-w-xl p-5 shadow-2xl">
             <h2 className="text-lg font-semibold text-claude-text">{t('workflow.create.title')}</h2>
             <div className="mt-4">
               <label className="block text-sm font-medium text-claude-text">
@@ -581,7 +609,7 @@ export function WorkflowsView({
                 value={createName}
                 onChange={(event) => setCreateName(event.target.value)}
                 placeholder={t('workflow.create.namePlaceholder')}
-                className="mt-2 h-10 w-full rounded-md border border-claude-border bg-claude-bg px-3 text-sm text-claude-text outline-none placeholder:text-claude-muted"
+                className={`${appFieldClassName} mt-2 h-10`}
               />
             </div>
 
@@ -599,7 +627,7 @@ export function WorkflowsView({
                       key={template.id}
                       type="button"
                       onClick={() => setSelectedTemplate(template.id)}
-                      className={`rounded-md border p-3 text-left transition-colors ${
+                      className={`rounded-lg border p-3 text-left transition-colors ${
                         active
                           ? 'border-claude-orange/40 bg-claude-orange/10'
                           : 'border-claude-border bg-claude-bg hover:bg-claude-surface'
@@ -614,25 +642,18 @@ export function WorkflowsView({
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="rounded-md border border-claude-border bg-claude-surface px-3 py-1.5 text-sm text-claude-text transition-colors hover:bg-claude-surface-2"
-              >
+              <AppButton onClick={() => setShowCreateModal(false)} tone="ghost">
                 {t('workflow.create.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateWorkflow}
-                className="rounded-md border border-claude-orange/40 bg-claude-orange/20 px-3 py-1.5 text-sm font-medium text-claude-text transition-colors hover:bg-claude-orange/25"
-              >
+              </AppButton>
+              <AppButton onClick={handleCreateWorkflow} tone="accent">
                 {t('workflow.create.submit')}
-              </button>
+              </AppButton>
             </div>
-          </div>
+          </AppPanel>
         </div>
       ) : null}
 
+      </div>
     </div>
   )
 }

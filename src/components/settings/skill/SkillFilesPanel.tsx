@@ -1,5 +1,6 @@
 import { useRef, useState, type RefObject } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
+import { AppButton, appFieldClassName } from '../../ui/appDesignSystem'
 import type { Skill, SkillFile } from './useSkillTabState'
 import { SkillFileEditor } from './SkillFileEditor'
 
@@ -145,19 +146,18 @@ export function SkillFilesPanel({
               setIsDragOver(false)
               void onImportFiles(event.dataTransfer.files)
             }}
-            className={`mt-3 rounded-xl border border-dashed px-3 py-3 transition-colors ${
+            className={`mt-3 rounded-lg border border-dashed px-3 py-3 transition-colors ${
               isDragOver ? 'border-claude-text/50 bg-claude-bg' : 'border-claude-border bg-claude-bg/60'
             }`}
           >
             <p className="text-xs font-medium text-claude-text">{t('settings.skill.importFiles')}</p>
             <p className="mt-1 text-[11px] leading-relaxed text-claude-muted">{t('settings.skill.importHint')}</p>
-            <button
-              type="button"
+            <AppButton
               onClick={() => fileInputRef.current?.click()}
-              className="mt-2 rounded-lg border border-claude-border px-2.5 py-1.5 text-xs text-claude-text transition-colors hover:bg-claude-panel"
+              className="mt-2"
             >
               {importingFiles ? t('common.loading') : t('settings.skill.importFiles')}
-            </button>
+            </AppButton>
             {importError && <p className="mt-2 text-xs text-red-400">{importError}</p>}
           </div>
 
@@ -170,23 +170,22 @@ export function SkillFilesPanel({
                 onChange={(event) => onChangeNewFileName(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && void onCreateFile()}
                 placeholder={t('settings.skill.filePlaceholder')}
-                className="w-full rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono focus:border-claude-border focus:outline-none focus:ring-1 focus:ring-white/10"
+                className={`${appFieldClassName} font-mono text-xs`}
               />
               {fileFormError && <p className="text-xs text-red-500">{fileFormError}</p>}
               <div className="flex gap-2">
-                <button
+                <AppButton
                   onClick={() => void onCreateFile()}
                   disabled={creatingFile}
-                  className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a] disabled:opacity-50"
                 >
                   {creatingFile ? t('common.creating') : t('common.create')}
-                </button>
-                <button
+                </AppButton>
+                <AppButton
                   onClick={onResetAddFile}
-                  className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
+                  tone="ghost"
                 >
                   {t('common.cancel')}
-                </button>
+                </AppButton>
               </div>
             </div>
           ) : (

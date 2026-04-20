@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { Session, SidebarMode } from '../../store/sessions'
+import { AppButton, AppChip, AppPanel } from '../ui/appDesignSystem'
 import { SessionRow } from './SessionRow'
 import {
   formatSidebarRelativeTime,
@@ -142,9 +143,9 @@ export function SidebarContent({
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-claude-muted/55">
               {t('sidebar.favorites')}
             </p>
-            <span className="rounded-full border border-white/[0.05] bg-white/[0.03] px-1.5 py-0.5 text-[10px] font-medium text-claude-muted/60">
+            <AppChip className="px-1.5 py-0.5 text-[10px] text-claude-muted/60">
               {orderedFavoriteSessions.length}
-            </span>
+            </AppChip>
           </div>
           <div className="space-y-px">
             {orderedFavoriteSessions.map((session) => (
@@ -179,9 +180,11 @@ export function SidebarContent({
 
           <div ref={menuRootRef} className="flex items-center gap-1">
             {sidebarMode === 'project' && orderedProjectGroups.length > 0 && (
-              <button
+              <AppButton
                 onClick={() => onSetAllProjectsCollapsed(!allProjectsCollapsed)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-claude-muted/70 transition-colors hover:bg-white/[0.04] hover:text-claude-text"
+                size="icon"
+                tone="ghost"
+                className="text-claude-muted/70"
                 title={allProjectsCollapsed ? t('sidebar.projectSessions.show') : t('sidebar.projectSessions.hide')}
                 aria-label={allProjectsCollapsed ? t('sidebar.projectSessions.show') : t('sidebar.projectSessions.hide')}
               >
@@ -192,13 +195,15 @@ export function SidebarContent({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7 14l5-5 5 5" />
                   )}
                 </svg>
-              </button>
+              </AppButton>
             )}
 
             <div className="relative">
-              <button
+              <AppButton
                 onClick={() => setOpenMenu((current) => (current === 'display' ? null : 'display'))}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-claude-muted/70 transition-colors hover:bg-white/[0.04] hover:text-claude-text"
+                size="icon"
+                tone="ghost"
+                className="text-claude-muted/70"
                 title={`${t('sidebar.organization.title')} / ${t('sidebar.sort.title')}: ${organizationLabel}, ${sortLabel}`}
                 aria-label={`${t('sidebar.organization.title')} / ${t('sidebar.sort.title')}: ${organizationLabel}, ${sortLabel}`}
               >
@@ -207,10 +212,10 @@ export function SidebarContent({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M7 12h10" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 17h4" />
                 </svg>
-              </button>
+              </AppButton>
 
               {openMenu === 'display' && (
-                <div className="absolute left-0 top-[calc(100%+0.4rem)] z-30 w-56 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel shadow-2xl">
+                <AppPanel className="absolute left-0 top-[calc(100%+0.4rem)] z-30 w-56 overflow-hidden rounded-lg p-0 shadow-2xl">
                   <div className="border-b border-claude-border px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-claude-muted/70">
                     {t('sidebar.organization.title')} / {t('sidebar.sort.title')}
                   </div>
@@ -230,7 +235,7 @@ export function SidebarContent({
                             onSidebarModeChange(mode)
                             setOpenMenu(null)
                           }}
-                          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                             active ? 'bg-claude-surface text-claude-text' : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
                           }`}
                         >
@@ -262,7 +267,7 @@ export function SidebarContent({
                             onSortModeChange(option.value)
                             setOpenMenu(null)
                           }}
-                          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                             active ? 'bg-claude-surface text-claude-text' : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
                           }`}
                         >
@@ -276,13 +281,15 @@ export function SidebarContent({
                       )
                     })}
                   </div>
-                </div>
+                </AppPanel>
               )}
             </div>
 
-            <button
+            <AppButton
               onClick={() => onNewSession()}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-claude-muted/70 transition-colors hover:bg-white/[0.04] hover:text-claude-text"
+              size="icon"
+              tone="ghost"
+              className="text-claude-muted/70"
               title={t('sidebar.newSession')}
               aria-label={t('sidebar.newSession')}
             >
@@ -292,7 +299,7 @@ export function SidebarContent({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 14v6" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 17h6" />
               </svg>
-            </button>
+            </AppButton>
           </div>
         </div>
       </div>
@@ -331,8 +338,8 @@ export function SidebarContent({
                   setDraggingProjectCwd(null)
                   setProjectDropTargetCwd(null)
                 }}
-                className={`flex items-center gap-1 rounded-xl px-1 transition-colors ${
-                  projectDropTargetCwd === group.cwd ? 'bg-white/5' : ''
+                className={`flex items-center gap-1 rounded-lg px-1 transition-colors ${
+                  projectDropTargetCwd === group.cwd ? 'bg-claude-surface/55' : ''
                 }`}
               >
                 <button
@@ -400,8 +407,8 @@ export function SidebarContent({
                         setDraggingSessionId(null)
                         setSessionDropTargetId(null)
                       }}
-                      className={`rounded-xl transition-colors ${
-                        sessionDropTargetId === session.id ? 'bg-white/5' : ''
+                      className={`rounded-lg transition-colors ${
+                        sessionDropTargetId === session.id ? 'bg-claude-surface/55' : ''
                       }`}
                     >
                       <SessionRow
@@ -461,8 +468,8 @@ export function SidebarContent({
                   setDraggingSessionId(null)
                   setSessionDropTargetId(null)
                 }}
-                className={`rounded-2xl transition-colors ${
-                  sessionDropTargetId === session.id ? 'bg-white/5' : ''
+                className={`rounded-lg transition-colors ${
+                  sessionDropTargetId === session.id ? 'bg-claude-surface/55' : ''
                 }`}
               >
                 <SessionRow
@@ -487,7 +494,7 @@ export function SidebarContent({
           </div>
         )}
         {threadCount === 0 && (
-          <div className="rounded-2xl border border-dashed border-white/5 px-4 py-6 text-center text-sm text-claude-muted/65">
+          <div className="rounded-lg border border-dashed border-claude-border px-4 py-6 text-center text-sm text-claude-muted/65">
             {t('sidebar.emptyThreads')}
           </div>
         )}

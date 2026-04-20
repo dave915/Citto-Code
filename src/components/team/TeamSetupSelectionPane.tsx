@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { useI18n } from '../../hooks/useI18n'
 import type { AgentPreset, PresetCategory } from '../../lib/teamAgentPresets'
 import { AgentPixelIcon } from './AgentPixelIcon'
+import { TeamButton, TeamChip, TeamEyebrow, TeamPanel, cx } from './teamDesignSystem'
 import type { PresetHoverState } from './teamSetupShared'
 
 function AgentPresetCard({
@@ -44,35 +45,35 @@ function AgentPresetCard({
       onFocus={(event) => onHoverStart(event.currentTarget.getBoundingClientRect())}
       onBlur={onHoverEnd}
       aria-disabled={disabled}
-      className={`
-        relative flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all
-        ${selected
-          ? 'border-blue-500 bg-blue-500/10'
+      className={cx(
+        'relative flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+        selected
+          ? 'border-claude-orange/40 bg-claude-orange/10'
           : disabled
             ? 'cursor-not-allowed border-claude-border bg-claude-surface opacity-50'
-            : 'border-claude-border bg-claude-surface hover:border-claude-border-hover hover:bg-claude-surface-2/45'
-        }
-      `}
+            : 'border-claude-border bg-claude-surface/80 hover:bg-claude-surface-2/45',
+      )}
     >
       {onDelete && (
-        <button
-          type="button"
+        <TeamButton
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
             onDelete()
           }}
-          className="absolute right-2 top-2 rounded-md p-1 text-claude-text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+          className="absolute right-2 top-2"
+          size="icon"
+          tone="ghost"
           title={t('team.setup.deletePreset')}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-        </button>
+        </TeamButton>
       )}
 
       {selected && (
-        <div className={`absolute top-2 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 ${onDelete ? 'right-9' : 'right-2'}`}>
+        <div className={`absolute top-2 flex h-5 w-5 items-center justify-center rounded-full border border-claude-orange/40 bg-claude-orange ${onDelete ? 'right-11' : 'right-2'}`}>
           <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
             <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
@@ -81,18 +82,18 @@ function AgentPresetCard({
       <div className="shrink-0">
         <AgentPixelIcon type={preset.iconType} size={40} color={preset.color} />
       </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-claude-text">{preset.name}</span>
-          <span
-            className="rounded px-1.5 py-0.5 text-xs font-medium text-white"
-            style={{ backgroundColor: preset.color }}
-          >
-            {preset.role}
-          </span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-claude-text">{preset.name}</span>
+            <TeamChip
+              className="border-transparent px-1.5 py-0.5 text-[10px] text-white"
+              style={{ backgroundColor: preset.color }}
+            >
+              {preset.role}
+            </TeamChip>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-claude-text/80">{preset.description}</p>
         </div>
-        <p className="mt-0.5 truncate text-xs text-claude-text/80">{preset.description}</p>
-      </div>
     </div>
   )
 }
@@ -117,8 +118,8 @@ export function PresetHoverCard({ hoverState }: { hoverState: PresetHoverState }
   )
 
   return createPortal(
-    <div
-      className="pointer-events-none fixed z-[200] w-[360px] rounded-2xl border border-claude-border bg-claude-bg-base/95 p-4 shadow-2xl backdrop-blur"
+    <TeamPanel
+      className="pointer-events-none fixed z-[200] w-[360px] p-4 shadow-2xl backdrop-blur"
       style={{ left, top }}
     >
       <div className="mb-3 flex items-start gap-3">
@@ -126,14 +127,14 @@ export function PresetHoverCard({ hoverState }: { hoverState: PresetHoverState }
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-claude-text">{preset.name}</p>
-            <span
-              className="rounded px-1.5 py-0.5 text-[11px] font-medium text-white"
+            <TeamChip
+              className="border-transparent px-1.5 py-0.5 text-[10px] text-white"
               style={{ backgroundColor: preset.color }}
             >
               {preset.role}
-            </span>
+            </TeamChip>
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-claude-text-muted">
+          <p className="mt-1 text-xs leading-relaxed text-claude-muted">
             {preset.description}
           </p>
         </div>
@@ -141,24 +142,24 @@ export function PresetHoverCard({ hoverState }: { hoverState: PresetHoverState }
 
       <div className="space-y-3">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
+          <TeamEyebrow className="mb-1">
             {t('team.setup.descriptionLabel')}
-          </p>
+          </TeamEyebrow>
           <div className="rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-xs leading-relaxed text-claude-text">
             {preset.description}
           </div>
         </div>
 
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
+          <TeamEyebrow className="mb-1">
             {t('team.setup.systemPromptLabel')}
-          </p>
+          </TeamEyebrow>
           <div className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-xs leading-relaxed text-claude-text">
             {preset.systemPrompt}
           </div>
         </div>
       </div>
-    </div>,
+    </TeamPanel>,
     document.body,
   )
 }
@@ -195,33 +196,28 @@ export function TeamSetupSelectionPane({
   return (
     <div className="flex-1 space-y-5 overflow-y-auto p-4">
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
+        <TeamEyebrow className="mb-2 text-claude-text">
           {t('team.setup.quickCategories')}
-        </p>
+        </TeamEyebrow>
         <div className="flex flex-wrap gap-2">
           {presetCategories.map((category) => (
-            <button
+            <TeamButton
               key={category.label}
-              type="button"
               onClick={() => onApplyCategory(category)}
               disabled={!isCategorySelected(category) && remainingSlots === 0}
-              className={`rounded-lg border px-3 py-1.5 text-sm transition-all ${
-                isCategorySelected(category)
-                  ? 'border-blue-500 bg-blue-500/10 text-blue-400'
-                  : 'border-claude-border bg-claude-surface/55 text-claude-text hover:border-claude-border-hover hover:bg-claude-surface hover:text-claude-text disabled:cursor-not-allowed disabled:opacity-40'
-              }`}
+              tone={isCategorySelected(category) ? 'accent' : 'secondary'}
             >
               {category.label}
-            </button>
+            </TeamButton>
           ))}
         </div>
       </div>
 
       {customAgentPresets.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
+          <TeamEyebrow className="mb-2 text-claude-text">
             {t('team.setup.savedCustomAgents', { count: customAgentPresets.length })}
-          </p>
+          </TeamEyebrow>
           <div className="grid grid-cols-1 gap-2">
             {customAgentPresets.map((preset) => {
               const isSelected = isPresetSelected(preset.presetId)
@@ -243,9 +239,9 @@ export function TeamSetupSelectionPane({
       )}
 
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-claude-text">
+        <TeamEyebrow className="mb-2 text-claude-text">
           {t('team.setup.defaultAgents', { count: agentPresets.length })}
-        </p>
+        </TeamEyebrow>
         <div className="grid grid-cols-1 gap-2">
           {agentPresets.map((preset) => {
             const isSelected = isPresetSelected(preset.presetId)

@@ -48,7 +48,7 @@ export function UserMessageBubble({
                   className="overflow-hidden rounded-lg text-left transition-opacity hover:opacity-95"
                   title={file.path}
                 >
-                  <div className="h-[52px] w-[52px] overflow-hidden rounded-xl border border-claude-border bg-claude-panel">
+                  <div className="h-[52px] w-[52px] overflow-hidden rounded-lg border border-claude-border bg-claude-panel">
                     <img
                       src={dataUrl}
                       alt={file.name}
@@ -62,7 +62,7 @@ export function UserMessageBubble({
                   className="overflow-hidden rounded-lg"
                   title={file.name}
                 >
-                  <div className="h-[52px] w-[52px] overflow-hidden rounded-xl border border-claude-border bg-claude-panel">
+                  <div className="h-[52px] w-[52px] overflow-hidden rounded-lg border border-claude-border bg-claude-panel">
                     <img
                       src={dataUrl}
                       alt={file.name}
@@ -94,7 +94,7 @@ export function UserMessageBubble({
                   key={file.path}
                   type="button"
                   onClick={() => window.claude.openFile(file.path)}
-                  className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted hover:bg-claude-surface-2 transition-colors group"
+                  className="flex items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted hover:bg-claude-surface-2 transition-colors group"
                   title={file.path}
                 >
                   {content}
@@ -102,7 +102,7 @@ export function UserMessageBubble({
               ) : (
                 <div
                   key={file.path}
-                  className="flex items-center gap-1.5 rounded-xl border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted"
+                  className="flex items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-3 py-1.5 text-xs text-claude-muted"
                   title={file.name}
                 >
                   {content}
@@ -114,7 +114,7 @@ export function UserMessageBubble({
 
         {message.text ? (
           <div className="relative">
-            <div className="rounded-[18px] rounded-tr-md border border-claude-user-bubble-border bg-claude-user-bubble px-3 py-1.5">
+            <div className="rounded-lg rounded-tr-sm border border-claude-user-bubble-border bg-claude-user-bubble px-3 py-1.5">
               <MessageMarkdown
                 text={message.text}
                 role="user"

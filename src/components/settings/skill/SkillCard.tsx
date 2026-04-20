@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
+import { AppButton, AppPanel } from '../../ui/appDesignSystem'
 import type { Skill, SkillFile } from './useSkillTabState'
 import { SkillFilesPanel } from './SkillFilesPanel'
 
@@ -73,7 +74,7 @@ export function SkillCard({
   const { t } = useI18n()
 
   return (
-    <div className="overflow-hidden rounded-xl border border-claude-border bg-claude-bg">
+    <AppPanel className="overflow-hidden bg-claude-bg shadow-none">
       <div className="flex items-center gap-3 p-3">
         <span className="flex-shrink-0 text-base">⚡</span>
         <div className="min-w-0 flex-1">
@@ -177,6 +178,6 @@ export function SkillCard({
           skill={skill}
         />
       )}
-    </div>
+    </AppPanel>
   )
 }

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { TranslationKey } from '../../lib/i18n'
 import type { Workflow, WorkflowExecution } from '../../store/workflowTypes'
+import { AppButton, AppChip, AppPanel, cx } from '../ui/appDesignSystem'
 import {
   describeWorkflowTrigger,
   formatWorkflowDateTime,
@@ -63,23 +64,25 @@ export function WorkflowDetails({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-claude-bg">
-      <div className="border-b border-white/5 px-6 py-5">
+      <div className="border-b border-claude-border px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-semibold text-claude-text">{workflow.name}</h2>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${scheduleActive ? 'bg-emerald-500/15 text-emerald-200' : 'bg-claude-panel text-claude-muted'}`}>
+              <AppChip tone={scheduleActive ? 'success' : 'neutral'}>
                 {scheduleActive ? t('workflow.details.active') : t('workflow.details.inactive')}
-              </span>
+              </AppChip>
               {workflow.trigger.type === 'manual' ? (
-                <span className="rounded-full bg-claude-panel px-2 py-0.5 text-[11px] font-medium text-claude-muted">
+                <AppChip tone="neutral">
                   {t('workflow.details.manualOnly')}
-                </span>
+                </AppChip>
               ) : null}
               {runningExecution ? (
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${getWorkflowExecutionStatusClassName(runningExecution.status)}`}>
+                <AppChip
+                  className={cx('border-transparent', getWorkflowExecutionStatusClassName(runningExecution.status))}
+                >
                   {getWorkflowExecutionStatusLabel(runningExecution.status, language)}
-                </span>
+                </AppChip>
               ) : null}
             </div>
             <p className="mt-2 text-sm text-claude-muted">{describeWorkflowTrigger(workflow, language)}</p>
@@ -87,46 +90,34 @@ export function WorkflowDetails({
 
           <div className="flex flex-wrap items-center gap-2">
             {runningExecution ? (
-              <button
-                type="button"
+              <AppButton
                 disabled={isBusy}
                 onClick={() => void onCancel(workflow.id)}
-                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                className="border-amber-500/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/18"
               >
                 {t('workflow.details.cancel')}
-              </button>
+              </AppButton>
             ) : (
-              <button
-                type="button"
+              <AppButton
                 disabled={isBusy}
                 onClick={() => void onRunNow(workflow.id)}
-                className="rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-sm font-medium text-claude-text transition-colors hover:bg-claude-sidebar-hover disabled:cursor-not-allowed disabled:opacity-60"
+                tone="accent"
               >
                 {t('workflow.details.runNow')}
-              </button>
+              </AppButton>
             )}
-            <button
-              type="button"
+            <AppButton
               onClick={() => onToggleActive(workflow.id)}
               disabled={workflow.trigger.type !== 'schedule'}
-              className="rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-sm font-medium text-claude-text transition-colors hover:bg-claude-sidebar-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {scheduleActive ? t('workflow.details.disable') : t('workflow.details.enable')}
-            </button>
-            <button
-              type="button"
-              onClick={() => onEdit(workflow)}
-              className="rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-sm font-medium text-claude-text transition-colors hover:bg-claude-sidebar-hover"
-            >
+            </AppButton>
+            <AppButton onClick={() => onEdit(workflow)}>
               {t('workflow.details.edit')}
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(workflow)}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100 transition-colors hover:bg-red-500/20"
-            >
+            </AppButton>
+            <AppButton onClick={() => onDelete(workflow)} tone="danger">
               {t('workflow.details.delete')}
-            </button>
+            </AppButton>
           </div>
         </div>
 
@@ -137,22 +128,22 @@ export function WorkflowDetails({
         ) : null}
 
         <dl className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-lg border border-white/5 bg-claude-panel/60 px-4 py-3">
+          <AppPanel className="bg-claude-surface/60 px-4 py-3 shadow-none">
             <dt className="text-xs uppercase tracking-wide text-claude-muted">{t('workflow.details.trigger')}</dt>
             <dd className="mt-1 text-sm font-medium text-claude-text">{describeWorkflowTrigger(workflow, language)}</dd>
-          </div>
-          <div className="rounded-lg border border-white/5 bg-claude-panel/60 px-4 py-3">
+          </AppPanel>
+          <AppPanel className="bg-claude-surface/60 px-4 py-3 shadow-none">
             <dt className="text-xs uppercase tracking-wide text-claude-muted">{t('workflow.details.nextRun')}</dt>
             <dd className="mt-1 text-sm font-medium text-claude-text">{formatWorkflowDateTime(workflow.nextRunAt, language)}</dd>
-          </div>
-          <div className="rounded-lg border border-white/5 bg-claude-panel/60 px-4 py-3">
+          </AppPanel>
+          <AppPanel className="bg-claude-surface/60 px-4 py-3 shadow-none">
             <dt className="text-xs uppercase tracking-wide text-claude-muted">{t('workflow.details.lastRun')}</dt>
             <dd className="mt-1 text-sm font-medium text-claude-text">{formatWorkflowDateTime(workflow.lastRunAt, language)}</dd>
-          </div>
-          <div className="rounded-lg border border-white/5 bg-claude-panel/60 px-4 py-3">
+          </AppPanel>
+          <AppPanel className="bg-claude-surface/60 px-4 py-3 shadow-none">
             <dt className="text-xs uppercase tracking-wide text-claude-muted">{t('workflow.details.stepCount')}</dt>
             <dd className="mt-1 text-sm font-medium text-claude-text">{workflow.steps.length}</dd>
-          </div>
+          </AppPanel>
         </dl>
       </div>
 
@@ -163,15 +154,15 @@ export function WorkflowDetails({
               <h3 className="text-sm font-semibold text-claude-text">{t('workflow.details.steps')}</h3>
               <div className="mt-3 space-y-3">
                 {workflow.steps.map((step, index) => (
-                  <div key={step.id} className="rounded-lg border border-white/5 bg-claude-panel/50 px-4 py-4">
+                  <AppPanel key={step.id} className="bg-claude-surface/55 px-4 py-4 shadow-none">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium text-claude-text">{getStepDisplayLabel(step, index, language)}</p>
                         <p className="mt-1 text-xs text-claude-muted">{getWorkflowStepTypeLabel(step, language)}</p>
                       </div>
-                      <span className="rounded-full bg-claude-bg px-2 py-0.5 text-[11px] text-claude-muted">
+                      <AppChip tone="neutral">
                         {step.id}
-                      </span>
+                      </AppChip>
                     </div>
 
                     {step.type === 'agent' ? (
@@ -215,14 +206,14 @@ export function WorkflowDetails({
                         </p>
                       </div>
                     ) : null}
-                  </div>
+                  </AppPanel>
                 ))}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="min-h-0 overflow-y-auto border-t border-white/5 px-6 py-5 xl:border-l xl:border-t-0">
+        <div className="min-h-0 overflow-y-auto border-t border-claude-border px-6 py-5 xl:border-l xl:border-t-0">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-claude-text">{t('workflow.details.history')}</h3>
@@ -231,14 +222,14 @@ export function WorkflowDetails({
           </div>
 
           {workflowExecutions.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed border-claude-border bg-claude-panel/40 px-4 py-6 text-sm">
+            <AppPanel className="mt-4 border-dashed bg-claude-surface/35 px-4 py-6 text-sm shadow-none">
               <p className="font-medium text-claude-text">{t('workflow.details.noHistory')}</p>
               <p className="mt-2 text-claude-muted">{t('workflow.details.noHistoryDescription')}</p>
-            </div>
+            </AppPanel>
           ) : (
             <div className="mt-4 space-y-3">
               {workflowExecutions.slice(0, 12).map((execution) => (
-                <div key={execution.id} className="rounded-lg border border-white/5 bg-claude-panel/50 px-4 py-4">
+                <AppPanel key={execution.id} className="bg-claude-surface/55 px-4 py-4 shadow-none">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-claude-text">{formatWorkflowDateTime(execution.firedAt, language)}</p>
@@ -246,22 +237,33 @@ export function WorkflowDetails({
                         {t('workflow.details.triggeredBy')}: {t(`workflow.execution.${execution.triggeredBy}`)}
                       </p>
                     </div>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${getWorkflowExecutionStatusClassName(execution.status)}`}>
+                    <AppChip className={cx('border-transparent', getWorkflowExecutionStatusClassName(execution.status))}>
                       {getWorkflowExecutionStatusLabel(execution.status, language)}
-                    </span>
+                    </AppChip>
                   </div>
 
                   {execution.stepResults.length > 0 ? (
                     <div className="mt-3 space-y-2">
                       {execution.stepResults.map((result) => (
-                        <div key={`${execution.id}:${result.stepId}`} className="rounded-lg bg-claude-bg/70 px-3 py-3">
+                        <div key={`${execution.id}:${result.stepId}`} className="rounded-md border border-claude-border bg-claude-bg/80 px-3 py-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-xs font-medium text-claude-text">
                               {stepLabelById.get(result.stepId) ?? result.stepId}
                             </p>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${result.status === 'done' ? 'bg-emerald-500/15 text-emerald-200' : result.status === 'error' ? 'bg-red-500/15 text-red-200' : result.status === 'running' ? 'bg-sky-500/15 text-sky-200' : 'bg-amber-500/15 text-amber-200'}`}>
+                            <AppChip
+                              className={cx(
+                                'border-transparent text-[10px]',
+                                result.status === 'done'
+                                  ? 'bg-emerald-500/15 text-emerald-200'
+                                  : result.status === 'error'
+                                    ? 'bg-red-500/15 text-red-200'
+                                    : result.status === 'running'
+                                      ? 'bg-sky-500/15 text-sky-200'
+                                      : 'bg-amber-500/15 text-amber-200',
+                              )}
+                            >
                               {t(`workflow.status.${result.status}`)}
-                            </span>
+                            </AppChip>
                           </div>
                           {result.output.trim() ? (
                             <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-claude-muted">
@@ -275,7 +277,7 @@ export function WorkflowDetails({
                       ))}
                     </div>
                   ) : null}
-                </div>
+                </AppPanel>
               ))}
             </div>
           )}

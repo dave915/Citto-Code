@@ -2,6 +2,7 @@ import { useI18n } from '../../hooks/useI18n'
 import { formatAttachedFilesSummary } from '../../lib/attachmentPrompts'
 import { translate, type AppLanguage } from '../../lib/i18n'
 import type { DiscussionMode } from '../../store/teamTypes'
+import { TeamChip, cx } from './teamDesignSystem'
 
 export { AgentSeat, getOfficeCarpetInsets } from './TeamAgentSeat'
 export { SelectedAgentPanel } from './TeamSelectedAgentPanel'
@@ -79,7 +80,7 @@ export function ModeSelector({
   const modeOptions = getModeOptions(language)
 
   return (
-    <div className="flex items-center gap-1 rounded-lg border border-claude-border bg-claude-bg p-0.5">
+    <div className="flex items-center gap-1 rounded-lg border border-claude-border bg-claude-panel p-0.5">
       {modeOptions.map((option) => (
         <button
           key={option.value}
@@ -87,14 +88,12 @@ export function ModeSelector({
           disabled={disabled}
           title={option.desc}
           onClick={() => onChange(option.value)}
-          className={`
-            flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all
-            disabled:cursor-not-allowed disabled:opacity-50
-            ${mode === option.value
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'text-claude-text-muted hover:text-claude-text'
-            }
-          `}
+          className={cx(
+            'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+            mode === option.value
+              ? 'border border-claude-orange/35 bg-claude-orange/12 text-claude-orange'
+              : 'border border-transparent text-claude-muted hover:bg-claude-surface hover:text-claude-text',
+          )}
         >
           <span className="font-mono text-base leading-none">{option.icon}</span>
           {option.label}
@@ -107,16 +106,17 @@ export function ModeSelector({
 export function StatusBadge({ status }: { status: string }) {
   const { language } = useI18n()
   const configs = {
-    idle: { label: translate(language, 'team.status.idle'), className: 'bg-gray-500/20 text-gray-400' },
-    running: { label: translate(language, 'team.status.running'), className: 'bg-blue-500/20 text-blue-400 animate-pulse' },
-    done: { label: translate(language, 'team.status.done'), className: 'bg-green-500/20 text-green-400' },
-    error: { label: translate(language, 'team.status.error'), className: 'bg-red-500/20 text-red-400' },
+    idle: { label: translate(language, 'team.status.idle'), tone: 'neutral' as const, dotClassName: 'bg-claude-muted' },
+    running: { label: translate(language, 'team.status.running'), tone: 'accent' as const, dotClassName: 'bg-claude-orange' },
+    done: { label: translate(language, 'team.status.done'), tone: 'success' as const, dotClassName: 'bg-green-400' },
+    error: { label: translate(language, 'team.status.error'), tone: 'danger' as const, dotClassName: 'bg-red-400' },
   }
   const config = configs[status as keyof typeof configs] ?? configs.idle
 
   return (
-    <span className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium leading-none ${config.className}`}>
+    <TeamChip tone={config.tone} className="shrink-0">
+      <span className={cx('h-1.5 w-1.5 rounded-full', config.dotClassName)} />
       {config.label}
-    </span>
+    </TeamChip>
   )
 }

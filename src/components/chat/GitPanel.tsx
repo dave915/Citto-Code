@@ -3,6 +3,7 @@ import type { MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 import type { GitDiffResult, GitLogEntry, GitRepoStatus, GitStatusEntry } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
 import type { GitDraftAction } from '../../lib/gitUtils'
+import { AppButton, appFieldClassName } from '../ui/appDesignSystem'
 import { GitDiffPanel, GitLogPanel, GitStatusPanel } from './GitPanels'
 
 export function GitPanel({
@@ -190,20 +191,20 @@ export function GitPanel({
                           ? t('git.panel.enterCommitMessage')
                           : t('git.panel.noStagedFiles')
                       }
-                      className="max-h-40 min-h-[36px] flex-1 resize-none overflow-hidden rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-[12px] text-claude-text outline-none placeholder:text-claude-muted disabled:cursor-not-allowed disabled:opacity-60"
+                      className={`${appFieldClassName} max-h-40 min-h-[36px] flex-1 resize-none overflow-hidden bg-claude-surface text-[12px] disabled:cursor-not-allowed disabled:opacity-60`}
                     />
-                    <button
-                      type="button"
+                    <AppButton
                       onClick={() => void onCommitGit()}
                       disabled={gitActionLoading || stagedGitEntryCount === 0 || gitCommitMessage.trim().length === 0}
                       title={t('git.panel.commit')}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-claude-border bg-claude-surface text-claude-text transition-colors hover:bg-claude-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      size="icon"
+                      className="h-9 w-9 bg-claude-surface"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M1.75 8h3.1m6.3 0h3.1" />
                         <circle cx="8" cy="8" r="3.15" />
                       </svg>
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
               </div>

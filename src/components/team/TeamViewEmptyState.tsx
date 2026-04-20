@@ -1,12 +1,13 @@
 import type { AgentIconType } from './AgentPixelIcon'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import { useI18n } from '../../hooks/useI18n'
+import { TeamButton } from './teamDesignSystem'
 
 export function TeamViewEmptyState({ onCreateTeam }: { onCreateTeam: () => void }) {
   const { t } = useI18n()
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6 bg-claude-bg">
+    <div className="flex h-full flex-col items-center justify-center gap-5 bg-claude-bg px-6">
       <div className="flex items-end gap-2">
         {(['architect', 'critic', 'developer'] as AgentIconType[]).map((type, index) => (
           <div
@@ -24,24 +25,20 @@ export function TeamViewEmptyState({ onCreateTeam }: { onCreateTeam: () => void 
       </div>
 
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-claude-text">{t('team.empty.title')}</h2>
-        <p className="mt-2 max-w-sm text-sm leading-relaxed text-claude-text-muted">
+        <h2 className="text-xl font-semibold text-claude-text">{t('team.empty.title')}</h2>
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-claude-muted">
           {t('team.empty.descriptionTop')}
           <br />
           {t('team.empty.descriptionBottom')}
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={onCreateTeam}
-        className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-blue-700"
-      >
+      <TeamButton onClick={onCreateTeam} tone="accent" className="px-4">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
         {t('team.empty.createFirst')}
-      </button>
+      </TeamButton>
     </div>
   )
 }

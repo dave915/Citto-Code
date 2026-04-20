@@ -10,6 +10,7 @@ import {
   isMarkdownFile,
   resolveMarkdownPreviewUrl,
 } from '../../lib/markdownPreview'
+import { AppButton } from '../ui/appDesignSystem'
 
 type PreviewPaneProps = {
   entry: DirEntry | null
@@ -153,12 +154,13 @@ export function PreviewPane({
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-4 py-3">
           <p className="text-sm font-medium text-claude-text truncate">{entry.name}</p>
-          <button
+          <AppButton
             onClick={onToggleMarkdownPreview}
-            className="flex-shrink-0 rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+            tone="ghost"
+            className="h-7 px-2.5"
           >
             {t('chat.preview.source')}
-          </button>
+          </AppButton>
         </div>
         <div className="flex-1 overflow-auto px-5 py-4">
           <MarkdownPreviewBody filePath={entry.path} content={previewContent} />
@@ -172,12 +174,13 @@ export function PreviewPane({
       <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-4 py-3">
         <p className="text-sm font-medium text-claude-text truncate">{entry.name}</p>
         {isMarkdownFile(entry.name) && previewState === 'ready' && (
-          <button
+          <AppButton
             onClick={onToggleMarkdownPreview}
-            className="flex-shrink-0 rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+            tone="ghost"
+            className="h-7 px-2.5"
           >
             {t('chat.preview.preview')}
-          </button>
+          </AppButton>
         )}
       </div>
       <pre className="m-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-xs font-mono text-claude-text">

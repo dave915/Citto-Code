@@ -13,13 +13,13 @@ export function SidebarFooter({
 }: Props) {
   const { t } = useI18n()
   return (
-    <div className="mt-auto border-t border-white/5 px-2.5 py-2">
+    <div className="mt-auto border-t border-claude-border px-2.5 py-2">
       <button
         onClick={onOpenSettings}
-        className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+        className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
           settingsOpen
-            ? 'bg-claude-surface text-claude-text'
-            : 'text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
+            ? 'border-claude-border bg-claude-surface text-claude-text'
+            : 'border-transparent text-claude-text hover:border-claude-border/60 hover:bg-claude-sidebar-hover hover:text-claude-text'
         }`}
         title={t('sidebar.settingsTitle', { shortcut: settingsShortcutLabel })}
       >

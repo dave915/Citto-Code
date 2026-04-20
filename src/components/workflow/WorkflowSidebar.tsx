@@ -1,5 +1,6 @@
 import { useI18n } from '../../hooks/useI18n'
 import type { Workflow, WorkflowExecution } from '../../store/workflowTypes'
+import { AppButton, AppChip, cx } from '../ui/appDesignSystem'
 import {
   describeWorkflowTrigger,
   formatWorkflowDateTime,
@@ -27,8 +28,8 @@ export function WorkflowSidebar({
   const { language, t } = useI18n()
 
   return (
-    <aside className="flex h-full w-[320px] flex-shrink-0 flex-col border-r border-white/5 bg-claude-sidebar">
-      <div className="border-b border-white/5 px-4 py-4">
+    <aside className="flex h-full w-[288px] flex-shrink-0 flex-col border-r border-claude-border bg-claude-sidebar">
+      <div className="border-b border-claude-border px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-claude-text">{t('workflow.header.title')}</h2>
@@ -36,13 +37,9 @@ export function WorkflowSidebar({
               {t('workflow.header.activeCount', { count: activeWorkflowCount })}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onCreate}
-            className="rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-claude-sidebar-hover"
-          >
+          <AppButton onClick={onCreate} tone="accent">
             {t('workflow.header.add')}
-          </button>
+          </AppButton>
         </div>
       </div>
 
@@ -66,11 +63,12 @@ export function WorkflowSidebar({
                   key={workflow.id}
                   type="button"
                   onClick={() => onSelect(workflow.id)}
-                  className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+                  className={cx(
+                    'w-full rounded-lg border px-3 py-3 text-left transition-colors',
                     isSelected
-                      ? 'border-white/20 bg-claude-panel'
-                      : 'border-transparent bg-transparent hover:border-white/5 hover:bg-claude-panel/60'
-                  }`}
+                      ? 'border-claude-border bg-claude-panel'
+                      : 'border-transparent bg-transparent hover:border-claude-border/50 hover:bg-claude-panel/60',
+                  )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -87,7 +85,7 @@ export function WorkflowSidebar({
                   </div>
 
                   <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-claude-muted">
-                    <span>
+                    <span className="text-claude-muted">
                       {workflow.trigger.type === 'schedule'
                         ? t('workflow.sidebar.nextRun')
                         : t('workflow.sidebar.manual')}
@@ -97,6 +95,12 @@ export function WorkflowSidebar({
                         ? formatWorkflowDateTime(workflow.nextRunAt, language)
                         : t('workflow.details.manualOnly')}
                     </span>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <AppChip className="px-2 py-0.5 text-[10px]">
+                      {workflow.steps.length} {t('workflow.details.steps')}
+                    </AppChip>
                   </div>
                 </button>
               )

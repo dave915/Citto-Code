@@ -1,5 +1,6 @@
 import type { SkillFile } from './useSkillTabState'
 import { useI18n } from '../../../hooks/useI18n'
+import { AppButton, appFieldClassName } from '../../ui/appDesignSystem'
 
 type SkillFileEditorProps = {
   editContent: string
@@ -25,7 +26,7 @@ export function SkillFileEditor({
   const { t } = useI18n()
 
   return (
-    <div className="border-t border-claude-border bg-claude-surface px-4 py-3">
+    <div className="border-t border-claude-border bg-claude-bg/55 px-4 py-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-mono font-semibold text-claude-text">{editingFile.name}</span>
         <div className="flex items-center gap-2">
@@ -56,25 +57,24 @@ export function SkillFileEditor({
               void onSave()
             }
           }}
-          className="h-56 w-full resize-y rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-xs font-mono leading-relaxed focus:border-claude-border focus:outline-none focus:ring-1 focus:ring-white/10"
+          className={`${appFieldClassName} h-56 resize-y font-mono text-xs leading-relaxed`}
           spellCheck={false}
         />
       )}
       {saveError && <p className="mt-1 text-xs text-red-500">{saveError}</p>}
       <div className="mt-2 flex gap-2">
-        <button
+        <AppButton
           onClick={() => void onSave()}
           disabled={saving || loadingEdit}
-          className="rounded-lg bg-claude-surface-2 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-[#44444a] disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('common.save')}
-        </button>
-        <button
+        </AppButton>
+        <AppButton
           onClick={onClose}
-          className="rounded-lg border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:text-claude-text"
+          tone="ghost"
         >
           {t('common.cancel')}
-        </button>
+        </AppButton>
       </div>
     </div>
   )

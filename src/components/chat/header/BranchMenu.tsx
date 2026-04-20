@@ -2,6 +2,7 @@ import type { MutableRefObject } from 'react'
 import type { GitBranchInfo, GitRepoStatus } from '../../../../electron/preload'
 import { useI18n } from '../../../hooks/useI18n'
 import { IconTooltipButton } from '../git/GitShared'
+import { AppButton, appFieldClassName } from '../../ui/appDesignSystem'
 
 type Props = {
   gitStatus: GitRepoStatus | null
@@ -64,7 +65,7 @@ export function BranchMenu({
         </button>
 
         {branchMenuOpen && (
-          <div className="absolute left-0 top-full z-50 mt-2 w-[268px] rounded-[10px] border border-claude-border bg-claude-panel p-2 shadow-2xl">
+          <div className="absolute left-0 top-full z-50 mt-2 w-[268px] rounded-lg border border-claude-border bg-claude-panel p-2 shadow-2xl">
             <div className="flex items-center gap-1.5">
               <div className="relative min-w-0 flex-1">
                 <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -76,7 +77,7 @@ export function BranchMenu({
                   value={branchQuery}
                   onChange={(event) => onBranchQueryChange(event.target.value)}
                   placeholder={t('branch.searchPlaceholder')}
-                  className="w-full rounded-xl border border-claude-border bg-claude-surface py-1.5 pl-9 pr-3 text-[11px] text-claude-text outline-none placeholder:text-claude-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+                  className={`${appFieldClassName} py-1.5 pl-9 text-[11px]`}
                 />
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -129,13 +130,13 @@ export function BranchMenu({
                     {filteredGitBranches.map((branch) => (
                       <div
                         key={branch.name}
-                        className="flex items-start gap-1 rounded-xl px-1 py-0.5 transition-colors hover:bg-claude-surface"
+                        className="flex items-start gap-1 rounded-lg px-1 py-0.5 transition-colors hover:bg-claude-surface"
                       >
                         <button
                           type="button"
                           onClick={() => void onSelectBranch(branch.name)}
                           disabled={gitActionLoading}
-                          className="flex min-w-0 flex-1 items-start gap-2 rounded-xl px-1.5 py-1 text-left disabled:opacity-50"
+                          className="flex min-w-0 flex-1 items-start gap-2 rounded-lg px-1.5 py-1 text-left disabled:opacity-50"
                         >
                           <svg className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
@@ -184,17 +185,17 @@ export function BranchMenu({
             </div>
 
             <div className="mt-2 border-t border-claude-border pt-2">
-              <button
-                type="button"
+              <AppButton
                 onClick={onOpenBranchCreateModal}
-                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-[12px] font-medium text-claude-text transition-colors hover:bg-claude-surface"
+                tone="ghost"
+                className="flex w-full justify-start gap-2 px-2.5 text-left text-[12px]"
               >
                 <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
                 </svg>
                 {t('branch.createAndCheckout')}
-              </button>
+              </AppButton>
             </div>
           </div>
         )}

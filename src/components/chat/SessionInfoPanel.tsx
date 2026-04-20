@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Session } from '../../store/sessions'
 import { useI18n } from '../../hooks/useI18n'
 import { getIntlLocale } from '../../lib/i18n'
@@ -7,6 +8,7 @@ import {
   lastMessageSummary,
   type SessionExportFormat,
 } from '../../lib/sessionExport'
+import { AppButton, AppChip } from '../ui/appDesignSystem'
 
 type SessionInfoPanelProps = {
   session: Session
@@ -44,40 +46,44 @@ export function SessionInfoPanel({
     : null
 
   return (
-    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-claude-bg/40 p-4">
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{t('sessionInfo.section')}</p>
+    <div className="min-h-0 flex-1 overflow-y-auto bg-claude-bg/30">
+      <SessionInfoSection
+        title={t('sessionInfo.section')}
+        action={(
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <AppButton
               onClick={() => onExportSession('markdown')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
-              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
             >
               {exportingFormat === 'markdown' ? t('sessionInfo.saving') : 'Markdown'}
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               onClick={() => onExportSession('json')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
-              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
             >
               {exportingFormat === 'json' ? t('sessionInfo.saving') : 'JSON'}
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               onClick={() => onCopySessionExport('markdown')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
-              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+              tone="ghost"
             >
               {copyingFormat === 'markdown' ? t('sessionInfo.copying') : t('sessionInfo.copyMd')}
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               onClick={() => onCopySessionExport('json')}
               disabled={Boolean(exportingFormat) || Boolean(copyingFormat)}
-              className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+              tone="ghost"
             >
               {copyingFormat === 'json' ? t('sessionInfo.copying') : t('sessionInfo.copyJson')}
-            </button>
+            </AppButton>
           </div>
+        )}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <AppChip tone={session.isStreaming ? 'accent' : 'neutral'}>
+            {session.isStreaming ? t('sessionInfo.generating') : t('sessionInfo.idle')}
+          </AppChip>
         </div>
         <div className="mt-3 space-y-3">
           <InfoRow label={t('sessionInfo.name')} value={session.name} />
@@ -86,7 +92,6 @@ export function SessionInfoPanel({
           <InfoRow label={t('sessionInfo.model')} value={session.model ?? t('sessionInfo.defaultModel')} />
           <InfoRow label={t('sessionInfo.permission')} value={formatPermissionMode(session.permissionMode, language)} />
           <InfoRow label={t('sessionInfo.planMode')} value={session.planMode ? t('sessionInfo.on') : t('sessionInfo.off')} />
-          <InfoRow label={t('sessionInfo.status')} value={session.isStreaming ? t('sessionInfo.generating') : t('sessionInfo.idle')} />
           <InfoRow label={t('sessionInfo.error')} value={session.error ?? t('sessionInfo.none')} mono={Boolean(session.error)} />
         </div>
         {exportStatus && (
@@ -95,19 +100,20 @@ export function SessionInfoPanel({
         {exportError && (
           <p className="mt-3 text-xs text-red-300">{exportError}</p>
         )}
-      </div>
+      </SessionInfoSection>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{t('sessionInfo.context')}</p>
-          <button
+      <SessionInfoSection
+        title={t('sessionInfo.context')}
+        action={(
+          <AppButton
             onClick={onCompact}
             disabled={session.isStreaming}
-            className="rounded-xl border border-claude-border px-3 py-1.5 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-40"
+            tone="ghost"
           >
             {t('sessionInfo.compact')}
-          </button>
-        </div>
+          </AppButton>
+        )}
+      >
         <div className="mt-4">
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -127,23 +133,42 @@ export function SessionInfoPanel({
             />
           </div>
         </div>
-      </div>
+      </SessionInfoSection>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 px-4 py-4">
         <InfoStat label={t('sessionInfo.userMessages')} value={String(userMessageCount)} />
         <InfoStat label={t('sessionInfo.responseMessages')} value={String(assistantMessageCount)} />
         <InfoStat label={t('sessionInfo.promptHistory')} value={String(promptHistoryCount)} />
         <InfoStat label={t('sessionInfo.lastCost')} value={session.lastCost !== undefined ? `$${session.lastCost.toFixed(4)}` : '-'} />
       </div>
 
-      <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{t('sessionInfo.timeline')}</p>
+      <SessionInfoSection title={t('sessionInfo.timeline')}>
         <div className="mt-3 space-y-3">
           <InfoRow label={t('sessionInfo.startedAt')} value={createdAt ? formatDateTime(createdAt, language) : t('sessionInfo.noMessages')} />
           <InfoRow label={t('sessionInfo.lastMessage')} value={lastMessageSummary(session, language)} />
         </div>
-      </div>
+      </SessionInfoSection>
     </div>
+  )
+}
+
+function SessionInfoSection({
+  title,
+  action,
+  children,
+}: {
+  title: string
+  action?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className="border-b border-claude-border/70 px-4 py-4 last:border-b-0">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-claude-muted">{title}</p>
+        {action}
+      </div>
+      {children}
+    </section>
   )
 }
 
@@ -168,7 +193,7 @@ function InfoRow({
 
 function InfoStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
+    <div className="rounded-lg border border-claude-border bg-claude-panel/65 p-4">
       <p className="text-xs text-claude-muted">{label}</p>
       <p className="mt-1 text-lg font-semibold text-claude-text">{value}</p>
     </div>

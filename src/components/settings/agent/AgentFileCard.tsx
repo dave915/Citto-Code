@@ -1,4 +1,5 @@
 import { useI18n } from '../../../hooks/useI18n'
+import { AppPanel } from '../../ui/appDesignSystem'
 import type { AgentFile } from './useAgentTabState'
 import { AgentFileEditor } from './AgentFileEditor'
 
@@ -41,7 +42,7 @@ export function AgentFileCard({
   const isEditing = editingFile?.path === file.path
 
   return (
-    <div className="overflow-hidden rounded-xl border border-claude-border bg-claude-bg">
+    <AppPanel className="overflow-hidden bg-claude-bg shadow-none">
       <div className="group flex items-center gap-3 p-3">
         <span className="flex-shrink-0 text-base">🤖</span>
         <div className="min-w-0 flex-1">
@@ -113,6 +114,6 @@ export function AgentFileCard({
           saving={saving}
         />
       )}
-    </div>
+    </AppPanel>
   )
 }

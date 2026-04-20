@@ -231,7 +231,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
                 <button
                   type="button"
                   onClick={() => setMarkdownPreviewEnabled((value) => !value)}
-                  className="mt-2 inline-flex rounded-xl border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
+                  className="mt-2 inline-flex rounded-lg border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
                 >
                   {markdownPreviewEnabled ? 'Diff' : 'MD'}
                 </button>
@@ -248,11 +248,11 @@ export const GitDiffPanel = memo(function GitDiffPanel({
       <div className="min-h-0 flex-1 overflow-auto bg-claude-bg p-4">
         {markdownPreviewEnabled && markdownPreviewAvailable ? (
           markdownPreviewState === 'ready' ? (
-            <div className="rounded-2xl border border-claude-border bg-claude-surface px-5 py-4">
+            <div className="rounded-lg border border-claude-border bg-claude-panel/65 px-5 py-4">
               <MarkdownPreviewBody filePath={entry!.path} content={markdownPreviewContent} />
             </div>
           ) : markdownPreviewState === 'error' ? (
-            <div className="rounded-2xl border border-red-900/40 bg-red-950/20 px-4 py-8 text-center text-sm text-red-100">
+            <div className="rounded-lg border border-red-900/40 bg-red-950/20 px-4 py-8 text-center text-sm text-red-100">
               {markdownPreviewError}
             </div>
           ) : (
@@ -265,15 +265,15 @@ export const GitDiffPanel = memo(function GitDiffPanel({
             <p className="text-sm">{t('git.diff.loadingDiff')}</p>
           </div>
         ) : !gitDiff ? (
-          <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
+          <div className="rounded-lg border border-claude-border bg-claude-panel/65 px-4 py-8 text-center text-sm text-claude-muted">
             {t('git.diff.loadingDiff')}
           </div>
         ) : gitDiff.error && !gitDiff.diff.trim() ? (
-          <div className="rounded-2xl border border-red-900/40 bg-red-950/20 px-4 py-8 text-center text-sm text-red-100">
+          <div className="rounded-lg border border-red-900/40 bg-red-950/20 px-4 py-8 text-center text-sm text-red-100">
             {gitDiff.error}
           </div>
         ) : !gitDiff.diff.trim() ? (
-          <div className="rounded-2xl border border-claude-border bg-claude-surface px-4 py-8 text-center text-sm text-claude-muted">
+          <div className="rounded-lg border border-claude-border bg-claude-panel/65 px-4 py-8 text-center text-sm text-claude-muted">
             {t('git.diff.noDiff')}
           </div>
         ) : parsedFiles.length > 0 ? (
@@ -288,7 +288,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
               const markdownPreviewDataForFile = commitMarkdownPreviewCache[fileKey]
 
               return (
-                <div key={fileKey} className="overflow-hidden rounded-2xl border border-claude-border/70 bg-claude-surface">
+                <div key={fileKey} className="overflow-hidden rounded-lg border border-claude-border/70 bg-claude-panel/65">
                   <div className={`flex items-center gap-2 bg-claude-panel px-3 py-2 text-[11px] font-mono text-claude-muted ${isCollapsed ? '' : 'border-b border-claude-border/70'}`}>
                     <button
                       type="button"
@@ -351,7 +351,7 @@ export const GitDiffPanel = memo(function GitDiffPanel({
             })}
           </div>
         ) : (
-          <pre className="m-0 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-claude-border bg-claude-surface p-4 text-xs font-mono text-claude-text">
+          <pre className="m-0 overflow-x-auto whitespace-pre-wrap rounded-lg border border-claude-border bg-claude-panel/65 p-4 text-xs font-mono text-claude-text">
             {gitDiff.diff}
           </pre>
         )}

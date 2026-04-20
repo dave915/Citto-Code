@@ -283,8 +283,8 @@ export function GitLogPanel({
                   key={entry.hash}
                   type="button"
                   onClick={() => void onSelectCommit(entry)}
-                  className={`block w-full rounded-md px-2 text-left transition-colors ${
-                    isSelected ? 'bg-claude-surface-2' : 'hover:bg-claude-panel'
+                  className={`block w-full rounded-lg px-2 text-left transition-colors ${
+                    isSelected ? 'bg-claude-bg/80' : 'hover:bg-claude-bg/65'
                   }`}
                   title={`${entry.shortHash} ${entry.subject}`}
                 >

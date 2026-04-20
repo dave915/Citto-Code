@@ -14,6 +14,7 @@ import type { GitDraftAction } from '../../lib/gitUtils'
 import type { HtmlPreviewElementCapture } from '../../lib/toolcalls/types'
 import type { ChatViewRightPanel } from '../../hooks/useChatViewLayout'
 import type { HtmlPreviewSource, PreviewElementSelectionPayload } from './chatViewUtils'
+import { AppButton } from '../ui/appDesignSystem'
 import { FilePanel } from './FilePanel'
 import { GitPanel } from './GitPanel'
 import { HtmlPreviewPanel } from './HtmlPreviewPanel'
@@ -95,8 +96,8 @@ function SectionChrome({
   children: ReactNode
 }) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-claude-border bg-claude-panel">
-      <div className="flex h-10 items-center justify-between border-b border-claude-border px-3">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-claude-border bg-claude-bg/55">
+      <div className="flex h-9 items-center justify-between border-b border-claude-border px-3">
         <p className="truncate text-[12px] font-medium text-claude-text">{title}</p>
         {action ? <div className="flex items-center gap-1">{action}</div> : null}
       </div>
@@ -115,14 +116,9 @@ function SectionActionButton({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex h-7 w-7 items-center justify-center rounded-lg border border-claude-border bg-claude-surface text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text"
-      title={title}
-    >
+    <AppButton type="button" onClick={onClick} size="icon" tone="ghost" title={title} className="h-7 w-7">
       {children}
-    </button>
+    </AppButton>
   )
 }
 
@@ -588,10 +584,10 @@ export function ChatSidePanel({
     <aside
       ref={asideRef}
       onMouseDown={gitPanel.handleGitPanelPointerDown}
-      className="flex min-w-0 flex-shrink-0 flex-col border-l border-claude-border bg-claude-panel p-3"
+      className="flex min-w-0 flex-shrink-0 flex-col border-l border-claude-border bg-claude-panel px-2.5 py-3"
       style={{ width: `${panelWidth}px`, maxWidth: '85vw' }}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
         {openPanels.map((panel, index) => renderSection(panel, index === openPanels.length - 1))}
       </div>
     </aside>

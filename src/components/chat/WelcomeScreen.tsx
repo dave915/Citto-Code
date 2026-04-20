@@ -130,12 +130,12 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
 
         `}
       </style>
-      <h2 className="mb-2 text-3xl font-semibold tracking-tight text-claude-text">Citto Code</h2>
-      <p className="mb-10 max-w-sm text-[15px] leading-7 text-claude-muted">
+      <h2 className="mb-2 text-[28px] font-semibold tracking-tight text-claude-text">Citto Code</h2>
+      <p className="mb-8 max-w-md text-[14px] leading-7 text-claude-muted">
         {t('welcome.subtitle')}
       </p>
 
-      <div className="pointer-events-none mb-10 select-none">
+      <div className="pointer-events-none mb-8 select-none">
         <div className="relative h-12 w-20 sm:h-14 sm:w-24">
           <img
             src={welcomeTypingGif}
@@ -149,38 +149,38 @@ export function WelcomeScreen({ onStartPrompt }: { onStartPrompt: (prompt: strin
         </div>
       </div>
       <div className="mt-2 flex w-full max-w-2xl flex-col items-center">
-        <div className="relative mt-2 h-56 w-full max-w-[460px] overflow-hidden">
-          <div className="pointer-events-none absolute bottom-8 left-1/2 h-[138px] w-[min(82vw,420px)] -translate-x-1/2">
-            <div className="absolute inset-0 rounded-[10px] border border-claude-border/65 bg-claude-surface/50 opacity-45 [transform:translateY(10px)_rotate(-2.6deg)]" />
-            <div className="absolute inset-0 rounded-[10px] border border-claude-border/75 bg-claude-surface/65 opacity-70 [transform:translateY(5px)_rotate(1.6deg)]" />
+        <div className="relative mt-2 h-52 w-full max-w-[460px] overflow-hidden">
+          <div className="pointer-events-none absolute bottom-8 left-1/2 h-[132px] w-[min(82vw,420px)] -translate-x-1/2">
+            <div className="absolute inset-0 rounded-lg border border-claude-border/45 bg-transparent opacity-45 [transform:translateY(8px)_rotate(-2.2deg)]" />
+            <div className="absolute inset-0 rounded-lg border border-claude-border/55 bg-transparent opacity-75 [transform:translateY(4px)_rotate(1.2deg)]" />
           </div>
-          <div className="absolute bottom-10 left-1/2 z-10 h-[172px] w-[min(82vw,420px)] -translate-x-1/2">
+          <div className="absolute bottom-10 left-1/2 z-10 h-[160px] w-[min(82vw,420px)] -translate-x-1/2">
             {showActiveCard && (
               <button
                 key={`active-${activeCard.key}`}
                 type="button"
                 onClick={() => onStartPrompt(displayActiveChip.prompt)}
-                className="absolute bottom-0 left-0 z-10 w-full overflow-hidden rounded-[10px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm transition-colors hover:bg-claude-surface-2"
+                className="absolute bottom-0 left-0 z-10 w-full overflow-hidden rounded-lg border border-claude-border bg-claude-panel/95 px-5 py-4 text-left transition-colors hover:bg-claude-surface"
                 style={{ animation: `welcome-card-enter ${WELCOME_CARD_ENTER_MS}ms cubic-bezier(0.22, 1, 0.36, 1) forwards` }}
               >
-                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{displayActiveChip.title}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-claude-orange">{displayActiveChip.title}</div>
                 <div className="mt-2 text-[15px] font-medium leading-6 text-claude-text">
                   {displayActiveChip.label}
                 </div>
-                <div className="mt-4 text-xs text-claude-muted">{t('welcome.clickStart')}</div>
+                <div className="mt-4 text-[11px] text-claude-muted">{t('welcome.clickStart')}</div>
               </button>
             )}
             {displayExitingChip && exitingCard && (
               <div
                 key={`exit-${exitingCard.key}`}
-                className="pointer-events-none absolute bottom-0 left-0 z-20 w-full rounded-[10px] border border-claude-border bg-claude-surface/95 px-6 py-5 text-left backdrop-blur-sm"
+                className="pointer-events-none absolute bottom-0 left-0 z-20 w-full rounded-lg border border-claude-border bg-claude-panel/95 px-5 py-4 text-left"
                 style={{ animation: `welcome-card-exit ${WELCOME_CARD_EXIT_MS}ms cubic-bezier(0.4, 0, 0.6, 1) forwards` }}
               >
-                <div className="text-[11px] font-medium tracking-[0.14em] text-claude-muted">{displayExitingChip.title}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-claude-orange">{displayExitingChip.title}</div>
                 <div className="mt-2 text-[15px] font-medium leading-6 text-claude-text">
                   {displayExitingChip.label}
                 </div>
-                <div className="mt-4 text-xs text-claude-muted">{t('welcome.clickStart')}</div>
+                <div className="mt-4 text-[11px] text-claude-muted">{t('welcome.clickStart')}</div>
               </div>
             )}
           </div>

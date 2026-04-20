@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 
 import type { ModelInfo } from '../../../electron/preload'
 import { translate, type AppLanguage } from '../../lib/i18n'
+import { AppChip, AppPanel, cx } from '../ui/appDesignSystem'
 
 export function ModelPicker({
   model,
@@ -78,7 +79,7 @@ export function ModelPicker({
   const emptyStateClassName = loading ? 'text-claude-muted' : 'text-amber-200'
 
   const dropdown = open && dropdownPos && createPortal(
-    <div
+    <AppPanel
       ref={dropdownRef}
       style={{
         position: 'fixed',
@@ -87,7 +88,7 @@ export function ModelPicker({
         transform: 'translateY(-100%) translateY(-6px)',
         zIndex: 9999,
       }}
-      className="w-56 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel"
+      className="w-56 overflow-hidden rounded-lg p-0 shadow-2xl"
     >
       <div className="border-b border-claude-border px-3 py-2.5">
         <p className="text-xs font-semibold text-claude-muted uppercase tracking-wide">{translate(language, 'input.modelPicker.selection')}</p>
@@ -97,7 +98,12 @@ export function ModelPicker({
           onClick={() => { onChange(null); setOpen(false) }}
           className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${!model ? 'bg-claude-surface' : 'hover:bg-claude-surface'}`}
         >
-          <span className="w-4 text-center text-base">🤖</span>
+          <span className="flex h-5 w-5 items-center justify-center rounded-md border border-claude-border bg-claude-bg text-claude-muted">
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="7" y="8" width="10" height="9" rx="2" />
+              <path strokeLinecap="round" d="M12 5v3M10 12h.01M14 12h.01M10 15h4" />
+            </svg>
+          </span>
           <div className="min-w-0 flex-1">
             <p className="font-medium text-claude-text">{translate(language, 'input.modelPicker.defaultModel')}</p>
             <p className="text-xs text-claude-muted">{translate(language, 'input.modelPicker.claudeDefault')}</p>
@@ -120,9 +126,9 @@ export function ModelPicker({
               <div className="flex items-center gap-1.5">
                 <p className={`font-medium ${familyColor(entry.family)}`}>{entry.displayName}</p>
                 {entry.isLocal && (
-                  <span className="rounded-full border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-300">
+                  <AppChip className="px-1.5 py-0.5 text-[10px]" tone="accent">
                     LOCAL
-                  </span>
+                  </AppChip>
                 )}
               </div>
               <p className="truncate text-xs text-claude-muted">{entry.id}</p>
@@ -138,7 +144,7 @@ export function ModelPicker({
           </div>
         )}
       </div>
-    </div>,
+    </AppPanel>,
     document.body
   )
 
@@ -149,11 +155,12 @@ export function ModelPicker({
         onClick={handleToggle}
         disabled={disabled}
         title={translate(language, 'input.modelPicker.choose')}
-        className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
+        className={cx(
+          'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40',
           model
             ? `${familyColor(currentFamily)} border ${currentIsLocal ? 'border-orange-500/45 bg-orange-500/10' : 'border-claude-border bg-claude-surface'}`
-            : 'text-claude-muted hover:bg-claude-surface hover:text-claude-text'
-        }`}
+            : 'border-transparent text-claude-muted hover:border-claude-border/70 hover:bg-claude-surface hover:text-claude-text',
+        )}
       >
         <svg className="h-3 w-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="12" cy="12" r="3" />
@@ -161,9 +168,9 @@ export function ModelPicker({
         </svg>
         <span>{label}</span>
         {currentIsLocal && (
-          <span className="rounded-full border border-orange-500/35 bg-orange-500/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-300">
+          <AppChip className="px-1.5 py-0.5 text-[10px]" tone="accent">
             LOCAL
-          </span>
+          </AppChip>
         )}
         <svg className={`h-2.5 w-2.5 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />

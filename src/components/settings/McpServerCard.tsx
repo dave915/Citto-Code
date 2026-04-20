@@ -1,5 +1,6 @@
 import { useI18n } from '../../hooks/useI18n'
 import type { McpHealthCheckResult } from '../../../electron/preload'
+import { AppButton, AppChip, AppPanel } from '../ui/appDesignSystem'
 import { McpServerForm } from './McpServerForm'
 import { type McpForm, type McpServer } from './shared'
 
@@ -70,7 +71,7 @@ export function McpServerCard({
     : health?.message?.trim() ?? ''
 
   return (
-    <div className="rounded-xl border border-claude-border bg-claude-bg p-4">
+    <AppPanel className="bg-claude-bg p-4 shadow-none">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
           <span className={`h-2 w-2 flex-shrink-0 rounded-full ${healthTone.dot}`} />
@@ -85,34 +86,22 @@ export function McpServerCard({
               {server.type}{server.type === 'sse' ? ` (${t('settings.mcp.deprecated')})` : ''}
             </span>
           )}
-          <button
-            onClick={onEditToggle}
-            className="rounded-lg border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-panel hover:text-claude-text"
-          >
+          <AppButton onClick={onEditToggle} tone="ghost">
             {editing ? t('common.close') : t('common.edit')}
-          </button>
+          </AppButton>
           {confirmDelete ? (
             <>
-              <button
-                onClick={onDeleteConfirm}
-                className="rounded-lg bg-red-500 px-2.5 py-1 text-xs text-white transition-colors hover:bg-red-600"
-              >
+              <AppButton onClick={onDeleteConfirm} tone="danger">
                 {t('settings.mcp.confirmDelete')}
-              </button>
-              <button
-                onClick={onDeleteCancel}
-                className="rounded-lg border border-claude-border px-2.5 py-1 text-xs text-claude-muted transition-colors hover:bg-claude-panel hover:text-claude-text"
-              >
+              </AppButton>
+              <AppButton onClick={onDeleteCancel} tone="ghost">
                 {t('common.cancel')}
-              </button>
+              </AppButton>
             </>
           ) : (
-            <button
-              onClick={onDeleteRequest}
-              className="rounded-lg border border-red-900/40 px-2.5 py-1 text-xs text-red-300 transition-colors hover:bg-red-950/30"
-            >
+            <AppButton onClick={onDeleteRequest} tone="danger">
               {t('common.delete')}
-            </button>
+            </AppButton>
           )}
         </div>
       </div>
@@ -165,6 +154,6 @@ export function McpServerCard({
           />
         </div>
       )}
-    </div>
+    </AppPanel>
   )
 }

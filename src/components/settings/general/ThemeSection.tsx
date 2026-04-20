@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../../hooks/useI18n'
 import { pickLocalized } from '../../../lib/i18n'
 import { THEME_PRESETS, applyTheme, type ThemeId, type ThemePreset } from '../../../lib/theme'
+import { cx } from '../../ui/appDesignSystem'
+import { SettingsSection } from '../shared'
 
 type ThemeOption = ThemePreset & {
   id: ThemeId
@@ -78,13 +80,11 @@ export function ThemeSection({ themeId, onChange }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-claude-border bg-claude-surface p-4">
-      <p className="text-sm font-semibold text-claude-text">{t('settings.general.theme.title')}</p>
-      <p className="mt-1 text-xs leading-relaxed text-claude-muted">
-        {t('settings.general.theme.description')}
-      </p>
-
-      <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel p-3">
+    <SettingsSection
+      title={t('settings.general.theme.title')}
+      description={t('settings.general.theme.description')}
+    >
+      <div className="rounded-lg border border-claude-border bg-claude-bg/70 px-3 py-3">
         <label className="mb-2 block text-xs font-medium text-claude-muted">{t('settings.general.theme.preset')}</label>
         <div ref={themeMenuContainerRef} className="relative flex items-center gap-3">
           <div className="relative flex-1">
@@ -109,7 +109,7 @@ export function ThemeSection({ themeId, onChange }: Props) {
                   setThemeMenuOpen(true)
                 }
               }}
-              className="flex w-full items-center justify-between rounded-xl border border-claude-border bg-claude-surface px-3 py-2 text-sm text-claude-text outline-none transition-colors focus:border-claude-border focus:ring-1 focus:ring-white/10"
+              className="flex w-full items-center justify-between rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-sm text-claude-text outline-none transition-colors focus:border-claude-orange/35 focus:ring-1 focus:ring-claude-orange/15"
               aria-haspopup="listbox"
               aria-expanded={themeMenuOpen}
             >
@@ -146,7 +146,7 @@ export function ThemeSection({ themeId, onChange }: Props) {
                     closeThemeMenu()
                   }
                 }}
-                className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-2xl border border-claude-border bg-claude-panel outline-none"
+                className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-lg border border-claude-border bg-claude-panel outline-none shadow-2xl"
               >
                 {themeOptions.map((theme) => {
                   const highlighted = theme.id === themeHighlightId
@@ -160,9 +160,10 @@ export function ThemeSection({ themeId, onChange }: Props) {
                       onMouseEnter={() => previewTheme(theme.id)}
                       onFocus={() => previewTheme(theme.id)}
                       onClick={() => commitTheme(theme.id)}
-                      className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors ${
-                        highlighted ? 'bg-claude-surface-2 text-claude-text' : 'text-claude-text hover:bg-claude-surface'
-                      }`}
+                      className={cx(
+                        'flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors',
+                        highlighted ? 'bg-claude-bg text-claude-text' : 'text-claude-text hover:bg-claude-surface',
+                      )}
                     >
                       <div className="min-w-0">
                         <div className="text-sm font-medium">{theme.label}</div>
@@ -205,6 +206,6 @@ export function ThemeSection({ themeId, onChange }: Props) {
           })}
         </p>
       </div>
-    </div>
+    </SettingsSection>
   )
 }

@@ -59,7 +59,7 @@ function MessageBubble({
       {message.thinking && <ThinkingBubble text={message.thinking} />}
 
       <div
-        className="rounded-xl rounded-tl-sm border px-3 py-2.5 text-sm leading-relaxed text-claude-text"
+        className="rounded-lg rounded-tl-sm border px-3 py-2.5 text-sm leading-relaxed text-claude-text"
         style={{ borderColor: `${agentColor}44`, backgroundColor: `${agentColor}08` }}
       >
         {message.text ? (
@@ -91,7 +91,7 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
   return (
     <div
       className={`
-        flex min-w-0 flex-1 flex-col rounded-xl border transition-all duration-300
+        flex min-w-0 flex-1 flex-col rounded-lg border transition-all duration-300
         ${isActive ? 'border-opacity-100 shadow-lg' : 'border-claude-border'}
       `}
       style={{
@@ -100,7 +100,7 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
       }}
     >
       <div
-        className="rounded-t-xl border-b border-claude-border px-4 py-3"
+        className="rounded-t-lg border-b border-claude-border px-4 py-3"
         style={{
           background: `linear-gradient(135deg, ${agent.color}15 0%, transparent 100%)`,
         }}

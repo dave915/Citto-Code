@@ -3,6 +3,7 @@ import { AgentTeamGuideModal } from './AgentTeamGuideModal'
 import { useI18n } from '../../hooks/useI18n'
 import { useInputModelData } from '../../hooks/useInputModelData'
 import { sanitizeEnvVars } from '../../lib/claudeRuntime'
+import { TeamButton, cx } from './teamDesignSystem'
 import {
   type AgentPreset,
   getAgentPresets,
@@ -137,36 +138,29 @@ export function TeamSetupModal({ onConfirm, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
-      <div className="flex h-[90vh] w-[860px] max-w-[95vw] flex-col overflow-hidden rounded-2xl border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
+      <div className="flex h-[90vh] w-[860px] max-w-[95vw] flex-col overflow-hidden rounded-lg border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-claude-border px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-claude-text">{t('team.setup.title')}</h2>
-            <p className="text-sm text-claude-text">
+            <p className="text-sm text-claude-muted">
               {t('team.setup.description')}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowGuide(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-claude-border bg-claude-panel px-3 py-1.5 text-xs font-medium text-claude-text shadow-sm transition-colors hover:bg-claude-bg-hover"
-            >
+            <TeamButton onClick={() => setShowGuide(true)} tone="secondary">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="12" cy="12" r="8" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v5m0-8h.01" />
               </svg>
               {t('team.guide')}
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-2 text-claude-text transition-colors hover:bg-claude-bg-hover"
-            >
+            </TeamButton>
+            <TeamButton onClick={onClose} size="icon" tone="ghost">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M2 2L14 14M14 2L2 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
-            </button>
+            </TeamButton>
           </div>
         </div>
 
@@ -178,21 +172,23 @@ export function TeamSetupModal({ onConfirm, onClose }: Props) {
             <div className="flex border-b border-claude-border">
               <button
                 onClick={() => setStep('select')}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                className={cx(
+                  'flex-1 border-b py-3 text-sm font-medium transition-colors',
                   step === 'select'
-                    ? 'border-b-2 border-blue-500 text-blue-500'
-                    : 'text-claude-text/75 hover:bg-claude-surface/40 hover:text-claude-text'
-                }`}
+                    ? 'border-claude-orange text-claude-orange'
+                    : 'border-transparent text-claude-muted hover:bg-claude-surface/40 hover:text-claude-text',
+                )}
               >
                 {t('team.setup.tab.agents')}
               </button>
               <button
                 onClick={() => setStep('custom')}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                className={cx(
+                  'flex-1 border-b py-3 text-sm font-medium transition-colors',
                   step === 'custom'
-                    ? 'border-b-2 border-blue-500 text-blue-500'
-                    : 'text-claude-text/75 hover:bg-claude-surface/40 hover:text-claude-text'
-                }`}
+                    ? 'border-claude-orange text-claude-orange'
+                    : 'border-transparent text-claude-muted hover:bg-claude-surface/40 hover:text-claude-text',
+                )}
               >
                 {t('team.setup.tab.customAgent')}
               </button>

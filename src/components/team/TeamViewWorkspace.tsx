@@ -2,6 +2,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { useI18n } from '../../hooks/useI18n'
 import type { AgentTeam, TeamAgent } from '../../store/teamTypes'
 import { AgentPixelIcon } from './AgentPixelIcon'
+import { TeamButton } from './teamDesignSystem'
 import {
   AgentSeat,
   ModeSelector,
@@ -46,7 +47,7 @@ export function TeamViewWorkspace({
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-3 border-b border-claude-border bg-claude-bg-base/50 px-4 py-2">
+      <div className="flex shrink-0 items-center gap-4 border-b border-claude-border bg-claude-bg px-4 py-2.5">
         <ModeSelector
           mode={activeTeam.mode ?? 'sequential'}
           disabled={activeTeam.status === 'running'}
@@ -54,7 +55,7 @@ export function TeamViewWorkspace({
         />
 
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
-          <span className="shrink-0 text-xs text-claude-text-muted">{t('team.roundLabel')}</span>
+          <span className="shrink-0 text-xs text-claude-muted">{t('team.roundLabel')}</span>
           <span className="shrink-0 text-xs font-bold text-claude-text">{activeTeam.roundNumber}</span>
           <span className="mx-1 shrink-0 text-claude-border">·</span>
           {activeTeam.agents.map((agent, index) => {
@@ -64,9 +65,9 @@ export function TeamViewWorkspace({
               <div key={agent.id} className="flex shrink-0 items-center gap-1">
                 {index > 0 && (
                   isParallel ? (
-                    <span className="px-0.5 text-xs text-claude-text-muted">+</span>
+                    <span className="px-0.5 text-xs text-claude-muted">+</span>
                   ) : (
-                    <svg width="12" height="12" viewBox="0 0 12 12" className="text-claude-text-muted">
+                    <svg width="12" height="12" viewBox="0 0 12 12" className="text-claude-muted">
                       <path d="M4 6h4M6 4l2 2-2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
                     </svg>
                   )
@@ -76,7 +77,7 @@ export function TeamViewWorkspace({
                   size={20}
                   color={agent.color}
                 />
-                <span className={`text-xs ${agent.id === activeAgentId ? 'font-semibold text-claude-text' : 'text-claude-text-muted'}`}>
+                <span className={`text-xs ${agent.id === activeAgentId ? 'font-semibold text-claude-text' : 'text-claude-muted'}`}>
                   {agent.name}
                 </span>
               </div>
@@ -85,37 +86,36 @@ export function TeamViewWorkspace({
         </div>
 
         {(activeTeam.currentTask || activeTeam.currentTaskAttachments.length > 0) && (
-          <p className="max-w-xs truncate text-xs text-claude-text-muted">
+          <p className="max-w-xs truncate text-xs text-claude-muted">
             "{taskSummary}"
           </p>
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <button
-            type="button"
+          <TeamButton
             onClick={onReset}
             disabled={activeTeam.status === 'running'}
-            className="rounded-lg px-3 py-1.5 text-xs text-claude-text-muted hover:bg-claude-bg-hover hover:text-claude-text disabled:cursor-not-allowed disabled:opacity-40"
+            tone="ghost"
           >
             {t('team.reset')}
-          </button>
-          <button
-            type="button"
+          </TeamButton>
+          <TeamButton
             onClick={onRemoveTeam}
             disabled={activeTeam.status === 'running'}
-            className="rounded-lg p-1.5 text-claude-text-muted hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+            size="icon"
+            tone="danger"
             title={t('team.delete')}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-          </button>
+          </TeamButton>
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row">
+      <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4 lg:flex-row">
         <section
-          className={`flex min-h-[360px] min-w-0 items-center justify-center overflow-hidden rounded-[16px] border border-claude-border bg-[linear-gradient(180deg,#d9e1e8_0%,#d4dce4_19%,#bfc8d1_19%,#b8c1cb_100%)] px-5 py-3 transition-all duration-300 ${
+          className={`flex min-h-[360px] min-w-0 items-center justify-center overflow-hidden rounded-lg border border-claude-border bg-claude-panel/80 px-4 py-4 transition-all duration-300 ${
             focusedAgent ? 'lg:flex-[1.05]' : 'flex-1'
           }`}
         >
@@ -187,8 +187,8 @@ export function TeamViewWorkspace({
               title={t('team.resizePanelHint')}
             >
               <span className="relative h-full w-full">
-                <span className="absolute left-1/2 top-1/2 h-14 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-claude-border/80 bg-claude-bg-base shadow-[0_4px_12px_rgba(0,0,0,0.22)]" />
-                <span className="absolute left-1/2 top-1/2 h-6 w-px -translate-x-1/2 -translate-y-1/2 bg-claude-text-muted/60" />
+                <span className="absolute left-1/2 top-1/2 h-14 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-claude-border/80 bg-claude-panel shadow-[0_4px_12px_rgba(0,0,0,0.22)]" />
+                <span className="absolute left-1/2 top-1/2 h-6 w-px -translate-x-1/2 -translate-y-1/2 bg-claude-muted/60" />
               </span>
             </button>
 

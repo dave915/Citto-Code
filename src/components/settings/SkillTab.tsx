@@ -1,4 +1,5 @@
 import { useI18n } from '../../hooks/useI18n'
+import { AppButton } from '../ui/appDesignSystem'
 import { EmptyState, LoadingPlaceholder } from './shared'
 import { PluginSkillList } from './skill/PluginSkillList'
 import { SkillAddForm } from './skill/SkillAddForm'
@@ -58,19 +59,19 @@ export function SkillTab() {
 
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs text-claude-muted">{t('settings.skill.registered')}</p>
-        <button
+        <AppButton
           onClick={() => {
             setShowAdd(true)
             setNewName('')
             setFormError('')
           }}
-          className="flex items-center gap-1 rounded-lg bg-claude-surface px-2.5 py-1 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface-2"
+          tone="accent"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           {t('common.add')}
-        </button>
+        </AppButton>
       </div>
 
       <SkillAddForm

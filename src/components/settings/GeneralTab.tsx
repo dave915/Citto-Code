@@ -35,38 +35,40 @@ export function GeneralTab() {
   } = useSessionsStore()
 
   return (
-    <div className="space-y-4 p-4">
-      <LanguageSection appLanguage={appLanguage} onChange={setAppLanguage} />
-      <ThemeSection themeId={themeId} onChange={setThemeId} />
-      <DefaultProjectSection
-        defaultProjectPath={defaultProjectPath}
-        onChange={setDefaultProjectPath}
-      />
-      <DisplaySection
-        uiFontSize={uiFontSize}
-        uiZoomPercent={uiZoomPercent}
-        autoHtmlPreview={autoHtmlPreview}
-        onFontSizeChange={setUiFontSize}
-        onZoomChange={setUiZoomPercent}
-        onAutoHtmlPreviewChange={setAutoHtmlPreview}
-      />
-      <ClaudeBinaryPathSection
-        claudeBinaryPath={claudeBinaryPath}
-        onChange={setClaudeBinaryPath}
-      />
-      <NotificationSection
-        notificationMode={notificationMode}
-        onChange={setNotificationMode}
-      />
-      <QuickPanelSection
-        quickPanelEnabled={quickPanelEnabled}
-        onToggle={setQuickPanelEnabled}
-      />
-      <CliImportSection onImportSession={importSession} />
-      <ShortcutSection
-        shortcutConfig={shortcutConfig}
-        onShortcutChange={setShortcut}
-      />
+    <div className="p-4">
+      <div className="overflow-hidden rounded-lg border border-claude-border bg-claude-panel/70">
+        <LanguageSection appLanguage={appLanguage} onChange={setAppLanguage} />
+        <ThemeSection themeId={themeId} onChange={setThemeId} />
+        <DefaultProjectSection
+          defaultProjectPath={defaultProjectPath}
+          onChange={setDefaultProjectPath}
+        />
+        <DisplaySection
+          uiFontSize={uiFontSize}
+          uiZoomPercent={uiZoomPercent}
+          autoHtmlPreview={autoHtmlPreview}
+          onFontSizeChange={setUiFontSize}
+          onZoomChange={setUiZoomPercent}
+          onAutoHtmlPreviewChange={setAutoHtmlPreview}
+        />
+        <ClaudeBinaryPathSection
+          claudeBinaryPath={claudeBinaryPath}
+          onChange={setClaudeBinaryPath}
+        />
+        <NotificationSection
+          notificationMode={notificationMode}
+          onChange={setNotificationMode}
+        />
+        <QuickPanelSection
+          quickPanelEnabled={quickPanelEnabled}
+          onToggle={setQuickPanelEnabled}
+        />
+        <CliImportSection onImportSession={importSession} />
+        <ShortcutSection
+          shortcutConfig={shortcutConfig}
+          onShortcutChange={setShortcut}
+        />
+      </div>
     </div>
   )
 }
