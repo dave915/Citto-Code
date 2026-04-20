@@ -10,7 +10,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-claude-sidebar font-sans">
-      {!controller.sidebarCollapsed && (
+      {!controller.sidebarCollapsed && controller.activePanel !== 'settings' && (
         <div className="relative flex-shrink-0" style={{ width: `${controller.sidebarWidth}px` }}>
           <Sidebar
             sessions={controller.sessions}
