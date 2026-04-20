@@ -51,7 +51,13 @@ export function SettingsPanel({
 }) {
   const { language, t } = useI18n()
   const [tab, setTab] = useState<SettingsTab>(initialTab)
+  const [counts, setCounts] = useState<Partial<Record<SettingsTab, number>>>({})
   const tabs = getSettingsTabs(language)
+  const activeTabLabel = tabs.find((item) => item.id === tab)?.label ?? ''
+
+  const makeCountUpdater = (tabId: SettingsTab) => (count: number) => {
+    setCounts((prev) => ({ ...prev, [tabId]: count }))
+  }
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -66,49 +72,84 @@ export function SettingsPanel({
   }, [initialTab])
 
   return (
-    <div className="flex h-full flex-col bg-claude-bg">
-      <div className="draggable-region flex flex-shrink-0 items-center justify-between border-b border-claude-border bg-claude-panel px-5 py-3">
-        <h2 className="text-sm font-semibold text-claude-text">{t('settings.title')}</h2>
-        <AppButton
-          onClick={onClose}
-          size="icon"
-          tone="ghost"
-          title={t('settings.close')}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </AppButton>
-      </div>
+    <div className="flex h-full bg-claude-bg">
+      {/* Left sidebar */}
+      <aside className="flex w-52 shrink-0 flex-col border-r border-claude-border bg-claude-sidebar">
+        {/* Header — draggable */}
+        <div className="draggable-region border-b border-claude-border/50 px-4 py-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-claude-text">{t('settings.title')}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-claude-muted">작업 환경과 연결을 조정합니다</p>
+            </div>
+            <AppButton
+              onClick={onClose}
+              size="icon"
+              tone="ghost"
+              className="mt-0.5 shrink-0"
+              title={t('settings.close')}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </AppButton>
+          </div>
+        </div>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="flex w-[220px] shrink-0 flex-col border-r border-claude-border bg-claude-sidebar px-3 py-4">
-          <div className="space-y-1">
+        {/* Active section indicator */}
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <span className="text-claude-muted/70">활성 섹션</span>
+            <span className="text-claude-muted/40">·</span>
+            <span className="font-medium text-claude-text">{activeTabLabel}</span>
+          </div>
+        </div>
+
+        {/* Column labels */}
+        <div className="px-5 pb-1.5">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.12em] text-claude-muted/50">
+            <span>섹션</span>
+            <span>항목</span>
+          </div>
+        </div>
+
+        {/* Tab list */}
+        <nav className="flex-1 overflow-y-auto px-2 pb-3">
+          <div className="space-y-0.5">
             {tabs.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
                 className={cx(
-                  'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors',
+                  'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
                   tab === item.id
-                    ? 'border-claude-border bg-claude-surface text-claude-text'
-                    : 'border-transparent text-claude-muted hover:border-claude-border/60 hover:bg-claude-panel hover:text-claude-text',
+                    ? 'bg-claude-surface font-medium text-claude-text'
+                    : 'text-claude-muted hover:bg-claude-panel hover:text-claude-text',
                 )}
               >
-                <span className="text-current">{TAB_ICONS[item.id]}</span>
+                <span className="shrink-0">{TAB_ICONS[item.id]}</span>
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {counts[item.id] != null && (
+                  <span className={cx(
+                    'shrink-0 text-[11px] tabular-nums',
+                    tab === item.id ? 'text-claude-muted' : 'text-claude-muted/50',
+                  )}>
+                    {counts[item.id]}
+                  </span>
+                )}
               </button>
             ))}
           </div>
-        </aside>
+        </nav>
+      </aside>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-claude-bg">
-          {tab === 'general' && <GeneralTab />}
-          {tab === 'mcp' && <McpTab projectPath={projectPath} />}
-          {tab === 'skill' && <SkillTab />}
-          {tab === 'agent' && <AgentTab />}
-          {tab === 'env' && <EnvTab />}
-        </div>
+      {/* Tab content — each tab renders its own 2-column layout */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {tab === 'general' && <GeneralTab onCountUpdate={makeCountUpdater('general')} />}
+        {tab === 'mcp' && <McpTab projectPath={projectPath} onCountUpdate={makeCountUpdater('mcp')} />}
+        {tab === 'skill' && <SkillTab onCountUpdate={makeCountUpdater('skill')} />}
+        {tab === 'agent' && <AgentTab onCountUpdate={makeCountUpdater('agent')} />}
+        {tab === 'env' && <EnvTab onCountUpdate={makeCountUpdater('env')} />}
       </div>
     </div>
   )
