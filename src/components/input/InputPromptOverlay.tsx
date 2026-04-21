@@ -45,7 +45,7 @@ export function InputPromptOverlay({
 
   if (showQuestionPrompt && pendingQuestion) {
     return (
-      <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-lg border border-claude-border bg-claude-panel shadow-2xl">
+      <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-lg border border-claude-border bg-claude-panel shadow-none">
         <div className="flex items-center gap-2 border-b border-claude-border/60 bg-claude-surface px-3 py-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-claude-border bg-claude-surface-2 text-claude-text">
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -89,7 +89,7 @@ export function InputPromptOverlay({
 
   if (showPermissionPrompt && pendingPermission) {
     return (
-      <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-lg border border-claude-border bg-claude-panel shadow-2xl">
+      <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-lg border border-claude-border bg-claude-panel shadow-none">
         <div className="flex items-center gap-2 border-b border-claude-border/60 bg-claude-surface px-3 py-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-claude-border bg-claude-surface-2 text-claude-text">
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

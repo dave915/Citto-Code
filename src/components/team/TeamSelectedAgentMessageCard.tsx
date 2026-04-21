@@ -36,7 +36,7 @@ export function TeamSelectedAgentMessageCard({
       <div
         ref={containerRef}
         tabIndex={-1}
-        className={`space-y-2 border-l pl-3 pr-1 outline-none transition-colors duration-300 ${
+        className={`space-y-1.5 border-l pl-2.5 pr-1 outline-none transition-colors duration-300 ${
           highlighted ? 'border-claude-orange/60 bg-claude-orange/6' : 'border-claude-border/70'
         }`}
         style={highlighted ? { boxShadow: `inset 1px 0 0 ${color}55` } : undefined}
@@ -49,11 +49,11 @@ export function TeamSelectedAgentMessageCard({
         {message.thinking ? <ThinkingBubble compact text={message.thinking} /> : null}
 
         <div
-          className="group/message relative rounded-lg border border-claude-border bg-claude-bg/70 px-4 py-3 text-sm leading-relaxed text-claude-text"
+          className="group/message relative rounded-md border border-claude-border bg-claude-bg/70 px-3 py-2.5 text-[13px] leading-6 text-claude-text"
           style={{ boxShadow: `inset 2px 0 0 ${color}99` }}
         >
           {(canOpenPopup || message.text.trim()) && (
-            <div className="pointer-events-auto absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-all group-hover/message:opacity-100 group-focus-within/message:opacity-100">
+            <div className="pointer-events-auto absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-all group-hover/message:opacity-100 group-focus-within/message:opacity-100">
               {canOpenPopup ? (
                 <TeamButton
                   onClick={() => setShowPopup(true)}

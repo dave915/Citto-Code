@@ -272,7 +272,7 @@ export function DiffPreview({
         <button
           type="button"
           onClick={onShowFullDiff}
-          className="block w-full border-t border-claude-border/70 px-3 py-2 text-center text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+          className="block w-full border-t border-claude-border/70 px-3 py-2 text-center text-[11px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
         >
           {t('toolTimeline.showFullDiff', { count: hiddenCount })}
         </button>

@@ -13,8 +13,8 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
   const { t } = useI18n()
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto p-4">
-      <p className="text-sm text-claude-text">
+    <div className="flex-1 space-y-3 overflow-y-auto p-3">
+      <p className="text-[13px] leading-5 text-claude-text">
         {t('team.setup.customIntro')}
       </p>
 
@@ -59,7 +59,7 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
           {t('team.setup.field.systemPromptOptional')}
         </label>
         <textarea
-          rows={4}
+          rows={3}
           className={`${teamFieldClassName} resize-none`}
           placeholder={t('team.setup.placeholder.customSystemPrompt')}
           value={draft.systemPrompt}
@@ -86,9 +86,9 @@ export function TeamSetupCustomAgentForm({ draft, onDraftChange, onSave }: Props
         </div>
       </div>
 
-      <TeamPanel className="flex items-center gap-3 bg-claude-surface/55 px-3 py-3 shadow-none">
+      <TeamPanel className="flex items-center gap-2.5 bg-claude-surface/55 px-2.5 py-2 shadow-none">
         <div className="shrink-0">
-          <AgentPixelIcon type="custom" size={48} color={draft.color} />
+          <AgentPixelIcon type="custom" size={38} color={draft.color} />
         </div>
         <TeamButton onClick={onSave} disabled={!draft.name.trim()} tone="accent" className="flex-1">
           {t('common.save')}

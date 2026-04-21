@@ -48,12 +48,12 @@ export function SelectedAgentPanel({ agent, isFirst, roundNumber }: Props) {
   return (
     <TeamPanel className="flex h-full min-h-0 flex-col overflow-hidden bg-claude-panel/95 backdrop-blur-sm">
       <div
-        className="shrink-0 border-b border-claude-border px-4 py-4"
+        className="shrink-0 border-b border-claude-border px-3 py-3"
         style={{ backgroundImage: `linear-gradient(180deg, ${agent.color}14 0%, transparent 72%)` }}
       >
         <div className="flex items-start gap-4">
-          <div className="relative shrink-0 rounded-lg border border-claude-border bg-claude-bg p-2">
-            <AgentPixelIcon type={agent.iconType} size={56} color={agent.color} />
+          <div className="relative shrink-0 rounded-md border border-claude-border bg-claude-bg p-1.5">
+            <AgentPixelIcon type={agent.iconType} size={48} color={agent.color} />
             {agent.isStreaming && (
               <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
                 <span
@@ -70,7 +70,7 @@ export function SelectedAgentPanel({ agent, isFirst, roundNumber }: Props) {
 
           <div className="min-w-0 flex-1">
             <div className="relative flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-semibold text-claude-text">{agent.name}</h3>
+              <h3 className="text-[14px] font-semibold text-claude-text">{agent.name}</h3>
               {agent.systemPrompt && <SystemPromptHoverCard prompt={agent.systemPrompt} />}
               {isFirst && (
                 <TeamChip tone="accent">
@@ -84,9 +84,9 @@ export function SelectedAgentPanel({ agent, isFirst, roundNumber }: Props) {
                 </TeamChip>
               )}
             </div>
-            <p className="mt-1 text-sm text-claude-muted">{agent.role}</p>
+            <p className="mt-1 text-[12px] text-claude-muted">{agent.role}</p>
             {agent.description && (
-              <p className="mt-2 text-sm leading-relaxed text-claude-muted">
+              <p className="mt-2 text-[12px] leading-5 text-claude-muted">
                 {agent.description}
               </p>
             )}
@@ -106,19 +106,19 @@ export function SelectedAgentPanel({ agent, isFirst, roundNumber }: Props) {
           <button
             type="button"
             onClick={() => focusMessage(latestMessage.id)}
-            className="mt-4 block w-full rounded-lg border border-claude-border bg-claude-bg/70 px-3 py-3 text-left transition-colors hover:bg-claude-bg focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/30"
+            className="mt-3 block w-full rounded-md border border-claude-border bg-claude-bg/70 px-3 py-2.5 text-left transition-colors hover:bg-claude-bg focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/30"
           >
             <TeamEyebrow className="mb-1 text-claude-muted">
               {t('team.panel.latestCue')}
             </TeamEyebrow>
-            <p className="line-clamp-3 text-sm leading-relaxed text-claude-text">{preview}</p>
+            <p className="line-clamp-3 text-[13px] leading-5 text-claude-text">{preview}</p>
           </button>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-1.5 pb-3 pt-2">
         {agent.messages.length === 0 && !agent.isStreaming && !agent.error ? (
-          <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-claude-border bg-claude-bg/60 text-center">
+          <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-md border border-dashed border-claude-border bg-claude-bg/60 text-center">
             <AgentPixelIcon type={agent.iconType} size={60} color={agent.color} />
             <div>
               <p className="text-sm font-medium text-claude-text">{t('team.panel.emptyTitle')}</p>
@@ -148,7 +148,7 @@ export function SelectedAgentPanel({ agent, isFirst, roundNumber }: Props) {
             ))}
 
             {agent.error && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
                 {t('team.panel.error', { error: agent.error })}
               </div>
             )}

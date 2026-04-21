@@ -34,12 +34,12 @@ export function TeamSelectedAgentMessagePopup({
       onClose={onClose}
       overlayClassName="z-[190]"
     >
-      <TeamPanel className="relative z-10 flex max-h-[min(88vh,60rem)] w-[min(72rem,calc(100vw-2rem))] flex-col overflow-hidden shadow-[0_26px_70px_rgba(0,0,0,0.34)]">
-        <div className="flex items-start justify-between gap-4 border-b border-claude-border/70 px-5 py-4">
+      <TeamPanel className="relative z-10 flex max-h-[min(86vh,56rem)] w-[min(68rem,calc(100vw-2rem))] flex-col overflow-hidden shadow-none">
+        <div className="flex items-start justify-between gap-3 border-b border-claude-border/70 px-4 py-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-              <h3 className="truncate text-base font-semibold text-claude-text">{agentName}</h3>
+              <h3 className="truncate text-[14px] font-semibold leading-5 text-claude-text">{agentName}</h3>
               <TeamChip>
                 {t('team.roundWithNumber', { round: roundIndex + 1 })}
               </TeamChip>
@@ -59,11 +59,11 @@ export function TeamSelectedAgentMessagePopup({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {message.thinking ? <ThinkingBubble text={message.thinking} /> : null}
 
           <div
-            className="rounded-lg border border-claude-border bg-claude-bg/70 px-5 py-4 text-[15px] leading-8 text-claude-text"
+            className="rounded-md border border-claude-border bg-claude-bg/70 px-4 py-3 text-[14px] leading-6 text-claude-text"
             style={{ boxShadow: `inset 2px 0 0 ${color}99` }}
           >
             {message.text.trim() ? (

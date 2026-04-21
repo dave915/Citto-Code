@@ -31,7 +31,7 @@ export function MentionMenu({
   }
 
   return (
-    <AppPanel className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-lg shadow-2xl">
+    <AppPanel className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-lg shadow-none">
       <div className="flex items-center gap-1.5 border-b border-claude-border/60 bg-claude-surface px-3 py-2">
         {slashResults.length > 0 ? (
           <svg className="h-3 w-3 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

@@ -6,39 +6,7 @@ import { GeneralTab } from './GeneralTab'
 import { McpTab } from './McpTab'
 import { getSettingsTabs, type SettingsTab } from './shared'
 import { SkillTab } from './SkillTab'
-import { AppButton, cx } from '../ui/appDesignSystem'
-
-const TAB_ICONS: Record<SettingsTab, JSX.Element> = {
-  general: (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317a1 1 0 011.35-.936l1.252.5a1 1 0 00.829 0l1.252-.5a1 1 0 011.35.936l.114 1.344a1 1 0 00.592.82l1.176.52a1 1 0 01.487 1.41l-.667 1.172a1 1 0 000 .988l.667 1.172a1 1 0 01-.487 1.41l-1.176.52a1 1 0 00-.592.82l-.114 1.344a1 1 0 01-1.35.936l-1.252-.5a1 1 0 00-.829 0l-1.252.5a1 1 0 01-1.35-.936l-.114-1.344a1 1 0 00-.592-.82l-1.176-.52a1 1 0 01-.487-1.41l.667-1.172a1 1 0 000-.988l-.667-1.172a1 1 0 01.487-1.41l1.176-.52a1 1 0 00.592-.82l.114-1.344Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  ),
-  mcp: (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V5a2 2 0 1 1 4 0v2m4 0V5a2 2 0 1 0-4 0v2" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 11h12M8 7h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
-    </svg>
-  ),
-  skill: (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h7l2 2h7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10 12h4M12 10v4" />
-    </svg>
-  ),
-  agent: (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <circle cx="12" cy="8" r="3" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18a6 6 0 0 1 12 0" />
-    </svg>
-  ),
-  env: (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7 4 12l4 5M16 7l4 5-4 5M14 4l-4 16" />
-    </svg>
-  ),
-}
+import { AppButton, AppTitlebarHistoryGlyphs, cx } from '../ui/appDesignSystem'
 
 export function SettingsPanel({
   onClose,
@@ -72,24 +40,34 @@ export function SettingsPanel({
   }, [initialTab])
 
   return (
-    <div className="flex h-full bg-claude-bg">
-      {/* Left sidebar */}
-      <aside className="flex w-52 shrink-0 flex-col border-r border-claude-border bg-claude-sidebar">
-        {/* macOS traffic-light spacer — same height as Sidebar */}
-        <div className="draggable-region pt-10" />
-
-        {/* Title row */}
-        <div className="flex items-center justify-between px-4 pb-1">
-          <p className="text-sm font-semibold text-claude-text">{t('settings.title')}</p>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1 text-claude-muted/60 transition-colors hover:text-claude-text"
-            title={t('settings.close')}
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    <div className="flex h-full flex-col bg-claude-bg">
+      <div className="draggable-region flex h-[42px] shrink-0 items-center border-b border-claude-border bg-claude-panel px-4">
+        <div className="ml-[92px] flex min-w-0 items-center gap-2">
+          <AppTitlebarHistoryGlyphs />
+          <span className="truncate text-[13px] font-medium text-claude-text">환경 설정 정리</span>
+          <span className="text-[13px] text-claude-muted">citto-code</span>
+          <span className="text-[14px] leading-none text-claude-muted/60">···</span>
+        </div>
+        <div className="no-drag ml-auto flex items-center gap-2" data-no-drag="true">
+          <AppButton tone="secondary">열기</AppButton>
+          <AppButton tone="secondary">미리보기</AppButton>
+          <div className="h-6 w-px bg-claude-border" />
+          <span className="text-[11px] text-claude-muted">브랜치</span>
+          <span className="text-[11px] text-claude-muted">+35 -9</span>
+          <AppButton onClick={onClose} size="icon" tone="ghost" aria-label={t('settings.close')}>
+            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
             </svg>
-          </button>
+          </AppButton>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex flex-1">
+      {/* Left sidebar */}
+      <aside className="flex w-[220px] shrink-0 flex-col border-r border-claude-border bg-claude-sidebar">
+        {/* Title row */}
+        <div className="flex items-center justify-between px-4 pb-1 pt-5">
+          <p className="text-sm font-semibold text-claude-text">{t('settings.title')}</p>
         </div>
 
         {/* Subtitle */}
@@ -118,13 +96,12 @@ export function SettingsPanel({
                 key={item.id}
                 onClick={() => setTab(item.id)}
                 className={cx(
-                  'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                  'flex min-h-[36px] w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] transition-colors',
                   tab === item.id
                     ? 'bg-claude-surface font-medium text-claude-text'
                     : 'text-claude-muted hover:bg-claude-panel hover:text-claude-text',
                 )}
               >
-                <span className="shrink-0">{TAB_ICONS[item.id]}</span>
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 {counts[item.id] != null && (
                   <span className={cx(
@@ -147,6 +124,7 @@ export function SettingsPanel({
         {tab === 'skill' && <SkillTab onCountUpdate={makeCountUpdater('skill')} />}
         {tab === 'agent' && <AgentTab onCountUpdate={makeCountUpdater('agent')} />}
         {tab === 'env' && <EnvTab onCountUpdate={makeCountUpdater('env')} />}
+      </div>
       </div>
     </div>
   )

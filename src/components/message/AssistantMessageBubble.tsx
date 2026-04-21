@@ -89,7 +89,7 @@ export function AssistantMessageBubble({
                     if (!hasThinking) return
                     setThinkingOpen((value) => !value)
                   }}
-                  className={`flex items-center gap-1.5 text-left text-[12px] leading-5 text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${hasThinking ? 'cursor-pointer' : 'cursor-default'}`}
+                  className={`flex items-center gap-1.5 text-left text-[12px] leading-5 text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35 ${hasThinking ? 'cursor-pointer' : 'cursor-default'}`}
                 >
                   <svg className={`h-3 w-3 transition-transform ${showThinkingPanel ? 'rotate-90' : 'rotate-0'} ${hasThinking ? 'opacity-100' : 'opacity-35'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />

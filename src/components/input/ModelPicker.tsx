@@ -88,7 +88,7 @@ export function ModelPicker({
         transform: 'translateY(-100%) translateY(-6px)',
         zIndex: 9999,
       }}
-      className="w-56 overflow-hidden rounded-lg p-0 shadow-2xl"
+      className="w-56 overflow-hidden rounded-lg p-0 shadow-none"
     >
       <div className="border-b border-claude-border px-3 py-2.5">
         <p className="text-xs font-semibold text-claude-muted uppercase tracking-wide">{translate(language, 'input.modelPicker.selection')}</p>

@@ -59,7 +59,7 @@ export function TeamViewComposer({
   const { language, t } = useI18n()
 
   return (
-    <div className="shrink-0 border-t border-claude-border/60 bg-claude-bg px-4 py-3">
+    <div className="shrink-0 border-t border-claude-border/60 bg-claude-bg px-4 py-2.5">
       <div className="w-full">
         <AttachmentList
           attachedFiles={attachedFiles}
@@ -69,7 +69,7 @@ export function TeamViewComposer({
         />
 
         <div
-          className={`relative overflow-hidden rounded-lg border bg-claude-panel transition-colors ${
+          className={`relative overflow-hidden rounded-md border bg-claude-panel transition-colors ${
             isDragOver
               ? 'border-claude-orange/55 ring-1 ring-claude-orange/25'
               : 'border-claude-border'
@@ -79,7 +79,7 @@ export function TeamViewComposer({
           onDragLeave={onDragLeave}
           onDrop={onDrop}
         >
-          <div className="px-5 pb-3 pt-4">
+          <div className="px-4 pb-2.5 pt-3">
             <textarea
               ref={textareaRef}
               value={task}
@@ -97,11 +97,11 @@ export function TeamViewComposer({
               }
               rows={1}
               disabled={activeTeam.status === 'running'}
-              className="chat-input-textarea min-h-[28px] max-h-[140px] w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-[15px] leading-7 text-claude-text outline-none [overflow-wrap:anywhere] placeholder:text-claude-muted disabled:opacity-50"
+              className="chat-input-textarea min-h-[26px] max-h-[140px] w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-[14px] leading-6 text-claude-text outline-none [overflow-wrap:anywhere] placeholder:text-claude-muted disabled:opacity-50"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-t border-claude-border/70 px-4 pb-3 pt-2.5">
+          <div className="flex flex-wrap items-center gap-2 border-t border-claude-border/70 px-3 pb-2 pt-2">
             <TeamButton
               onClick={onAttachFiles}
               disabled={activeTeam.status === 'running' || isAttaching}

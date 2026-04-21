@@ -158,16 +158,16 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
   return createPortal(
     <div className="fixed inset-0 z-[130]">
       <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
-      <div className="absolute inset-0 flex items-center justify-center px-6 py-8">
+      <div className="absolute inset-0 flex items-center justify-center px-5 py-6">
         <AppPanel
-          className="relative flex max-h-full max-w-full flex-col overflow-hidden rounded-lg"
+          className="relative flex max-h-full max-w-full flex-col overflow-hidden rounded-md"
           style={{ width: `${modalWidth}px`, height: `${modalHeight}px` }}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-start justify-between gap-4 border-b border-claude-border/70 px-5 py-4">
+          <div className="flex items-start justify-between gap-3 border-b border-claude-border/70 px-4 py-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <div className="text-sm font-semibold text-claude-text">
+                <div className="text-[13px] font-semibold text-claude-text">
                   {entry.description || entry.agent || t('subagent.defaultName')}
                 </div>
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${getStatusClassName(entry.status)}`}>
@@ -187,9 +187,9 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
             </AppButton>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-              <section className="min-w-0 rounded-lg border border-claude-border/70 bg-claude-bg px-4 py-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              <section className="min-w-0 rounded-md border border-claude-border/70 bg-claude-bg px-3 py-2.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-claude-text/90">{t('subagent.promptLabel')}</div>
                   <AgentStatusCopyButton
@@ -203,7 +203,7 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
                 </pre>
               </section>
 
-              <section className="min-w-0 rounded-lg border border-claude-border/70 bg-claude-bg px-4 py-3">
+              <section className="min-w-0 rounded-md border border-claude-border/70 bg-claude-bg px-3 py-2.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold text-claude-text/90">{t('subagent.resultLabel')}</div>
                   <AgentStatusCopyButton
@@ -212,7 +212,7 @@ export function AgentDetailModal({ entry, onClose }: AgentDetailModalProps) {
                     copiedLabel={t('common.copied')}
                   />
                 </div>
-                <div className="max-h-[18rem] overflow-auto overflow-x-hidden rounded-lg bg-claude-surface px-3 py-3">
+                <div className="max-h-[18rem] overflow-auto overflow-x-hidden rounded-md bg-claude-surface px-3 py-2.5">
                   {resultText ? (
                     <div className="prose max-w-none break-words text-[13px] leading-6 [overflow-wrap:anywhere]">
                       <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>

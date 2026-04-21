@@ -96,13 +96,13 @@ export function SkillCard({
               <span className="mr-1 text-xs text-red-500">{t('settings.skill.deletePrompt')}</span>
               <button
                 onClick={() => void onConfirmDelete()}
-                className="rounded-lg bg-red-500 px-2 py-1 text-xs text-white transition-colors hover:bg-red-600"
+                className="rounded-md bg-red-500 px-2 py-1 text-xs text-white transition-colors hover:bg-red-600"
               >
                 {t('common.confirm')}
               </button>
               <button
                 onClick={onResetConfirmDelete}
-                className="rounded-lg border border-claude-border px-2 py-1 text-xs text-claude-muted transition-colors hover:text-claude-text"
+                className="rounded-md border border-claude-border px-2 py-1 text-xs text-claude-muted transition-colors hover:text-claude-text"
               >
                 {t('common.cancel')}
               </button>

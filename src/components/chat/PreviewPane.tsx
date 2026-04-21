@@ -122,8 +122,8 @@ export function PreviewPane({
   const { t } = useI18n()
   if (!entry) {
     return (
-      <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
-        <p className="text-sm">{t('chat.preview.selectFile')}</p>
+      <div className="h-full flex items-center justify-center px-5 text-center text-claude-muted">
+        <p className="text-[13px]">{t('chat.preview.selectFile')}</p>
       </div>
     )
   }
@@ -140,9 +140,9 @@ export function PreviewPane({
 
   if (previewState === 'unsupported') {
     return (
-      <div className="h-full flex items-center justify-center px-6 text-center text-claude-muted">
+      <div className="h-full flex items-center justify-center px-5 text-center text-claude-muted">
         <div>
-          <p className="text-sm font-medium text-claude-text">{entry.name}</p>
+          <p className="text-[13px] font-medium text-claude-text">{entry.name}</p>
           <p className="text-xs mt-2">{t('chat.preview.unsupported')}</p>
         </div>
       </div>
@@ -152,8 +152,8 @@ export function PreviewPane({
   if (previewState === 'ready' && isMarkdownFile(entry.name) && markdownPreviewEnabled) {
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-4 py-3">
-          <p className="text-sm font-medium text-claude-text truncate">{entry.name}</p>
+        <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-3 py-2">
+          <p className="truncate text-[13px] font-medium text-claude-text">{entry.name}</p>
           <AppButton
             onClick={onToggleMarkdownPreview}
             tone="ghost"
@@ -162,7 +162,7 @@ export function PreviewPane({
             {t('chat.preview.source')}
           </AppButton>
         </div>
-        <div className="flex-1 overflow-auto px-5 py-4">
+        <div className="flex-1 overflow-auto px-4 py-3">
           <MarkdownPreviewBody filePath={entry.path} content={previewContent} />
         </div>
       </div>
@@ -171,8 +171,8 @@ export function PreviewPane({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-4 py-3">
-        <p className="text-sm font-medium text-claude-text truncate">{entry.name}</p>
+      <div className="flex items-center justify-between gap-3 border-b border-claude-border bg-claude-surface px-3 py-2">
+        <p className="truncate text-[13px] font-medium text-claude-text">{entry.name}</p>
         {isMarkdownFile(entry.name) && previewState === 'ready' && (
           <AppButton
             onClick={onToggleMarkdownPreview}
@@ -183,7 +183,7 @@ export function PreviewPane({
           </AppButton>
         )}
       </div>
-      <pre className="m-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-xs font-mono text-claude-text">
+      <pre className="m-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 text-xs font-mono text-claude-text">
         {previewContent}
       </pre>
     </div>

@@ -25,7 +25,7 @@ export function BtwCardStack({ cards, onToggle, className = '' }: Props) {
             <button
               type="button"
               onClick={() => onToggle(card.id)}
-              className="flex w-full items-center gap-1.5 text-left text-[12px] leading-5 text-claude-muted outline-none transition-colors hover:text-claude-text focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+              className="flex w-full items-center gap-1.5 text-left text-[12px] leading-5 text-claude-muted outline-none transition-colors hover:text-claude-text focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
             >
               <svg
                 className={`h-3 w-3 flex-shrink-0 transition-transform ${card.isOpen ? 'rotate-90' : 'rotate-0'}`}

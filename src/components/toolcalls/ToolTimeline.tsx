@@ -25,7 +25,7 @@ export function ToolTimeline({
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}
-        className="flex items-center gap-1.5 text-left text-[12px] leading-5 text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+        className="flex items-center gap-1.5 text-left text-[12px] leading-5 text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
       >
         <svg className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : 'rotate-0'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
@@ -42,7 +42,7 @@ export function ToolTimeline({
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+              className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
             >
               {t('toolTimeline.showMore', { count: hiddenCount })}
             </button>
@@ -51,7 +51,7 @@ export function ToolTimeline({
             <button
               type="button"
               onClick={() => setShowAll(false)}
-              className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+              className="ml-5 text-[14px] text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
             >
               {t('toolTimeline.showLess')}
             </button>

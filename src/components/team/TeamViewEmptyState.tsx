@@ -7,7 +7,7 @@ export function TeamViewEmptyState({ onCreateTeam }: { onCreateTeam: () => void 
   const { t } = useI18n()
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-5 bg-claude-bg px-6">
+    <div className="flex h-full flex-col items-center justify-center gap-4 bg-claude-bg px-5">
       <div className="flex items-end gap-2">
         {(['architect', 'critic', 'developer'] as AgentIconType[]).map((type, index) => (
           <div
@@ -17,7 +17,7 @@ export function TeamViewEmptyState({ onCreateTeam }: { onCreateTeam: () => void 
           >
             <AgentPixelIcon
               type={type}
-              size={index === 1 ? 64 : 48}
+              size={index === 1 ? 56 : 42}
               color={index === 0 ? '#F97316' : index === 1 ? '#EF4444' : '#10B981'}
             />
           </div>
@@ -25,8 +25,8 @@ export function TeamViewEmptyState({ onCreateTeam }: { onCreateTeam: () => void 
       </div>
 
       <div className="text-center">
-        <h2 className="text-xl font-semibold text-claude-text">{t('team.empty.title')}</h2>
-        <p className="mt-2 max-w-sm text-sm leading-relaxed text-claude-muted">
+        <h2 className="text-[18px] font-semibold text-claude-text">{t('team.empty.title')}</h2>
+        <p className="mt-2 max-w-sm text-[13px] leading-6 text-claude-muted">
           {t('team.empty.descriptionTop')}
           <br />
           {t('team.empty.descriptionBottom')}

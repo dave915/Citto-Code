@@ -12,7 +12,7 @@ export function ThinkingBubble({ compact = false, text }: ThinkingBubbleProps) {
   if (!text.trim()) return null
 
   return (
-    <div className="rounded-lg border border-claude-border/80 bg-claude-bg/55 px-3 py-2">
+    <div className="rounded-md border border-claude-border/80 bg-claude-bg/55 px-2.5 py-1.5">
       <p
         className={`mb-1 font-semibold uppercase tracking-wide ${
           compact ? 'text-[11px] text-claude-orange' : 'text-[11px] text-claude-orange'
@@ -23,8 +23,8 @@ export function ThinkingBubble({ compact = false, text }: ThinkingBubbleProps) {
       <p
         className={
           compact
-            ? 'line-clamp-4 text-xs leading-relaxed text-claude-text/90'
-            : 'whitespace-pre-wrap break-words text-sm leading-relaxed text-claude-text/90'
+            ? 'line-clamp-4 text-xs leading-5 text-claude-text/90'
+            : 'whitespace-pre-wrap break-words text-[13px] leading-6 text-claude-text/90'
         }
       >
         {text}
@@ -56,7 +56,7 @@ export function SystemPromptHoverCard({ prompt }: { prompt: string }) {
         </svg>
       </TeamButton>
       <TeamPanel
-        className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[24rem] p-3 opacity-0 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-opacity peer-hover/prompt:opacity-100 peer-focus-visible/prompt:opacity-100"
+        className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[24rem] p-3 opacity-0 shadow-none transition-opacity peer-hover/prompt:opacity-100 peer-focus-visible/prompt:opacity-100"
         style={{
           maxWidth: 'min(calc(100vw - 5rem), calc(var(--team-detail-width) - 3rem), 100%)',
         }}

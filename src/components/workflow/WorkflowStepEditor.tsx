@@ -199,7 +199,7 @@ export function WorkflowStepEditor({
   if (!currentStep || !draft || stepIndex < 0) return null
 
   return (
-    <AppPanel className="absolute right-4 top-4 z-40 flex h-[min(640px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden shadow-2xl">
+    <AppPanel className="absolute right-4 top-4 z-40 flex h-[min(640px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden shadow-none">
       <div className="border-b border-claude-border px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -272,7 +272,7 @@ export function WorkflowStepEditor({
                       ? { ...current, cwd: selectedFolder }
                       : current)
                   }}
-                  className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-md text-claude-muted transition-colors hover:text-claude-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+                  className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-md text-claude-muted transition-colors hover:text-claude-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
                   aria-label={t('scheduled.form.chooseFolder')}
                 >
                   <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">

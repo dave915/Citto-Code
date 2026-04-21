@@ -98,8 +98,8 @@ export function InputArea({
   const clearAuthNotice = useMcpRuntimeStore((state) => state.clearAuthNotice)
 
   return (
-    <div className="bg-claude-chat-bg px-6 pt-4 pb-5">
-      <div className="mx-auto w-full max-w-[860px]">
+    <div className="bg-claude-chat-bg px-5 pb-4 pt-3">
+      <div className="mx-auto w-full max-w-[680px]">
         {topSlot}
 
         {backendSwitchNotice && (

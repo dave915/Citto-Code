@@ -106,14 +106,14 @@ export function ChatMessagePane({
   const { t } = useI18n()
   return (
     <div
-      className="relative z-0 min-w-0 flex-1 overflow-y-auto px-6 py-7"
+      className="relative z-0 min-w-0 flex-1 overflow-y-auto px-5 py-5"
       style={{ background: 'linear-gradient(180deg, rgb(var(--claude-chat-bg) / 0.985) 0%, rgb(var(--claude-chat-bg)) 100%)' }}
     >
-      <div className={`mx-auto w-full max-w-[860px] ${isNewSession ? 'min-h-full' : ''}`}>
+      <div className={`mx-auto w-full max-w-[680px] ${isNewSession ? 'min-h-full' : ''}`}>
         {fileConflict && fileConflictLabel && (
-          <div className="chat-danger-banner mb-4 rounded-lg px-4 py-3 text-sm">
+          <div className="chat-danger-banner mb-4 rounded-md px-3 py-2.5 text-[13px]">
             <div className="flex items-start gap-3">
-              <span className="chat-danger-icon mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg">
+              <span className="chat-danger-icon mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md">
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 17h.01" />
@@ -148,10 +148,10 @@ export function ChatMessagePane({
         {showErrorCard && (
           <div className="mb-4 flex justify-start">
             <div className="flex max-w-[88%] gap-3.5">
-              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text">
+              <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-claude-border bg-claude-surface text-[11px] font-semibold text-claude-text">
                 C
               </div>
-              <div className="chat-error-card rounded-lg rounded-tl-md px-4 py-3.5">
+              <div className="chat-error-card rounded-md rounded-tl-md px-3 py-2.5">
                 <div className="chat-error-card-title mb-1 flex items-center gap-2 font-medium">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />

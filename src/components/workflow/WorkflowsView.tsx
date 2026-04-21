@@ -5,10 +5,11 @@ import { useWorkflowStore } from '../../store/workflowStore'
 import type { Workflow, WorkflowExecution, WorkflowInput, WorkflowStep } from '../../store/workflowTypes'
 import { WorkflowCanvas } from './WorkflowCanvas'
 import { workflowToInput } from './editorShared'
+import { WorkflowList } from './WorkflowList'
 import { WorkflowSidebar } from './WorkflowSidebar'
 import { WorkflowStepEditor } from './WorkflowStepEditor'
 import { WorkflowTriggerEditor } from './WorkflowTriggerEditor'
-import { AppButton, AppChip, AppPanel, appFieldClassName } from '../ui/appDesignSystem'
+import { AppButton, AppChip, AppPanel, AppTitlebarHistoryGlyphs, appFieldClassName } from '../ui/appDesignSystem'
 import {
   describeWorkflowTrigger,
   formatWorkflowDateTime,
@@ -113,7 +114,7 @@ function WorkflowHistoryPanel({
   )
 
   return (
-    <AppPanel className="absolute right-4 top-4 z-30 flex h-[min(520px,calc(100%-6rem))] w-[360px] flex-col overflow-hidden shadow-2xl">
+    <AppPanel className="absolute right-4 top-4 z-30 flex h-[min(520px,calc(100%-6rem))] w-[360px] flex-col overflow-hidden shadow-none">
       <div className="flex items-center justify-between border-b border-claude-border px-4 py-3">
         <div>
           <div className="text-sm font-semibold text-claude-text">{t('workflow.details.history')}</div>
@@ -317,6 +318,14 @@ export function WorkflowsView({
     setActionError(null)
   }
 
+  const startCreateWorkflow = () => {
+    setShowCreateModal(true)
+    setCreateName('')
+    setSelectedTemplate('blank')
+    setActionError(null)
+    setEditingStepId(null)
+  }
+
   const handleRunNow = async () => {
     if (!selectedWorkflow) return
     setBusyWorkflowId(selectedWorkflow.id)
@@ -407,19 +416,46 @@ export function WorkflowsView({
   }
 
   return (
-    <div className="relative flex h-full overflow-hidden bg-claude-bg">
+    <div className="relative flex h-full flex-col overflow-hidden bg-claude-bg">
+      <div className="draggable-region flex h-[42px] shrink-0 items-center border-b border-claude-border bg-claude-panel px-4">
+        <div className="ml-[92px] flex min-w-0 items-center gap-2">
+          <AppTitlebarHistoryGlyphs />
+          <span className="truncate text-[13px] font-medium text-claude-text">
+            {t('workflow.header.title')}
+          </span>
+          <span className="text-[13px] text-claude-muted">citto-code</span>
+          <span className="text-[14px] leading-none text-claude-muted/60">···</span>
+          <WorkflowList
+            workflows={sortedWorkflows}
+            selectedWorkflow={selectedWorkflow}
+            onSelect={(workflowId) => {
+              setSelectedWorkflowId(workflowId)
+              setActionError(null)
+            }}
+            onCreate={startCreateWorkflow}
+            onDuplicate={handleDuplicate}
+          />
+        </div>
+        <div className="no-drag ml-auto flex items-center gap-2" data-no-drag="true">
+          <AppButton tone="secondary">열기</AppButton>
+          <AppButton tone="secondary">미리보기</AppButton>
+          <div className="h-6 w-px bg-claude-border" />
+          <span className="text-[11px] text-claude-muted">브랜치</span>
+          <span className="text-[11px] text-claude-muted">+35 -9</span>
+          <AppButton onClick={onClose} size="icon" tone="ghost" aria-label={t('workflow.create.cancel')}>
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
+            </svg>
+          </AppButton>
+        </div>
+      </div>
+
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <WorkflowSidebar
         workflows={sortedWorkflows}
         executions={executions}
         selectedWorkflowId={selectedWorkflowId}
-        activeWorkflowCount={sortedWorkflows.filter((workflow) => workflow.active).length}
-        onCreate={() => {
-          setShowCreateModal(true)
-          setCreateName('')
-          setSelectedTemplate('blank')
-          setActionError(null)
-          setEditingStepId(null)
-        }}
+        onCreate={startCreateWorkflow}
         onSelect={(workflowId) => {
           setSelectedWorkflowId(workflowId)
           setActionError(null)
@@ -427,7 +463,7 @@ export function WorkflowsView({
       />
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-claude-border bg-claude-panel px-5 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-claude-border bg-claude-bg px-3 py-2.5">
           {selectedWorkflow ? (
             <div className="min-w-0">
               {editingName ? (
@@ -446,24 +482,24 @@ export function WorkflowsView({
                       setEditingName(false)
                     }
                   }}
-                  className={`${appFieldClassName} max-w-[420px] py-2 text-lg font-semibold`}
+                  className={`${appFieldClassName} max-w-[420px] py-1.5 text-[14px] font-semibold`}
                   autoFocus
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setEditingName(true)}
-                  className="max-w-full truncate text-left text-lg font-semibold text-claude-text"
+                  className="max-w-full truncate text-left text-[14px] font-semibold leading-5 text-claude-text"
                 >
                   {selectedWorkflow.name}
                 </button>
               )}
 
-              <p className="mt-2 max-w-2xl text-xs leading-5 text-claude-muted">
+              <p className="mt-1 max-w-3xl text-[11px] leading-5 text-claude-muted">
                 {buildWorkflowSummary(selectedWorkflow, language)}
               </p>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <AppChip>{describeWorkflowTrigger(selectedWorkflow, language)}</AppChip>
                 <AppChip>{t('workflow.meta.lastRun')}: {formatWorkflowDateTime(selectedWorkflow.lastRunAt, language)}</AppChip>
                 {selectedWorkflow.trigger.type === 'schedule' ? (
@@ -477,50 +513,6 @@ export function WorkflowsView({
               <p className="mt-2 text-xs leading-5 text-claude-muted">{t('workflow.details.selectDescription')}</p>
             </div>
           )}
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {selectedWorkflow ? (
-              <>
-                <AppButton
-                  tone="secondary"
-                  onClick={() => {
-                    setShowHistoryPanel((current) => !current)
-                    setEditingWorkflowId(null)
-                    setEditingStepId(null)
-                  }}
-                >
-                  {t('workflow.details.history')}
-                </AppButton>
-                <AppButton
-                  tone="secondary"
-                  onClick={() => {
-                    setEditingWorkflowId(selectedWorkflow.id)
-                    setEditingStepId(null)
-                    setShowHistoryPanel(false)
-                  }}
-                >
-                  {t('workflow.canvas.action.trigger')}
-                </AppButton>
-                {isRunning ? (
-                  <AppButton tone="danger" disabled={busyWorkflowId === selectedWorkflow.id} onClick={() => void handleCancel()}>
-                    {t('workflow.details.cancel')}
-                  </AppButton>
-                ) : (
-                  <AppButton tone="accent" disabled={busyWorkflowId === selectedWorkflow.id} onClick={() => void handleRunNow()}>
-                    {t('workflow.details.runNow')}
-                  </AppButton>
-                )}
-                <AppButton tone="secondary" onClick={() => handleDuplicate(selectedWorkflow.id)}>
-                  {t('workflow.actions.duplicate')}
-                </AppButton>
-              </>
-            ) : null}
-            <AppButton onClick={onClose} size="icon" tone="ghost" aria-label={t('workflow.create.cancel')}>
-              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
-              </svg>
-            </AppButton>
-          </div>
         </div>
 
         <div className="relative min-h-0 flex-1">
@@ -591,7 +583,7 @@ export function WorkflowsView({
         ) : null}
 
         {actionError ? (
-          <div className="absolute right-4 top-4 z-40 max-w-sm rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200 shadow-lg">
+          <div className="absolute right-4 top-4 z-40 max-w-sm rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200 shadow-none">
             {actionError}
           </div>
         ) : null}
@@ -599,23 +591,23 @@ export function WorkflowsView({
 
       {showCreateModal ? (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 px-4 backdrop-blur-sm">
-          <AppPanel className="w-full max-w-xl p-5 shadow-2xl">
-            <h2 className="text-lg font-semibold text-claude-text">{t('workflow.create.title')}</h2>
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-claude-text">
+          <AppPanel className="w-full max-w-lg p-4 shadow-none">
+            <h2 className="text-[14px] font-semibold leading-5 text-claude-text">{t('workflow.create.title')}</h2>
+            <div className="mt-3">
+              <label className="block text-[13px] font-medium text-claude-text">
                 {t('workflow.create.name')}
               </label>
               <input
                 value={createName}
                 onChange={(event) => setCreateName(event.target.value)}
                 placeholder={t('workflow.create.namePlaceholder')}
-                className={`${appFieldClassName} mt-2 h-10`}
+                className={`${appFieldClassName} mt-1.5 h-9`}
               />
             </div>
 
-            <div className="mt-5">
-              <div className="text-sm font-medium text-claude-text">{t('workflow.create.templates')}</div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4">
+              <div className="text-[13px] font-medium text-claude-text">{t('workflow.create.templates')}</div>
+              <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
                 {([
                   { id: 'blank', titleKey: 'workflow.create.template.blank.title', descKey: 'workflow.create.template.blank.description' },
                   { id: 'code-review', titleKey: 'workflow.create.template.review.title', descKey: 'workflow.create.template.review.description' },
@@ -627,21 +619,21 @@ export function WorkflowsView({
                       key={template.id}
                       type="button"
                       onClick={() => setSelectedTemplate(template.id)}
-                      className={`rounded-lg border p-3 text-left transition-colors ${
+                      className={`rounded-md border p-2.5 text-left transition-colors ${
                         active
                           ? 'border-claude-orange/40 bg-claude-orange/10'
                           : 'border-claude-border bg-claude-bg hover:bg-claude-surface'
                       }`}
                     >
-                      <div className="text-sm font-medium text-claude-text">{t(template.titleKey)}</div>
-                      <div className="mt-2 text-xs leading-5 text-claude-muted">{t(template.descKey)}</div>
+                      <div className="text-[13px] font-medium text-claude-text">{t(template.titleKey)}</div>
+                      <div className="mt-1.5 text-xs leading-5 text-claude-muted">{t(template.descKey)}</div>
                     </button>
                   )
                 })}
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-4 flex justify-end gap-2">
               <AppButton onClick={() => setShowCreateModal(false)} tone="ghost">
                 {t('workflow.create.cancel')}
               </AppButton>
@@ -653,6 +645,7 @@ export function WorkflowsView({
         </div>
       ) : null}
 
+      </div>
       </div>
     </div>
   )

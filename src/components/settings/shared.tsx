@@ -103,7 +103,7 @@ export function SettingsSection({
   className?: string
 }) {
   return (
-    <section className={cx('border-b border-claude-border/70 px-5 py-5 last:border-b-0', className)}>
+    <section className={cx('border-b border-claude-border/60 px-4 py-4 last:border-b-0', className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-claude-text">{title}</p>
@@ -120,8 +120,8 @@ export function SettingsSection({
 
 export function EmptyState({ icon, title, desc }: { icon: string; title: string; desc: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-claude-border bg-claude-panel/45 px-6 py-12 text-center">
-      <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-claude-border bg-claude-bg text-lg">
+    <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-claude-border bg-claude-panel/35 px-5 py-10 text-center">
+      <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-claude-border bg-claude-bg text-base">
         {icon}
       </span>
       <p className="mb-1 text-sm font-medium text-claude-text">{title}</p>

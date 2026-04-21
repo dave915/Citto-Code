@@ -72,7 +72,7 @@ export function WorkflowTriggerEditor({
   }
 
   return (
-    <AppPanel className="absolute right-4 top-4 z-40 flex h-[min(560px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden shadow-2xl">
+    <AppPanel className="absolute right-4 top-4 z-40 flex h-[min(560px,calc(100%-6rem))] w-[420px] flex-col overflow-hidden shadow-none">
       <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-claude-border px-4 py-4">
           <div className="flex items-start justify-between gap-3">

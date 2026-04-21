@@ -29,7 +29,7 @@ export function ShortcutSection({ shortcutConfig, onShortcutChange }: Props) {
       title={t('settings.general.shortcuts.title')}
       description={t('settings.general.shortcuts.description', { platform: platformLabel })}
     >
-      <div className="overflow-x-auto rounded-lg border border-claude-border bg-claude-bg/70">
+      <div className="overflow-x-auto rounded-md border border-claude-border bg-claude-bg/70">
         <table className="w-full border-separate border-spacing-0">
           <thead>
             <tr>
@@ -40,7 +40,7 @@ export function ShortcutSection({ shortcutConfig, onShortcutChange }: Props) {
           <tbody>
             {(Object.keys(SHORTCUT_ACTION_LABELS[language]) as ShortcutAction[]).map((action) => (
               <tr key={action} className={cx('border-t border-claude-border/60', recordingAction === action && 'bg-claude-panel/70')}>
-                <td className="px-3 py-2 text-sm text-claude-text">{SHORTCUT_ACTION_LABELS[language][action]}</td>
+                <td className="px-3 py-2 text-[13px] text-claude-text">{SHORTCUT_ACTION_LABELS[language][action]}</td>
                 <td className="px-3 py-2">
                   <div className="relative">
                     <input

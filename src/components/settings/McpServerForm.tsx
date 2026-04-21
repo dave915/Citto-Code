@@ -31,7 +31,7 @@ export function McpServerForm({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-claude-border bg-claude-bg/70 p-4">
+    <div className="space-y-3 rounded-md border border-claude-border bg-claude-bg/70 p-3">
       <p className="text-xs font-semibold text-claude-text">{title}</p>
 
       <div>

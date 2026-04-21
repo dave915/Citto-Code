@@ -49,7 +49,7 @@ function SidebarActionButton({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px] font-medium outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+      className={`flex min-h-[30px] w-full items-center gap-2 rounded-md border px-2 py-1.5 text-[13px] font-medium outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35 ${
         active
           ? 'border-claude-border bg-claude-surface text-claude-text'
           : 'border-transparent bg-transparent text-claude-text hover:border-claude-border/60 hover:bg-claude-sidebar-hover hover:text-claude-text'
@@ -199,9 +199,9 @@ export function Sidebar({
 
   return (
     <aside className="flex h-full w-full flex-shrink-0 select-none flex-col border-r border-claude-border bg-claude-sidebar">
-      <div className="pt-10 pb-1 draggable-region" />
+      <div className="draggable-region h-[42px] shrink-0 border-b border-claude-border bg-claude-panel" />
 
-      <div className="mb-1.5 flex flex-col gap-0.5 px-2.5">
+      <div className="mb-1.5 flex flex-col gap-0.5 px-2 py-2">
         <SidebarActionButton
           label={t('sidebar.newSession')}
           title={`${t('sidebar.newSession')} (${newSessionShortcutLabel})`}

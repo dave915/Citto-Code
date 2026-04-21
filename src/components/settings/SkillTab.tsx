@@ -72,9 +72,9 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
   return (
     <div className="flex h-full">
       {/* Middle: skill list */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
-        <div className="flex items-center justify-between border-b border-claude-border/50 px-4 py-3.5">
-          <p className="text-sm font-semibold text-claude-text">{t('settings.tab.skill')}</p>
+      <div className="flex w-[286px] shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
+        <div className="flex h-[42px] items-center justify-between border-b border-claude-border/50 px-3">
+          <p className="text-[13px] font-semibold text-claude-text">{t('settings.tab.skill')}</p>
           <div className="flex items-center gap-1">
             <AppButton
               size="icon"
@@ -132,7 +132,7 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
                           <button
                             onClick={() => handleSelectSkill(skill.name)}
                             className={cx(
-                              'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
+                              'flex min-h-[36px] w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors',
                               isSelected ? 'bg-claude-surface' : 'hover:bg-claude-panel',
                             )}
                           >
@@ -140,7 +140,7 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h7l2 2h7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" />
                             </svg>
                             <span className={cx(
-                              'min-w-0 flex-1 truncate text-sm font-medium',
+                              'min-w-0 flex-1 truncate text-[13px] font-medium',
                               isSelected ? 'text-claude-text' : 'text-claude-text/80',
                             )}>
                               {skill.name}
@@ -210,11 +210,11 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
                   </p>
                   <div className="space-y-0.5">
                     {pluginSkills.map((skill) => (
-                      <div key={skill.name} className="flex items-center gap-2 rounded-lg px-3 py-2">
+                      <div key={skill.name} className="flex items-center gap-2 rounded-md px-3 py-2">
                         <svg className="h-3.5 w-3.5 shrink-0 text-claude-muted/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
                         </svg>
-                        <span className="min-w-0 flex-1 truncate text-sm text-claude-muted">{skill.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-[13px] text-claude-muted">{skill.name}</span>
                       </div>
                     ))}
                   </div>
@@ -230,11 +230,11 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
         {selectedSkill ? (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-claude-border/50 px-6 py-3.5">
+            <div className="flex h-[42px] items-center justify-between border-b border-claude-border/50 px-4">
               <div className="flex items-center gap-3">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-claude-muted/60">개인 스킬</p>
-                  <p className="text-sm font-semibold text-claude-text">{selectedSkill.name}</p>
+                  <p className="text-[13px] font-semibold text-claude-text">{selectedSkill.name}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
               {/* File path */}
-              <div className="border-b border-claude-border/40 px-6 py-3">
+              <div className="border-b border-claude-border/40 px-4 py-2.5">
                 <p className="font-mono text-xs text-claude-muted">
                   {selectedSkill.legacy ? `commands/${selectedSkill.name}` : `skills/${selectedSkill.name}/SKILL.md`}
                 </p>
@@ -271,7 +271,7 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
 
               {/* File editor */}
               {editingFile ? (
-                <div className="px-6 py-4">
+                <div className="px-4 py-3">
                   <SkillFileEditor
                     editContent={editContent}
                     editingFile={editingFile}
@@ -284,7 +284,7 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
                   />
                 </div>
               ) : (
-                <div className="px-6 py-4">
+                <div className="px-4 py-3">
                   {selectedFiles.length === 0 ? (
                     <p className="text-xs text-claude-muted">{t('common.noFiles')}</p>
                   ) : (
@@ -294,7 +294,7 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
                         <button
                           key={file.path}
                           onClick={() => void handleEditFile(file)}
-                          className="flex w-full items-center gap-2 rounded-lg border border-claude-border bg-claude-panel/60 px-3 py-2 text-left transition-colors hover:bg-claude-surface"
+                          className="flex w-full items-center gap-2 rounded-md bg-claude-panel/45 px-3 py-2 text-left transition-colors hover:bg-claude-surface"
                         >
                           <svg className="h-3.5 w-3.5 shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -310,7 +310,7 @@ export function SkillTab({ onCountUpdate }: { onCountUpdate?: (count: number) =>
 
                   {/* Add file */}
                   {addFileFor?.name === selectedSkill.name ? (
-                    <div className="mt-4 space-y-2 rounded-lg border border-claude-border bg-claude-panel/60 p-3">
+                    <div className="mt-4 space-y-2 rounded-md border border-claude-border bg-claude-panel/45 p-3">
                       <p className="text-xs font-medium text-claude-text">{t('settings.skill.addFile')}</p>
                       <input
                         ref={fileNameRef}

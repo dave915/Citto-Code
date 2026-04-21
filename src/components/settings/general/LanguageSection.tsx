@@ -35,13 +35,13 @@ export function LanguageSection({ appLanguage, onChange }: Props) {
               type="button"
               onClick={() => onChange(option)}
               className={cx(
-                'rounded-lg border px-3 py-3 text-left transition-colors',
+                'rounded-md border px-3 py-2.5 text-left transition-colors',
                 active
                   ? 'border-claude-orange/30 bg-claude-bg text-claude-text'
-                  : 'border-claude-border bg-claude-panel/65 text-claude-text hover:bg-claude-bg',
+                  : 'border-transparent bg-claude-panel/40 text-claude-text hover:bg-claude-bg',
               )}
             >
-              <div className="text-sm font-medium text-claude-text">
+              <div className="text-[13px] font-medium text-claude-text">
                 {t(optionLabelKeys[option])}
               </div>
               <div className="mt-1 text-xs leading-relaxed text-claude-muted">

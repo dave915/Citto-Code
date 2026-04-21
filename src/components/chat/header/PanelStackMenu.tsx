@@ -53,7 +53,7 @@ export function PanelStackMenu({ items, title, onToggle }: Props) {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-claude-text transition-colors ${
+        className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-claude-text transition-colors ${
           open || activeCount > 0
             ? 'border-claude-border bg-claude-surface'
             : 'border-transparent bg-transparent text-claude-muted hover:border-claude-border hover:bg-claude-surface hover:text-claude-text'
@@ -70,7 +70,7 @@ export function PanelStackMenu({ items, title, onToggle }: Props) {
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-lg border border-claude-border bg-claude-panel p-2 shadow-2xl">
+        <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-md border border-claude-border bg-claude-panel p-1.5 shadow-none">
           <div className="space-y-1">
             {items.map((item) => (
               <button
@@ -78,7 +78,7 @@ export function PanelStackMenu({ items, title, onToggle }: Props) {
                 type="button"
                 disabled={item.disabled}
                 onClick={() => onToggle(item.id)}
-                className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
+                className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors ${
                   item.disabled
                     ? 'cursor-not-allowed text-claude-muted/45'
                     : item.active

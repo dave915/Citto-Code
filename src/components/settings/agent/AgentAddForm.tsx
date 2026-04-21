@@ -27,7 +27,7 @@ export function AgentAddForm({
   if (!open) return null
 
   return (
-    <div className="mb-3 space-y-2 rounded-lg border border-claude-border bg-claude-bg/70 p-3">
+    <div className="mb-3 space-y-2 rounded-md border border-claude-border bg-claude-bg/70 p-3">
       <p className="text-xs font-semibold text-claude-text">{t('settings.agent.addNew')}</p>
       <input
         ref={nameRef}

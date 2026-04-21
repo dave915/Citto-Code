@@ -7,7 +7,7 @@ import type {
 } from '../store/sessionTypes'
 
 export const DEFAULT_PROJECT_PATH = '~'
-export const DEFAULT_UI_FONT_SIZE = 16
+export const DEFAULT_UI_FONT_SIZE = 14
 export const MIN_UI_FONT_SIZE = 13
 export const MAX_UI_FONT_SIZE = 20
 export const DEFAULT_UI_ZOOM_PERCENT = 100

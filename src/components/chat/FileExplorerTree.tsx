@@ -39,7 +39,7 @@ export function ExplorerNode({
             void onSelectEntry(entry)
           }
         }}
-        className={`w-full flex items-center gap-2 rounded-md px-2 py-2 text-left transition-colors ${
+        className={`w-full flex min-h-[28px] items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors ${
           isSelected
             ? 'bg-claude-surface-2 text-claude-text ring-1 ring-white/10'
             : 'hover:bg-claude-surface'
@@ -68,7 +68,7 @@ export function ExplorerNode({
             <FileGlyph name={entry.name} />
           </>
         )}
-        <span className={`truncate text-[15px] ${isSelected ? 'font-medium text-claude-text' : 'text-claude-text'}`}>
+        <span className={`truncate text-[13px] ${isSelected ? 'font-medium text-claude-text' : 'text-claude-text'}`}>
           {entry.name}
         </span>
       </button>

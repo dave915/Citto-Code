@@ -260,8 +260,8 @@ function getNodePalette(step: WorkflowStep, selected: boolean, hasError: boolean
       ? `color-mix(in srgb, rgb(var(--claude-border)) 24%, ${accent} 76%)`
       : `color-mix(in srgb, rgb(var(--claude-border)) 76%, ${accent} 24%)`,
     boxShadow: selected
-      ? `0 0 0 1px color-mix(in srgb, rgb(var(--claude-text)) 14%, ${accent} 86%), 0 12px 24px rgb(0 0 0 / 0.14)`
-      : '0 8px 18px rgb(0 0 0 / 0.08)',
+      ? `0 0 0 1px color-mix(in srgb, rgb(var(--claude-text)) 14%, ${accent} 86%)`
+      : 'none',
   }
 }
 
@@ -283,7 +283,7 @@ function CanvasActionButton({
       onClick={onClick}
       disabled={disabled}
       tone={primary ? 'accent' : 'secondary'}
-      className="h-10 px-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur"
+      className="h-[30px] px-2.5 shadow-none"
     >
       {children}
       <span>{label}</span>
@@ -586,9 +586,9 @@ export function WorkflowCanvas({
             backgroundSize: '36px 36px',
           }}
         />
-        <div className="relative max-w-sm px-6 text-center">
-          <p className="text-base font-medium text-claude-text">{t('workflow.canvas.emptyTitle')}</p>
-          <p className="mt-2 text-sm leading-6 text-claude-muted">{t('workflow.canvas.emptyDescription')}</p>
+        <div className="relative max-w-sm px-5 text-center">
+          <p className="text-[14px] font-medium text-claude-text">{t('workflow.canvas.emptyTitle')}</p>
+          <p className="mt-1.5 text-[13px] leading-6 text-claude-muted">{t('workflow.canvas.emptyDescription')}</p>
         </div>
       </div>
     )
@@ -717,7 +717,7 @@ export function WorkflowCanvas({
                   className="flex h-10 w-10 items-center justify-center rounded-full text-white"
                   style={{
                     background: 'color-mix(in srgb, rgb(var(--claude-surface-2)) 54%, rgb(34 197 94) 46%)',
-                    boxShadow: '0 0 22px color-mix(in srgb, rgb(var(--claude-surface-2)) 40%, rgb(34 197 94) 60%)',
+                    boxShadow: 'none',
                   }}
                 >
                   <svg className="ml-0.5 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -824,7 +824,7 @@ export function WorkflowCanvas({
         </div>
       </div>
 
-      <div className="absolute bottom-6 left-5 z-20 flex flex-col overflow-hidden rounded-md border border-claude-border bg-claude-surface shadow-lg">
+      <div className="absolute bottom-6 left-5 z-20 flex flex-col overflow-hidden rounded-md border border-claude-border bg-claude-surface shadow-none">
         <button
           type="button"
           onClick={() => {
@@ -883,7 +883,7 @@ export function WorkflowCanvas({
           </CanvasActionButton>
 
           {showStepMenu ? (
-            <AppPanel className="absolute bottom-[calc(100%+10px)] left-0 w-44 rounded-md p-1 shadow-xl">
+            <AppPanel className="absolute bottom-[calc(100%+10px)] left-0 w-44 rounded-md p-1 shadow-none">
               <button
                 type="button"
                 onClick={() => appendNewStep('agent')}

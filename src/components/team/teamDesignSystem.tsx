@@ -21,8 +21,8 @@ const teamButtonToneClasses: Record<TeamButtonTone, string> = {
 }
 
 const teamButtonSizeClasses: Record<TeamButtonSize, string> = {
-  sm: 'h-8 px-3',
-  icon: 'h-8 w-8',
+  sm: 'h-[30px] px-2.5',
+  icon: 'h-[30px] w-[30px]',
 }
 
 type TeamButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -42,7 +42,7 @@ export function TeamButton({
     <button
       type={type}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/40 disabled:cursor-not-allowed disabled:border-claude-border disabled:bg-claude-surface disabled:text-claude-muted disabled:opacity-40',
+        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/40 disabled:cursor-not-allowed disabled:border-claude-border disabled:bg-claude-surface disabled:text-claude-muted disabled:opacity-40',
         teamButtonSizeClasses[size],
         teamButtonToneClasses[tone],
         className,
@@ -93,7 +93,7 @@ export function TeamPanel({ children, className, ...props }: TeamPanelProps) {
   return (
     <div
       className={cx(
-        'rounded-lg border border-claude-border bg-claude-panel/90 shadow-[0_16px_32px_rgba(0,0,0,0.18)]',
+        'rounded-md border border-claude-border bg-claude-panel/90 shadow-none',
         className,
       )}
       {...props}
@@ -120,4 +120,4 @@ export function TeamEyebrow({ children, className, ...props }: TeamEyebrowProps)
 }
 
 export const teamFieldClassName =
-  'w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text outline-none transition-colors placeholder:text-claude-muted focus:border-claude-orange/40 focus:ring-1 focus:ring-claude-orange/15'
+  'w-full rounded-md border border-claude-border bg-claude-bg px-3 py-2 text-[13px] text-claude-text outline-none transition-colors placeholder:text-claude-muted focus:border-claude-orange/40 focus:ring-1 focus:ring-claude-orange/15'

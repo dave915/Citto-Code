@@ -112,7 +112,7 @@ export function TimelineEntryRow({
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="mt-[1px] flex h-4 w-4 items-center justify-center text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+          className="mt-[1px] flex h-4 w-4 items-center justify-center text-claude-muted outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
         >
           <svg className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : 'rotate-0'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
@@ -126,7 +126,7 @@ export function TimelineEntryRow({
               <button
                 type="button"
                 onClick={() => setExpanded((value) => !value)}
-                className="inline-flex max-w-[min(38rem,62vw)] items-center gap-1 truncate rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-claude-text/90 outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10"
+                className="inline-flex max-w-[min(38rem,62vw)] items-center gap-1 truncate rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-claude-text/90 outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35"
               >
                 <span className="truncate">{entry.badge}</span>
               </button>

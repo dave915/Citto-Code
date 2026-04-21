@@ -3,7 +3,7 @@ import { useI18n } from '../../../hooks/useI18n'
 export function SkillIntroCard() {
   const { t } = useI18n()
   return (
-    <div className="mb-4 rounded-lg border border-claude-border bg-claude-panel/55 px-4 py-3">
+    <div className="mb-4 rounded-md border border-claude-border bg-claude-panel/45 px-4 py-3">
       <p className="mb-1 text-xs font-semibold text-claude-text">{t('settings.skill.introTitle')}</p>
       <p className="text-xs leading-relaxed text-claude-muted">
         {t('settings.skill.introBody.beforePath')}

@@ -80,7 +80,7 @@ export function ModeSelector({
   const modeOptions = getModeOptions(language)
 
   return (
-    <div className="flex items-center gap-1 rounded-lg border border-claude-border bg-claude-panel p-0.5">
+    <div className="flex items-center gap-1 rounded-md border border-claude-border bg-claude-panel p-0.5">
       {modeOptions.map((option) => (
         <button
           key={option.value}

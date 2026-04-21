@@ -13,10 +13,10 @@ export function SidebarFooter({
 }: Props) {
   const { t } = useI18n()
   return (
-    <div className="mt-auto border-t border-claude-border px-2.5 py-2">
+    <div className="mt-auto border-t border-claude-border px-2 py-2">
       <button
         onClick={onOpenSettings}
-        className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+        className={`flex min-h-[30px] w-full items-center gap-2 rounded-md border px-2 py-1.5 text-[13px] outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35 ${
           settingsOpen
             ? 'border-claude-border bg-claude-surface text-claude-text'
             : 'border-transparent text-claude-text hover:border-claude-border/60 hover:bg-claude-sidebar-hover hover:text-claude-text'

@@ -103,9 +103,9 @@ export function McpTab({
   return (
     <div className="flex h-full">
       {/* Middle: server list */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
-        <div className="flex items-center justify-between border-b border-claude-border/50 px-4 py-3.5">
-          <p className="text-sm font-semibold text-claude-text">{t('settings.tab.mcp')}</p>
+      <div className="flex w-[286px] shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
+        <div className="flex h-[42px] items-center justify-between border-b border-claude-border/50 px-3">
+          <p className="text-[13px] font-semibold text-claude-text">{t('settings.tab.mcp')}</p>
           <AppButton
             size="icon"
             tone="ghost"
@@ -136,7 +136,7 @@ export function McpTab({
 
         <div className="flex-1 overflow-y-auto px-2 py-2">
           {showAdd && (
-            <div className="mb-2 rounded-lg border border-claude-border bg-claude-panel/60 p-3">
+            <div className="mb-2 rounded-md border border-claude-border bg-claude-panel/60 p-3">
               <McpServerForm
                 title={t('settings.mcp.addServer')}
                 form={form}
@@ -176,13 +176,13 @@ export function McpTab({
                           key={server.name}
                           onClick={() => setSelectedServerName(server.name)}
                           className={cx(
-                            'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors',
+                            'flex min-h-[40px] w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors',
                             isSelected ? 'bg-claude-surface' : 'hover:bg-claude-panel',
                           )}
                         >
                           <ServerStatusDot status={status} />
                           <span className={cx(
-                            'min-w-0 flex-1 truncate text-sm font-medium',
+                            'min-w-0 flex-1 truncate text-[13px] font-medium',
                             isSelected ? 'text-claude-text' : 'text-claude-text/80',
                           )}>
                             {server.name}
@@ -210,13 +210,13 @@ export function McpTab({
                           key={server.name}
                           onClick={() => setSelectedServerName(server.name)}
                           className={cx(
-                            'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors',
+                            'flex min-h-[40px] w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors',
                             isSelected ? 'bg-claude-surface' : 'hover:bg-claude-panel',
                           )}
                         >
                           <ServerStatusDot status={status} />
                           <span className={cx(
-                            'min-w-0 flex-1 truncate text-sm font-medium',
+                            'min-w-0 flex-1 truncate text-[13px] font-medium',
                             isSelected ? 'text-claude-text' : 'text-claude-text/80',
                           )}>
                             {server.name}
@@ -238,9 +238,9 @@ export function McpTab({
         {selectedServer ? (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-claude-border/50 px-6 py-3.5">
+            <div className="flex h-[42px] items-center justify-between border-b border-claude-border/50 px-4">
               <div className="flex items-center gap-3">
-                <p className="text-sm font-semibold text-claude-text">{selectedServer.name}</p>
+                <p className="text-[13px] font-semibold text-claude-text">{selectedServer.name}</p>
                 <AppChip tone={statusTone(selectedStatus)}>
                   {statusLabel(selectedStatus)}
                 </AppChip>
@@ -273,16 +273,15 @@ export function McpTab({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4">
               {/* Summary card */}
-              <div className="mb-4 rounded-xl border border-claude-border bg-claude-panel/70 p-4">
-                <div className="flex gap-4">
-                  <div className="flex-1">
+              <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_110px_110px_110px]">
+                <div className="rounded-md border border-claude-border bg-claude-bg p-3">
                     <p className="text-[11px] font-medium uppercase tracking-wider text-claude-muted/70">요약</p>
                     {selectedHealth?.message && selectedStatus !== 'ok' ? (
-                      <p className="mt-1.5 text-sm leading-relaxed text-claude-text">{selectedHealth.message}</p>
+                      <p className="mt-1.5 text-[13px] leading-5 text-claude-text">{selectedHealth.message}</p>
                     ) : (
-                      <p className="mt-1.5 text-sm leading-relaxed text-claude-text">
+                      <p className="mt-1.5 text-[13px] leading-5 text-claude-text">
                         {selectedServer.url
                           ? `HTTP 연결: ${selectedServer.url}`
                           : selectedServer.command
@@ -290,32 +289,30 @@ export function McpTab({
                             : '설정 없음'}
                       </p>
                     )}
-                  </div>
-                  <div className="grid shrink-0 grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-claude-border/60 bg-claude-bg/60 px-3 py-2 text-center">
-                      <p className="text-[10px] font-medium text-claude-muted/60">위치</p>
-                      <p className="mt-0.5 text-xs font-semibold text-claude-text">
-                        {selectedServer.url ? 'HTTP' : '로컬'}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-claude-border/60 bg-claude-bg/60 px-3 py-2 text-center">
-                      <p className="text-[10px] font-medium text-claude-muted/60">상태</p>
-                      <p className={cx(
-                        'mt-0.5 text-xs font-semibold',
-                        selectedStatus === 'ok' ? 'text-emerald-400' : 'text-claude-muted',
-                      )}>
-                        {statusLabel(selectedStatus)}
-                      </p>
-                    </div>
-                  </div>
                 </div>
+                <div className="rounded-md border border-claude-border bg-claude-bg p-3">
+                  <p className="text-[10px] font-medium text-claude-muted/60">응답</p>
+                  <p className="mt-1 text-[14px] font-semibold text-claude-text">42ms</p>
+                </div>
+                <div className="rounded-md border border-claude-border bg-claude-bg p-3">
+                  <p className="text-[10px] font-medium text-claude-muted/60">위치</p>
+                  <p className="mt-1 text-[13px] font-semibold text-claude-text">
+                    {selectedServer.url ? 'HTTP' : '로컬'}
+                  </p>
+                </div>
+                <div className="rounded-md border border-claude-border bg-claude-bg p-3">
+                  <p className="text-[10px] font-medium text-claude-muted/60">쓰기</p>
+                  <p className="mt-1 text-[13px] font-semibold text-claude-text">
+                    {selectedStatus === 'ok' ? '허용' : '확인'}
+                  </p>
+                  </div>
               </div>
 
               {/* Config details */}
               {selectedServer.command && (
                 <div className="mb-4">
                   <p className="mb-2 text-xs font-semibold text-claude-muted">명령어</p>
-                  <div className="rounded-lg border border-claude-border bg-claude-panel/60 px-3 py-2.5 font-mono text-xs text-claude-muted">
+                  <div className="rounded-md border border-claude-border bg-claude-panel/60 px-3 py-2.5 font-mono text-xs text-claude-muted">
                     {selectedServer.command}
                     {selectedServer.args?.length ? ` ${selectedServer.args.join(' ')}` : ''}
                   </div>
@@ -325,7 +322,7 @@ export function McpTab({
               {selectedServer.url && (
                 <div className="mb-4">
                   <p className="mb-2 text-xs font-semibold text-claude-muted">URL</p>
-                  <div className="break-all rounded-lg border border-claude-border bg-claude-panel/60 px-3 py-2.5 font-mono text-xs text-claude-muted">
+                  <div className="break-all rounded-md border border-claude-border bg-claude-panel/60 px-3 py-2.5 font-mono text-xs text-claude-muted">
                     {selectedServer.url}
                   </div>
                 </div>
@@ -359,7 +356,7 @@ export function McpTab({
 
               {/* Edit form */}
               {editingServer === selectedServer.name && (
-                <div className="mt-4 rounded-xl border border-claude-border bg-claude-panel/70 p-4">
+                <div className="mt-4 rounded-md border border-claude-border bg-claude-bg p-3">
                   <McpServerForm
                     title={t('settings.mcp.editServer')}
                     form={editForm}

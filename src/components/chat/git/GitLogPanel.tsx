@@ -179,7 +179,7 @@ export function GitLogPanel({
             disabled={actionLoading}
             tooltip={status && status.behind > 0 ? t('git.log.pullWithCount', { count: status.behind }) : t('git.log.pull')}
             tooltipAlign="right"
-            className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+            className="flex h-6.5 w-6.5 items-center justify-center rounded-md transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
           >
             <svg className={`h-3.5 w-3.5 ${status && status.behind > 0 ? 'text-amber-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
@@ -193,9 +193,9 @@ export function GitLogPanel({
             disabled={actionLoading}
             tooltip={status && status.ahead > 0 ? t('git.log.pushWithCount', { count: status.ahead }) : t('git.log.push')}
             tooltipAlign="right"
-            className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+            className="flex h-6.5 w-6.5 items-center justify-center rounded-md transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
           >
-            <svg className={`h-3.5 w-3.5 ${status && status.ahead > 0 ? 'text-blue-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <svg className={`h-3.5 w-3.5 ${status && status.ahead > 0 ? 'text-claude-orange' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="m7 13 5-5 5 5" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h14" />
@@ -283,7 +283,7 @@ export function GitLogPanel({
                   key={entry.hash}
                   type="button"
                   onClick={() => void onSelectCommit(entry)}
-                  className={`block w-full rounded-lg px-2 text-left transition-colors ${
+                  className={`block w-full rounded-md px-2 text-left transition-colors ${
                     isSelected ? 'bg-claude-bg/80' : 'hover:bg-claude-bg/65'
                   }`}
                   title={`${entry.shortHash} ${entry.subject}`}

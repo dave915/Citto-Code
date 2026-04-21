@@ -70,21 +70,21 @@ export function CliImportSection({ onImportSession }: Props) {
           spellCheck={false}
         />
 
-        <div className="max-h-72 overflow-y-auto rounded-lg border border-claude-border bg-claude-bg/70">
+        <div className="max-h-72 overflow-y-auto rounded-md border border-claude-border bg-claude-bg/70">
           {loading ? (
-            <div className="px-2 py-6 text-center text-sm text-claude-muted">{t('settings.general.cliImport.loading')}</div>
+            <div className="px-2 py-5 text-center text-sm text-claude-muted">{t('settings.general.cliImport.loading')}</div>
           ) : cliSessions.length === 0 ? (
-            <div className="px-2 py-6 text-center text-sm text-claude-muted">{t('settings.general.cliImport.empty')}</div>
+            <div className="px-2 py-5 text-center text-sm text-claude-muted">{t('settings.general.cliImport.empty')}</div>
           ) : (
             <div className="divide-y divide-claude-border/60">
               {cliSessions.map((session) => (
                 <div
                   key={session.id}
-                  className="px-3 py-3"
+                  className="px-3 py-2.5"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-claude-text">{session.title}</div>
+                      <div className="truncate text-[13px] font-medium text-claude-text">{session.title}</div>
                       <div className="mt-1 truncate font-mono text-[11px] text-claude-muted">{session.cwd || t('settings.general.cliImport.noPath')}</div>
                       <div className="mt-2 line-clamp-2 text-xs leading-relaxed text-claude-muted">
                         {session.preview || t('settings.general.cliImport.noPreview')}

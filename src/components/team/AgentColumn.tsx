@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { AgentPixelIcon } from './AgentPixelIcon'
 import { useI18n } from '../../hooks/useI18n'
 import type { TeamAgent, AgentMessage } from '../../store/teamTypes'
+import { TeamChip } from './teamDesignSystem'
 
 type Props = {
   agent: TeamAgent
@@ -17,15 +18,15 @@ function ThinkingBubble({ text }: { text: string }) {
 
   if (!text?.trim()) return null
   return (
-    <div className="mb-2 rounded-lg border border-purple-500/30 bg-purple-500/5 px-3 py-2">
+    <div className="mb-2 rounded-md border border-claude-orange/25 bg-claude-orange/10 px-2.5 py-1.5">
       <div className="mb-1 flex items-center gap-1.5">
-        <svg width="12" height="12" viewBox="0 0 12 12" className="text-purple-400">
+        <svg width="12" height="12" viewBox="0 0 12 12" className="text-claude-orange">
           <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" fill="none" />
           <path d="M6 4v3M6 8.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-        <span className="text-xs font-medium text-purple-400">{t('team.thinking')}</span>
+        <span className="text-xs font-medium text-claude-orange">{t('team.thinking')}</span>
       </div>
-      <p className="line-clamp-3 text-xs text-purple-300/70">{text}</p>
+      <p className="line-clamp-3 text-xs text-claude-muted">{text}</p>
     </div>
   )
 }
@@ -51,7 +52,7 @@ function MessageBubble({
     <div className="group relative">
       <div className="mb-1 flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: agentColor }} />
-        <span className="text-xs text-claude-text-muted">
+        <span className="text-xs text-claude-muted">
           {t('team.roundWithNumber', { round: roundIndex + 1 })}
         </span>
       </div>
@@ -59,7 +60,7 @@ function MessageBubble({
       {message.thinking && <ThinkingBubble text={message.thinking} />}
 
       <div
-        className="rounded-lg rounded-tl-sm border px-3 py-2.5 text-sm leading-relaxed text-claude-text"
+        className="rounded-md rounded-tl-sm border px-2.5 py-2 text-[13px] leading-6 text-claude-text"
         style={{ borderColor: `${agentColor}44`, backgroundColor: `${agentColor}08` }}
       >
         {message.text ? (
@@ -69,7 +70,7 @@ function MessageBubble({
             </div>
           </div>
         ) : (
-          <span className="text-xs text-claude-text-muted">{t('team.message.generating')}</span>
+          <span className="text-xs text-claude-muted">{t('team.message.generating')}</span>
         )}
         {message.isStreaming && <StreamingCursor />}
       </div>
@@ -91,8 +92,8 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
   return (
     <div
       className={`
-        flex min-w-0 flex-1 flex-col rounded-lg border transition-all duration-300
-        ${isActive ? 'border-opacity-100 shadow-lg' : 'border-claude-border'}
+        flex min-w-0 flex-1 flex-col rounded-md border transition-all duration-300
+        ${isActive ? 'border-opacity-100' : 'border-claude-border'}
       `}
       style={{
         borderColor: isActive ? `${agent.color}aa` : undefined,
@@ -100,14 +101,14 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
       }}
     >
       <div
-        className="rounded-t-lg border-b border-claude-border px-4 py-3"
+        className="rounded-t-md border-b border-claude-border px-3 py-2.5"
         style={{
           background: `linear-gradient(135deg, ${agent.color}15 0%, transparent 100%)`,
         }}
       >
         <div className="flex items-start gap-3">
           <div className="relative shrink-0">
-            <AgentPixelIcon type={agent.iconType} size={40} color={agent.color} />
+            <AgentPixelIcon type={agent.iconType} size={34} color={agent.color} />
             {agent.isStreaming && (
               <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
                 <span
@@ -128,16 +129,16 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
 
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <h3 className="min-w-0 truncate whitespace-nowrap text-sm font-semibold text-claude-text">
+              <h3 className="min-w-0 truncate whitespace-nowrap text-[13px] font-semibold leading-5 text-claude-text">
                 {agent.name}
               </h3>
               {isFirst && (
-                <span className="shrink-0 rounded bg-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-400">
+                <TeamChip tone="accent" className="px-1.5 py-0.5 text-[10px]">
                   {t('team.panel.firstAgent')}
-                </span>
+                </TeamChip>
               )}
             </div>
-            <p className="mt-0.5 truncate whitespace-nowrap text-xs text-claude-text-muted">
+            <p className="mt-0.5 truncate whitespace-nowrap text-xs text-claude-muted">
               {agent.role}
             </p>
             {agent.model && (
@@ -146,7 +147,7 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
               </span>
             )}
             {agent.description && (
-              <p className="mt-1 truncate whitespace-nowrap text-[11px] leading-relaxed text-claude-text-muted">
+              <p className="mt-1 truncate whitespace-nowrap text-[11px] leading-relaxed text-claude-muted">
                 {agent.description}
               </p>
             )}
@@ -167,7 +168,7 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
             <button
               type="button"
               onClick={() => setShowMeta((current) => !current)}
-              className="rounded-full border border-claude-border px-2.5 py-1 text-[11px] font-medium leading-none text-claude-text-muted transition-colors hover:border-claude-border-hover hover:text-claude-text"
+              className="rounded-md border border-claude-border px-2.5 py-1 text-[11px] font-medium leading-none text-claude-muted transition-colors hover:border-claude-orange/35 hover:text-claude-text"
             >
               {showMeta ? t('team.column.hideMeta') : t('team.column.showMeta')}
             </button>
@@ -176,10 +177,10 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
       </div>
 
       {showMeta && (
-        <div className="space-y-3 border-b border-claude-border bg-claude-bg-base/60 px-4 py-3">
+        <div className="space-y-3 border-b border-claude-border bg-claude-bg/60 px-4 py-3">
           {agent.description && (
             <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-muted">
                 {t('team.column.description')}
               </p>
               <p className="text-xs leading-relaxed text-claude-text">
@@ -190,10 +191,10 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
 
           {agent.systemPrompt && (
             <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-text-muted">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-claude-muted">
                 {t('team.systemPrompt.title')}
               </p>
-              <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-xs leading-relaxed text-claude-text">
+              <div className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-claude-border bg-claude-bg px-2.5 py-1.5 text-xs leading-5 text-claude-text">
                 {agent.systemPrompt}
               </div>
             </div>
@@ -201,11 +202,11 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4" style={{ minHeight: 0 }}>
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-3" style={{ minHeight: 0 }}>
         {agent.messages.length === 0 && !agent.isStreaming && (
           <div className="flex h-full flex-col items-center justify-center gap-3 py-8 opacity-40">
-            <AgentPixelIcon type={agent.iconType} size={48} color={agent.color} />
-            <p className="text-center text-sm text-claude-text-muted">
+            <AgentPixelIcon type={agent.iconType} size={40} color={agent.color} />
+            <p className="text-center text-[13px] text-claude-muted">
               {t('team.column.empty')}
             </p>
           </div>
@@ -221,7 +222,7 @@ export function AgentColumn({ agent, roundNumber: _roundNumber, isActive, isFirs
         ))}
 
         {agent.error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
+          <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
             <p className="text-xs text-red-400">{t('team.panel.error', { error: agent.error })}</p>
           </div>
         )}

@@ -29,13 +29,13 @@ function SelectedAgentBadge({
 
   return (
     <TeamPanel
-      className="space-y-2 bg-claude-bg px-2 py-2 shadow-none"
+      className="space-y-2 bg-claude-bg px-2 py-1.5 shadow-none"
       style={{ borderColor: `${agent.color}66` }}
     >
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <AgentPixelIcon type={agent.iconType} size={24} color={agent.color} />
-          <span className="truncate text-sm text-claude-text">{agent.name}</span>
+          <span className="truncate text-[13px] text-claude-text">{agent.name}</span>
         </div>
         <TeamButton onClick={onRemove} size="icon" tone="ghost" className="ml-1 h-6 w-6">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -49,7 +49,7 @@ function SelectedAgentBadge({
         <select
           value={normalizedSelectedModel ?? ''}
           onChange={(event) => onModelChange(event.target.value || null)}
-          className={`${teamFieldClassName} h-9 bg-claude-surface px-2.5 text-xs`}
+          className={`${teamFieldClassName} h-8 bg-claude-surface px-2 text-xs`}
         >
           <option value="">{t('input.modelPicker.defaultModel')}</option>
           {selectedModelMissing ? <option value={normalizedSelectedModel ?? ''}>{normalizedSelectedModel}</option> : null}
@@ -98,7 +98,7 @@ export function TeamSetupPreviewPane({
 
   return (
     <div className="flex w-[340px] flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 space-y-3 overflow-y-auto p-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-claude-text">
             {t('team.setup.field.teamName')}
@@ -119,8 +119,8 @@ export function TeamSetupPreviewPane({
           </div>
 
           {selectedAgents.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-claude-border p-6 text-center">
-              <p className="text-sm text-claude-muted">
+            <div className="rounded-md border border-dashed border-claude-border p-4 text-center">
+              <p className="text-[13px] text-claude-muted">
                 {t('team.setup.selectFromLeft')}
               </p>
             </div>
@@ -141,7 +141,7 @@ export function TeamSetupPreviewPane({
         </div>
 
         {selectedAgents.length >= 2 && (
-          <TeamPanel className="bg-claude-surface/55 p-3 shadow-none">
+          <TeamPanel className="bg-claude-surface/55 p-2.5 shadow-none">
             <TeamEyebrow className="mb-2 text-claude-text">{t('team.setup.discussionOrder')}</TeamEyebrow>
             <div className="space-y-1">
               {selectedAgents.map((agent, index) => {
@@ -164,7 +164,7 @@ export function TeamSetupPreviewPane({
         )}
       </div>
 
-      <div className="space-y-2 border-t border-claude-border p-4">
+      <div className="space-y-2 border-t border-claude-border p-3">
         <TeamButton
           onClick={onConfirm}
           disabled={selectedAgents.length < 2}

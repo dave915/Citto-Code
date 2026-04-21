@@ -30,14 +30,14 @@ export function McpScopePanel({
   const currentProjectLabel = scopeInfo?.projectPath ?? effectiveProjectPath
 
   return (
-    <div className="space-y-3 rounded-lg border border-claude-border bg-claude-bg/70 p-4">
+    <div className="space-y-2 rounded-md border border-claude-border bg-claude-bg/70 p-3">
       <div className="flex flex-wrap gap-2">
         {scopeOptions.map((option) => (
           <button
             key={option.value}
             onClick={() => onScopeChange(option.value)}
             className={cx(
-              'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+              'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors',
               scope === option.value
                 ? 'border-claude-orange/30 bg-claude-panel text-claude-text'
                 : 'border-claude-border bg-claude-bg text-claude-muted hover:bg-claude-panel hover:text-claude-text',

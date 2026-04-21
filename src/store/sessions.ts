@@ -28,8 +28,8 @@ export const useSessionsStore = create<SessionsStore>()(
       name: 'citto-code-sessions',
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 7,
-      migrate: (persistedState, _version) => {
+      version: 8,
+      migrate: (persistedState, version) => {
         const state = persistedState as Partial<SessionsStore> & {
           shortcutConfig?: Partial<ShortcutConfig>
         }
@@ -39,6 +39,10 @@ export const useSessionsStore = create<SessionsStore>()(
             ? state.activeSessionId
             : null
 
+        const shouldUseDesignSystemDensity = version < 8
+          && (state.uiFontSize == null || state.uiFontSize === 16)
+          && (state.uiZoomPercent == null || state.uiZoomPercent === 100)
+
         return {
           ...state,
           defaultProjectPath,
@@ -46,8 +50,12 @@ export const useSessionsStore = create<SessionsStore>()(
           activeSessionId,
           appLanguage: state.appLanguage ?? DEFAULT_APP_LANGUAGE,
           autoHtmlPreview: state.autoHtmlPreview ?? true,
-          uiFontSize: clampUiFontSize(state.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
-          uiZoomPercent: clampUiZoomPercent(state.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
+          uiFontSize: shouldUseDesignSystemDensity
+            ? DEFAULT_UI_FONT_SIZE
+            : clampUiFontSize(state.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
+          uiZoomPercent: shouldUseDesignSystemDensity
+            ? DEFAULT_UI_ZOOM_PERCENT
+            : clampUiZoomPercent(state.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
           quickPanelEnabled: state.quickPanelEnabled ?? true,
           shortcutConfig: {
             ...DEFAULT_SHORTCUT_CONFIG,

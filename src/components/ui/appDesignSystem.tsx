@@ -21,8 +21,8 @@ const buttonToneClasses: Record<AppButtonTone, string> = {
 }
 
 const buttonSizeClasses: Record<AppButtonSize, string> = {
-  sm: 'h-8 px-3',
-  icon: 'h-8 w-8',
+  sm: 'h-[30px] px-2.5',
+  icon: 'h-[30px] w-[30px]',
 }
 
 type AppButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -42,7 +42,7 @@ export function AppButton({
     <button
       type={type}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35 disabled:cursor-not-allowed disabled:border-claude-border disabled:bg-claude-surface disabled:text-claude-muted disabled:opacity-40',
+        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35 disabled:cursor-not-allowed disabled:border-claude-border disabled:bg-claude-surface disabled:text-claude-muted disabled:opacity-40',
         buttonSizeClasses[size],
         buttonToneClasses[tone],
         className,
@@ -51,6 +51,23 @@ export function AppButton({
     >
       {children}
     </button>
+  )
+}
+
+export function AppTitlebarHistoryGlyphs() {
+  return (
+    <div className="flex items-center gap-1.5 text-claude-muted/65" aria-hidden="true">
+      <span className="flex h-5 w-5 items-center justify-center rounded-md">
+        <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none">
+          <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <span className="flex h-5 w-5 items-center justify-center rounded-md">
+        <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none">
+          <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    </div>
   )
 }
 
@@ -131,7 +148,7 @@ export const AppPanel = forwardRef<HTMLDivElement, AppPanelProps>(function AppPa
     <div
       ref={ref}
       className={cx(
-        'rounded-lg border border-claude-border bg-claude-panel/90 shadow-[0_16px_36px_rgba(0,0,0,0.18)]',
+        'rounded-md border border-claude-border bg-claude-panel/90 shadow-none',
         className,
       )}
       {...props}
@@ -158,4 +175,4 @@ export function AppEyebrow({ children, className, ...props }: AppEyebrowProps) {
 }
 
 export const appFieldClassName =
-  'w-full rounded-lg border border-claude-border bg-claude-bg px-3 py-2 text-sm text-claude-text outline-none transition-colors placeholder:text-claude-muted focus:border-claude-orange/40 focus:ring-1 focus:ring-claude-orange/15'
+  'w-full rounded-md border border-claude-border bg-claude-bg px-3 py-2 text-[13px] text-claude-text outline-none transition-colors placeholder:text-claude-muted focus:border-claude-orange/40 focus:ring-1 focus:ring-claude-orange/15'

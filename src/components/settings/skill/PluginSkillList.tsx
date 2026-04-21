@@ -7,7 +7,7 @@ export function PluginSkillList({ skills }: { skills: PluginSkill[] }) {
   if (skills.length === 0) return null
 
   return (
-    <div className="mt-4 overflow-hidden rounded-lg border border-claude-border bg-claude-panel/55">
+    <div className="mt-4 overflow-hidden rounded-md border border-claude-border bg-claude-panel/45">
       <div className="flex items-center justify-between gap-3 border-b border-claude-border/60 px-4 py-3">
         <div>
           <p className="text-xs font-semibold text-claude-text">{t('settings.skill.pluginTitle')}</p>
@@ -23,7 +23,7 @@ export function PluginSkillList({ skills }: { skills: PluginSkill[] }) {
       <div className="divide-y divide-claude-border/60">
         {skills.map((skill) => (
           <div key={skill.path} className="flex items-center gap-3 px-4 py-3">
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-claude-border bg-claude-bg text-sm text-claude-text">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-claude-border bg-claude-bg text-sm text-claude-text">
               P
             </span>
             <div className="min-w-0 flex-1">

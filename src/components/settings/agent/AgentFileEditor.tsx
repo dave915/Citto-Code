@@ -26,7 +26,7 @@ export function AgentFileEditor({
   const { t } = useI18n()
 
   return (
-    <div className="border-t border-claude-border bg-claude-bg/55 px-4 py-3">
+    <div className="bg-transparent">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-mono font-semibold text-claude-text">{editingFile.name}</span>
         <div className="flex items-center gap-2">

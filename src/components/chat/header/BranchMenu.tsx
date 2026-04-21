@@ -50,7 +50,7 @@ export function BranchMenu({
         <button
           type="button"
           onClick={onToggleBranchMenu}
-          className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
+          className="inline-flex max-w-[220px] items-center gap-1.5 rounded-md border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2"
           title={t('branch.select')}
         >
           <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -58,14 +58,14 @@ export function BranchMenu({
           </svg>
           <span className="min-w-0 truncate">{gitStatus.branch}</span>
           {gitStatus.behind > 0 && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400" />}
-          {gitStatus.ahead > 0 && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-400" />}
+          {gitStatus.ahead > 0 && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-claude-orange" />}
           <svg className={`h-3.5 w-3.5 flex-shrink-0 text-claude-muted transition-transform ${branchMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
           </svg>
         </button>
 
         {branchMenuOpen && (
-          <div className="absolute left-0 top-full z-50 mt-2 w-[268px] rounded-lg border border-claude-border bg-claude-panel p-2 shadow-2xl">
+          <div className="absolute left-0 top-full z-50 mt-2 w-[268px] rounded-md border border-claude-border bg-claude-panel p-1.5 shadow-none">
             <div className="flex items-center gap-1.5">
               <div className="relative min-w-0 flex-1">
                 <svg className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -87,7 +87,7 @@ export function BranchMenu({
                   disabled={gitActionLoading || gitLoading}
                   tooltip={gitStatus.behind > 0 ? `Pull(${gitStatus.behind})` : 'Pull'}
                   tooltipAlign="right"
-                  className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+                  className="flex h-6.5 w-6.5 items-center justify-center rounded-md transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
                 >
                   <svg className={`h-3.5 w-3.5 ${gitStatus.behind > 0 ? 'text-amber-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12" />
@@ -101,9 +101,9 @@ export function BranchMenu({
                   disabled={gitActionLoading || gitLoading}
                   tooltip={gitStatus.ahead > 0 ? `Push(${gitStatus.ahead})` : 'Push'}
                   tooltipAlign="right"
-                  className="flex h-6.5 w-6.5 items-center justify-center rounded-lg transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+                  className="flex h-6.5 w-6.5 items-center justify-center rounded-md transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
                 >
-                  <svg className={`h-3.5 w-3.5 ${gitStatus.ahead > 0 ? 'text-blue-400' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <svg className={`h-3.5 w-3.5 ${gitStatus.ahead > 0 ? 'text-claude-orange' : 'text-claude-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 20V8" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="m7 13 5-5 5 5" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h14" />
@@ -122,7 +122,7 @@ export function BranchMenu({
                     </svg>
                   </div>
                 ) : filteredGitBranches.length === 0 ? (
-                  <div className="px-3 py-8 text-sm text-claude-muted">
+                  <div className="px-3 py-6 text-[13px] text-claude-muted">
                     {branchQuery.trim() ? t('branch.noResults') : t('branch.none')}
                   </div>
                 ) : (
@@ -130,13 +130,13 @@ export function BranchMenu({
                     {filteredGitBranches.map((branch) => (
                       <div
                         key={branch.name}
-                        className="flex items-start gap-1 rounded-lg px-1 py-0.5 transition-colors hover:bg-claude-surface"
+                        className="flex items-start gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-claude-surface"
                       >
                         <button
                           type="button"
                           onClick={() => void onSelectBranch(branch.name)}
                           disabled={gitActionLoading}
-                          className="flex min-w-0 flex-1 items-start gap-2 rounded-lg px-1.5 py-1 text-left disabled:opacity-50"
+                          className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1.5 py-1 text-left disabled:opacity-50"
                         >
                           <svg className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm0 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm12-5a2 2 0 1 1 0 4 2 2 0 0 1 0-4M8 7h4a4 4 0 0 1 4 4M8 17h4a4 4 0 0 0 4-4" />
@@ -166,7 +166,7 @@ export function BranchMenu({
                               void onDeleteBranch(branch.name)
                             }}
                             disabled={gitActionLoading}
-                            className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
+                            className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-claude-muted transition-colors hover:bg-claude-surface-2 hover:text-claude-text disabled:opacity-50"
                             title={t('branch.delete')}
                           >
                             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -206,7 +206,7 @@ export function BranchMenu({
   if (gitStatus?.gitAvailable === false) {
     return (
       <div
-        className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-muted opacity-65"
+        className="inline-flex max-w-[220px] items-center gap-1.5 rounded-md border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-muted opacity-65"
         title={t('branch.installGit')}
       >
         <svg className="h-3.5 w-3.5 flex-shrink-0 text-claude-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -223,7 +223,7 @@ export function BranchMenu({
         type="button"
         onClick={() => void onInitGitRepo()}
         disabled={gitActionLoading}
-        className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
+        className="inline-flex max-w-[220px] items-center gap-1.5 rounded-md border border-claude-border bg-claude-surface px-2 py-1 font-mono text-[11px] text-claude-text transition-colors hover:bg-claude-surface-2 disabled:opacity-50"
         title={t('branch.initGit')}
       >
         <span className="min-w-0 truncate">Git init</span>

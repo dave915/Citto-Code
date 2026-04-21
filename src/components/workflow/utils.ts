@@ -13,6 +13,29 @@ export function formatWorkflowDateTime(value: number | null, language: AppLangua
   })
 }
 
+export function formatWorkflowRelativeTime(value: number | null, language: AppLanguage = 'ko') {
+  if (!value) return translate(language, 'workflow.date.notScheduled')
+  const deltaSeconds = Math.max(0, Math.floor((Date.now() - value) / 1000))
+  if (deltaSeconds < 60) return language === 'ko' ? '방금' : 'now'
+
+  const deltaMinutes = Math.floor(deltaSeconds / 60)
+  if (deltaMinutes < 60) return language === 'ko' ? `${deltaMinutes}분` : `${deltaMinutes}m`
+
+  const deltaHours = Math.floor(deltaMinutes / 60)
+  if (deltaHours < 24) return language === 'ko' ? `${deltaHours}시간` : `${deltaHours}h`
+
+  const deltaDays = Math.floor(deltaHours / 24)
+  if (deltaDays < 7) return language === 'ko' ? `${deltaDays}일` : `${deltaDays}d`
+
+  const deltaWeeks = Math.floor(deltaDays / 7)
+  if (deltaWeeks < 5) return language === 'ko' ? `${deltaWeeks}주` : `${deltaWeeks}w`
+
+  return new Date(value).toLocaleDateString(getIntlLocale(language), {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 export function describeWorkflowTrigger(workflow: Workflow, language: AppLanguage = 'ko') {
   const { trigger } = workflow
   if (trigger.type === 'manual') return translate(language, 'workflow.frequency.summary.manual')

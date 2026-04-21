@@ -55,12 +55,12 @@ function PreviewIconButton({
       onClick={ariaDisabled ? undefined : onClick}
       aria-disabled={ariaDisabled}
       title={title}
-      className={`flex h-7 w-7 items-center justify-center rounded-lg border outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+      className={`flex h-7 w-7 items-center justify-center rounded-lg border outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-orange/35 ${
         ariaDisabled
           ? 'cursor-not-allowed border-claude-border/60 bg-claude-surface/50 text-claude-muted/55'
           : active
           ? activeTone === 'selection'
-            ? 'border-[#12d64f]/70 bg-[rgba(18,214,79,0.14)] text-[#8df0af] shadow-[inset_0_0_0_1px_rgba(18,214,79,0.18),0_0_0_1px_rgba(18,214,79,0.08)]'
+            ? 'border-[#12d64f]/70 bg-[rgba(18,214,79,0.14)] text-[#8df0af] shadow-none'
             : 'border-claude-border bg-claude-surface-2 text-claude-text'
           : 'border-claude-border bg-claude-surface text-claude-muted hover:bg-claude-surface-2 hover:text-claude-text'
       }`}

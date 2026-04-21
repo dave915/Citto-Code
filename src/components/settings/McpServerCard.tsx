@@ -107,12 +107,12 @@ export function McpServerCard({
       </div>
 
       {server.command && (
-        <div className="mt-2 rounded-lg border border-claude-border bg-claude-panel px-3 py-2 font-mono text-xs text-claude-muted">
+        <div className="mt-2 rounded-md border border-claude-border bg-claude-panel px-3 py-2 font-mono text-xs text-claude-muted">
           {server.command}{server.args?.length ? ` ${server.args.join(' ')}` : ''}
         </div>
       )}
       {server.url && (
-        <div className="mt-2 break-all rounded-lg border border-claude-border bg-claude-panel px-3 py-2 font-mono text-xs text-claude-muted">
+        <div className="mt-2 break-all rounded-md border border-claude-border bg-claude-panel px-3 py-2 font-mono text-xs text-claude-muted">
           {server.url}
         </div>
       )}

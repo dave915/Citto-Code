@@ -29,7 +29,7 @@ export function OpenWithMenu({
   const { t } = useI18n()
   return (
     <div ref={openWithMenuRef} className="relative" data-no-drag="true">
-      <div className="flex overflow-hidden rounded-lg border border-claude-border bg-claude-surface">
+      <div className="flex overflow-hidden rounded-md border border-claude-border bg-claude-surface">
         <button
           onClick={() => void onDefaultOpen()}
           disabled={openWithApps.length === 0}
@@ -54,7 +54,7 @@ export function OpenWithMenu({
       </div>
 
       {openWithMenuOpen && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-lg border border-claude-border bg-claude-panel p-2 shadow-2xl">
+        <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-md border border-claude-border bg-claude-panel p-1.5 shadow-none">
           <p className="px-3 pb-2 pt-1 text-xs font-semibold text-claude-muted">{t('openWith.menuTitle')}</p>
           {openWithLoading ? (
             <div className="flex items-center justify-center px-3 py-8 text-claude-muted">
@@ -63,14 +63,14 @@ export function OpenWithMenu({
               </svg>
             </div>
           ) : openWithApps.length === 0 ? (
-            <div className="px-3 py-6 text-sm text-claude-muted">{t('openWith.none')}</div>
+            <div className="px-3 py-4 text-[13px] text-claude-muted">{t('openWith.none')}</div>
           ) : (
             <div className="space-y-1">
               {openWithApps.map((app) => (
                 <button
                   key={app.id}
                   onClick={() => void onOpenWith(app.id)}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-claude-text transition-colors hover:bg-claude-surface"
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] text-claude-text transition-colors hover:bg-claude-surface"
                 >
                   <OpenWithAppIcon app={app} className="h-8 w-8" />
                   <span className="flex-1">{app.label}</span>

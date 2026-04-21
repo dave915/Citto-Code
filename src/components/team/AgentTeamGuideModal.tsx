@@ -33,7 +33,7 @@ export function AgentTeamGuideModal({ onClose }: Props) {
   const closeLabel = t('team.guideModal.close')
 
   return createPortal(
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm">
       <button
         type="button"
         onClick={onClose}
@@ -41,11 +41,11 @@ export function AgentTeamGuideModal({ onClose }: Props) {
         aria-label={closeLabel}
       />
 
-      <div className="relative z-10 flex h-[min(86vh,52rem)] w-[min(56rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-lg border border-claude-border/90 bg-claude-panel shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
-        <div className="flex shrink-0 items-center justify-between border-b border-claude-border/90 px-6 py-4">
+      <div className="relative z-10 flex h-[min(86vh,52rem)] w-[min(54rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-md border border-claude-border/90 bg-claude-panel shadow-none">
+        <div className="flex shrink-0 items-center justify-between border-b border-claude-border/90 px-4 py-3">
           <div>
-            <h2 className="text-lg font-semibold text-claude-text">{t('team.guideModal.title')}</h2>
-            <p className="text-sm text-claude-muted">
+            <h2 className="text-[14px] font-semibold leading-5 text-claude-text">{t('team.guideModal.title')}</h2>
+            <p className="text-[12px] leading-5 text-claude-muted">
               {t('team.guideModal.description')}
             </p>
           </div>
@@ -57,7 +57,7 @@ export function AgentTeamGuideModal({ onClose }: Props) {
           </TeamButton>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 text-claude-text">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 text-claude-text">
           <div
             className="prose prose-sm max-w-none
               prose-headings:text-claude-text

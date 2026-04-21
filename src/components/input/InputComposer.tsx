@@ -77,7 +77,7 @@ export function InputComposer({
           <div className="pointer-events-none absolute inset-0 z-20 rounded-lg border border-claude-orange/20 bg-claude-orange/[0.04]" />
         )}
 
-        <div className="px-5 pb-3 pt-4">
+        <div className="px-4 pb-2.5 pt-3">
           <textarea
             ref={textareaRef}
             value={text}
@@ -98,7 +98,7 @@ export function InputComposer({
             rows={1}
             disabled={(isStreaming && !allowStreamingInput) || disabled}
             readOnly={showQuestionPrompt && !questionInputMode}
-            className="chat-input-textarea min-h-[28px] max-h-[200px] w-full resize-none bg-transparent text-[15px] leading-7 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
+            className="chat-input-textarea min-h-[26px] max-h-[160px] w-full resize-none bg-transparent text-[14px] leading-6 text-claude-text outline-none placeholder:text-claude-muted disabled:opacity-50"
           />
         </div>
 

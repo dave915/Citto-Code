@@ -56,7 +56,7 @@ export function WorkflowList({
         type="button"
         onClick={() => setSelectorOpen(!selectorOpen)}
         className={cx(
-          'inline-flex h-8 min-w-[220px] max-w-[280px] items-center justify-between gap-1.5 rounded-lg border border-claude-border px-2 py-1 text-left text-[11px] text-claude-text transition-colors',
+          'inline-flex h-8 min-w-[220px] max-w-[280px] items-center justify-between gap-1.5 rounded-md border border-claude-border px-2 py-1 text-left text-[11px] text-claude-text transition-colors',
           selectorOpen ? 'bg-claude-surface-2' : 'bg-claude-surface hover:bg-claude-surface-2'
         )}
       >
@@ -76,9 +76,9 @@ export function WorkflowList({
       </AppButton>
 
       {selectorOpen ? (
-        <AppPanel className="absolute left-0 top-[calc(100%+8px)] z-20 w-[320px] rounded-md p-1 shadow-xl">
+        <AppPanel className="absolute left-0 top-[calc(100%+8px)] z-20 w-[320px] rounded-md p-1 shadow-none">
           {workflows.length === 0 ? (
-            <div className="px-3 py-6 text-sm text-claude-muted">
+            <div className="px-3 py-4 text-[13px] text-claude-muted">
               {t('workflow.selector.emptyDescription')}
             </div>
           ) : workflows.map((workflow) => {
@@ -101,7 +101,7 @@ export function WorkflowList({
                   }}
                   className="min-w-0 flex-1 text-left"
                 >
-                  <div className="truncate text-sm font-medium text-claude-text">{workflow.name}</div>
+                  <div className="truncate text-[13px] font-medium text-claude-text">{workflow.name}</div>
                   <div className="mt-1 flex items-center gap-1.5">
                     <TriggerBadge workflow={workflow} />
                   </div>

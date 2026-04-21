@@ -1,8 +1,8 @@
 import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 
-const DEFAULT_SIDEBAR_WIDTH = 290
-const MIN_SIDEBAR_WIDTH = 180
-const MAX_SIDEBAR_WIDTH = 420
+const DEFAULT_SIDEBAR_WIDTH = 188
+const MIN_SIDEBAR_WIDTH = 172
+const MAX_SIDEBAR_WIDTH = 320
 
 export function useSidebarLayout() {
   const expandedSidebarWidthRef = useRef(DEFAULT_SIDEBAR_WIDTH)

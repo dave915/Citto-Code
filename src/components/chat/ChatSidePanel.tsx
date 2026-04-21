@@ -96,7 +96,7 @@ function SectionChrome({
   children: ReactNode
 }) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-claude-border bg-claude-bg/55">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-claude-border bg-claude-bg/55">
       <div className="flex h-9 items-center justify-between border-b border-claude-border px-3">
         <p className="truncate text-[12px] font-medium text-claude-text">{title}</p>
         {action ? <div className="flex items-center gap-1">{action}</div> : null}

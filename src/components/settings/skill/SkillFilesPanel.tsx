@@ -74,7 +74,7 @@ export function SkillFilesPanel({
               return (
                 <div
                   key={file.path}
-                  className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors ${
+                  className={`group flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
                     isEditing ? 'bg-claude-surface' : 'hover:bg-claude-bg'
                   }`}
                 >
@@ -146,7 +146,7 @@ export function SkillFilesPanel({
               setIsDragOver(false)
               void onImportFiles(event.dataTransfer.files)
             }}
-            className={`mt-3 rounded-lg border border-dashed px-3 py-3 transition-colors ${
+            className={`mt-3 rounded-md border border-dashed px-3 py-3 transition-colors ${
               isDragOver ? 'border-claude-text/50 bg-claude-bg' : 'border-claude-border bg-claude-bg/60'
             }`}
           >

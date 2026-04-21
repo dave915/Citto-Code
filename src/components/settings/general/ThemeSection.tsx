@@ -84,7 +84,7 @@ export function ThemeSection({ themeId, onChange }: Props) {
       title={t('settings.general.theme.title')}
       description={t('settings.general.theme.description')}
     >
-      <div className="rounded-lg border border-claude-border bg-claude-bg/70 px-3 py-3">
+      <div className="rounded-md border border-claude-border bg-claude-panel/35 px-3 py-3">
         <label className="mb-2 block text-xs font-medium text-claude-muted">{t('settings.general.theme.preset')}</label>
         <div ref={themeMenuContainerRef} className="relative flex items-center gap-3">
           <div className="relative flex-1">
@@ -109,7 +109,7 @@ export function ThemeSection({ themeId, onChange }: Props) {
                   setThemeMenuOpen(true)
                 }
               }}
-              className="flex w-full items-center justify-between rounded-lg border border-claude-border bg-claude-panel px-3 py-2 text-sm text-claude-text outline-none transition-colors focus:border-claude-orange/35 focus:ring-1 focus:ring-claude-orange/15"
+              className="flex w-full items-center justify-between rounded-md border border-claude-border bg-claude-bg px-3 py-2 text-[13px] text-claude-text outline-none transition-colors focus:border-claude-orange/35 focus:ring-1 focus:ring-claude-orange/15"
               aria-haspopup="listbox"
               aria-expanded={themeMenuOpen}
             >
@@ -146,7 +146,7 @@ export function ThemeSection({ themeId, onChange }: Props) {
                     closeThemeMenu()
                   }
                 }}
-                className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-lg border border-claude-border bg-claude-panel outline-none shadow-2xl"
+                className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-md border border-claude-border bg-claude-panel outline-none shadow-none"
               >
                 {themeOptions.map((theme) => {
                   const highlighted = theme.id === themeHighlightId

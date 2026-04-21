@@ -146,7 +146,7 @@ export function WorkflowForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="overflow-hidden rounded-lg border border-claude-border bg-claude-panel/90 shadow-[0_16px_36px_rgba(0,0,0,0.18)]"
+      className="overflow-hidden rounded-lg border border-claude-border bg-claude-panel/90 shadow-none"
     >
       <div className="flex items-center justify-between gap-3 border-b border-claude-border px-5 py-4">
         <div>

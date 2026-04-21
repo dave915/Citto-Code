@@ -107,9 +107,9 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
   return (
     <div className="flex h-full">
       {/* Middle: env group list */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
-        <div className="flex items-center justify-between border-b border-claude-border/50 px-4 py-3.5">
-          <p className="text-sm font-semibold text-claude-text">{t('settings.tab.env')}</p>
+      <div className="flex w-[286px] shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
+        <div className="flex h-[42px] items-center justify-between border-b border-claude-border/50 px-3">
+          <p className="text-[13px] font-semibold text-claude-text">{t('settings.tab.env')}</p>
           <AppButton
             size="icon"
             tone="ghost"
@@ -128,7 +128,7 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
             <button
               onClick={() => setSelectedGroupId(null)}
               className={cx(
-                'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors',
+                'flex min-h-[40px] w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors',
                 selectedGroupId === null ? 'bg-claude-surface' : 'hover:bg-claude-panel',
               )}
             >
@@ -136,7 +136,7 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
               </svg>
               <span className={cx(
-                'min-w-0 flex-1 truncate text-sm font-medium',
+                'min-w-0 flex-1 truncate text-[13px] font-medium',
                 selectedGroupId === null ? 'text-claude-text' : 'text-claude-text/80',
               )}>
                 전체
@@ -162,13 +162,13 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
                     key={group.id}
                     onClick={() => setSelectedGroupId(group.id)}
                     className={cx(
-                      'flex w-full flex-col items-start rounded-lg px-3 py-2 text-left transition-colors',
+                      'flex min-h-[44px] w-full flex-col items-start rounded-md px-3 py-2 text-left transition-colors',
                       selectedGroupId === group.id ? 'bg-claude-surface' : 'hover:bg-claude-panel',
                     )}
                   >
                     <div className="flex w-full items-center justify-between">
                       <span className={cx(
-                        'text-sm font-medium leading-none',
+                        'text-[13px] font-medium leading-none',
                         selectedGroupId === group.id ? 'text-claude-text' : 'text-claude-text/80',
                       )}>
                         {group.title}
@@ -192,8 +192,8 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
       {/* Right: env var detail */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-claude-bg">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-claude-border/50 px-6 py-3.5">
-          <p className="text-sm font-semibold text-claude-text">
+        <div className="flex h-[42px] items-center justify-between border-b border-claude-border/50 px-4">
+          <p className="text-[13px] font-semibold text-claude-text">
             {selectedGroup?.title ?? '전체 환경변수'}
           </p>
           <div className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4">
           {jsonMode ? (
             <div>
               <textarea
@@ -230,20 +230,20 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
           ) : (
             <>
               {/* Stats */}
-              <div className="mb-4 grid grid-cols-3 gap-3">
-                <div className="rounded-xl border border-claude-border/60 bg-claude-panel/60 px-4 py-3 text-center">
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                <div className="rounded-md bg-claude-panel/45 px-3 py-2 text-center">
                   <p className="text-[10px] font-medium text-claude-muted/70">총 항목</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-claude-text">{displayKeys.length}</p>
+                  <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-claude-text">{displayKeys.length}</p>
                 </div>
-                <div className="rounded-xl border border-claude-border/60 bg-claude-panel/60 px-4 py-3 text-center">
+                <div className="rounded-md bg-claude-panel/45 px-3 py-2 text-center">
                   <p className="text-[10px] font-medium text-claude-muted/70">저장됨</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-claude-text">
+                  <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-claude-text">
                     {displayKeys.filter((k) => envVars[k]).length}
                   </p>
                 </div>
-                <div className="rounded-xl border border-claude-border/60 bg-claude-panel/60 px-4 py-3 text-center">
+                <div className="rounded-md bg-claude-panel/45 px-3 py-2 text-center">
                   <p className="text-[10px] font-medium text-claude-muted/70">빈 값</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums text-claude-text">
+                  <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-claude-text">
                     {displayKeys.filter((k) => !envVars[k]).length}
                   </p>
                 </div>
@@ -251,8 +251,8 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
 
               {/* Add form */}
               {editing && (
-                <div className="mb-4 rounded-xl border border-claude-border bg-claude-panel/70 p-4">
-                  <p className="mb-3 text-sm font-medium text-claude-text">{t('common.add')} 환경변수</p>
+                <div className="mb-4 rounded-md border border-claude-border bg-claude-bg p-3">
+                  <p className="mb-2 text-[13px] font-medium text-claude-text">{t('common.add')} 환경변수</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <input
                       value={editKey}
@@ -277,13 +277,13 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
 
               {/* Variable table */}
               {displayKeys.length === 0 ? (
-                <div className="py-12 text-center">
-                  <p className="text-sm text-claude-muted">{t('settings.env.noVariables')}</p>
+                <div className="py-8 text-center">
+                  <p className="text-[13px] text-claude-muted">{t('settings.env.noVariables')}</p>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-claude-border">
+                <div className="overflow-hidden rounded-md border border-claude-border">
                   {/* Table header */}
-                  <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-x-4 border-b border-claude-border bg-claude-panel/70 px-4 py-2">
+                  <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-x-4 border-b border-claude-border bg-claude-panel/70 px-3 py-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-claude-muted/60">변수명</span>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-claude-muted/60">상태</span>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-claude-muted/60">값</span>
@@ -295,7 +295,7 @@ export function EnvTab({ onCountUpdate }: { onCountUpdate?: (count: number) => v
                     return (
                       <div
                         key={key}
-                        className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-x-4 border-b border-claude-border/50 px-4 py-2.5 last:border-b-0"
+                        className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-x-4 border-b border-claude-border/50 px-3 py-2 last:border-b-0"
                       >
                         <span className="min-w-0 truncate font-mono text-xs font-semibold text-claude-text">{key}</span>
                         <span className={cx(

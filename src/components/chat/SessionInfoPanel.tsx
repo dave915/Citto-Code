@@ -193,9 +193,9 @@ function InfoRow({
 
 function InfoStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-claude-border bg-claude-panel/65 p-4">
+    <div className="rounded-md border border-claude-border bg-claude-panel/65 p-3">
       <p className="text-xs text-claude-muted">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-claude-text">{value}</p>
+      <p className="mt-1 text-[14px] font-semibold text-claude-text">{value}</p>
     </div>
   )
 }

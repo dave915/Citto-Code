@@ -7,10 +7,15 @@ import { getShortcutLabel } from './lib/shortcuts'
 
 export default function App() {
   const controller = useAppController()
+  const usesDedicatedFrame =
+    controller.activePanel === 'settings'
+    || controller.activePanel === 'workflow'
+    || controller.activePanel === 'team'
+    || controller.activePanel === 'sessionTeam'
 
   return (
     <div className="flex h-screen overflow-hidden bg-claude-sidebar font-sans">
-      {!controller.sidebarCollapsed && controller.activePanel !== 'settings' && (
+      {!controller.sidebarCollapsed && !usesDedicatedFrame && (
         <div className="relative flex-shrink-0" style={{ width: `${controller.sidebarWidth}px` }}>
           <Sidebar
             sessions={controller.sessions}

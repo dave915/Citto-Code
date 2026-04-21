@@ -56,7 +56,7 @@ export function InputToolbar({
   const bypassOption = permissionOptions.find((option) => option.value === 'bypassPermissions')
 
   return (
-    <div className="flex items-center gap-2 border-t border-claude-border/70 px-4 pb-3 pt-2.5">
+    <div className="flex items-center gap-2 border-t border-claude-border/70 px-3 pb-2 pt-2">
       <AppButton
         onClick={handleAttachFiles}
         disabled={isStreaming || disabled || isAttaching}
@@ -80,7 +80,7 @@ export function InputToolbar({
           onClick={onOpenTeam}
           title={translate(language, 'team.openTeam')}
           tone={hasLinkedTeam ? 'accent' : 'ghost'}
-          className="h-8 px-2.5"
+          className="h-7 px-2.5"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <circle cx="9" cy="7" r="3" />
@@ -107,7 +107,7 @@ export function InputToolbar({
               disabled={isStreaming}
               title={`${option.title}${permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''}`}
               tone={isActive ? 'secondary' : 'ghost'}
-              className="h-8 px-3"
+              className="h-7 px-2.5"
             >
               {option.label}
             </AppButton>
@@ -125,7 +125,7 @@ export function InputToolbar({
             ? translate(language, 'input.planMode.off')
             : translate(language, 'input.planMode.on')}${permissionShortcutLabel ? ` (${permissionShortcutLabel})` : ''}`}
           tone={planMode ? 'secondary' : 'ghost'}
-          className="h-8 px-3"
+          className="h-7 px-2.5"
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <rect x="6" y="5" width="12" height="15" rx="2" />
@@ -143,7 +143,7 @@ export function InputToolbar({
               : `${bypassOption?.title ?? translate(language, 'input.permission.bypass.title')}${bypassShortcutLabel ? ` (${bypassShortcutLabel})` : ''}`
           }
           tone={permissionMode === 'bypassPermissions' ? 'accent' : 'ghost'}
-          className="h-8 px-3"
+          className="h-7 px-2.5"
         >
           {bypassOption?.label ?? `⚡ ${translate(language, 'input.permission.bypass.label')}`}
         </AppButton>
@@ -167,7 +167,7 @@ export function InputToolbar({
           onClick={onAbort}
           size="icon"
           tone="danger"
-          className="h-9 w-9"
+          className="h-8 w-8"
           title={translate(language, 'input.stop')}
         >
           <svg className="h-[15px] w-[15px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -180,7 +180,7 @@ export function InputToolbar({
           disabled={!canSend}
           size="icon"
           tone="accent"
-          className={cx('h-9 w-9')}
+          className={cx('h-8 w-8')}
           title={translate(language, canSendWhileStreaming ? 'input.btw.send' : 'input.send')}
         >
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

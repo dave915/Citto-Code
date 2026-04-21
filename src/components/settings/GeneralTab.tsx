@@ -66,9 +66,9 @@ export function GeneralTab({ onCountUpdate }: { onCountUpdate?: (count: number) 
   return (
     <div className="flex h-full">
       {/* Middle: section list */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
-        <div className="flex items-center justify-between border-b border-claude-border/50 px-4 py-3.5">
-          <p className="text-sm font-semibold text-claude-text">일반</p>
+      <div className="flex w-[286px] shrink-0 flex-col border-r border-claude-border bg-claude-sidebar/50">
+        <div className="flex h-[42px] items-center justify-between border-b border-claude-border/50 px-3">
+          <p className="text-[13px] font-semibold text-claude-text">일반</p>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-2">
@@ -83,14 +83,14 @@ export function GeneralTab({ onCountUpdate }: { onCountUpdate?: (count: number) 
                     key={section.id}
                     onClick={() => setSelected(section.id)}
                     className={cx(
-                      'flex w-full flex-col items-start rounded-lg px-3 py-2 text-left transition-colors',
+                      'flex min-h-[44px] w-full flex-col items-start rounded-md px-3 py-2 text-left transition-colors',
                       selected === section.id
                         ? 'bg-claude-surface'
                         : 'hover:bg-claude-panel',
                     )}
                   >
                     <span className={cx(
-                      'text-sm font-medium leading-none',
+                      'text-[13px] font-medium leading-none',
                       selected === section.id ? 'text-claude-text' : 'text-claude-text/80',
                     )}>
                       {section.title}
@@ -109,8 +109,8 @@ export function GeneralTab({ onCountUpdate }: { onCountUpdate?: (count: number) 
       {/* Right: section detail */}
       <div className="min-h-0 flex-1 overflow-y-auto bg-claude-bg">
         {/* Section header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-claude-border/50 bg-claude-bg/95 px-6 py-3.5 backdrop-blur-sm">
-          <p className="text-sm font-semibold text-claude-text">
+        <div className="sticky top-0 z-10 flex h-[42px] items-center justify-between border-b border-claude-border/50 bg-claude-bg/95 px-4 backdrop-blur-sm">
+          <p className="text-[13px] font-semibold text-claude-text">
             {SECTIONS.find((s) => s.id === selected)?.title}
           </p>
         </div>

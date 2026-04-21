@@ -47,7 +47,7 @@ export function TeamViewWorkspace({
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-4 border-b border-claude-border bg-claude-bg px-4 py-2.5">
+      <div className="flex h-[40px] shrink-0 items-center gap-3 border-b border-claude-border bg-claude-bg px-3">
         <ModeSelector
           mode={activeTeam.mode ?? 'sequential'}
           disabled={activeTeam.status === 'running'}
@@ -113,14 +113,14 @@ export function TeamViewWorkspace({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4 lg:flex-row">
+      <div className="flex flex-1 flex-col gap-3 overflow-hidden p-3 lg:flex-row">
         <section
-          className={`flex min-h-[360px] min-w-0 items-center justify-center overflow-hidden rounded-lg border border-claude-border bg-claude-panel/80 px-4 py-4 transition-all duration-300 ${
+          className={`flex min-h-[360px] min-w-0 items-center justify-center overflow-hidden px-1 py-1 transition-all duration-300 ${
             focusedAgent ? 'lg:flex-[1.05]' : 'flex-1'
           }`}
         >
           <div
-            className="relative mx-auto aspect-[5/4] h-full max-h-full w-auto max-w-full min-w-0 overflow-hidden rounded-[10px] border-2 border-[#8c98a4] shadow-[0_18px_40px_rgba(38,52,68,0.18)]"
+            className="relative mx-auto aspect-[5/4] h-full max-h-full w-auto max-w-full min-w-0 overflow-hidden rounded-[8px] border-2 border-[#8c98a4] shadow-[0_12px_28px_rgba(38,52,68,0.16)]"
             style={{
               backgroundImage: [
                 'linear-gradient(180deg, #eef3f7 0%, #e7edf3 28%, #c5cdd6 28%, #bcc5ce 100%)',
