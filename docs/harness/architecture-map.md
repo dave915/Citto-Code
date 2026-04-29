@@ -10,22 +10,21 @@
 - `electron/main/windowController.ts`
 - `electron/main/devLogger.ts`
 - `electron/workflow-executor.ts`
-- 역할: 윈도우 생성, 트레이/단축키 등록, IPC 핸들러 연결, 스케줄러/실행 엔진 수명주기 관리
+- 역할: 윈도우 생성, 트레이/단축키 등록, 비서 overlay 토글 이벤트, IPC 핸들러 연결, 스케줄러/실행 엔진 수명주기 관리
 
 ### Preload
 
 - `electron/preload.ts`
 - `electron/preload/claudeApi.ts`
-- `electron/preload/quickPanelApi.ts`
+- `electron/preload/secretaryApi.ts`
 - 역할: 렌더러에 노출할 안전한 API만 브리지로 공개
 
 ### Renderer
 
 - `src/main.tsx`
 - `src/App.tsx`
-- `src/quick-panel/main.tsx`
-- `src/quick-panel/QuickPanel.tsx`
-- 역할: 상태 초기화, 메인 앱/퀵 패널 UX 렌더링
+- `src/components/secretary/SecretaryPanel.tsx`
+- 역할: 상태 초기화, 메인 앱 렌더링, 비서 활성 시 전체 비서 화면 렌더링
 
 ## Core Flows
 
@@ -60,12 +59,15 @@
 4. `electron/services/previewProxyService.ts`가 localhost/127.0.0.1 대상만 허용하는 고정 포트 로컬 프록시를 띄우고, session-aware path로 요청을 라우팅하면서 응답의 frame/CSP 계열 헤더를 정리한 뒤 HTML에 preview bridge를 주입한다.
 5. `electron/services/fileService.ts`가 첨부 파일 읽기, MIME 판단, macOS open-with 앱 탐색과 shell open 동작을 담당한다.
 
-### Quick Panel
+### Citto Secretary
 
-1. `src/hooks/useAppDesktopEffects.ts`가 최근 프로젝트 목록과 단축키 설정을 메인 프로세스로 동기화하고, `quick-panel:message`를 메인 채팅 세션 생성 흐름으로 다시 연결한다.
-2. `electron/main/windowController.ts`가 글로벌 단축키 등록, 퀵 패널 윈도우 생성/위치/포커스 복원, 폴더 선택 모달을 담당한다.
-3. `electron/ipc/quickPanel.ts`와 `electron/preload/quickPanelApi.ts`가 프로젝트 목록 조회, 단축키 갱신, submit/hide, 폴더 선택 요청을 브리지한다.
-4. `src/quick-panel/QuickPanel.tsx`가 프로젝트 선택, blur/escape cleanup, cwd 포함 submit을 담당한다.
+1. `src/hooks/useAppDesktopEffects.ts`가 비서 단축키 설정을 메인 프로세스로 동기화한다.
+2. `electron/main/windowController.ts`가 글로벌 단축키 등록과 `secretary:panel-toggle` 이벤트 전송을 담당한다.
+3. `electron/secretary/ipc.ts`와 `electron/preload/secretaryApi.ts`가 패널 토글, 비서 채팅 CRUD, LLM JSON intent 처리, 액션 실행, 현재 Citto 컨텍스트 동기화를 브리지한다.
+4. `electron/secretary/actions.ts`, `electron/secretary/intent-router.ts`, `electron/secretary/action-handlers.ts`가 allowlist 액션 정의, JSON action 검증, 확인 후 실행 dispatch를 담당한다.
+5. `electron/secretary/secretary-service.ts`가 기존 `electron/services/claude-spawn.ts`를 재사용해 Gateway/env 설정을 따르고, 활성 비서 채팅 history만 컨텍스트로 주입한다.
+6. `src/App.tsx`가 비서 활성 상태에서는 기존 앱 사이드바까지 덮는 전체 비서 화면을 렌더링하고, `src/components/secretary/SecretaryPanel.tsx`와 `ConversationList.tsx`가 채팅 목록, 새 채팅/전환/보관 UI를 렌더링한다.
+7. `src/components/secretary/useSecretaryAppBridge.ts`가 메인 창의 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
 
 ### Scheduled Tasks
 
@@ -100,7 +102,7 @@
 - `electron/ipc/files.ts` <-> `electron/preload/claudeApi.ts` <-> `src/hooks/useFileExplorer.ts` / `src/hooks/useChatOpenWith.ts` / `src/components/toolcalls/useHtmlPreviewController.ts`
 - `src/components/toolcalls/HtmlPreview.tsx` / `src/components/toolcalls/useHtmlPreviewController.ts` <-> `electron/preload/claudeApi.ts` <-> `electron/services/previewProxyService.ts`
 - `src/components/toolcalls/HtmlPreview.tsx` / `src/components/toolcalls/useHtmlPreviewController.ts` <-> `electron/preload/claudeApi.ts` <-> `electron/services/previewWatchService.ts`
-- `src/hooks/useAppDesktopEffects.ts` <-> `electron/main/windowController.ts` <-> `electron/ipc/quickPanel.ts` <-> `electron/preload/quickPanelApi.ts` <-> `src/quick-panel/QuickPanel.tsx`
+- `src/hooks/useAppPanels.ts` <-> `src/App.tsx` <-> `src/components/Sidebar.tsx` <-> `src/components/secretary/useSecretaryAppBridge.ts` <-> `electron/main/windowController.ts` <-> `electron/secretary/ipc.ts` <-> `electron/preload/secretaryApi.ts` <-> `src/components/secretary/SecretaryPanel.tsx`
 
 ## Fast File Map By Intent
 
@@ -109,7 +111,7 @@
 - 워크플로우 빌더: `src/components/WorkflowsView.tsx`, `src/components/workflow/*`, `src/store/workflowStore.ts`, `src/store/workflowTypes.ts`, `electron/workflow-executor.ts`, `electron/services/claude-spawn.ts`
 - 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/components/input/useInputAreaController.ts`, `src/hooks/useInput*`
 - 파일/OS 브리지: `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `electron/ipc/files.ts`, `electron/services/previewProxyService.ts`, `electron/services/fileService.ts`
-- 퀵 패널: `src/quick-panel/*`, `src/hooks/useAppDesktopEffects.ts`, `src/components/settings/general/QuickPanelSection.tsx`, `electron/main/windowController.ts`, `electron/ipc/quickPanel.ts`, `electron/preload/quickPanelApi.ts`
+- 씨토 비서: `src/components/secretary/*`, `src/App.tsx`, `src/components/Sidebar.tsx`, `src/hooks/useAppPanels.ts`, `src/hooks/useAppDesktopEffects.ts`, `src/components/settings/general/SecretarySection.tsx`, `electron/main/windowController.ts`, `electron/secretary/*`, `electron/preload/secretaryApi.ts`, `electron/persistence.ts`
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamSelectedAgentMessageCard.tsx`, `src/components/team/TeamSelectedAgentMessagePopup.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/teamSelectedAgentShared.tsx`, `src/components/team/teamOverlayShared.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`

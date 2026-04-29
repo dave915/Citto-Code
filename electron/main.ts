@@ -2,12 +2,15 @@ import { app, BrowserWindow, ipcMain, nativeImage, Notification, Tray, Menu, glo
 import { killAllClaudeProcesses, registerClaudeIpcHandlers } from './ipc/claude'
 import { registerFileIpcHandlers } from './ipc/files'
 import { registerGitIpcHandlers } from './ipc/git'
-import { registerQuickPanelIpcHandlers } from './ipc/quickPanel'
 import { registerSettingsIpcHandlers } from './ipc/settings'
 import { registerStorageIpcHandlers } from './ipc/storage'
 import { createWindowController } from './main/windowController'
 import { appendClaudeResponseLog, installDevLogForwarding } from './main/devLogger'
 import { AppPersistence } from './persistence'
+import { registerSecretaryIpcHandlers } from './secretary/ipc'
+import { SecretaryMemory } from './secretary/memory'
+import { SecretaryService } from './secretary/secretary-service'
+import type { SecretaryActiveContext } from './secretary/types'
 import {
   MIME_TYPES_BY_EXTENSION,
   listOpenWithApps,
@@ -54,12 +57,24 @@ let tray: Tray | null = null
 
 const windowController = createWindowController({
   isDev: IS_DEV,
-  getProjectNameFromPath,
   resolveAppIconPath,
-  resolveTargetPath,
 })
 
 const appPersistence = new AppPersistence()
+const secretaryMemory = new SecretaryMemory(appPersistence)
+const secretaryService = new SecretaryService({
+  memory: secretaryMemory,
+  getUserHomePath,
+  resolveTargetPath,
+})
+let secretaryActiveContext: SecretaryActiveContext = {
+  activeRoute: 'home',
+  currentSessionId: null,
+  currentProjectId: null,
+  isTaskRunning: false,
+  recentSessions: [],
+  recentArtifacts: [],
+}
 const workflowExecutor = createWorkflowExecutor({
   getMainWindow: windowController.getMainWindow,
   showMainWindow: windowController.showMainWindow,
@@ -122,8 +137,8 @@ function createTray() {
   tray.setToolTip('Citto Code')
 
   tray.on('click', () => {
-    if (windowController.isQuickPanelEnabled()) {
-      windowController.toggleQuickPanel()
+    if (windowController.isSecretaryEnabled()) {
+      windowController.toggleSecretaryPanel()
       return
     }
     windowController.showMainWindow()
@@ -147,19 +162,6 @@ app.whenReady().then(async () => {
     const icon = nativeImage.createFromPath(appIconPath)
     if (!icon.isEmpty()) app.dock.setIcon(icon)
   }
-
-  createTray()
-  windowController.registerQuickPanelShortcut()
-  windowController.showMainWindow()
-  workflowExecutor.start()
-  void workflowExecutor.checkDueWorkflows()
-
-  powerMonitor.on('resume', () => {
-    void workflowExecutor.checkDueWorkflows()
-  })
-  powerMonitor.on('unlock-screen', () => {
-    void workflowExecutor.checkDueWorkflows()
-  })
 
   registerFileIpcHandlers({
     getMainWindow: windowController.getMainWindow,
@@ -195,15 +197,20 @@ app.whenReady().then(async () => {
     ...settingsDataService,
   })
 
-  registerQuickPanelIpcHandlers({
-    getQuickPanelProjects: windowController.getQuickPanelProjects,
-    setQuickPanelProjects: windowController.setQuickPanelProjects,
-    normalizeQuickPanelProjects: windowController.normalizeQuickPanelProjects,
-    selectFolderFromQuickPanel: windowController.selectFolderFromQuickPanel,
-    updateQuickPanelShortcut: windowController.updateQuickPanelShortcut,
-    hideQuickPanel: windowController.hideQuickPanel,
+  registerSecretaryIpcHandlers({
+    memory: secretaryMemory,
+    service: secretaryService,
+    getActiveContext: () => secretaryActiveContext,
+    setActiveContext: (context) => {
+      secretaryActiveContext = context
+    },
+    toggleSecretaryPanel: windowController.toggleSecretaryPanel,
+    setSecretaryPanelOpen: windowController.setSecretaryPanelOpen,
+    getSecretaryPanelOpen: windowController.getSecretaryPanelOpen,
+    updateSecretaryShortcut: windowController.updateSecretaryShortcut,
     showMainWindow: windowController.showMainWindow,
     sendWhenRendererReady: windowController.sendWhenRendererReady,
+    runWorkflowNow: workflowExecutor.runNow,
   })
 
   registerClaudeIpcHandlers({
@@ -217,6 +224,7 @@ app.whenReady().then(async () => {
     appPersistence,
     userDataPath: app.getPath('userData'),
     workflowExecutor,
+    secretaryService,
   })
 
   ipcMain.handle('git:watch-head', (event, { cwd }: { cwd: string }) => {
@@ -275,6 +283,19 @@ app.whenReady().then(async () => {
       silent: false,
     })
     notification.show()
+  })
+
+  createTray()
+  windowController.registerSecretaryShortcut()
+  windowController.showMainWindow()
+  workflowExecutor.start()
+  void workflowExecutor.checkDueWorkflows()
+
+  powerMonitor.on('resume', () => {
+    void workflowExecutor.checkDueWorkflows()
+  })
+  powerMonitor.on('unlock-screen', () => {
+    void workflowExecutor.checkDueWorkflows()
   })
 
   app.on('activate', () => {

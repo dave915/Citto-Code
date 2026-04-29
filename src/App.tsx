@@ -2,11 +2,49 @@ import { CommandPalette } from './components/CommandPalette'
 import { Sidebar } from './components/Sidebar'
 import { AppMainContent } from './components/app/AppMainContent'
 import { ClaudeInstallModal } from './components/app/ClaudeInstallModal'
+import { SecretaryPanel } from './components/secretary/SecretaryPanel'
 import { useAppController } from './hooks/useAppController'
 import { getShortcutLabel } from './lib/shortcuts'
 
 export default function App() {
   const controller = useAppController()
+  const installModal = controller.installationStatus && !controller.installationStatus.installed && !controller.installationDismissed ? (
+    <ClaudeInstallModal
+      installationStatus={controller.installationStatus}
+      onRetry={controller.refreshInstallationStatus}
+      onClose={controller.dismissInstallation}
+    />
+  ) : null
+  const commandPalette = (
+    <CommandPalette
+      open={controller.commandPaletteOpen}
+      sessions={controller.sessions}
+      onClose={controller.closeCommandPalette}
+      onNewSession={() => {
+        void controller.handleNewSession()
+      }}
+      onOpenSettings={controller.openSettingsPanel}
+      onSelectSession={controller.handleSelectSession}
+      onSelectMessage={controller.handleSelectMessageResult}
+    />
+  )
+
+  if (controller.activePanel === 'secretary') {
+    return (
+      <div className="h-screen overflow-hidden bg-claude-sidebar font-sans">
+        <SecretaryPanel
+          mode="screen"
+          open
+          runtimeConfig={controller.secretaryRuntimeConfig}
+          composerCwd={controller.activeSession?.cwd ?? controller.defaultProjectPath}
+          onClose={controller.closeSecretaryPanel}
+        />
+
+        {installModal}
+        {commandPalette}
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-claude-sidebar font-sans">
@@ -25,9 +63,11 @@ export default function App() {
             onRemoveSession={controller.handleRemoveSession}
             onSelectFolder={(sessionId) => controller.handleSelectFolder(sessionId)}
             onOpenWorkflow={controller.workflowOpen ? controller.closeWorkflowPanel : controller.openWorkflowPanel}
+            onOpenSecretary={controller.secretaryOpen ? controller.closeSecretaryPanel : controller.openSecretaryPanel}
             onOpenSettings={controller.settingsOpen ? controller.closeSettingsPanel : () => controller.openSettingsPanel()}
             onSidebarModeChange={controller.setSidebarMode}
             workflowOpen={controller.workflowOpen}
+            secretaryOpen={controller.secretaryOpen}
             settingsOpen={controller.settingsOpen}
             newSessionShortcutLabel={getShortcutLabel(controller.shortcutConfig, 'newSession', controller.shortcutPlatform)}
             settingsShortcutLabel={getShortcutLabel(controller.shortcutConfig, 'openSettings', controller.shortcutPlatform)}
@@ -78,25 +118,8 @@ export default function App() {
         />
       </main>
 
-      {controller.installationStatus && !controller.installationStatus.installed && !controller.installationDismissed && (
-        <ClaudeInstallModal
-          installationStatus={controller.installationStatus}
-          onRetry={controller.refreshInstallationStatus}
-          onClose={controller.dismissInstallation}
-        />
-      )}
-
-      <CommandPalette
-        open={controller.commandPaletteOpen}
-        sessions={controller.sessions}
-        onClose={controller.closeCommandPalette}
-        onNewSession={() => {
-          void controller.handleNewSession()
-        }}
-        onOpenSettings={controller.openSettingsPanel}
-        onSelectSession={controller.handleSelectSession}
-        onSelectMessage={controller.handleSelectMessageResult}
-      />
+      {installModal}
+      {commandPalette}
     </div>
   )
 }

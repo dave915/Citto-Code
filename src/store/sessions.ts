@@ -19,7 +19,7 @@ import {
   searchSessions,
 } from '../lib/sessionUtils'
 import { createSessionStoreState } from './sessionStoreState'
-import type { SessionsStore, ShortcutConfig } from './sessionTypes'
+import type { SessionsStore, ShortcutBinding, ShortcutConfig } from './sessionTypes'
 
 export const useSessionsStore = create<SessionsStore>()(
   persist(
@@ -28,16 +28,28 @@ export const useSessionsStore = create<SessionsStore>()(
       name: 'citto-code-sessions',
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 7,
+      version: 8,
       migrate: (persistedState, _version) => {
         const state = persistedState as Partial<SessionsStore> & {
-          shortcutConfig?: Partial<ShortcutConfig>
+          quickPanelEnabled?: boolean
+          shortcutConfig?: Partial<ShortcutConfig> & {
+            toggleQuickPanel?: ShortcutBinding
+          }
         }
         const defaultProjectPath = state.defaultProjectPath?.trim() || DEFAULT_PROJECT_PATH
         const activeSessionId =
           typeof state.activeSessionId === 'string' || state.activeSessionId === null
             ? state.activeSessionId
             : null
+
+        const shortcutConfig = {
+          ...DEFAULT_SHORTCUT_CONFIG,
+          ...(state.shortcutConfig ?? {}),
+          toggleSecretary:
+            state.shortcutConfig?.toggleSecretary
+            ?? state.shortcutConfig?.toggleQuickPanel
+            ?? DEFAULT_SHORTCUT_CONFIG.toggleSecretary,
+        }
 
         return {
           ...state,
@@ -48,11 +60,8 @@ export const useSessionsStore = create<SessionsStore>()(
           autoHtmlPreview: state.autoHtmlPreview ?? true,
           uiFontSize: clampUiFontSize(state.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
           uiZoomPercent: clampUiZoomPercent(state.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
-          quickPanelEnabled: state.quickPanelEnabled ?? true,
-          shortcutConfig: {
-            ...DEFAULT_SHORTCUT_CONFIG,
-            ...(state.shortcutConfig ?? {}),
-          },
+          secretaryEnabled: state.secretaryEnabled ?? state.quickPanelEnabled ?? true,
+          shortcutConfig,
         }
       },
       partialize: (state) => ({
@@ -68,17 +77,30 @@ export const useSessionsStore = create<SessionsStore>()(
         notificationMode: state.notificationMode,
         uiFontSize: state.uiFontSize,
         uiZoomPercent: state.uiZoomPercent,
-        quickPanelEnabled: state.quickPanelEnabled,
+        secretaryEnabled: state.secretaryEnabled,
         shortcutConfig: state.shortcutConfig,
       }),
       merge: (persisted, current) => {
         const persistedState = persisted as Partial<SessionsStore> & {
           notificationsEnabled?: boolean
+          quickPanelEnabled?: boolean
+          shortcutConfig?: Partial<ShortcutConfig> & {
+            toggleQuickPanel?: ShortcutBinding
+          }
         }
         const activeSessionId =
           typeof persistedState.activeSessionId === 'string' || persistedState.activeSessionId === null
             ? persistedState.activeSessionId
             : current.activeSessionId
+
+        const shortcutConfig = {
+          ...DEFAULT_SHORTCUT_CONFIG,
+          ...(persistedState.shortcutConfig ?? {}),
+          toggleSecretary:
+            persistedState.shortcutConfig?.toggleSecretary
+            ?? persistedState.shortcutConfig?.toggleQuickPanel
+            ?? DEFAULT_SHORTCUT_CONFIG.toggleSecretary,
+        }
 
         return {
           ...current,
@@ -94,11 +116,8 @@ export const useSessionsStore = create<SessionsStore>()(
             ?? (persistedState.notificationsEnabled === false ? 'off' : 'all'),
           uiFontSize: clampUiFontSize(persistedState.uiFontSize ?? DEFAULT_UI_FONT_SIZE),
           uiZoomPercent: clampUiZoomPercent(persistedState.uiZoomPercent ?? DEFAULT_UI_ZOOM_PERCENT),
-          quickPanelEnabled: persistedState.quickPanelEnabled ?? true,
-          shortcutConfig: {
-            ...DEFAULT_SHORTCUT_CONFIG,
-            ...(persistedState.shortcutConfig ?? {}),
-          },
+          secretaryEnabled: persistedState.secretaryEnabled ?? persistedState.quickPanelEnabled ?? true,
+          shortcutConfig,
           activeSessionId,
           sessions: current.sessions,
         }

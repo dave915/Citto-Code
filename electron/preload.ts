@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { claudeAPI } from './preload/claudeApi'
-import { quickPanelAPI } from './preload/quickPanelApi'
-import type { ClaudeAPI, QuickPanelAPI } from './preload/types'
+import { secretaryAPI } from './preload/secretaryApi'
+import type { ClaudeAPI, SecretaryAPI } from './preload/types'
 
 export * from './preload/types'
 
@@ -13,11 +13,11 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 contextBridge.exposeInMainWorld('claude', claudeAPI)
-contextBridge.exposeInMainWorld('quickPanel', quickPanelAPI)
+contextBridge.exposeInMainWorld('secretary', secretaryAPI)
 
 declare global {
   interface Window {
     claude: ClaudeAPI
-    quickPanel: QuickPanelAPI
+    secretary: SecretaryAPI
   }
 }

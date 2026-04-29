@@ -1,5 +1,6 @@
 import type { SidebarMode } from '../../store/sessions'
 import { useI18n } from '../../hooks/useI18n'
+import { SecretaryCharacter } from '../secretary/SecretaryCharacter'
 
 export function EmptyMainState({
   sidebarMode,
@@ -19,6 +20,9 @@ export function EmptyMainState({
   return (
     <div className="flex h-full items-center justify-center bg-claude-bg px-8">
       <div className="max-w-sm text-center">
+        <div className="mb-5 flex justify-center">
+          <SecretaryCharacter state="idle" size={72} />
+        </div>
         <h2 className="text-2xl font-semibold tracking-tight text-claude-text">{title}</h2>
         <p className="mt-2 text-[15px] leading-7 text-claude-muted">
           {description}

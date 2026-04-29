@@ -16,6 +16,8 @@ type SpawnClaudeProcessOptions = {
   claudePath?: string
   envVars?: Record<string, string>
   bare?: boolean
+  inputFormat?: 'stream-json' | 'text'
+  outputFormat?: 'stream-json' | 'json' | 'text'
   abortSignal?: AbortSignal
   getUserHomePath: (env?: NodeJS.ProcessEnv) => string
   resolveTargetPath: (targetPath: string) => string
@@ -56,6 +58,8 @@ export async function spawnClaudeProcess({
   claudePath,
   envVars,
   bare = false,
+  inputFormat = 'stream-json',
+  outputFormat = 'stream-json',
   abortSignal,
   getUserHomePath,
   resolveTargetPath,
@@ -72,11 +76,15 @@ export async function spawnClaudeProcess({
       model: model ?? undefined,
       envVars,
       bare,
+      inputFormat,
+      outputFormat,
+      includePartialMessages: outputFormat === 'stream-json',
       getUserHomePath,
       resolveTargetPath,
     })
 
     const fullPrompt = buildPrompt(prompt, systemPrompt)
+    const usesStreamJson = outputFormat === 'stream-json'
     let settled = false
     let aborted = false
     let buffer = ''
@@ -87,6 +95,7 @@ export async function spawnClaudeProcess({
     let errorText: string | null = null
     let isError = false
     let forceKillTimer: NodeJS.Timeout | null = null
+    let abortSettleTimer: NodeJS.Timeout | null = null
 
     trackActiveProcess(tempKey, proc)
 
@@ -98,6 +107,10 @@ export async function spawnClaudeProcess({
         clearTimeout(forceKillTimer)
         forceKillTimer = null
       }
+      if (abortSettleTimer) {
+        clearTimeout(abortSettleTimer)
+        abortSettleTimer = null
+      }
       resolve(result)
     }
 
@@ -108,6 +121,10 @@ export async function spawnClaudeProcess({
       if (forceKillTimer) {
         clearTimeout(forceKillTimer)
         forceKillTimer = null
+      }
+      if (abortSettleTimer) {
+        clearTimeout(abortSettleTimer)
+        abortSettleTimer = null
       }
       reject(error)
     }
@@ -127,6 +144,15 @@ export async function spawnClaudeProcess({
           // Ignore force-kill failures.
         }
       }, 250)
+      abortSettleTimer = setTimeout(() => {
+        removeActiveProcessReferences(proc)
+        finish({
+          sessionId,
+          output: output.trim(),
+          isError: true,
+          error: errorText || 'Workflow execution aborted',
+        })
+      }, 1500)
     }
 
     const appendOutput = (chunk: string) => {
@@ -198,11 +224,17 @@ export async function spawnClaudeProcess({
     }
 
     if (!aborted) {
-      proc.stdin?.write(`${buildStreamJsonUserMessage(fullPrompt, [])}\n`)
+      proc.stdin?.write(inputFormat === 'stream-json'
+        ? `${buildStreamJsonUserMessage(fullPrompt, [])}\n`
+        : `${fullPrompt}\n`)
     }
     proc.stdin?.end()
 
     proc.stdout?.on('data', (chunk: Buffer) => {
+      if (!usesStreamJson) {
+        appendOutput(chunk.toString())
+        return
+      }
       buffer += chunk.toString()
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
@@ -227,16 +259,16 @@ export async function spawnClaudeProcess({
           sessionId,
           output: output.trim(),
           isError: true,
-          error: 'Workflow execution aborted',
+          error: errorText || 'Workflow execution aborted',
         })
         return
       }
       fail(error)
     })
 
-    proc.once('close', () => {
+    proc.once('close', (code) => {
       removeActiveProcessReferences(proc)
-      if (buffer.trim()) {
+      if (usesStreamJson && buffer.trim()) {
         processLine(buffer.trim())
       }
 
@@ -245,7 +277,17 @@ export async function spawnClaudeProcess({
           sessionId,
           output: output.trim(),
           isError: true,
-          error: 'Workflow execution aborted',
+          error: errorText || 'Workflow execution aborted',
+        })
+        return
+      }
+
+      if (!usesStreamJson) {
+        finish({
+          sessionId,
+          output: output.trim(),
+          isError: code !== 0,
+          error: code === 0 ? errorText : errorText || `Claude process exited with code ${code ?? 'unknown'}.`,
         })
         return
       }

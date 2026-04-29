@@ -5,7 +5,7 @@ import { DefaultProjectSection } from './general/DefaultProjectSection'
 import { DisplaySection } from './general/DisplaySection'
 import { LanguageSection } from './general/LanguageSection'
 import { NotificationSection } from './general/NotificationSection'
-import { QuickPanelSection } from './general/QuickPanelSection'
+import { SecretarySection } from './general/SecretarySection'
 import { ShortcutSection } from './general/ShortcutSection'
 import { ThemeSection } from './general/ThemeSection'
 
@@ -18,7 +18,7 @@ export function GeneralTab() {
     uiFontSize,
     uiZoomPercent,
     autoHtmlPreview,
-    quickPanelEnabled,
+    secretaryEnabled,
     shortcutConfig,
     claudeBinaryPath,
     setDefaultProjectPath,
@@ -28,7 +28,7 @@ export function GeneralTab() {
     setUiFontSize,
     setUiZoomPercent,
     setAutoHtmlPreview,
-    setQuickPanelEnabled,
+    setSecretaryEnabled,
     setShortcut,
     setClaudeBinaryPath,
     importSession,
@@ -58,9 +58,9 @@ export function GeneralTab() {
         notificationMode={notificationMode}
         onChange={setNotificationMode}
       />
-      <QuickPanelSection
-        quickPanelEnabled={quickPanelEnabled}
-        onToggle={setQuickPanelEnabled}
+      <SecretarySection
+        secretaryEnabled={secretaryEnabled}
+        onToggle={setSecretaryEnabled}
       />
       <CliImportSection onImportSession={importSession} />
       <ShortcutSection

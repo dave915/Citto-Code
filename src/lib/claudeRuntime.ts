@@ -1,4 +1,4 @@
-import type { RecentProject, SelectedFile } from '../../electron/preload'
+import type { SecretaryRecentSession, SelectedFile } from '../../electron/preload'
 import { translate, type AppLanguage } from './i18n'
 import { normalizeConfiguredModelSelection } from './modelSelection'
 import type {
@@ -165,6 +165,9 @@ export function isLocalModelSelection(model: string | null | undefined): boolean
   if (!normalized) return false
   if (/^claude-/i.test(normalized)) return false
   if (normalized === 'sonnet' || normalized === 'opus' || normalized === 'haiku') return false
+  if (/^(gpt-|chatgpt-|o[0-9])/.test(normalized)) return false
+  if (/^(gemini-|learnlm-|imagen-|veo-)/.test(normalized)) return false
+  if (/^(openai|anthropic|google|vertex|bedrock|azure)[/:]/.test(normalized)) return false
   return true
 }
 
@@ -386,20 +389,22 @@ export function getSessionAutoPreviewDirectories(session: Session): string[] {
   return Array.from(directories.values())
 }
 
-export function buildQuickPanelProjects(sessions: Session[]): RecentProject[] {
+export function buildSecretaryRecentSessions(sessions: Session[]): SecretaryRecentSession[] {
   const seen = new Set<string>()
-  const projects: RecentProject[] = []
+  const recentSessions: SecretaryRecentSession[] = []
 
-  for (const session of sessions) {
+  for (const session of [...sessions].reverse()) {
     const cwd = session.cwd.trim()
-    if (!cwd || seen.has(cwd)) continue
-    seen.add(cwd)
-    projects.push({
-      path: cwd,
-      name: getProjectNameFromPath(cwd),
-      lastUsedAt: 0,
+    const key = session.id.trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    recentSessions.push({
+      id: session.id,
+      name: session.name || getProjectNameFromPath(cwd),
+      cwd,
+      updatedAt: session.messages.at(-1)?.createdAt ?? 0,
     })
   }
 
-  return projects
+  return recentSessions.slice(0, 8)
 }

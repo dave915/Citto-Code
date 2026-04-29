@@ -13,6 +13,15 @@ import type {
   Workflow,
   WorkflowExecution,
 } from './persistence-types'
+import type {
+  SecretaryConversation,
+  SecretaryHistoryEntry,
+  SecretaryHistoryRole,
+  SecretaryIntent,
+  SecretaryPattern,
+  SecretaryPatternType,
+  SecretaryProfile,
+} from './secretary/types'
 import { DB_FILE_NAME, SCHEMA_SQL } from './persistence/dbSchema'
 import {
   normalizeScheduledTasks,
@@ -59,6 +68,10 @@ const REQUIRED_TABLES = [
   'scheduled_task_runs',
   'workflows',
   'workflow_executions',
+  'secretary_profile',
+  'secretary_conversations',
+  'secretary_history',
+  'secretary_patterns',
 ] as const
 
 export class AppPersistence {
@@ -88,6 +101,7 @@ export class AppPersistence {
       this.ensureSessionColumns()
       this.ensureMessageColumns()
       this.ensureScheduledTaskColumns()
+      this.ensureSecretaryColumns()
       this.flush()
     })()
 
@@ -311,6 +325,312 @@ export class AppPersistence {
     })
   }
 
+  getSecretaryProfile(): SecretaryProfile {
+    const rows = this.query<{ key: string; value: string | null }>(
+      'SELECT key, value FROM secretary_profile ORDER BY key ASC',
+    )
+    return Object.fromEntries(
+      rows
+        .filter((row) => typeof row.key === 'string' && row.key.trim())
+        .map((row) => [row.key, row.value ?? '']),
+    )
+  }
+
+  updateSecretaryProfile(key: string, value: string): void {
+    const normalizedKey = key.trim()
+    if (!normalizedKey) return
+
+    this.run(
+      `INSERT INTO secretary_profile (key, value, updated_at)
+       VALUES (:key, :value, :updatedAt)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`,
+      {
+        ':key': normalizedKey,
+        ':value': value,
+        ':updatedAt': Date.now(),
+      },
+    )
+    this.flush()
+  }
+
+  listSecretaryConversations(limit = 50): SecretaryConversation[] {
+    const boundedLimit = Math.max(1, Math.min(200, Math.floor(limit)))
+    const rows = this.query<{
+      id: string
+      title: string | null
+      citto_context: string | null
+      created_at: number | null
+      updated_at: number | null
+      archived_at: number | null
+    }>(
+      `SELECT *
+       FROM secretary_conversations
+       WHERE archived_at IS NULL
+       ORDER BY updated_at DESC, created_at DESC
+       LIMIT :limit`,
+      { ':limit': boundedLimit },
+    )
+
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title?.trim() || '새 대화',
+      cittoContext: row.citto_context ?? null,
+      createdAt: Number(row.created_at ?? 0),
+      updatedAt: Number(row.updated_at ?? row.created_at ?? 0),
+      archivedAt: row.archived_at == null ? null : Number(row.archived_at),
+    }))
+  }
+
+  getSecretaryConversation(id: string): SecretaryConversation | null {
+    const rows = this.query<{
+      id: string
+      title: string | null
+      citto_context: string | null
+      created_at: number | null
+      updated_at: number | null
+      archived_at: number | null
+    }>(
+      'SELECT * FROM secretary_conversations WHERE id = :id LIMIT 1',
+      { ':id': id },
+    )
+    const row = rows[0]
+    if (!row || row.archived_at != null) return null
+
+    return {
+      id: row.id,
+      title: row.title?.trim() || '새 대화',
+      cittoContext: row.citto_context ?? null,
+      createdAt: Number(row.created_at ?? 0),
+      updatedAt: Number(row.updated_at ?? row.created_at ?? 0),
+      archivedAt: null,
+    }
+  }
+
+  createSecretaryConversation(entry: {
+    id: string
+    title?: string | null
+    cittoContext?: string | null
+  }): SecretaryConversation {
+    const now = Date.now()
+    const title = entry.title?.trim() || '새 대화'
+    this.run(
+      `INSERT INTO secretary_conversations (
+        id,
+        title,
+        citto_context,
+        created_at,
+        updated_at,
+        archived_at
+      ) VALUES (
+        :id,
+        :title,
+        :cittoContext,
+        :createdAt,
+        :updatedAt,
+        NULL
+      )`,
+      {
+        ':id': entry.id,
+        ':title': title,
+        ':cittoContext': entry.cittoContext ?? null,
+        ':createdAt': now,
+        ':updatedAt': now,
+      },
+    )
+    this.flush()
+
+    return {
+      id: entry.id,
+      title,
+      cittoContext: entry.cittoContext ?? null,
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    }
+  }
+
+  updateSecretaryConversationTitle(id: string, title: string): SecretaryConversation | null {
+    const normalizedTitle = title.trim()
+    if (!normalizedTitle) return this.getSecretaryConversation(id)
+    this.run(
+      `UPDATE secretary_conversations
+       SET title = :title, updated_at = :updatedAt
+       WHERE id = :id AND archived_at IS NULL`,
+      {
+        ':id': id,
+        ':title': normalizedTitle,
+        ':updatedAt': Date.now(),
+      },
+    )
+    this.flush()
+    return this.getSecretaryConversation(id)
+  }
+
+  touchSecretaryConversation(id: string): void {
+    this.run(
+      `UPDATE secretary_conversations
+       SET updated_at = :updatedAt
+       WHERE id = :id AND archived_at IS NULL`,
+      {
+        ':id': id,
+        ':updatedAt': Date.now(),
+      },
+    )
+    this.flush()
+  }
+
+  archiveSecretaryConversation(id: string): void {
+    const now = Date.now()
+    this.run(
+      `UPDATE secretary_conversations
+       SET archived_at = :archivedAt, updated_at = :archivedAt
+       WHERE id = :id`,
+      {
+        ':id': id,
+        ':archivedAt': now,
+      },
+    )
+    this.flush()
+  }
+
+  countSecretaryHistory(conversationId: string): number {
+    const rows = this.query<Record<string, SqlValue>>(
+      `SELECT COUNT(*) AS count
+       FROM secretary_history
+       WHERE conversation_id = :conversationId`,
+      { ':conversationId': conversationId },
+    )
+    return rows.length > 0 ? rowNumber(rows[0], 'count') : 0
+  }
+
+  addSecretaryHistory(entry: {
+    conversationId: string
+    role: SecretaryHistoryRole
+    content: string
+    intent?: SecretaryIntent | null
+  }): void {
+    const content = entry.content.trim()
+    if (!content) return
+    this.run(
+      `INSERT INTO secretary_history (
+        conversation_id,
+        role,
+        content,
+        intent,
+        created_at
+      ) VALUES (
+        :conversationId,
+        :role,
+        :content,
+        :intent,
+        :createdAt
+      )`,
+      {
+        ':conversationId': entry.conversationId,
+        ':role': entry.role,
+        ':content': content,
+        ':intent': entry.intent ?? null,
+        ':createdAt': Date.now(),
+      },
+    )
+    this.touchSecretaryConversation(entry.conversationId)
+    this.flush()
+  }
+
+  loadSecretaryHistory(conversationId: string, limit = 12): SecretaryHistoryEntry[] {
+    const boundedLimit = Math.max(1, Math.min(200, Math.floor(limit)))
+    const rows = this.query<{
+      id: number
+      conversation_id: string
+      role: SecretaryHistoryRole
+      content: string
+      intent: SecretaryIntent | null
+      created_at: number
+    }>(
+      `SELECT *
+       FROM secretary_history
+       WHERE conversation_id = :conversationId
+       ORDER BY created_at DESC
+       LIMIT :limit`,
+      {
+        ':conversationId': conversationId,
+        ':limit': boundedLimit,
+      },
+    )
+
+    return rows.map((row) => ({
+      id: Number(row.id),
+      conversationId: row.conversation_id,
+      role: row.role,
+      content: row.content,
+      intent: row.intent ?? null,
+      createdAt: Number(row.created_at),
+    }))
+  }
+
+  loadSecretaryPatterns(limit = 8): SecretaryPattern[] {
+    const boundedLimit = Math.max(1, Math.min(50, Math.floor(limit)))
+    const rows = this.query<{
+      id: number
+      pattern_type: SecretaryPatternType
+      ref_id: string
+      label: string
+      use_count: number
+      last_used_at: number | null
+    }>(
+      'SELECT * FROM secretary_patterns ORDER BY last_used_at DESC, use_count DESC LIMIT :limit',
+      { ':limit': boundedLimit },
+    )
+
+    return rows.map((row) => ({
+      id: Number(row.id),
+      patternType: row.pattern_type,
+      refId: row.ref_id,
+      label: row.label,
+      useCount: Number(row.use_count),
+      lastUsedAt: row.last_used_at == null ? null : Number(row.last_used_at),
+    }))
+  }
+
+  recordSecretaryPatternUse(pattern: {
+    patternType: SecretaryPatternType
+    refId: string
+    label: string
+  }): void {
+    const refId = pattern.refId.trim()
+    const label = pattern.label.trim()
+    if (!refId || !label) return
+
+    this.run(
+      `INSERT INTO secretary_patterns (
+        pattern_type,
+        ref_id,
+        label,
+        use_count,
+        last_used_at
+      ) VALUES (
+        :patternType,
+        :refId,
+        :label,
+        1,
+        :lastUsedAt
+      )
+      ON CONFLICT(pattern_type, ref_id) DO UPDATE SET
+        label = excluded.label,
+        use_count = secretary_patterns.use_count + 1,
+        last_used_at = excluded.last_used_at`,
+      {
+        ':patternType': pattern.patternType,
+        ':refId': refId,
+        ':label': label,
+        ':lastUsedAt': Date.now(),
+      },
+    )
+    this.flush()
+  }
+
   getDatabasePath(): string | null {
     return this.dbPath
   }
@@ -384,6 +704,65 @@ export class AppPersistence {
     if (!columns.has('migrated_at')) {
       this.run('ALTER TABLE scheduled_tasks ADD COLUMN migrated_at INTEGER')
     }
+  }
+
+  private ensureSecretaryColumns(): void {
+    if (!this.tableExists('secretary_history')) return
+    const rows = this.query<Record<string, SqlValue>>('PRAGMA table_info(secretary_history)')
+    const columns = new Set(
+      rows
+        .map((row) => row.name)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    )
+
+    if (!columns.has('conversation_id')) {
+      this.run('ALTER TABLE secretary_history ADD COLUMN conversation_id TEXT')
+    }
+
+    this.run(
+      `CREATE INDEX IF NOT EXISTS idx_history_conversation
+       ON secretary_history(conversation_id, created_at)`,
+    )
+
+    const orphanRows = this.query<Record<string, SqlValue>>(
+      `SELECT COUNT(*) AS count
+       FROM secretary_history
+       WHERE conversation_id IS NULL OR conversation_id = ''`,
+    )
+    const orphanCount = orphanRows.length > 0 ? rowNumber(orphanRows[0], 'count') : 0
+    if (orphanCount === 0) return
+
+    const legacyConversationId = 'legacy-secretary-conversation'
+    const now = Date.now()
+    this.run(
+      `INSERT OR IGNORE INTO secretary_conversations (
+        id,
+        title,
+        citto_context,
+        created_at,
+        updated_at,
+        archived_at
+      ) VALUES (
+        :id,
+        :title,
+        NULL,
+        :createdAt,
+        :updatedAt,
+        NULL
+      )`,
+      {
+        ':id': legacyConversationId,
+        ':title': '이전 대화',
+        ':createdAt': now,
+        ':updatedAt': now,
+      },
+    )
+    this.run(
+      `UPDATE secretary_history
+       SET conversation_id = :conversationId
+       WHERE conversation_id IS NULL OR conversation_id = ''`,
+      { ':conversationId': legacyConversationId },
+    )
   }
 
   private ensureRequiredTables(): void {

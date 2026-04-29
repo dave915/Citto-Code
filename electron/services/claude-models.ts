@@ -22,6 +22,9 @@ export function isLocalModelSelection(model: string | null | undefined): boolean
   if (!normalized) return false
   if (/^claude-/i.test(normalized)) return false
   if (normalized === 'sonnet' || normalized === 'opus' || normalized === 'haiku') return false
+  if (/^(gpt-|chatgpt-|o[0-9])/.test(normalized)) return false
+  if (/^(gemini-|learnlm-|imagen-|veo-)/.test(normalized)) return false
+  if (/^(openai|anthropic|google|vertex|bedrock|azure)[/:]/.test(normalized)) return false
   return true
 }
 

@@ -1,31 +1,22 @@
-import { app, BrowserWindow, dialog, globalShortcut, screen, shell, type Rectangle } from 'electron'
+import { app, BrowserWindow, globalShortcut, shell } from 'electron'
 import { join } from 'path'
-import type { RecentProject } from '../preload'
-
-const QUICK_PANEL_WIDTH = 780
-const QUICK_PANEL_HEIGHT = 520
 
 type CreateWindowControllerOptions = {
   isDev: boolean
-  getProjectNameFromPath: (path: string) => string
   resolveAppIconPath: () => string | undefined
-  resolveTargetPath: (path: string) => string
 }
 
 export type WindowController = ReturnType<typeof createWindowController>
 
 export function createWindowController({
   isDev,
-  getProjectNameFromPath,
   resolveAppIconPath,
-  resolveTargetPath,
 }: CreateWindowControllerOptions) {
   let mainWindow: BrowserWindow | null = null
-  let quickPanelWindow: BrowserWindow | null = null
-  let quickPanelAccelerator = process.platform === 'darwin' ? 'Option+Space' : 'Alt+Space'
-  let quickPanelEnabled = true
-  let quickPanelRegisteredAccelerator: string | null = null
-  let quickPanelProjects: RecentProject[] = []
+  let secretaryAccelerator = process.platform === 'darwin' ? 'Option+Space' : 'Alt+Space'
+  let secretaryEnabled = true
+  let secretaryPanelOpen = false
+  let secretaryRegisteredAccelerator: string | null = null
 
   function setupExternalNavigation(window: BrowserWindow) {
     window.webContents.setWindowOpenHandler(({ url }) => {
@@ -87,6 +78,7 @@ export function createWindowController({
     window.on('closed', () => {
       if (mainWindow === window) {
         mainWindow = null
+        secretaryPanelOpen = false
       }
     })
 
@@ -115,107 +107,6 @@ export function createWindowController({
     return window
   }
 
-  function createQuickPanelWindow() {
-    if (quickPanelWindow && !quickPanelWindow.isDestroyed()) {
-      return quickPanelWindow
-    }
-
-    quickPanelWindow = new BrowserWindow({
-      width: QUICK_PANEL_WIDTH,
-      height: QUICK_PANEL_HEIGHT,
-      frame: false,
-      show: false,
-      transparent: true,
-      resizable: false,
-      movable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      backgroundColor: '#00000000',
-      hasShadow: false,
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: true,
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    })
-
-    setupExternalNavigation(quickPanelWindow)
-
-    quickPanelWindow.on('closed', () => {
-      quickPanelWindow = null
-    })
-
-    if (isDev) {
-      void quickPanelWindow.loadURL('http://localhost:5173/quick-panel.html')
-    } else {
-      void quickPanelWindow.loadFile(join(__dirname, '../renderer/quick-panel.html'))
-    }
-
-    return quickPanelWindow
-  }
-
-  function getQuickPanelBounds(): Rectangle {
-    const activeDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    const bounds = activeDisplay.workArea
-    const width = QUICK_PANEL_WIDTH
-    const height = QUICK_PANEL_HEIGHT
-    const x = Math.round(bounds.x + Math.max((bounds.width - width) / 2, 0))
-    const y = Math.round(bounds.y + Math.max(bounds.height - height - 40, 24))
-
-    return { x, y, width, height }
-  }
-
-  function positionQuickPanel(window: BrowserWindow) {
-    window.setBounds(getQuickPanelBounds())
-  }
-
-  function hideQuickPanel() {
-    if (quickPanelWindow && !quickPanelWindow.isDestroyed()) {
-      quickPanelWindow.hide()
-    }
-  }
-
-  function toggleQuickPanel() {
-    if (!quickPanelEnabled) return
-    const window = createQuickPanelWindow()
-
-    if (window.isVisible()) {
-      window.hide()
-      return
-    }
-
-    positionQuickPanel(window)
-    window.show()
-    window.focus()
-    sendWhenRendererReady(window, 'quick-panel:show')
-  }
-
-  async function selectFolderFromQuickPanel(options?: { defaultPath?: string; title?: string }) {
-    const panelWindow = createQuickPanelWindow()
-    const restoreOnTop = panelWindow.isAlwaysOnTop()
-    if (restoreOnTop) {
-      panelWindow.setAlwaysOnTop(false)
-    }
-
-    try {
-      const result = await dialog.showOpenDialog(panelWindow, {
-        properties: ['openDirectory'],
-        title: options?.title ?? '프로젝트 폴더 선택',
-        defaultPath: options?.defaultPath ? resolveTargetPath(options.defaultPath) : undefined,
-      })
-
-      return result.canceled ? null : (result.filePaths[0] ?? null)
-    } finally {
-      if (!panelWindow.isDestroyed() && restoreOnTop) {
-        panelWindow.setAlwaysOnTop(true)
-        if (panelWindow.isVisible()) {
-          panelWindow.focus()
-        }
-      }
-    }
-  }
-
   function normalizeAcceleratorForElectron(value: string) {
     const trimmed = value.trim()
     if (!trimmed) return ''
@@ -235,66 +126,61 @@ export function createWindowController({
       .join('+')
   }
 
-  function registerQuickPanelShortcut() {
-    if (quickPanelRegisteredAccelerator) {
-      globalShortcut.unregister(quickPanelRegisteredAccelerator)
-      quickPanelRegisteredAccelerator = null
+  function emitSecretaryPanelToggle(open: boolean) {
+    secretaryPanelOpen = open
+    const window = showMainWindow()
+    sendWhenRendererReady(window, 'secretary:panel-toggle', secretaryPanelOpen)
+  }
+
+  function setSecretaryPanelOpen(open: boolean) {
+    if (secretaryPanelOpen === open) return
+    emitSecretaryPanelToggle(open)
+  }
+
+  function getSecretaryPanelOpen() {
+    return secretaryPanelOpen
+  }
+
+  function toggleSecretaryPanel() {
+    if (!secretaryEnabled) return
+    emitSecretaryPanelToggle(!secretaryPanelOpen)
+  }
+
+  function registerSecretaryShortcut() {
+    if (secretaryRegisteredAccelerator) {
+      globalShortcut.unregister(secretaryRegisteredAccelerator)
+      secretaryRegisteredAccelerator = null
     }
 
-    if (!quickPanelEnabled) return
+    if (!secretaryEnabled) return
 
-    const accelerator = normalizeAcceleratorForElectron(quickPanelAccelerator)
+    const accelerator = normalizeAcceleratorForElectron(secretaryAccelerator)
     if (!accelerator) return
 
     const registered = globalShortcut.register(accelerator, () => {
-      toggleQuickPanel()
+      toggleSecretaryPanel()
     })
 
     if (registered) {
-      quickPanelRegisteredAccelerator = accelerator
+      secretaryRegisteredAccelerator = accelerator
     }
   }
 
-  function updateQuickPanelShortcut(accelerator: string, enabled: boolean) {
-    quickPanelAccelerator = accelerator
-    quickPanelEnabled = enabled
-    registerQuickPanelShortcut()
-  }
-
-  function normalizeQuickPanelProjects(projects: RecentProject[]): RecentProject[] {
-    const seen = new Set<string>()
-    const normalized: RecentProject[] = []
-
-    for (const project of projects) {
-      const path = typeof project.path === 'string' ? project.path.trim() : ''
-      if (!path || seen.has(path)) continue
-      seen.add(path)
-      normalized.push({
-        path,
-        name: typeof project.name === 'string' && project.name.trim()
-          ? project.name.trim()
-          : getProjectNameFromPath(path),
-        lastUsedAt: Number.isFinite(project.lastUsedAt) ? project.lastUsedAt : 0,
-      })
-    }
-
-    return normalized
+  function updateSecretaryShortcut(accelerator: string, enabled: boolean) {
+    secretaryAccelerator = accelerator
+    secretaryEnabled = enabled
+    registerSecretaryShortcut()
   }
 
   return {
     getMainWindow,
-    getQuickPanelProjects: () => quickPanelProjects,
-    hideQuickPanel,
-    isQuickPanelEnabled: () => quickPanelEnabled,
-    normalizeQuickPanelProjects,
-    registerQuickPanelShortcut,
-    selectFolderFromQuickPanel,
+    getSecretaryPanelOpen,
+    isSecretaryEnabled: () => secretaryEnabled,
+    registerSecretaryShortcut,
     sendWhenRendererReady,
-    setQuickPanelProjects: (projects: RecentProject[]) => {
-      quickPanelProjects = projects
-    },
+    setSecretaryPanelOpen,
     showMainWindow,
-    toggleQuickPanel,
-    updateQuickPanelShortcut,
+    toggleSecretaryPanel,
+    updateSecretaryShortcut,
   }
 }

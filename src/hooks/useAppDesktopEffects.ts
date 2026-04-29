@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react'
-import type { RecentProject } from '../../electron/preload'
 import { matchShortcut } from '../lib/shortcuts'
 import { applyTheme, type ThemeId } from '../lib/theme'
-import type { HandleSendForSession } from './claudeStream/types'
 import { useI18n } from './useI18n'
 import {
   getProjectNameFromPath,
@@ -19,19 +17,18 @@ import type {
   WorkflowStepUpdatePayload,
 } from '../store/workflowTypes'
 import { cycleClaudeCodeMode } from '../components/input/inputUtils'
+import { resolveEnvVarsForModel } from '../lib/claudeRuntime'
 
 type Params = {
   themeId: ThemeId
   uiFontSize: number
   uiZoomPercent: number
   hasUnsafeReloadState: boolean
-  quickPanelProjects: RecentProject[]
-  quickPanelProjectsSignature: string
   workflowSyncPayload: Workflow[]
   claudeBinaryPath: string
   sanitizedEnvVars: Record<string, string>
   defaultWorkflowModel: string | null
-  quickPanelEnabled: boolean
+  secretaryEnabled: boolean
   shortcutConfig: ShortcutConfig
   shortcutPlatform: ShortcutPlatform
   shortcutTarget: {
@@ -39,9 +36,7 @@ type Params = {
     planMode: boolean
   } | null
   defaultProjectPath: string
-  createSessionFromUserPrompt: (prompt: string, cwdOverride?: string) => Promise<string>
   openPendingSessionDraft: (cwdOverride?: string) => Promise<void>
-  handleSendForSession: HandleSendForSession
   addSession: (cwd: string, name: string) => string
   addUserMessage: (sessionId: string, text: string, files?: AttachedFile[]) => string
   startAssistantMessage: (sessionId: string) => string
@@ -61,7 +56,6 @@ type Params = {
   appendWorkflowStepTextChunk: (executionId: string, stepId: string, chunk: string) => void
   applyWorkflowStepUpdate: (payload: WorkflowStepUpdatePayload) => void
   completeWorkflowExecution: (payload: WorkflowExecutionDonePayload) => void
-  closeOverlayPanels: () => void
 }
 
 function buildWorkflowSessionName(
@@ -97,20 +91,16 @@ export function useAppDesktopEffects({
   uiFontSize,
   uiZoomPercent,
   hasUnsafeReloadState,
-  quickPanelProjects,
-  quickPanelProjectsSignature,
   workflowSyncPayload,
   claudeBinaryPath,
   sanitizedEnvVars,
   defaultWorkflowModel,
-  quickPanelEnabled,
+  secretaryEnabled,
   shortcutConfig,
   shortcutPlatform,
   shortcutTarget,
   defaultProjectPath,
-  createSessionFromUserPrompt,
   openPendingSessionDraft,
-  handleSendForSession,
   addSession,
   addUserMessage,
   startAssistantMessage,
@@ -130,10 +120,8 @@ export function useAppDesktopEffects({
   appendWorkflowStepTextChunk,
   applyWorkflowStepUpdate,
   completeWorkflowExecution,
-  closeOverlayPanels,
 }: Params) {
   const { t } = useI18n()
-  const syncedQuickPanelProjectsSignatureRef = useRef('')
   const workflowSessionByRunRef = useRef(new Map<string, { sessionId: string; assistantMessageId: string }>())
 
   useEffect(() => {
@@ -157,15 +145,10 @@ export function useAppDesktopEffects({
   }, [hasUnsafeReloadState])
 
   useEffect(() => {
-    if (syncedQuickPanelProjectsSignatureRef.current === quickPanelProjectsSignature) return
-    syncedQuickPanelProjectsSignatureRef.current = quickPanelProjectsSignature
-    void window.claude.setQuickPanelProjects(quickPanelProjects).catch(() => undefined)
-  }, [quickPanelProjects, quickPanelProjectsSignature])
-
-  useEffect(() => {
+    const effectiveEnvVars = resolveEnvVarsForModel(defaultWorkflowModel, sanitizedEnvVars) ?? sanitizedEnvVars
     void window.claude.syncClaudeRuntime({
       claudePath: claudeBinaryPath.trim() || null,
-      envVars: sanitizedEnvVars,
+      envVars: effectiveEnvVars,
       defaultModel: defaultWorkflowModel,
     }).catch(() => undefined)
   }, [claudeBinaryPath, defaultWorkflowModel, sanitizedEnvVars])
@@ -175,11 +158,11 @@ export function useAppDesktopEffects({
   }, [workflowSyncPayload])
 
   useEffect(() => {
-    void window.claude.updateQuickPanelShortcut({
-      accelerator: shortcutConfig.toggleQuickPanel[shortcutPlatform],
-      enabled: quickPanelEnabled,
+    void window.claude.updateSecretaryShortcut({
+      accelerator: shortcutConfig.toggleSecretary[shortcutPlatform],
+      enabled: secretaryEnabled,
     }).catch(() => undefined)
-  }, [quickPanelEnabled, shortcutConfig, shortcutPlatform])
+  }, [secretaryEnabled, shortcutConfig, shortcutPlatform])
 
   useEffect(() => {
     const cleanup = window.claude.onTrayNewSession(() => {
@@ -187,19 +170,6 @@ export function useAppDesktopEffects({
     })
     return cleanup
   }, [openPendingSessionDraft])
-
-  useEffect(() => {
-    const cleanup = window.claude.onQuickPanelMessage(async (payload) => {
-      closeOverlayPanels()
-      if (payload.text.trim()) {
-        const sessionId = await createSessionFromUserPrompt(payload.text, payload.cwd)
-        await handleSendForSession(sessionId, payload.text, [])
-        return
-      }
-      await openPendingSessionDraft(payload.cwd)
-    })
-    return cleanup
-  }, [closeOverlayPanels, createSessionFromUserPrompt, handleSendForSession, openPendingSessionDraft])
 
   useEffect(() => {
     const cleanup = window.claude.onWorkflowFired((payload) => {

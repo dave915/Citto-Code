@@ -64,11 +64,15 @@
 - 텍스트/이미지 preview와 open-with 또는 기본 열기
 - HTML preview 저장 또는 zip export
 
-### Quick Panel
+### Citto Secretary
 
 - 글로벌 단축키로 열기/닫기
-- 최근 프로젝트 목록 또는 폴더 선택이 올바른 cwd로 반영되는지 확인
-- submit 후 메인 윈도우가 열리고 세션 생성/전송으로 이어지는지 확인
+- 사이드바에서 앱 내 비서 대화 화면 열기/닫기
+- ESC로 닫기
+- 현재 route/session이 `getActiveContext`에 반영되고, 비서 자체가 특정 project cwd에 묶이지 않는지 확인
+- 새 대화 생성, 이전 대화 전환, 제목 수정, 보관 후 활성 대화 복귀 확인
+- 대화 스레드를 전환했을 때 다른 스레드 history가 섞이지 않는지 확인
+- 화면 이동/작업 액션이 allowlist 검증과 확인 버튼 이후에만 실행되는지 확인
 
 ### Git
 

@@ -65,7 +65,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     notificationMode: 'all',
     uiFontSize: DEFAULT_UI_FONT_SIZE,
     uiZoomPercent: DEFAULT_UI_ZOOM_PERCENT,
-    quickPanelEnabled: true,
+    secretaryEnabled: true,
     shortcutConfig: DEFAULT_SHORTCUT_CONFIG,
 
     setLinkedTeamId: (sessionId, teamId) => patchStoredSession(sessionId, { linkedTeamId: teamId }),
@@ -147,7 +147,7 @@ export function createSessionStoreState(set: StoreSet): SessionsStore {
     setNotificationMode: (notificationMode) => set({ notificationMode }),
     setUiFontSize: (uiFontSize) => set({ uiFontSize: clampUiFontSize(uiFontSize) }),
     setUiZoomPercent: (uiZoomPercent) => set({ uiZoomPercent: clampUiZoomPercent(uiZoomPercent) }),
-    setQuickPanelEnabled: (quickPanelEnabled) => set({ quickPanelEnabled }),
+    setSecretaryEnabled: (secretaryEnabled) => set({ secretaryEnabled }),
 
     setShortcut: (action, platform, value) => set((state) => ({
       shortcutConfig: {

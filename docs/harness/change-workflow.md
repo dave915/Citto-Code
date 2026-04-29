@@ -25,7 +25,7 @@
 ## Adjacent Surface Rule
 
 - screen-first가 아니라 behavior-first로 범위를 잡는다.
-- 한 화면의 표시나 상호작용을 바꾸면, 같은 동작을 공유하는 다른 화면, 패널, modal, drilldown, quick panel 진입점이 있는지 먼저 확인한다.
+- 한 화면의 표시나 상호작용을 바꾸면, 같은 동작을 공유하는 다른 화면, 패널, modal, drilldown, 비서/커맨드 팔레트 진입점이 있는지 먼저 확인한다.
 - 같은 hook/store/component/action을 소비하는 다른 surface가 있으면 함께 맞추거나, 이번 변경 범위에서 제외한 이유를 결과에 남긴다.
 - 관련 surface를 확인하지 않고 “말한 화면만 수정”한 상태는 완료로 보지 않는다.
 

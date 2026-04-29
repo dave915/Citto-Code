@@ -100,11 +100,7 @@ export const claudeAPI: ClaudeAPI = {
   toggleWindowMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
   listCliSessions: (query) => ipcRenderer.invoke('claude:list-cli-sessions', { query }),
   loadCliSession: (params) => ipcRenderer.invoke('claude:load-cli-session', params),
-  getRecentProjects: () => ipcRenderer.invoke('quick-panel:get-recent-projects'),
-  setQuickPanelProjects: (projects) => ipcRenderer.invoke('quick-panel:set-projects', { projects }),
-  updateQuickPanelShortcut: (params) => ipcRenderer.invoke('quick-panel:update-shortcut', params),
-  quickPanelSubmit: (params) => ipcRenderer.invoke('quick-panel:submit', params),
-  quickPanelHide: () => ipcRenderer.invoke('quick-panel:hide'),
+  updateSecretaryShortcut: (params) => ipcRenderer.invoke('secretary:update-shortcut', params),
   watchGitHead: (params) => ipcRenderer.invoke('git:watch-head', params),
   unwatchGitHead: (params) => ipcRenderer.invoke('git:unwatch-head', params),
   watchPreviewFiles: (params) => ipcRenderer.invoke('preview:watch-files', params),
@@ -130,11 +126,6 @@ export const claudeAPI: ClaudeAPI = {
         ipcRenderer.removeListener(channel, listener)
       }
     }
-  },
-  onQuickPanelMessage: (handler) => {
-    const listener = (_: Electron.IpcRendererEvent, payload: { text: string; cwd: string }) => handler(payload)
-    ipcRenderer.on('quick-panel:message', listener)
-    return () => ipcRenderer.removeListener('quick-panel:message', listener)
   },
   onTrayNewSession: (handler) => {
     const listener = () => handler()

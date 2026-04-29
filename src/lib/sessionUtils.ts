@@ -22,7 +22,7 @@ export const DEFAULT_SHORTCUT_CONFIG: ShortcutConfig = {
   newSession: { mac: 'Cmd+N', windows: 'Ctrl+N' },
   openSettings: { mac: 'Cmd+,', windows: 'Ctrl+,' },
   openCommandPalette: { mac: 'Cmd+K', windows: 'Ctrl+K' },
-  toggleQuickPanel: { mac: 'Alt+Space', windows: 'Alt+Space' },
+  toggleSecretary: { mac: 'Alt+Space', windows: 'Alt+Space' },
   cyclePermissionMode: { mac: 'Shift+Tab', windows: 'Shift+Tab' },
   toggleBypassPermissions: { mac: 'Cmd+Shift+Enter', windows: 'Ctrl+Shift+Enter' },
 }

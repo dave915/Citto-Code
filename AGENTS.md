@@ -28,11 +28,11 @@
 - 세션 상태: `src/store/sessions.ts`, `src/store/sessionStoreState.ts`, `src/store/sessionStoreMutators.ts`
 - Claude 스트리밍: `src/hooks/useClaudeStream.ts`, `src/hooks/claudeStream/*`
 - 메인 프로세스: `electron/main.ts`
-- Preload 경계: `electron/preload.ts`, `electron/preload/claudeApi.ts`, `electron/preload/quickPanelApi.ts`
+- Preload 경계: `electron/preload.ts`, `electron/preload/claudeApi.ts`, `electron/preload/secretaryApi.ts`
 - Claude IPC: `electron/ipc/claude.ts`, `electron/ipc/claude/*`
 - 파일/OS IPC: `electron/ipc/files.ts`, `electron/services/fileService.ts`, `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/toolcalls/useHtmlPreviewController.ts`
 - Git IPC/서비스: `electron/ipc/git.ts`, `electron/services/gitService.ts`, `electron/services/git/*`
-- Quick Panel: `src/quick-panel/*`, `src/hooks/useAppDesktopEffects.ts`, `electron/ipc/quickPanel.ts`, `electron/preload/quickPanelApi.ts`, `electron/main/windowController.ts`
+- Citto 비서: `src/components/secretary/*`, `src/components/app/AppMainContent.tsx`, `src/components/Sidebar.tsx`, `src/hooks/useAppPanels.ts`, `src/hooks/useAppDesktopEffects.ts`, `electron/secretary/*`, `electron/preload/secretaryApi.ts`, `electron/main/windowController.ts`
 - 레거시 예약 작업 마이그레이션: `src/main.tsx`, `electron/persistence.ts`, `electron/ipc/storage.ts`, `electron/services/scheduledTaskScheduler.ts`
 - 설정 데이터: `electron/ipc/settings.ts`, `electron/services/settingsDataService.ts`, `electron/services/settingsData/*`
 
@@ -61,7 +61,7 @@
 
 ## Non-Negotiable Constraints
 
-- 렌더러에서 Node/Electron API를 직접 호출하지 않는다. `window.claude` 또는 `window.quickPanel`만 사용한다.
+- 렌더러에서 Node/Electron API를 직접 호출하지 않는다. `window.claude` 또는 `window.secretary`만 사용한다.
 - IPC 계약을 바꾸면 preload 타입과 렌더러 호출부를 같이 맞춘다.
 - 세션/예약 작업의 persisted shape를 바꾸면 마이그레이션 영향부터 확인한다.
 - 스트림, watcher, timer를 추가하면 해제 경로도 같은 변경에서 보장한다.

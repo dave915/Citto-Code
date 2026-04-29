@@ -25,9 +25,11 @@ type Props = {
   onRemoveSession: (id: string) => void
   onSelectFolder: (sessionId: string) => void
   onOpenWorkflow: () => void
+  onOpenSecretary: () => void
   onOpenSettings: () => void
   onSidebarModeChange: (mode: SidebarMode) => void
   workflowOpen: boolean
+  secretaryOpen: boolean
   settingsOpen: boolean
 }
 
@@ -82,9 +84,11 @@ export function Sidebar({
   onRemoveSession,
   onSelectFolder: _onSelectFolder,
   onOpenWorkflow,
+  onOpenSecretary,
   onOpenSettings,
   onSidebarModeChange,
   workflowOpen,
+  secretaryOpen,
   settingsOpen,
 }: Props) {
   const { t } = useI18n()
@@ -223,6 +227,17 @@ export function Sidebar({
               <rect x="14" y="5" width="6" height="6" rx="1" />
               <rect x="9" y="13" width="6" height="6" rx="1" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M7 11v2m10-2v2m-5-2v2" />
+            </svg>
+          )}
+        />
+        <SidebarActionButton
+          label={t('sidebar.secretary')}
+          active={secretaryOpen}
+          onClick={onOpenSecretary}
+          icon={(
+            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8m-8 4h5" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 18l-3 3v-4.5A8 8 0 0 1 4 6.5C4 3.5 7.6 2 12 2s8 1.5 8 4.5v4c0 3-3.6 4.5-8 4.5h-1.5" />
             </svg>
           )}
         />

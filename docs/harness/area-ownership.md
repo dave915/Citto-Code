@@ -17,13 +17,13 @@
   - 전역 패널 열림 상태
   - 세션/설정/워크플로우 상위 조합
   - 새 세션 draft 상태와 첫 입력 시점의 실제 세션 생성
-  - `src/App.tsx`는 루트 레이아웃 렌더링만 유지한다.
+  - `src/App.tsx`는 루트 레이아웃을 렌더링하고, 비서 활성 상태에서는 전체 비서 화면으로 루트 분기한다.
   - `src/hooks/useAppController.ts`는 store/hook 조합, 세션 선택/점프, 팀 연동, 데스크톱 effect wiring을 담당한다.
-  - 메인 화면 분기는 `src/components/app/AppMainContent.tsx`, 단일 패널 상태는 `src/hooks/useAppPanels.ts`에 둔다.
+  - 일반 메인 화면 분기는 `src/components/app/AppMainContent.tsx`, 단일 패널 상태는 `src/hooks/useAppPanels.ts`에 둔다.
 - 흔한 회귀:
   - hydration 후 active session 누락
   - 사이드바/메인 패널 상태 꼬임
-  - draft 세션이 첫 입력 전에 사이드바나 quick panel 최근 목록에 섞여 들어감
+  - draft 세션이 첫 입력 전에 사이드바나 비서 컨텍스트 최근 목록에 섞여 들어감
 
 ## Main Process Shell
 
@@ -35,13 +35,13 @@
   - `electron/workflow-executor.ts`
 - 책임:
   - 앱 부트스트랩
-  - 메인 윈도우/퀵패널 생성과 포커스 복원
+  - 메인 윈도우 생성과 비서 패널 토글/포커스 복원
   - 트레이/글로벌 단축키/외부 링크 처리
   - dev log 전달과 메인 프로세스 수명주기 정리
   - workflow executor 타이머/cleanup
-  - `electron/main.ts`는 서비스 초기화와 IPC wiring만 유지하고, 윈도우/퀵패널 상태는 `electron/main/windowController.ts`, 개발용 로그 전달은 `electron/main/devLogger.ts`에 둔다.
+  - `electron/main.ts`는 서비스 초기화와 IPC wiring만 유지하고, 윈도우/비서 토글 상태는 `electron/main/windowController.ts`, 개발용 로그 전달은 `electron/main/devLogger.ts`에 둔다.
 - 흔한 회귀:
-  - quick panel 단축키 재등록 누락
+  - 비서 단축키 재등록 누락
   - 창 재생성 후 preload 경계나 외부 링크 처리 누락
   - will-quit cleanup 누락
 
@@ -151,30 +151,50 @@
   - 저장/export 경로 처리 오류로 잘못된 위치에 파일이 생성됨
   - macOS가 아닌 환경에서 open-with 분기 누락
 
-## Quick Panel
+## Citto Secretary
 
 - 파일:
-  - `src/quick-panel/main.tsx`
-  - `src/quick-panel/QuickPanel.tsx`
-  - `src/quick-panel/styles.css`
+  - `src/components/secretary/SecretaryPanel.tsx`
+  - `src/components/secretary/SecretaryCharacter.tsx`
+  - `src/components/secretary/SecretaryMessage.tsx`
+  - `src/components/secretary/ConversationList.tsx`
+  - `src/components/secretary/useSecretaryAppBridge.ts`
+  - `src/App.tsx`
+  - `src/components/Sidebar.tsx`
+  - `src/hooks/useAppPanels.ts`
   - `src/hooks/useAppDesktopEffects.ts`
-  - `src/components/settings/general/QuickPanelSection.tsx`
+  - `src/components/settings/general/SecretarySection.tsx`
   - `src/store/sessionStoreState.ts`
-  - `electron/ipc/quickPanel.ts`
-  - `electron/preload/quickPanelApi.ts`
+  - `electron/secretary/*`
+  - `electron/preload/secretaryApi.ts`
   - `electron/main/windowController.ts`
+  - `electron/persistence.ts`
 - 책임:
-  - 글로벌 단축키 등록과 퀵 패널 윈도우 수명주기
-  - 최근 프로젝트 목록과 shortcut enabled 상태 동기화
-  - 퀵 패널 submit/hide와 메인 채팅 세션 생성 handoff
-  - `src/hooks/useAppDesktopEffects.ts`는 quick panel 프로젝트/단축키 동기화와 `quick-panel:message` 이벤트 라우팅을 담당한다.
-  - `src/quick-panel/QuickPanel.tsx`는 프로젝트 선택, textarea 입력, blur/escape cleanup, cwd 포함 submit을 담당한다.
-  - `electron/main/windowController.ts`는 글로벌 shortcut 등록, 윈도우 위치/포커스, 폴더 선택 모달을 담당한다.
+  - 글로벌 단축키 등록과 메인 창 내장 비서 패널 토글
+  - 사이드바에서 진입하는 앱 내 비서 대화 화면
+  - `window.secretary` preload 브리지와 `secretary:*` IPC 계약
+  - LLM JSON intent 처리, 키워드 매칭 fallback 금지
+  - 액션 레지스트리/핸들러와 allowlist 기반 액션 검증
+  - 현재 Citto 컨텍스트 동기화와 확인 후 화면 이동
+  - `AppPersistence` 기반 비서 profile/conversations/history/patterns 저장
+  - 비서 채팅 CRUD와 채팅별 history 격리
+  - `src/hooks/useAppDesktopEffects.ts`는 비서 단축키 enabled 상태만 메인 프로세스로 동기화한다.
+  - `src/components/secretary/useSecretaryAppBridge.ts`는 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
+  - `src/App.tsx`는 비서 활성 상태에서 기존 사이드바와 메인 화면을 모두 덮는 전체 비서 화면을 렌더링한다.
+  - `src/components/secretary/SecretaryPanel.tsx`는 캐릭터, 비서 채팅 목록, 메시지, 일반 세션 입력창 기반 composer, 액션 확인 버튼, ESC 닫기를 렌더링한다.
 - 흔한 회귀:
-  - 최근 프로젝트 목록이 stale 해서 잘못된 cwd로 시작됨
-  - 폴더 선택 중 blur가 먼저 닫혀 패널이 비정상 종료됨
-  - 설정 토글과 메인 프로세스 shortcut 등록 상태가 어긋남
-  - submit 후 메인 윈도우는 열리지만 세션 생성/전송이 이어지지 않음
+  - 단축키 토글 또는 ESC 닫기 누락
+  - `getActiveContext`가 현재 route/session을 반영하지 않음
+  - renderer에서 Electron/Node API 직접 호출
+  - IPC payload 변경 후 preload 타입과 호출부 불일치
+  - 키워드 매칭으로 액션을 실행하는 fallback 추가
+  - 화면 이동/실행 액션이 사용자 확인 없이 실행됨
+  - allowlist 미검증 액션 실행
+  - 비서 채팅 간 history 누수
+  - `isTaskRunning` 컨텍스트 누락으로 중복 실행 제안
+  - `secretary` route가 사이드바 active state 또는 `handleSecretaryNavigate`와 불일치함
+  - 새 history/pattern 저장이 기존 sqlite 스냅샷을 깨뜨림
+  - `window.quickPanel`, `quick-panel:*` 채널 재도입
 
 ## Team And Subagents
 

@@ -37,4 +37,5 @@ export type InputAreaProps = {
   topSlot?: ReactNode
   onOpenTeam?: () => void
   hasLinkedTeam?: boolean
+  autoFocus?: boolean
 }

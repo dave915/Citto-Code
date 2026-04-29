@@ -76,6 +76,7 @@ export function useInputAreaController({
   onPreviewSelectionDraftsChange,
   onOpenTeam,
   hasLinkedTeam,
+  autoFocus,
 }: InputAreaProps) {
   const { language, t } = useI18n()
   const envVars = useSessionsStore((state) => state.envVars)
@@ -236,6 +237,14 @@ export function useInputAreaController({
   useEffect(() => {
     syncTextareaHeight(text)
   }, [syncTextareaHeight, text])
+
+  useEffect(() => {
+    if (!autoFocus) return undefined
+    const frame = requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [autoFocus])
 
   useEffect(() => {
     if (previewSelectionResetToken === undefined) return

@@ -9,6 +9,9 @@ type LaunchClaudeProcessOptions = {
   requestId?: string
   claudePath?: string
   bare?: boolean
+  inputFormat?: 'stream-json' | 'text'
+  outputFormat?: 'stream-json' | 'json' | 'text'
+  includePartialMessages?: boolean
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
   planMode?: boolean
   model?: string
@@ -20,17 +23,26 @@ type LaunchClaudeProcessOptions = {
 function buildClaudeArgs({
   sessionId,
   bare,
+  inputFormat,
+  outputFormat,
+  includePartialMessages,
   model,
   permissionMode,
   planMode,
-}: Pick<LaunchClaudeProcessOptions, 'sessionId' | 'bare' | 'model' | 'permissionMode' | 'planMode'>) {
+}: Pick<LaunchClaudeProcessOptions, 'sessionId' | 'bare' | 'inputFormat' | 'outputFormat' | 'includePartialMessages' | 'model' | 'permissionMode' | 'planMode'>) {
+  const resolvedInputFormat = inputFormat ?? 'stream-json'
+  const resolvedOutputFormat = outputFormat ?? 'stream-json'
   const args: string[] = [
-    '--input-format', 'stream-json',
-    '--output-format', 'stream-json',
-    '--include-partial-messages',
-    '--verbose',
+    '--input-format', resolvedInputFormat,
+    '--output-format', resolvedOutputFormat,
   ]
 
+  if (resolvedOutputFormat === 'stream-json' && includePartialMessages !== false) {
+    args.push('--include-partial-messages')
+  }
+  if (resolvedOutputFormat === 'stream-json') {
+    args.push('--verbose')
+  }
   if (sessionId) args.unshift('--resume', sessionId)
   if (model) args.push('--model', model)
   if (bare) args.push('--bare')
@@ -50,6 +62,9 @@ export function launchClaudeProcess({
   requestId,
   claudePath,
   bare,
+  inputFormat,
+  outputFormat,
+  includePartialMessages,
   permissionMode,
   planMode,
   model,
@@ -62,7 +77,16 @@ export function launchClaudeProcess({
     ? expandedPath
     : resolveClaude(getUserHomePath)
   const cliModel = normalizeConfiguredModelSelection(model)
-  const args = buildClaudeArgs({ sessionId, bare, model: cliModel, permissionMode, planMode })
+  const args = buildClaudeArgs({
+    sessionId,
+    bare,
+    inputFormat,
+    outputFormat,
+    includePartialMessages,
+    model: cliModel,
+    permissionMode,
+    planMode,
+  })
 
   const { CLAUDECODE: _ignoredClaudeCode, ...cleanEnv } = process.env
   const homePath = getUserHomePath(cleanEnv)

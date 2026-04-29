@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { SettingsTab } from '../components/settings/shared'
 
-export type AppOverlayPanel = 'none' | 'settings' | 'workflow' | 'team' | 'sessionTeam' | 'commandPalette'
+export type AppOverlayPanel = 'none' | 'settings' | 'workflow' | 'team' | 'sessionTeam' | 'secretary' | 'commandPalette'
 
 export function useAppPanels() {
   const [activePanel, setActivePanel] = useState<AppOverlayPanel>('none')
@@ -14,6 +14,7 @@ export function useAppPanels() {
     workflowOpen: activePanel === 'workflow',
     teamOpen: activePanel === 'team',
     sessionTeamOpen: activePanel === 'sessionTeam',
+    secretaryOpen: activePanel === 'secretary',
     commandPaletteOpen: activePanel === 'commandPalette',
     closeOverlayPanels: () => setActivePanel('none'),
     openSettingsPanel: (tab: SettingsTab = 'general') => {
@@ -27,6 +28,8 @@ export function useAppPanels() {
     closeTeamPanel: () => setActivePanel((current) => (current === 'team' ? 'none' : current)),
     openSessionTeamPanel: () => setActivePanel('sessionTeam'),
     closeSessionTeamPanel: () => setActivePanel((current) => (current === 'sessionTeam' ? 'none' : current)),
+    openSecretaryPanel: () => setActivePanel('secretary'),
+    closeSecretaryPanel: () => setActivePanel((current) => (current === 'secretary' ? 'none' : current)),
     closeCommandPalette: () => setActivePanel((current) => (current === 'commandPalette' ? 'none' : current)),
     toggleCommandPalette: () => setActivePanel((current) => (current === 'commandPalette' ? 'none' : 'commandPalette')),
   }

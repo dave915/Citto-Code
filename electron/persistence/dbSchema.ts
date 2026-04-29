@@ -1,5 +1,5 @@
 export const DB_FILE_NAME = 'app.sqlite'
-const SCHEMA_VERSION = 5
+const SCHEMA_VERSION = 6
 
 export const SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -151,4 +151,45 @@ CREATE TABLE IF NOT EXISTS workflow_executions (
 
 CREATE INDEX IF NOT EXISTS idx_workflow_executions_sort_order
   ON workflow_executions(sort_order);
+
+CREATE TABLE IF NOT EXISTS secretary_profile (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS secretary_conversations (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  citto_context TEXT,
+  created_at INTEGER,
+  updated_at INTEGER,
+  archived_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_secretary_conversations_updated_at
+  ON secretary_conversations(updated_at);
+
+CREATE TABLE IF NOT EXISTS secretary_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  intent TEXT,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY(conversation_id) REFERENCES secretary_conversations(id)
+);
+
+CREATE TABLE IF NOT EXISTS secretary_patterns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pattern_type TEXT NOT NULL,
+  ref_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  last_used_at INTEGER,
+  UNIQUE(pattern_type, ref_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_secretary_patterns_last_used_at
+  ON secretary_patterns(last_used_at);
 `

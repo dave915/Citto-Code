@@ -87,12 +87,11 @@ function isPathLikeToken(token) {
     'tsconfig.json',
     'tsconfig.web.json',
     'tsconfig.node.json',
-    'electron.vite.config.ts',
-    'tailwind.config.js',
-    'postcss.config.js',
-    'index.html',
-    'quick-panel.html',
-  ].includes(token)
+      'electron.vite.config.ts',
+      'tailwind.config.js',
+      'postcss.config.js',
+      'index.html',
+    ].includes(token)
     || [
       'docs/',
       'src/',

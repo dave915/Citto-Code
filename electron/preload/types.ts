@@ -1,6 +1,38 @@
 import type { LegacyScheduledTask, PermissionMode, Session, Workflow, WorkflowExecution } from '../persistence-types'
+import type {
+  CittoRoute,
+} from '../secretary/routes'
+import type {
+  SecretaryAction,
+  SecretaryActionResult,
+} from '../secretary/actions'
+import type {
+  SecretaryActiveContext,
+  SecretaryBotState,
+  SecretaryConversation,
+  SecretaryExecuteResult,
+  SecretaryHistoryEntry,
+  SecretaryProcessResult,
+  SecretaryProfile,
+  SecretaryRuntimeConfig,
+} from '../secretary/types'
 
 export type { LegacyScheduledTask, Session, Workflow, WorkflowExecution } from '../persistence-types'
+export type { CittoRoute } from '../secretary/routes'
+export type { SecretaryAction, SecretaryActionResult } from '../secretary/actions'
+export type {
+  SecretaryActiveContext,
+  SecretaryArtifactRef,
+  SecretaryBotState,
+  SecretaryConversation,
+  SecretaryExecuteResult,
+  SecretaryHistoryEntry,
+  SecretaryIntent,
+  SecretaryProcessResult,
+  SecretaryProfile,
+  SecretaryRecentSession,
+  SecretaryRuntimeConfig,
+} from '../secretary/types'
 
 type ClaudeStreamEventMeta = {
   requestId?: string
@@ -187,12 +219,6 @@ export type ImportedCliSession = {
   model?: string | null
 }
 
-export type RecentProject = {
-  path: string
-  name: string
-  lastUsedAt: number
-}
-
 export type PluginSkill = {
   name: string
   path: string
@@ -329,12 +355,33 @@ export type McpHealthCheckResult = {
   checkedAt: number
 }
 
-export type QuickPanelAPI = {
-  submit: (message: string, projectPath?: string) => Promise<void>
-  hide: () => Promise<void>
-  getRecentProjects: () => Promise<RecentProject[]>
-  selectFolder: (options?: { defaultPath?: string; title?: string }) => Promise<string | null>
-  onShow: (handler: () => void) => () => void
+export type SecretaryNavigateEvent = {
+  route: CittoRoute
+  path: string
+}
+
+export type SecretaryAPI = {
+  togglePanel: () => Promise<{ ok: boolean }>
+  getPanelOpen: () => Promise<boolean>
+  setPanelOpen: (open: boolean) => Promise<{ ok: boolean }>
+  onPanelToggle: (handler: (open: boolean) => void) => () => void
+  process: (input: string, runtime?: SecretaryRuntimeConfig) => Promise<SecretaryProcessResult>
+  onBotState: (handler: (state: SecretaryBotState) => void) => () => void
+  getActiveContext: () => Promise<SecretaryActiveContext>
+  updateActiveContext: (context: SecretaryActiveContext) => Promise<{ ok: boolean }>
+  executeAction: (action: SecretaryAction) => Promise<SecretaryActionResult>
+  onNavigate: (handler: (event: SecretaryNavigateEvent) => void) => () => void
+  onActionResult: (handler: (result: SecretaryActionResult) => void) => () => void
+  onRendererAction: (handler: (action: SecretaryAction) => void) => () => void
+  listConversations: () => Promise<SecretaryConversation[]>
+  getActiveConversation: () => Promise<SecretaryConversation>
+  createConversation: () => Promise<SecretaryConversation>
+  switchConversation: (id: string) => Promise<{ ok: boolean; conversation?: SecretaryConversation; error?: string }>
+  renameConversation: (id: string, title: string) => Promise<{ ok: boolean; conversation?: SecretaryConversation; error?: string }>
+  archiveConversation: (id: string) => Promise<{ ok: boolean; conversation?: SecretaryConversation; error?: string }>
+  getHistory: (conversationId?: string, limit?: number) => Promise<SecretaryHistoryEntry[]>
+  getProfile: () => Promise<SecretaryProfile>
+  updateProfile: (key: string, value: string) => Promise<{ ok: boolean }>
 }
 
 export type PersistenceSnapshot = {
@@ -445,11 +492,7 @@ export type ClaudeAPI = {
   toggleWindowMaximize: () => Promise<void>
   listCliSessions: (query?: string) => Promise<CliHistoryEntry[]>
   loadCliSession: (params: { filePath: string }) => Promise<ImportedCliSession | null>
-  getRecentProjects: () => Promise<RecentProject[]>
-  setQuickPanelProjects: (projects: RecentProject[]) => Promise<{ ok: boolean }>
-  updateQuickPanelShortcut: (params: { accelerator: string; enabled: boolean }) => Promise<{ ok: boolean; error?: string }>
-  quickPanelSubmit: (params: { text: string; cwd: string }) => Promise<void>
-  quickPanelHide: () => Promise<void>
+  updateSecretaryShortcut: (params: { accelerator: string; enabled: boolean }) => Promise<{ ok: boolean; error?: string }>
   watchGitHead: (params: { cwd: string }) => Promise<{ watchId: string | null }>
   unwatchGitHead: (params: { watchId: string }) => Promise<void>
   watchPreviewFiles: (params: { rootPath: string }) => Promise<{ watchId: string | null }>
@@ -465,7 +508,6 @@ export type ClaudeAPI = {
   }) => Promise<{ watchId: string | null; transcriptPath: string | null }>
   unwatchSubagentText: (params: { watchId: string }) => Promise<void>
   onClaudeEvent: (handler: (event: ClaudeStreamEvent) => void) => () => void
-  onQuickPanelMessage: (handler: (payload: { text: string; cwd: string }) => void) => () => void
   onTrayNewSession: (handler: () => void) => () => void
   onWorkflowFired: (handler: (event: WorkflowFiredEvent) => void) => () => void
   onWorkflowScheduleAdvanced: (handler: (event: WorkflowScheduleAdvancedEvent) => void) => () => void

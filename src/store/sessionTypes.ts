@@ -86,7 +86,7 @@ export type ShortcutAction =
   | 'newSession'
   | 'openSettings'
   | 'openCommandPalette'
-  | 'toggleQuickPanel'
+  | 'toggleSecretary'
   | 'cyclePermissionMode'
   | 'toggleBypassPermissions'
 
@@ -159,7 +159,7 @@ export type SessionsStore = {
   notificationMode: NotificationMode
   uiFontSize: number
   uiZoomPercent: number
-  quickPanelEnabled: boolean
+  secretaryEnabled: boolean
   shortcutConfig: ShortcutConfig
   addSession: (cwd: string, name: string) => string
   importSession: (data: ImportedSessionData) => string
@@ -176,7 +176,7 @@ export type SessionsStore = {
   setNotificationMode: (mode: NotificationMode) => void
   setUiFontSize: (value: number) => void
   setUiZoomPercent: (value: number) => void
-  setQuickPanelEnabled: (value: boolean) => void
+  setSecretaryEnabled: (value: boolean) => void
   setShortcut: (action: ShortcutAction, platform: ShortcutPlatform, value: string) => void
   updateSession: (id: string, updater: (s: Session) => Partial<Session>) => void
   addUserMessage: (tabId: string, text: string, files?: AttachedFile[]) => string

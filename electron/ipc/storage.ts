@@ -18,16 +18,26 @@ type WorkflowExecutorLike = {
   cancel: (workflowId: string) => { ok: boolean; error?: string }
 }
 
+type SecretaryRuntimeLike = {
+  syncClaudeRuntime: (config: {
+    claudePath?: string | null
+    envVars?: Record<string, string>
+    defaultModel?: string | null
+  }) => void
+}
+
 type RegisterStorageIpcHandlersOptions = {
   appPersistence: AppPersistence
   userDataPath: string
   workflowExecutor: WorkflowExecutorLike
+  secretaryService: SecretaryRuntimeLike
 }
 
 export function registerStorageIpcHandlers({
   appPersistence,
   userDataPath,
   workflowExecutor,
+  secretaryService,
 }: RegisterStorageIpcHandlersOptions) {
   ipcMain.handle(
     'app-storage:init',
@@ -105,6 +115,7 @@ export function registerStorageIpcHandlers({
       } = {},
     ) => {
       workflowExecutor.syncClaudeRuntime(config)
+      secretaryService.syncClaudeRuntime(config)
       return { ok: true }
     },
   )

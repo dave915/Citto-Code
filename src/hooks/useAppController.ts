@@ -9,7 +9,7 @@ import { useAppDesktopEffects } from './useAppDesktopEffects'
 import { useInstallationCheck } from './useInstallationCheck'
 import { useSidebarLayout } from './useSidebarLayout'
 import { useSubagentStreams } from './useSubagentStreams'
-import { buildQuickPanelProjects, normalizeSelectedFolder, sanitizeEnvVars } from '../lib/claudeRuntime'
+import { buildSecretaryRecentSessions, normalizeSelectedFolder, resolveEnvVarsForModel, sanitizeEnvVars } from '../lib/claudeRuntime'
 import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
 import { useWorkflowStore } from '../store/workflowStore'
@@ -17,6 +17,8 @@ import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
 import { normalizeConfiguredModelSelection } from '../lib/modelSelection'
 import { nanoid } from '../store/nanoid'
 import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode, type Session } from '../store/sessions'
+import { useSecretaryAppBridge } from '../components/secretary/useSecretaryAppBridge'
+import type { CittoRoute, SecretaryRuntimeConfig } from '../../electron/preload'
 
 type PendingSessionDraft = {
   id: string
@@ -77,7 +79,7 @@ export function useAppController() {
     notificationMode,
     uiFontSize,
     uiZoomPercent,
-    quickPanelEnabled,
+    secretaryEnabled,
     shortcutConfig,
     claudeBinaryPath,
   } = useSessionsStore()
@@ -121,11 +123,7 @@ export function useAppController() {
   }, [pendingSessionDraft])
   const sessionViewSession = pendingSessionView ?? activeSession
   const sessionFileLockState = useMemo(() => buildSessionFileLockState(sessions), [sessions])
-  const quickPanelProjects = useMemo(() => buildQuickPanelProjects(sessions), [sessions])
-  const quickPanelProjectsSignature = useMemo(
-    () => quickPanelProjects.map((project) => project.path).join('\n'),
-    [quickPanelProjects],
-  )
+  const secretaryRecentSessions = useMemo(() => buildSecretaryRecentSessions(sessions), [sessions])
   const defaultWorkflowModel = useMemo(() => {
     const activeModel = normalizeConfiguredModelSelection(activeSession?.model)
     if (activeModel) return activeModel
@@ -138,7 +136,13 @@ export function useAppController() {
     return null
   }, [activeSession?.model, sessions])
   const shortcutPlatform = getCurrentPlatform()
-  const sanitizedEnvVars = sanitizeEnvVars(envVars)
+  const sanitizedEnvVars = useMemo(() => sanitizeEnvVars(envVars), [envVars])
+  const secretaryRuntimeModel = sessionViewSession ? sessionViewSession.model : defaultWorkflowModel
+  const secretaryRuntimeConfig = useMemo<SecretaryRuntimeConfig>(() => ({
+    claudePath: claudeBinaryPath.trim() || null,
+    envVars: resolveEnvVarsForModel(secretaryRuntimeModel, sanitizedEnvVars) ?? sanitizedEnvVars,
+    defaultModel: normalizeConfiguredModelSelection(secretaryRuntimeModel),
+  }), [claudeBinaryPath, sanitizedEnvVars, secretaryRuntimeModel])
   const workflows = useWorkflowStore((state) => state.workflows)
   const recordWorkflowExecutionStart = useWorkflowStore((state) => state.recordExecutionStart)
   const advanceWorkflowSchedule = useWorkflowStore((state) => state.advanceSchedule)
@@ -297,14 +301,6 @@ export function useAppController() {
     })
   }, [panels, resolveSessionCwd, setActiveSession])
 
-  const createSessionFromUserPrompt = useCallback(async (prompt: string, cwdOverride?: string): Promise<string> => {
-    const cwd = await resolveSessionCwd(cwdOverride)
-    return createSessionRecord({
-      cwd,
-      name: summarizeSessionTitleFromPrompt(prompt, getProjectNameFromPath(cwd)),
-    })
-  }, [createSessionRecord, resolveSessionCwd])
-
   const startPendingDraftConversation = useCallback(async (
     draft: PendingSessionDraft,
     text: string,
@@ -382,18 +378,93 @@ export function useAppController() {
     claudeStream.handleModelChange(activeSession.id, model)
   }, [activeSession, claudeStream, pendingSessionDraft])
 
+  const handleSecretaryNavigate = useCallback((route: CittoRoute) => {
+    setMessageJumpTarget(null)
+    if (route === 'settings') {
+      panels.openSettingsPanel()
+      return
+    }
+    if (route === 'workflow') {
+      panels.openWorkflowPanel()
+      return
+    }
+    if (route === 'roundTable') {
+      panels.openTeamPanel()
+      return
+    }
+    if (route === 'secretary') {
+      panels.openSecretaryPanel()
+      return
+    }
+
+    panels.closeOverlayPanels()
+
+    if (route === 'home') {
+      setPendingSessionDraft(null)
+      setActiveSession(null)
+      return
+    }
+
+    if (route === 'chat' && !activeSessionId && sessions.length > 0) {
+      setActiveSession(sessions[sessions.length - 1].id)
+    }
+  }, [activeSessionId, panels, sessions, setActiveSession])
+
+  const handleSecretaryPanelToggle = useCallback((open: boolean) => {
+    if (open) {
+      panels.openSecretaryPanel()
+      return
+    }
+    panels.closeSecretaryPanel()
+  }, [panels])
+
+  const handleSecretaryStartChat = useCallback(async (initialPrompt?: string) => {
+    panels.closeOverlayPanels()
+    setMessageJumpTarget(null)
+    const cwd = activeSession?.cwd ?? (defaultProjectPath.trim() || DEFAULT_PROJECT_PATH)
+    const prompt = initialPrompt?.trim()
+    const sessionId = createSessionRecord({
+      cwd,
+      name: prompt
+        ? summarizeSessionTitleFromPrompt(prompt, getProjectNameFromPath(cwd))
+        : getProjectNameFromPath(cwd),
+    })
+    setActiveSession(sessionId)
+    if (prompt) {
+      await claudeStream.handleSendForSession(sessionId, prompt, [])
+    }
+  }, [activeSession?.cwd, claudeStream, createSessionRecord, defaultProjectPath, panels, setActiveSession])
+
+  const handleSecretaryOpenSession = useCallback((sessionId: string) => {
+    if (!sessions.some((session) => session.id === sessionId)) return
+    panels.closeOverlayPanels()
+    setMessageJumpTarget(null)
+    setPendingSessionDraft(null)
+    setActiveSession(sessionId)
+  }, [panels, sessions, setActiveSession])
+
+  useSecretaryAppBridge({
+    activePanel: panels.activePanel,
+    activeSession,
+    recentSessions: secretaryRecentSessions,
+    sessionViewSession,
+    isTaskRunning: hasUnsafeReloadState,
+    onNavigate: handleSecretaryNavigate,
+    onPanelToggle: handleSecretaryPanelToggle,
+    onStartChat: handleSecretaryStartChat,
+    onOpenSession: handleSecretaryOpenSession,
+  })
+
   useAppDesktopEffects({
     themeId,
     uiFontSize,
     uiZoomPercent,
     hasUnsafeReloadState,
-    quickPanelProjects,
-    quickPanelProjectsSignature,
     workflowSyncPayload,
     claudeBinaryPath,
     sanitizedEnvVars,
     defaultWorkflowModel,
-    quickPanelEnabled,
+    secretaryEnabled,
     shortcutConfig,
     shortcutPlatform,
     shortcutTarget: pendingSessionDraft
@@ -413,9 +484,7 @@ export function useAppController() {
     onToggleSidebar: handleToggleSidebar,
     openSettingsPanel: panels.openSettingsPanel,
     toggleCommandPalette: panels.toggleCommandPalette,
-    createSessionFromUserPrompt,
     openPendingSessionDraft,
-    handleSendForSession: claudeStream.handleSendForSession,
     addSession,
     addUserMessage,
     startAssistantMessage,
@@ -430,7 +499,6 @@ export function useAppController() {
     appendWorkflowStepTextChunk,
     applyWorkflowStepUpdate,
     completeWorkflowExecution,
-    closeOverlayPanels: panels.closeOverlayPanels,
   })
 
   return {
@@ -440,6 +508,7 @@ export function useAppController() {
     claudeStream,
     closeCommandPalette: panels.closeCommandPalette,
     closeSessionTeamPanel: panels.closeSessionTeamPanel,
+    closeSecretaryPanel: panels.closeSecretaryPanel,
     closeSettingsPanel: panels.closeSettingsPanel,
     closeTeamPanel: panels.closeTeamPanel,
     closeWorkflowPanel: panels.closeWorkflowPanel,
@@ -462,11 +531,14 @@ export function useAppController() {
     installationStatus: installation.installationStatus,
     messageJumpTarget,
     openSessionTeamPanel,
+    openSecretaryPanel: panels.openSecretaryPanel,
     openSettingsPanel: panels.openSettingsPanel,
     openWorkflowPanel: panels.openWorkflowPanel,
     refreshInstallationStatus: installation.refreshInstallationStatus,
     settingsInitialTab: panels.settingsInitialTab,
     settingsOpen: panels.settingsOpen,
+    secretaryOpen: panels.secretaryOpen,
+    secretaryRuntimeConfig,
     workflowOpen: panels.workflowOpen,
     sessionViewSession,
     sessionFileLockState,
