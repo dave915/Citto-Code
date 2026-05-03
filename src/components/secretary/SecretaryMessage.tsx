@@ -36,6 +36,10 @@ function getActionLabel(action: SecretaryAction) {
   if (action.type === 'openRoundTable') return '라운드테이블 열기'
   if (action.type === 'openSession') return '세션 열기'
   if (action.type === 'runWorkflow') return '워크플로우 실행'
+  if (action.type === 'draftWorkflow') return '워크플로우 초안 만들기'
+  if (action.type === 'createWorkflow') return '워크플로우 저장'
+  if (action.type === 'draftSkill') return '스킬 초안 만들기'
+  if (action.type === 'createSkill') return '스킬 생성'
   if (action.type === 'runClaudeCode') return action.mode === 'interactive' ? '채팅에서 실행' : 'Claude Code 실행'
   if (action.type === 'openSettings') return '설정 열기'
   if (action.type === 'cancelActiveTask') return '작업 취소'
@@ -47,6 +51,10 @@ function getActionPreview(action: SecretaryAction) {
   if (action.type === 'startChat') return action.initialPrompt
   if (action.type === 'runWorkflow') return `workflowId: ${action.workflowId}`
   if (action.type === 'openSession') return `sessionId: ${action.sessionId}`
+  if (action.type === 'draftWorkflow') return action.initialPrompt ?? action.summary ?? action.name
+  if (action.type === 'createWorkflow') return action.prompt ?? action.description ?? action.name
+  if (action.type === 'draftSkill') return action.initialPrompt ?? action.description ?? action.name
+  if (action.type === 'createSkill') return action.description
   return null
 }
 

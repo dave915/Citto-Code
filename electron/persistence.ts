@@ -88,6 +88,146 @@ function normalizeSecretarySearchResults(value: unknown): SecretarySearchResult[
     .slice(0, 6)
 }
 
+const CONVERSATION_SEARCH_STOP_WORDS = new Set([
+  '이전',
+  '예전',
+  '과거',
+  '지난번',
+  '대화',
+  '대화내역',
+  '내역',
+  '내용',
+  '기록',
+  '채팅',
+  '세션',
+  '비서',
+  '뭐',
+  '왜',
+  '좀',
+  '것',
+  '검색',
+  '찾아',
+  '찾아줘',
+  '찾아줘요',
+  '찾아봐',
+  '찾아봐줘',
+  '알려줘',
+  '알려줘요',
+  '말해줘',
+  '말해줘요',
+  '관련',
+  '주제',
+  '대한',
+  '대해',
+  '보고',
+  '모두',
+  '전체',
+  '기억',
+  '있었나',
+  '있었어',
+  'what',
+  'where',
+  'when',
+  'find',
+  'search',
+  'history',
+  'conversation',
+  'chat',
+  'session',
+  'remember',
+])
+
+function normalizeConversationSearchToken(token: string) {
+  const normalized = token
+    .toLowerCase()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+    .trim()
+
+  if (normalized.length <= 3) return normalized
+  return normalized.replace(/(으로|에서|에게|하고|이라는|라는|이며|이고|은|는|이|가|을|를|에|의|도|만)$/u, '')
+}
+
+function extractConversationSearchTerms(input: string): string[] {
+  const quotedTerms = [...input.matchAll(/["'“”‘’]([^"'“”‘’]{2,})["'“”‘’]/g)]
+    .map((match) => normalizeConversationSearchToken(match[1] ?? ''))
+  const tokenTerms = [...input.matchAll(/[\p{L}\p{N}_-]+/gu)]
+    .map((match) => normalizeConversationSearchToken(match[0] ?? ''))
+
+  const terms: string[] = []
+  for (const term of [...quotedTerms, ...tokenTerms]) {
+    if (term.length < 2 && !/^[가-힣]$/.test(term)) continue
+    if (CONVERSATION_SEARCH_STOP_WORDS.has(term)) continue
+    if (terms.includes(term)) continue
+    terms.push(term)
+    if (terms.length >= 8) break
+  }
+  return terms
+}
+
+function escapeLikeTerm(term: string) {
+  return term.replace(/[\\%_]/g, (match) => `\\${match}`)
+}
+
+function buildConversationSearchWhere(columns: string[], terms: string[]) {
+  return terms
+    .map((_, index) => (
+      columns
+        .map((column) => `LOWER(COALESCE(${column}, '')) LIKE :term${index} ESCAPE '\\'`)
+        .join(' OR ')
+    ))
+    .map((clause) => `(${clause})`)
+    .join(' OR ')
+}
+
+function buildConversationSearchParams(terms: string[]): BindParams {
+  return Object.fromEntries(
+    terms.map((term, index) => [`:term${index}`, `%${escapeLikeTerm(term)}%`]),
+  )
+}
+
+function countTermOccurrences(text: string, term: string) {
+  if (!term) return 0
+  let count = 0
+  let offset = text.indexOf(term)
+  while (offset >= 0) {
+    count += 1
+    offset = text.indexOf(term, offset + term.length)
+  }
+  return count
+}
+
+function scoreConversationSearchHit(text: string, label: string, terms: string[]) {
+  const haystack = text.toLowerCase()
+  const labelHaystack = label.toLowerCase()
+  let score = 0
+  let matchedTerms = 0
+
+  for (const term of terms) {
+    const contentMatches = countTermOccurrences(haystack, term)
+    const labelMatches = countTermOccurrences(labelHaystack, term)
+    if (contentMatches > 0 || labelMatches > 0) matchedTerms += 1
+    score += contentMatches * 10 + labelMatches * 4
+  }
+
+  if (matchedTerms === terms.length) score += 18
+  if (matchedTerms > 1) score += matchedTerms * 3
+  return score
+}
+
+function buildConversationSearchExcerpt(text: string, terms: string[], maxLength = 180) {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= maxLength) return normalized
+
+  const lower = normalized.toLowerCase()
+  const firstMatch = terms
+    .map((term) => lower.indexOf(term))
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right)[0] ?? 0
+  const start = Math.max(0, firstMatch - 48)
+  const end = Math.min(normalized.length, start + maxLength)
+  return `${start > 0 ? '...' : ''}${normalized.slice(start, end).trim()}${end < normalized.length ? '...' : ''}`
+}
+
 const REQUIRED_TABLES = [
   'sessions',
   'messages',
@@ -609,6 +749,109 @@ export class AppPersistence {
       searchResults: normalizeSecretarySearchResults(parseJsonValue(row.search_results_json)),
       createdAt: Number(row.created_at),
     }))
+  }
+
+  searchConversationHistory(input: string, limit = 10): SecretarySearchResult[] {
+    const terms = extractConversationSearchTerms(input)
+    if (terms.length === 0) return []
+
+    const boundedLimit = Math.max(1, Math.min(20, Math.floor(limit)))
+    const params = buildConversationSearchParams(terms)
+    const secretaryWhere = buildConversationSearchWhere(['h.content', 'c.title'], terms)
+    const sessionWhere = buildConversationSearchWhere(['m.text', 's.name', 's.cwd'], terms)
+
+    const secretaryRows = this.query<{
+      id: number
+      conversation_id: string
+      role: SecretaryHistoryRole
+      content: string
+      created_at: number
+      title: string | null
+    }>(
+      `SELECT
+         h.id,
+         h.conversation_id,
+         h.role,
+         h.content,
+         h.created_at,
+         c.title
+       FROM secretary_history h
+       LEFT JOIN secretary_conversations c ON c.id = h.conversation_id
+       WHERE ${secretaryWhere}
+       ORDER BY h.created_at DESC`,
+      params,
+    )
+
+    const sessionRows = this.query<{
+      id: string
+      session_id: string
+      role: 'user' | 'assistant'
+      text: string
+      created_at: number
+      name: string
+      cwd: string
+      updated_at: number
+    }>(
+      `SELECT
+         m.id,
+         m.session_id,
+         m.role,
+         m.text,
+         m.created_at,
+         s.name,
+         s.cwd,
+         s.updated_at
+       FROM messages m
+       INNER JOIN sessions s ON s.id = m.session_id
+       WHERE ${sessionWhere}
+       ORDER BY m.created_at DESC`,
+      params,
+    )
+
+    const hits = [
+      ...secretaryRows.map((row) => {
+        const title = row.title?.trim() || '씨토 비서 대화'
+        const roleLabel = row.role === 'user' ? '사용자' : '씨토'
+        const label = `${title} · ${roleLabel}`
+        return {
+          score: scoreConversationSearchHit(row.content, label, terms),
+          result: {
+            id: `secretary-history-${row.id}`,
+            label,
+            type: '비서 대화',
+            excerpt: buildConversationSearchExcerpt(row.content, terms),
+            route: 'secretary' as const,
+            updatedAt: Number(row.created_at),
+          },
+        }
+      }),
+      ...sessionRows.map((row) => {
+        const title = row.name?.trim() || '프로젝트 세션'
+        const roleLabel = row.role === 'user' ? '사용자' : 'Claude'
+        const label = `${title} · ${roleLabel}`
+        return {
+          score: scoreConversationSearchHit(row.text, `${label} ${row.cwd ?? ''}`, terms),
+          result: {
+            id: `session-message-${row.id}`,
+            label,
+            type: '세션 대화',
+            excerpt: buildConversationSearchExcerpt(row.text, terms),
+            route: 'chat' as const,
+            sessionId: row.session_id,
+            updatedAt: Number(row.created_at ?? row.updated_at ?? 0),
+          },
+        }
+      }),
+    ]
+
+    return hits
+      .filter((hit) => hit.score > 0)
+      .sort((left, right) => (
+        right.score - left.score
+        || (right.result.updatedAt ?? 0) - (left.result.updatedAt ?? 0)
+      ))
+      .slice(0, boundedLimit)
+      .map((hit) => hit.result)
   }
 
   loadSecretaryPatterns(limit = 8): SecretaryPattern[] {

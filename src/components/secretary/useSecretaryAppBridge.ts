@@ -9,6 +9,11 @@ import type { AppOverlayPanel } from '../../hooks/useAppPanels'
 import type { Session } from '../../store/sessions'
 import type { ThemeId } from '../../lib/theme'
 
+type DraftWorkflowAction = Extract<SecretaryAction, { type: 'draftWorkflow' }>
+type CreateWorkflowAction = Extract<SecretaryAction, { type: 'createWorkflow' }>
+type DraftSkillAction = Extract<SecretaryAction, { type: 'draftSkill' }>
+type CreateSkillAction = Extract<SecretaryAction, { type: 'createSkill' }>
+
 type Params = {
   activePanel: AppOverlayPanel
   activeSession: Session | null
@@ -23,6 +28,10 @@ type Params = {
   onNavigate: (route: CittoRoute) => void
   onStartChat: (initialPrompt?: string) => Promise<void>
   onOpenSession: (sessionId: string) => void
+  onDraftWorkflow: (action: DraftWorkflowAction) => Promise<void>
+  onCreateWorkflow: (action: CreateWorkflowAction) => Promise<void>
+  onDraftSkill: (action: DraftSkillAction) => Promise<void>
+  onCreateSkill: (action: CreateSkillAction) => Promise<void>
 }
 
 function resolveActiveRoute(activePanel: AppOverlayPanel, session: Session | null): CittoRoute {
@@ -48,6 +57,10 @@ export function useSecretaryAppBridge({
   onNavigate,
   onStartChat,
   onOpenSession,
+  onDraftWorkflow,
+  onCreateWorkflow,
+  onDraftSkill,
+  onCreateSkill,
 }: Params) {
   const displaySession = sessionViewSession ?? activeSession
   const activeContext = useMemo<SecretaryActiveContext>(() => ({
@@ -92,10 +105,26 @@ export function useSecretaryAppBridge({
       }
       if (action.type === 'openSession') {
         onOpenSession(action.sessionId)
+        return
+      }
+      if (action.type === 'draftWorkflow') {
+        void onDraftWorkflow(action)
+        return
+      }
+      if (action.type === 'createWorkflow') {
+        void onCreateWorkflow(action)
+        return
+      }
+      if (action.type === 'draftSkill') {
+        void onDraftSkill(action)
+        return
+      }
+      if (action.type === 'createSkill') {
+        void onCreateSkill(action)
       }
     }
 
     const cleanup = window.secretary.onRendererAction(handleAction)
     return cleanup
-  }, [onOpenSession, onStartChat])
+  }, [onCreateSkill, onCreateWorkflow, onDraftSkill, onDraftWorkflow, onOpenSession, onStartChat])
 }

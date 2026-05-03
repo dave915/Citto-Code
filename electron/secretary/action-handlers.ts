@@ -18,10 +18,18 @@ export function createSecretaryActionHandlers({
   sendWhenRendererReady,
   runWorkflowNow,
 }: ActionHandlerOptions) {
+  const getRendererActionMessage = (action: SecretaryAction) => {
+    if (action.type === 'draftWorkflow') return '워크플로우 초안을 새 세션으로 넘겼어요.'
+    if (action.type === 'createWorkflow') return '워크플로우 생성 요청을 Citto에 전달했어요.'
+    if (action.type === 'draftSkill') return '스킬 초안을 새 세션으로 넘겼어요.'
+    if (action.type === 'createSkill') return '스킬 생성 요청을 Citto에 전달했어요.'
+    return '요청한 작업을 Citto에서 열었어요.'
+  }
+
   const emitRendererAction = (action: SecretaryAction): SecretaryActionResult => {
     const window = showMainWindow()
     sendWhenRendererReady(window, 'secretary:renderer-action', action)
-    return { ok: true, message: '요청한 작업을 Citto에서 열었어요.' }
+    return { ok: true, message: getRendererActionMessage(action) }
   }
 
   const navigate = (route: keyof typeof CITTO_ROUTES): SecretaryActionResult => {
@@ -46,7 +54,14 @@ export function createSecretaryActionHandlers({
       return navigate('roundTable')
     }
 
-    if (action.type === 'startChat' || action.type === 'openSession') {
+    if (
+      action.type === 'startChat'
+      || action.type === 'openSession'
+      || action.type === 'draftWorkflow'
+      || action.type === 'createWorkflow'
+      || action.type === 'draftSkill'
+      || action.type === 'createSkill'
+    ) {
       return emitRendererAction(action)
     }
 

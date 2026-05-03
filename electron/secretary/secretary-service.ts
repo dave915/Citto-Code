@@ -6,6 +6,7 @@ import type {
   SecretaryActiveContext,
   SecretaryProcessResult,
   SecretaryRuntimeConfig,
+  SecretarySearchResult,
 } from './types'
 import type { PermissionMode } from '../persistence-types'
 
@@ -65,10 +66,13 @@ function buildSystemPrompt(context: SecretaryActiveContext, memory: {
   profile: Record<string, string>
   recentHistory: unknown[]
   patterns: unknown[]
+  conversationSearchResults: SecretarySearchResult[]
 }) {
   return [
     '당신은 Citto의 비서 "기본 씨토"입니다.',
+    '당신은 OpenClona나 Hermes처럼 사용자의 작업 맥락을 찾아 적절한 다음 장소와 실행 경로로 연결하는 프로젝트 조율자입니다.',
     'Citto의 세션, 결과물, 워크플로우를 참조해 다음 작업을 제안하는 얇은 대화 레이어입니다.',
+    '당신의 핵심 역할은 직접 긴 프로젝트 작업을 수행하는 것이 아니라, 관련 맥락을 찾고 사용자가 기존 흐름에서 이어서 일하도록 안내하는 것입니다.',
     '비서 자체는 특정 프로젝트 디렉토리에 종속되지 않습니다. 프로젝트 경로가 보이더라도 참고 정보로만 사용하세요.',
     '현재 비서 채팅의 기록만 대화 컨텍스트로 사용하세요. 다른 비서 채팅의 내용을 아는 척하지 마세요.',
     '추상적인 장기 기억을 아는 척하지 말고, 제공된 컨텍스트와 실제 참조만 사용하세요.',
@@ -85,6 +89,32 @@ function buildSystemPrompt(context: SecretaryActiveContext, memory: {
     '',
     '사용 가능한 액션. 이 외의 action.type은 절대 만들지 마세요.',
     buildCapabilityManifest(),
+    '',
+    '통합 대화 기록 검색 결과는 저장된 비서 대화와 프로젝트 세션 대화를 함께 검색한 결과입니다.',
+    '사용자가 이전 대화, 과거 세션, 특정 주제 언급 여부를 찾으라고 요청하면 이 검색 결과를 우선 근거로 답하세요.',
+    '검색 결과의 type이 "비서 대화"면 씨토 비서와 나눈 대화이고, "세션 대화"면 프로젝트 세션에서 나눈 대화입니다.',
+    '검색 결과가 비어 있는데 사용자가 과거 대화 검색을 요청했다면, 저장된 비서/세션 대화에서 찾지 못했다고 분명히 말하세요.',
+    '검색 결과를 근거로 답할 때는 관련 항목을 searchResults에 포함하세요.',
+    '',
+    '프로젝트 진행 요청 처리 원칙:',
+    '- 구현, 수정, 디자인 반영, 디버깅, 리팩터링, 문서화처럼 프로젝트 작업을 진행하려는 요청이면 비서 대화 안에서 길게 처리하지 말고 프로젝트 세션에서 이어가도록 안내하세요.',
+    '- 현재 컨텍스트에 currentSessionId가 있고 그 세션이 요청과 관련 있어 보이면, 현재 프로젝트 세션에서 이어서 진행하라고 짧게 안내하고 action은 null로 둘 수 있습니다.',
+    '- 통합 대화 기록 검색 결과나 recentSessions에 관련 기존 프로젝트 세션이 있으면 새 채팅을 만들기보다 openSession 액션으로 그 세션을 여는 제안을 우선하세요.',
+    '- 세션 대화 검색 결과의 sessionId는 openSession 액션의 sessionId로 사용할 수 있습니다.',
+    '- 관련 기존 세션을 찾지 못했지만 프로젝트 작업이 분명하면 startChat 액션을 제안하고, initialPrompt에는 사용자의 요청과 필요한 맥락을 짧게 담아 새 프로젝트 세션에서 시작하게 하세요.',
+    '- 단발성 질문, 간단한 요약, 과거 대화 검색 요청은 비서가 직접 답해도 됩니다.',
+    '- runClaudeCode는 사용자가 비서에게 즉시 실행을 명확히 요청한 짧은 작업에만 제안하세요. 일반적인 프로젝트 진행은 세션으로 넘기는 쪽을 우선하세요.',
+    '- reply에는 "기존 세션에서 이어가면 이전 대화/프로젝트 맥락을 쓸 수 있다"는 이유를 자연스럽게 포함하세요.',
+    '',
+    '워크플로우/스킬 제안 처리 원칙:',
+    '- 사용자가 반복 작업, 정해진 절차, 자주 쓰는 프롬프트, 프로젝트 관례를 말하면 워크플로우나 스킬로 만들 수 있는지 먼저 짧게 제안하세요.',
+    '- 1차는 초안 생성과 새 프로젝트 세션 handoff입니다. 사용자가 구체화부터 하자고 하거나 요구사항이 아직 모호하면 draftWorkflow 또는 draftSkill 액션을 사용하세요.',
+    '- draftWorkflow는 워크플로우 이름, 요약, 단계별 prompt를 담아 새 세션에서 단계/검증/구현을 다듬게 합니다.',
+    '- draftSkill은 스킬 이름, description, instructions 초안을 담아 새 세션에서 SKILL.md 품질을 다듬게 합니다.',
+    '- 2차는 실제 생성입니다. 사용자가 바로 만들라고 하거나 1차 초안이 충분히 구체적이면 createWorkflow 또는 createSkill 액션을 사용하세요.',
+    '- createWorkflow의 name은 사람이 읽는 워크플로우 이름, steps는 실행 가능한 agent 단계 배열입니다. steps가 하나면 prompt 하나만 써도 됩니다.',
+    '- createSkill의 name은 가능하면 소문자 영어 slug로 쓰고, description은 스킬 사용 시점이 드러나게 한 문장으로 쓰며, instructions는 SKILL.md 본문에 들어갈 실제 절차만 작성하세요.',
+    '- 워크플로우/스킬 생성 액션도 사용자 확인 버튼을 누르기 전에는 실행되지 않습니다. reply는 "만들 수 있다/저장하겠다"가 아니라 "이렇게 제안하겠다/저장 버튼을 제안한다"처럼 말하세요.',
     '',
     '한 번에 하나의 action만 제안하세요. 실제 실행은 앱 UI가 사용자 확인을 받은 뒤 처리합니다. 실행했다고 말하지 말고 제안으로 말하세요.',
     '진행 중 작업이 있을 때 새 작업을 제안한다면 reply에 진행 중 작업이 있다는 점을 명시하세요.',
@@ -159,6 +189,47 @@ function normalizeAssistantTextOutput(text: string): SecretaryProcessResult {
   }
 }
 
+function isConversationRecallRequest(input: string) {
+  const normalized = input.toLowerCase()
+  const hasHistoryTarget = /(이전|예전|과거|지난번|전에|아까|대화|대화내역|기록|채팅|세션|history|conversation|chat|session)/i
+    .test(normalized)
+  const hasRecallAction = /(찾|검색|기억|말했|언급|나눴|있었|어디|언제|뭐였|무엇|find|search|remember|mentioned)/i
+    .test(normalized)
+  return hasHistoryTarget && hasRecallAction
+}
+
+function mergeSearchResults(
+  existing: SecretarySearchResult[] | undefined,
+  conversationResults: SecretarySearchResult[],
+) {
+  const merged: SecretarySearchResult[] = []
+  const seen = new Set<string>()
+
+  for (const result of [...(existing ?? []), ...conversationResults]) {
+    const key = `${result.type}:${result.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(result)
+    if (merged.length >= 6) break
+  }
+
+  return merged
+}
+
+function attachConversationSearchResults(
+  result: SecretaryProcessResult,
+  input: string,
+  conversationResults: SecretarySearchResult[],
+): SecretaryProcessResult {
+  if (conversationResults.length === 0) return result
+  if (result.intent !== 'recall' && !isConversationRecallRequest(input)) return result
+  return {
+    ...result,
+    intent: result.intent === 'chat' ? 'recall' : result.intent,
+    searchResults: mergeSearchResults(result.searchResults, conversationResults),
+  }
+}
+
 export class SecretaryService {
   private runtimeConfig: SecretaryRuntimeConfig = {}
 
@@ -192,6 +263,8 @@ export class SecretaryService {
       }
     }
 
+    const conversationSearchResults = this.options.memory.searchConversationHistory(trimmedInput, 10)
+
     this.options.memory.addHistory({
       conversationId,
       role: 'user',
@@ -212,6 +285,7 @@ export class SecretaryService {
           profile: this.options.memory.getProfile(),
           recentHistory: this.options.memory.loadRecentHistory(conversationId, 20),
           patterns: this.options.memory.loadPatterns(8),
+          conversationSearchResults,
         }),
         claudePath: runtime.claudePath,
         envVars: runtime.envVars,
@@ -222,7 +296,11 @@ export class SecretaryService {
 
       if (result.isError) {
         if (timeout.signal.aborted && result.output.trim()) {
-          const parsed = normalizeAssistantTextOutput(result.output)
+          const parsed = attachConversationSearchResults(
+            normalizeAssistantTextOutput(result.output),
+            trimmedInput,
+            conversationSearchResults,
+          )
           this.options.memory.addHistory({
             conversationId,
             role: 'secretary',
@@ -242,7 +320,11 @@ export class SecretaryService {
         throw new Error(result.error || result.output || 'Secretary LLM request failed.')
       }
 
-      const parsed = normalizeAssistantTextOutput(result.output)
+      const parsed = attachConversationSearchResults(
+        normalizeAssistantTextOutput(result.output),
+        trimmedInput,
+        conversationSearchResults,
+      )
       this.options.memory.addHistory({
         conversationId,
         role: 'secretary',

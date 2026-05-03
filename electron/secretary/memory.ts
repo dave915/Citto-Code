@@ -129,6 +129,10 @@ export class SecretaryMemory {
     return this.persistence.loadSecretaryHistory(conversationId, limit)
   }
 
+  searchConversationHistory(input: string, limit = 10) {
+    return this.persistence.searchConversationHistory(input, limit)
+  }
+
   loadPatterns(limit = 8): SecretaryPattern[] {
     return this.persistence.loadSecretaryPatterns(limit)
   }

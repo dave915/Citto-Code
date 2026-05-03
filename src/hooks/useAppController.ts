@@ -13,12 +13,13 @@ import { buildSecretaryRecentSessions, normalizeSelectedFolder, resolveEnvVarsFo
 import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
 import { useWorkflowStore } from '../store/workflowStore'
+import type { WorkflowInput, WorkflowStep } from '../store/workflowTypes'
 import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
 import { normalizeConfiguredModelSelection } from '../lib/modelSelection'
 import { nanoid } from '../store/nanoid'
 import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode, type Session } from '../store/sessions'
 import { useSecretaryAppBridge } from '../components/secretary/useSecretaryAppBridge'
-import type { CittoRoute, SecretaryRuntimeConfig } from '../../electron/preload'
+import type { CittoRoute, SecretaryAction, SecretaryRuntimeConfig } from '../../electron/preload'
 
 type PendingSessionDraft = {
   id: string
@@ -28,6 +29,11 @@ type PendingSessionDraft = {
   model: string | null
 }
 
+type DraftWorkflowAction = Extract<SecretaryAction, { type: 'draftWorkflow' }>
+type CreateWorkflowAction = Extract<SecretaryAction, { type: 'createWorkflow' }>
+type DraftSkillAction = Extract<SecretaryAction, { type: 'draftSkill' }>
+type CreateSkillAction = Extract<SecretaryAction, { type: 'createSkill' }>
+
 function normalizeProjectKey(path: string): string {
   const trimmed = path.trim()
   if (!trimmed || trimmed === '~') return '~'
@@ -35,6 +41,138 @@ function normalizeProjectKey(path: string): string {
   const normalized = trimmed.replace(/\\/g, '/')
   if (normalized === '/') return normalized
   return normalized.replace(/\/+$/, '').toLowerCase()
+}
+
+function formatSecretaryWorkflowSteps(steps: DraftWorkflowAction['steps'] | CreateWorkflowAction['steps']) {
+  if (!steps || steps.length === 0) return null
+
+  return steps
+    .map((step, index) => {
+      const label = step.label?.trim() || `단계 ${index + 1}`
+      return `${index + 1}. ${label}: ${step.prompt}`
+    })
+    .join('\n')
+}
+
+function buildWorkflowDraftSessionPrompt(action: DraftWorkflowAction) {
+  const initialPrompt = action.initialPrompt?.trim()
+  if (initialPrompt) return initialPrompt
+
+  const steps = formatSecretaryWorkflowSteps(action.steps)
+  return [
+    '씨토 비서가 워크플로우 초안으로 넘긴 작업입니다.',
+    '',
+    `이름: ${action.name}`,
+    action.summary ? `요약: ${action.summary}` : null,
+    steps ? `초안 단계:\n${steps}` : null,
+    '',
+    '이 초안을 실제로 저장 가능한 워크플로우로 다듬어 주세요.',
+    '필요한 단계, 실행 프롬프트, 작업 디렉터리, 검증 기준을 정리하고 구현이 필요하면 이어서 진행해 주세요.',
+  ].filter((line): line is string => Boolean(line)).join('\n')
+}
+
+function buildSkillDraftSessionPrompt(action: DraftSkillAction) {
+  const initialPrompt = action.initialPrompt?.trim()
+  if (initialPrompt) return initialPrompt
+
+  return [
+    '씨토 비서가 스킬 초안으로 넘긴 작업입니다.',
+    '',
+    `이름: ${action.name}`,
+    action.description ? `설명: ${action.description}` : null,
+    action.instructions ? `초안 지침:\n${action.instructions}` : null,
+    '',
+    '~/.claude/skills/<name>/SKILL.md 형식에 맞게 스킬을 다듬어 주세요.',
+    '트리거 설명은 명확하게 쓰고, 본문은 실제 작업 절차만 간결하게 남겨 주세요.',
+  ].filter((line): line is string => Boolean(line)).join('\n')
+}
+
+function createSecretaryWorkflowInput(
+  action: CreateWorkflowAction,
+  fallbackCwd: string,
+  defaultModel: string | null,
+): WorkflowInput {
+  const workflowName = action.name.trim() || '씨토 워크플로우'
+  const fallbackPrompt = action.prompt?.trim() || action.description?.trim() || workflowName
+  const sourceSteps = action.steps && action.steps.length > 0
+    ? action.steps
+    : [{ label: workflowName, prompt: fallbackPrompt, cwd: action.cwd, systemPrompt: action.description }]
+  const stepIds = sourceSteps.map(() => nanoid())
+  const steps: WorkflowStep[] = sourceSteps.map((source, index) => {
+    const stepCwd = normalizeSelectedFolder(source.cwd)
+      ?? normalizeSelectedFolder(action.cwd)
+      ?? fallbackCwd
+
+    return {
+      type: 'agent',
+      id: stepIds[index],
+      label: source.label?.trim() || (sourceSteps.length === 1 ? workflowName : `${workflowName} ${index + 1}`),
+      nextStepId: stepIds[index + 1] ?? null,
+      prompt: source.prompt.trim() || fallbackPrompt,
+      cwd: stepCwd,
+      model: defaultModel,
+      permissionMode: action.permissionMode ?? 'default',
+      systemPrompt: source.systemPrompt?.trim() || action.description?.trim() || '',
+    }
+  })
+
+  return {
+    name: workflowName,
+    steps,
+    trigger: { type: 'manual' },
+    active: false,
+    nodePositions: steps.reduce<Record<string, { x: number; y: number }>>((positions, step, index) => {
+      positions[step.id] = { x: 280 + (index * 320), y: 300 }
+      return positions
+    }, {}),
+  }
+}
+
+function createSkillSlug(name: string) {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/-+$/g, '')
+
+  return slug || `citto-skill-${Date.now().toString(36)}`
+}
+
+async function resolveAvailableSkillName(baseName: string) {
+  const existingSkills = await window.claude.listSkills().catch(() => [])
+  const existingNames = new Set(existingSkills.map((skill) => skill.name))
+  if (!existingNames.has(baseName)) return baseName
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const candidate = `${baseName}-${suffix}`
+    if (!existingNames.has(candidate)) return candidate
+  }
+
+  return `${baseName}-${Date.now().toString(36)}`
+}
+
+function buildSkillContent(action: CreateSkillAction, skillName: string) {
+  const description = action.description.replace(/\s+/g, ' ').trim()
+  const body = action.instructions
+    .replace(/^---[\s\S]*?---\s*/m, '')
+    .trim()
+  const contentBody = body.startsWith('#')
+    ? body
+    : [`# ${action.name.trim() || skillName}`, '', body].join('\n')
+
+  return [
+    '---',
+    `name: ${skillName}`,
+    `description: ${JSON.stringify(description)}`,
+    '---',
+    '',
+    contentBody,
+    '',
+  ].join('\n')
 }
 
 export function useAppController() {
@@ -144,6 +282,7 @@ export function useAppController() {
     defaultModel: normalizeConfiguredModelSelection(secretaryRuntimeModel),
   }), [claudeBinaryPath, sanitizedEnvVars, secretaryRuntimeModel])
   const workflows = useWorkflowStore((state) => state.workflows)
+  const addWorkflow = useWorkflowStore((state) => state.addWorkflow)
   const recordWorkflowExecutionStart = useWorkflowStore((state) => state.recordExecutionStart)
   const advanceWorkflowSchedule = useWorkflowStore((state) => state.advanceSchedule)
   const appendWorkflowStepTextChunk = useWorkflowStore((state) => state.appendStepTextChunk)
@@ -439,6 +578,38 @@ export function useAppController() {
     setActiveSession(sessionId)
   }, [panels, sessions, setActiveSession])
 
+  const handleSecretaryDraftWorkflow = useCallback(async (action: DraftWorkflowAction) => {
+    await handleSecretaryStartChat(buildWorkflowDraftSessionPrompt(action))
+  }, [handleSecretaryStartChat])
+
+  const handleSecretaryDraftSkill = useCallback(async (action: DraftSkillAction) => {
+    await handleSecretaryStartChat(buildSkillDraftSessionPrompt(action))
+  }, [handleSecretaryStartChat])
+
+  const handleSecretaryCreateWorkflow = useCallback(async (action: CreateWorkflowAction) => {
+    const fallbackCwd = normalizeSelectedFolder(activeSession?.cwd)
+      ?? normalizeSelectedFolder(defaultProjectPath)
+      ?? DEFAULT_PROJECT_PATH
+    addWorkflow(createSecretaryWorkflowInput(action, fallbackCwd, defaultWorkflowModel))
+    setMessageJumpTarget(null)
+    panels.openWorkflowPanel()
+  }, [activeSession?.cwd, addWorkflow, defaultProjectPath, defaultWorkflowModel, panels])
+
+  const handleSecretaryCreateSkill = useCallback(async (action: CreateSkillAction) => {
+    const skillName = await resolveAvailableSkillName(createSkillSlug(action.name))
+    const result = await window.claude.writeClaudeFile({
+      subdir: `skills/${skillName}`,
+      name: 'SKILL.md',
+      content: buildSkillContent(action, skillName),
+    })
+    if (!result.ok) {
+      console.error('Failed to create Citto skill:', result.error)
+      return
+    }
+    panels.openSettingsPanel('skill')
+    if (result.path) void window.claude.openFile(result.path).catch(() => undefined)
+  }, [panels])
+
   useSecretaryAppBridge({
     activePanel: panels.activePanel,
     activeSession,
@@ -453,6 +624,10 @@ export function useAppController() {
     onNavigate: handleSecretaryNavigate,
     onStartChat: handleSecretaryStartChat,
     onOpenSession: handleSecretaryOpenSession,
+    onDraftWorkflow: handleSecretaryDraftWorkflow,
+    onCreateWorkflow: handleSecretaryCreateWorkflow,
+    onDraftSkill: handleSecretaryDraftSkill,
+    onCreateSkill: handleSecretaryCreateSkill,
   })
 
   useAppDesktopEffects({

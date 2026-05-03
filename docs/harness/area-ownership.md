@@ -186,6 +186,10 @@
   - 현재 Citto 컨텍스트 동기화와 확인 후 화면 이동
   - `AppPersistence` 기반 비서 profile/conversations/history/patterns 저장
   - 비서 채팅 CRUD와 채팅별 history 격리
+  - 이전 주제 회상 요청 시 비서 대화 history와 일반 프로젝트 세션 messages 통합 검색
+  - 프로젝트 진행 요청은 비서가 직접 장시간 수행하기보다 기존/새 프로젝트 세션으로 이어가도록 안내
+  - 반복 작업/관례는 1차 `draftWorkflow`/`draftSkill`로 새 프로젝트 세션에 초안을 넘기고, 2차 `createWorkflow`/`createSkill`로 사용자 확인 후 실제 저장한다.
+  - 워크플로우 생성은 렌더러 `useWorkflowStore` 경계를 통해 처리하고, 스킬 생성은 렌더러에서 `window.claude.writeClaudeFile`로 `~/.claude/skills/<name>/SKILL.md`를 작성한다.
   - `src/hooks/useAppDesktopEffects.ts`는 비서 단축키 enabled 상태만 메인 프로세스로 동기화한다.
   - `src/components/secretary/useSecretaryAppBridge.ts`는 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
   - `src/App.tsx`는 비서 활성 상태에서 기존 사이드바와 메인 화면을 모두 덮는 전체 비서 화면을 렌더링한다.
