@@ -13,13 +13,19 @@ import { buildSecretaryRecentSessions, normalizeSelectedFolder, resolveEnvVarsFo
 import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
 import { useWorkflowStore } from '../store/workflowStore'
-import type { WorkflowInput, WorkflowStep } from '../store/workflowTypes'
+import type { WorkflowConditionOperator, WorkflowInput, WorkflowStep, WorkflowTrigger } from '../store/workflowTypes'
 import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
 import { normalizeConfiguredModelSelection } from '../lib/modelSelection'
 import { nanoid } from '../store/nanoid'
 import { DEFAULT_PROJECT_PATH, getProjectNameFromPath, useSessionsStore, type PermissionMode, type Session } from '../store/sessions'
 import { useSecretaryAppBridge } from '../components/secretary/useSecretaryAppBridge'
-import type { CittoRoute, SecretaryAction, SecretaryRuntimeConfig } from '../../electron/preload'
+import type {
+  CittoRoute,
+  SecretaryAction,
+  SecretaryActionResult,
+  SecretaryRuntimeConfig,
+  SecretarySearchResult,
+} from '../../electron/preload'
 
 type PendingSessionDraft = {
   id: string
@@ -33,6 +39,10 @@ type DraftWorkflowAction = Extract<SecretaryAction, { type: 'draftWorkflow' }>
 type CreateWorkflowAction = Extract<SecretaryAction, { type: 'createWorkflow' }>
 type DraftSkillAction = Extract<SecretaryAction, { type: 'draftSkill' }>
 type CreateSkillAction = Extract<SecretaryAction, { type: 'createSkill' }>
+type WorkflowDraftStep = NonNullable<CreateWorkflowAction['steps']>[number]
+type WorkflowAgentDraftStep = Extract<WorkflowDraftStep, { type?: 'agent' }>
+type WorkflowConditionDraftStep = Extract<WorkflowDraftStep, { type: 'condition' }>
+type WorkflowLoopDraftStep = Extract<WorkflowDraftStep, { type: 'loop' }>
 
 function normalizeProjectKey(path: string): string {
   const trimmed = path.trim()
@@ -49,6 +59,13 @@ function formatSecretaryWorkflowSteps(steps: DraftWorkflowAction['steps'] | Crea
   return steps
     .map((step, index) => {
       const label = step.label?.trim() || `단계 ${index + 1}`
+      if (step.type === 'condition') {
+        return `${index + 1}. ${label}: 조건 ${step.operator ?? 'always_true'} ${step.value ?? ''}`.trim()
+      }
+      if (step.type === 'loop') {
+        const body = step.bodySteps?.map((bodyStep) => bodyStep.prompt).join(' / ') || '반복 본문'
+        return `${index + 1}. ${label}: 최대 ${step.maxIterations ?? 3}회 반복 · ${body}`
+      }
       return `${index + 1}. ${label}: ${step.prompt}`
     })
     .join('\n')
@@ -94,38 +111,259 @@ function createSecretaryWorkflowInput(
 ): WorkflowInput {
   const workflowName = action.name.trim() || '씨토 워크플로우'
   const fallbackPrompt = action.prompt?.trim() || action.description?.trim() || workflowName
-  const sourceSteps = action.steps && action.steps.length > 0
-    ? action.steps
-    : [{ label: workflowName, prompt: fallbackPrompt, cwd: action.cwd, systemPrompt: action.description }]
-  const stepIds = sourceSteps.map(() => nanoid())
-  const steps: WorkflowStep[] = sourceSteps.map((source, index) => {
-    const stepCwd = normalizeSelectedFolder(source.cwd)
-      ?? normalizeSelectedFolder(action.cwd)
-      ?? fallbackCwd
-
-    return {
-      type: 'agent',
-      id: stepIds[index],
-      label: source.label?.trim() || (sourceSteps.length === 1 ? workflowName : `${workflowName} ${index + 1}`),
-      nextStepId: stepIds[index + 1] ?? null,
-      prompt: source.prompt.trim() || fallbackPrompt,
-      cwd: stepCwd,
-      model: defaultModel,
-      permissionMode: action.permissionMode ?? 'default',
-      systemPrompt: source.systemPrompt?.trim() || action.description?.trim() || '',
-    }
-  })
+  const sourceSteps = buildWorkflowSourceSteps(action, workflowName, fallbackPrompt)
+  const steps = buildWorkflowStepsFromSource(action, sourceSteps, workflowName, fallbackPrompt, fallbackCwd, defaultModel)
+  const trigger = resolveWorkflowTrigger(action)
 
   return {
     name: workflowName,
     steps,
-    trigger: { type: 'manual' },
-    active: false,
+    trigger,
+    active: trigger.type === 'schedule',
     nodePositions: steps.reduce<Record<string, { x: number; y: number }>>((positions, step, index) => {
-      positions[step.id] = { x: 280 + (index * 320), y: 300 }
+      const isLoopBody = steps.some((candidate) => (
+        candidate.type === 'loop' && candidate.bodyStepIds.includes(step.id)
+      ))
+      positions[step.id] = {
+        x: 280 + (index * 320),
+        y: isLoopBody ? 460 : 300,
+      }
       return positions
     }, {}),
   }
+}
+
+function isConditionDraftStep(step: WorkflowDraftStep): step is WorkflowConditionDraftStep {
+  return step.type === 'condition'
+}
+
+function isLoopDraftStep(step: WorkflowDraftStep): step is WorkflowLoopDraftStep {
+  return step.type === 'loop'
+}
+
+function buildWorkflowActionText(action: CreateWorkflowAction) {
+  return [
+    action.name,
+    action.description,
+    action.prompt,
+    ...(action.steps ?? []).flatMap((step) => {
+      if (isConditionDraftStep(step)) return [step.label, step.operator, step.value]
+      if (isLoopDraftStep(step)) return [step.label, String(step.maxIterations ?? ''), ...(step.bodySteps ?? []).map((bodyStep) => bodyStep.prompt)]
+      return [step.label, step.prompt, step.systemPrompt]
+    }),
+  ].filter(Boolean).join(' ')
+}
+
+function buildWorkflowSourceSteps(
+  action: CreateWorkflowAction,
+  workflowName: string,
+  fallbackPrompt: string,
+): WorkflowDraftStep[] {
+  if (action.steps && action.steps.length > 0) return action.steps
+
+  const baseAgent: WorkflowAgentDraftStep = {
+    type: 'agent',
+    label: workflowName,
+    prompt: fallbackPrompt,
+    cwd: action.cwd,
+    systemPrompt: action.description,
+  }
+  const actionText = buildWorkflowActionText(action)
+  if (/(반복|loop|repeat|iterate|iteration)/i.test(actionText)) {
+    return [{
+      type: 'loop',
+      label: `${workflowName} 반복`,
+      maxIterations: 3,
+      bodySteps: [baseAgent],
+    }]
+  }
+
+  return [baseAgent]
+}
+
+function clampScheduleHour(value: number | undefined) {
+  return Math.max(0, Math.min(23, Math.floor(value ?? 9)))
+}
+
+function clampScheduleMinute(value: number | undefined) {
+  return Math.max(0, Math.min(59, Math.floor(value ?? 0)))
+}
+
+function clampScheduleDay(value: number | undefined) {
+  return Math.max(0, Math.min(6, Math.floor(value ?? 1)))
+}
+
+function resolveWorkflowTrigger(action: CreateWorkflowAction): WorkflowTrigger {
+  if (action.trigger?.type === 'manual') return { type: 'manual' }
+  if (action.trigger?.type === 'schedule') {
+    return {
+      type: 'schedule',
+      frequency: action.trigger.frequency,
+      hour: clampScheduleHour(action.trigger.hour),
+      minute: clampScheduleMinute(action.trigger.minute),
+      dayOfWeek: clampScheduleDay(action.trigger.dayOfWeek),
+    }
+  }
+
+  const actionText = buildWorkflowActionText(action)
+  if (/(매시간|매 시간|hourly|every hour)/i.test(actionText)) {
+    return { type: 'schedule', frequency: 'hourly', hour: 9, minute: 0, dayOfWeek: 1 }
+  }
+  if (/(평일|weekdays|weekday)/i.test(actionText)) {
+    return { type: 'schedule', frequency: 'weekdays', hour: 9, minute: 0, dayOfWeek: 1 }
+  }
+  if (/(매주|weekly|every week)/i.test(actionText)) {
+    return { type: 'schedule', frequency: 'weekly', hour: 9, minute: 0, dayOfWeek: 1 }
+  }
+  if (/(매일|매일마다|daily|every day)/i.test(actionText)) {
+    return { type: 'schedule', frequency: 'daily', hour: 9, minute: 0, dayOfWeek: 1 }
+  }
+  return { type: 'manual' }
+}
+
+function normalizeWorkflowConditionOperator(operator: WorkflowConditionOperator | undefined): WorkflowConditionOperator {
+  return operator ?? 'always_true'
+}
+
+function createWorkflowAgentStep(
+  action: CreateWorkflowAction,
+  source: WorkflowAgentDraftStep,
+  label: string,
+  fallbackPrompt: string,
+  fallbackCwd: string,
+  defaultModel: string | null,
+): Extract<WorkflowStep, { type: 'agent' }> {
+  return {
+    type: 'agent',
+    id: nanoid(),
+    label,
+    prompt: source.prompt.trim() || fallbackPrompt,
+    cwd: normalizeSelectedFolder(source.cwd)
+      ?? normalizeSelectedFolder(action.cwd)
+      ?? fallbackCwd,
+    model: defaultModel,
+    permissionMode: action.permissionMode ?? 'default',
+    systemPrompt: source.systemPrompt?.trim() || action.description?.trim() || '',
+  }
+}
+
+function buildWorkflowStepsFromSource(
+  action: CreateWorkflowAction,
+  sourceSteps: WorkflowDraftStep[],
+  workflowName: string,
+  fallbackPrompt: string,
+  fallbackCwd: string,
+  defaultModel: string | null,
+): WorkflowStep[] {
+  const steps: WorkflowStep[] = []
+  const sourceTopLevelIds: string[] = []
+  const topLevelStepIds: string[] = []
+  const loopBodyIdsByLoopId = new Map<string, string[]>()
+
+  sourceSteps.forEach((source, index) => {
+    if (isConditionDraftStep(source)) {
+      const step: Extract<WorkflowStep, { type: 'condition' }> = {
+        type: 'condition',
+        id: nanoid(),
+        label: source.label?.trim() || `${workflowName} 조건 ${index + 1}`,
+        operator: normalizeWorkflowConditionOperator(source.operator),
+        value: source.value?.trim() || '',
+        trueBranchStepId: null,
+        falseBranchStepId: null,
+      }
+      steps.push(step)
+      sourceTopLevelIds[index] = step.id
+      topLevelStepIds.push(step.id)
+      return
+    }
+
+    if (isLoopDraftStep(source)) {
+      const loopId = nanoid()
+      const bodySourceSteps = source.bodySteps && source.bodySteps.length > 0
+        ? source.bodySteps
+        : [{
+            type: 'agent' as const,
+            label: `${workflowName} 반복 작업`,
+            prompt: fallbackPrompt,
+            cwd: action.cwd,
+            systemPrompt: action.description,
+          }]
+      const bodySteps = bodySourceSteps.map((bodySource, bodyIndex) => createWorkflowAgentStep(
+        action,
+        bodySource,
+        bodySource.label?.trim() || `${workflowName} 반복 ${bodyIndex + 1}`,
+        fallbackPrompt,
+        fallbackCwd,
+        defaultModel,
+      ))
+      bodySteps.forEach((bodyStep, bodyIndex) => {
+        bodyStep.nextStepId = bodySteps[bodyIndex + 1]?.id ?? null
+      })
+      const bodyStepIds = bodySteps.map((bodyStep) => bodyStep.id)
+      const breakCondition = source.breakCondition
+        ? {
+            operator: normalizeWorkflowConditionOperator(source.breakCondition.operator),
+            value: source.breakCondition.value?.trim() || '',
+          }
+        : null
+      const loopStep: Extract<WorkflowStep, { type: 'loop' }> = {
+        type: 'loop',
+        id: loopId,
+        label: source.label?.trim() || `${workflowName} 반복 ${index + 1}`,
+        maxIterations: Math.max(1, Math.min(20, Math.floor(source.maxIterations ?? 3))),
+        bodyStepIds,
+        breakCondition,
+      }
+      steps.push(loopStep, ...bodySteps)
+      loopBodyIdsByLoopId.set(loopId, bodyStepIds)
+      sourceTopLevelIds[index] = loopStep.id
+      topLevelStepIds.push(loopStep.id)
+      return
+    }
+
+    const step = createWorkflowAgentStep(
+      action,
+      source,
+      source.label?.trim() || (sourceSteps.length === 1 ? workflowName : `${workflowName} ${index + 1}`),
+      fallbackPrompt,
+      fallbackCwd,
+      defaultModel,
+    )
+    steps.push(step)
+    sourceTopLevelIds[index] = step.id
+    topLevelStepIds.push(step.id)
+  })
+
+  const topLevelNextById = new Map<string, string | null>()
+  topLevelStepIds.forEach((stepId, index) => {
+    topLevelNextById.set(stepId, topLevelStepIds[index + 1] ?? null)
+  })
+
+  sourceSteps.forEach((source, index) => {
+    const stepId = sourceTopLevelIds[index]
+    const step = steps.find((candidate) => candidate.id === stepId)
+    if (!step) return
+    step.nextStepId = topLevelNextById.get(step.id) ?? null
+
+    if (step.type === 'condition' && isConditionDraftStep(source)) {
+      step.trueBranchStepId = source.trueBranchStepIndex === undefined
+        ? null
+        : sourceTopLevelIds[source.trueBranchStepIndex] ?? null
+      step.falseBranchStepId = source.falseBranchStepIndex === undefined
+        ? null
+        : sourceTopLevelIds[source.falseBranchStepIndex] ?? null
+    }
+
+    if (step.type === 'loop') {
+      const bodyStepIds = loopBodyIdsByLoopId.get(step.id) ?? []
+      bodyStepIds.forEach((bodyStepId, bodyIndex) => {
+        const bodyStep = steps.find((candidate) => candidate.id === bodyStepId)
+        if (bodyStep) bodyStep.nextStepId = bodyStepIds[bodyIndex + 1] ?? null
+      })
+    }
+  })
+
+  return steps
 }
 
 function createSkillSlug(name: string) {
@@ -558,41 +796,75 @@ export function useAppController() {
     setMessageJumpTarget(null)
     const cwd = activeSession?.cwd ?? (defaultProjectPath.trim() || DEFAULT_PROJECT_PATH)
     const prompt = initialPrompt?.trim()
+    const name = prompt
+      ? summarizeSessionTitleFromPrompt(prompt, getProjectNameFromPath(cwd))
+      : getProjectNameFromPath(cwd)
     const sessionId = createSessionRecord({
       cwd,
-      name: prompt
-        ? summarizeSessionTitleFromPrompt(prompt, getProjectNameFromPath(cwd))
-        : getProjectNameFromPath(cwd),
+      name,
     })
     setActiveSession(sessionId)
     if (prompt) {
       await claudeStream.handleSendForSession(sessionId, prompt, [])
     }
+    return {
+      ok: true,
+      message: `새 세션을 만들었어요: ${name}`,
+      payload: { sessionId, name },
+    } satisfies SecretaryActionResult
   }, [activeSession?.cwd, claudeStream, createSessionRecord, defaultProjectPath, panels, setActiveSession])
 
-  const handleSecretaryOpenSession = useCallback((sessionId: string) => {
-    if (!sessions.some((session) => session.id === sessionId)) return
-    panels.closeOverlayPanels()
-    setMessageJumpTarget(null)
-    setPendingSessionDraft(null)
-    setActiveSession(sessionId)
-  }, [panels, sessions, setActiveSession])
+  const handleSecretaryOpenSession = useCallback((sessionId: string, messageId?: string) => {
+    const session = sessions.find((item) => item.id === sessionId)
+    if (!session) {
+      return { ok: false, error: '세션을 찾지 못했어요.' } satisfies SecretaryActionResult
+    }
+    if (messageId) {
+      handleSelectMessageResult(sessionId, messageId)
+    } else {
+      panels.closeOverlayPanels()
+      setMessageJumpTarget(null)
+      setPendingSessionDraft(null)
+      setActiveSession(sessionId)
+    }
+    return {
+      ok: true,
+      message: messageId
+        ? `세션 메시지로 이동했어요: ${session.name}`
+        : `세션을 열었어요: ${session.name}`,
+      payload: { sessionId, messageId, name: session.name },
+    } satisfies SecretaryActionResult
+  }, [handleSelectMessageResult, panels, sessions, setActiveSession])
 
   const handleSecretaryDraftWorkflow = useCallback(async (action: DraftWorkflowAction) => {
-    await handleSecretaryStartChat(buildWorkflowDraftSessionPrompt(action))
+    const result = await handleSecretaryStartChat(buildWorkflowDraftSessionPrompt(action))
+    return {
+      ...result,
+      message: `워크플로우 초안을 새 세션으로 넘겼어요: ${action.name}`,
+    } satisfies SecretaryActionResult
   }, [handleSecretaryStartChat])
 
   const handleSecretaryDraftSkill = useCallback(async (action: DraftSkillAction) => {
-    await handleSecretaryStartChat(buildSkillDraftSessionPrompt(action))
+    const result = await handleSecretaryStartChat(buildSkillDraftSessionPrompt(action))
+    return {
+      ...result,
+      message: `스킬 초안을 새 세션으로 넘겼어요: ${action.name}`,
+    } satisfies SecretaryActionResult
   }, [handleSecretaryStartChat])
 
   const handleSecretaryCreateWorkflow = useCallback(async (action: CreateWorkflowAction) => {
     const fallbackCwd = normalizeSelectedFolder(activeSession?.cwd)
       ?? normalizeSelectedFolder(defaultProjectPath)
       ?? DEFAULT_PROJECT_PATH
-    addWorkflow(createSecretaryWorkflowInput(action, fallbackCwd, defaultWorkflowModel))
+    const workflowInput = createSecretaryWorkflowInput(action, fallbackCwd, defaultWorkflowModel)
+    const workflowId = addWorkflow(workflowInput)
     setMessageJumpTarget(null)
     panels.openWorkflowPanel()
+    return {
+      ok: true,
+      message: `워크플로우 생성 완료: ${workflowInput.name}`,
+      payload: { workflowId, name: workflowInput.name, trigger: workflowInput.trigger },
+    } satisfies SecretaryActionResult
   }, [activeSession?.cwd, addWorkflow, defaultProjectPath, defaultWorkflowModel, panels])
 
   const handleSecretaryCreateSkill = useCallback(async (action: CreateSkillAction) => {
@@ -604,11 +876,35 @@ export function useAppController() {
     })
     if (!result.ok) {
       console.error('Failed to create Citto skill:', result.error)
-      return
+      return {
+        ok: false,
+        error: result.error ?? '스킬을 생성하지 못했어요.',
+      } satisfies SecretaryActionResult
     }
     panels.openSettingsPanel('skill')
     if (result.path) void window.claude.openFile(result.path).catch(() => undefined)
+    return {
+      ok: true,
+      message: `스킬 생성 완료: /${skillName}${result.path ? `\n${result.path}` : ''}`,
+      payload: { name: skillName, path: result.path },
+    } satisfies SecretaryActionResult
   }, [panels])
+
+  const handleSecretarySelectSearchResult = useCallback((result: SecretarySearchResult) => {
+    if (result.sessionId) {
+      const messageId = result.messageId ?? result.id.replace(/^session-message-/, '')
+      if (messageId) {
+        handleSelectMessageResult(result.sessionId, messageId)
+        return
+      }
+      handleSelectSession(result.sessionId)
+      return
+    }
+
+    if (result.route) {
+      handleSecretaryNavigate(result.route)
+    }
+  }, [handleSecretaryNavigate, handleSelectMessageResult, handleSelectSession])
 
   useSecretaryAppBridge({
     activePanel: panels.activePanel,
@@ -698,6 +994,7 @@ export function useAppController() {
     handleQuestionResponse: claudeStream.handleQuestionResponse,
     handleSelectFolder: claudeStream.handleSelectFolder,
     handleSelectMessageResult,
+    handleSecretarySelectSearchResult,
     handleSelectSession,
     handleSend,
     handleSidebarResizeStart,

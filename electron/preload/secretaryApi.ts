@@ -2,12 +2,22 @@ import { ipcRenderer } from 'electron'
 import type {
   SecretaryAPI,
   SecretaryActiveContext,
-  SecretaryAction,
   SecretaryActionResult,
   SecretaryBotState,
   SecretaryFloatingPlacement,
   SecretaryNavigateEvent,
+  SecretaryRendererActionRequest,
 } from './types'
+
+function isRendererActionRequest(value: unknown): value is SecretaryRendererActionRequest {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && typeof (value as { requestId?: unknown }).requestId === 'string'
+    && typeof (value as { action?: unknown }).action === 'object'
+    && (value as { action?: unknown }).action !== null
+  )
+}
 
 export const secretaryAPI: SecretaryAPI = {
   togglePanel: () => ipcRenderer.invoke('secretary:toggle-panel'),
@@ -49,10 +59,15 @@ export const secretaryAPI: SecretaryAPI = {
     return () => ipcRenderer.removeListener('secretary:action-result', listener)
   },
   onRendererAction: (handler) => {
-    const listener = (_: Electron.IpcRendererEvent, action: SecretaryAction) => handler(action)
+    const listener = (_: Electron.IpcRendererEvent, request: unknown) => {
+      if (isRendererActionRequest(request)) {
+        handler(request)
+      }
+    }
     ipcRenderer.on('secretary:renderer-action', listener)
     return () => ipcRenderer.removeListener('secretary:renderer-action', listener)
   },
+  reportRendererActionResult: (requestId, result) => ipcRenderer.invoke('secretary:renderer-action-result', { requestId, result }),
   listConversations: () => ipcRenderer.invoke('secretary:list-conversations'),
   getActiveConversation: () => ipcRenderer.invoke('secretary:get-active-conversation'),
   createConversation: () => ipcRenderer.invoke('secretary:create-conversation'),

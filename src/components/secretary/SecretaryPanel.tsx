@@ -6,6 +6,7 @@ import type {
   SecretaryHistoryEntry,
   SecretaryProcessResult,
   SecretaryRuntimeConfig,
+  SecretarySearchResult,
   SelectedFile,
 } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
@@ -26,6 +27,7 @@ type Props = {
   composerCwd?: string
   sidebarWidth?: number
   onSidebarResizeStart?: MouseEventHandler<HTMLDivElement>
+  onSelectSearchResult?: (result: SecretarySearchResult) => void
 }
 
 const SECRETARY_HISTORY_LIMIT = 80
@@ -90,6 +92,7 @@ export function SecretaryPanel({
   composerCwd,
   sidebarWidth,
   onSidebarResizeStart,
+  onSelectSearchResult,
 }: Props) {
   const { language } = useI18n()
   const [sending, setSending] = useState(false)
@@ -100,6 +103,7 @@ export function SecretaryPanel({
   const [conversationListOpen, setConversationListOpen] = useState(false)
   const [sortMode, setSortMode] = useState<SecretarySortMode>('updated')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default')
   const [planMode, setPlanMode] = useState(false)
   const [composerModel, setComposerModel] = useState<string | null>(runtimeConfig?.defaultModel ?? null)
@@ -140,7 +144,17 @@ export function SecretaryPanel({
     return list
   }
 
-  const loadConversation = async (conversation: SecretaryConversation) => {
+  const focusMessageById = (messageId: string) => {
+    setFocusedMessageId(messageId)
+    window.setTimeout(() => {
+      document.getElementById(`secretary-message-${messageId}`)?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth',
+      })
+    }, 0)
+  }
+
+  const loadConversation = async (conversation: SecretaryConversation, focusMessageId?: string) => {
     setActiveConversation(conversation)
     const [history] = await Promise.all([
       window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT),
@@ -150,6 +164,11 @@ export function SecretaryPanel({
     setMessages(chronologicalHistory.length > 0
       ? chronologicalHistory.map(buildHistoryMessage)
       : [buildGreetingMessage()])
+    if (focusMessageId) {
+      focusMessageById(focusMessageId)
+    } else {
+      setFocusedMessageId(null)
+    }
   }
 
   useEffect(() => {
@@ -171,6 +190,7 @@ export function SecretaryPanel({
         setMessages(chronologicalHistory.length > 0
           ? chronologicalHistory.map(buildHistoryMessage)
           : [buildGreetingMessage()])
+        setFocusedMessageId(null)
       })
       .catch(() => {
         if (!cancelled) {
@@ -254,6 +274,7 @@ export function SecretaryPanel({
       : formatAttachedFilesSummary(files.length, language)
 
     submittedDuringHistoryLoadRef.current = true
+    setFocusedMessageId(null)
     setSending(true)
     setBotState('working')
     setMessages((current) => [
@@ -372,6 +393,18 @@ export function SecretaryPanel({
     }
   }
 
+  const handleSelectSearchResult = async (result: SecretarySearchResult) => {
+    if (result.route === 'secretary' && result.conversationId) {
+      const switched = await window.secretary.switchConversation(result.conversationId)
+      if (switched.ok && switched.conversation) {
+        await loadConversation(switched.conversation, result.messageId ?? result.id)
+      }
+      return
+    }
+
+    onSelectSearchResult?.(result)
+  }
+
   if (!open) return null
 
   const conversationList = (
@@ -394,6 +427,8 @@ export function SecretaryPanel({
             message={message}
             onConfirmAction={handleConfirmAction}
             onDenyAction={(messageId) => updateMessage(messageId, { actionState: 'denied' })}
+            onSelectSearchResult={(result) => void handleSelectSearchResult(result)}
+            highlighted={focusedMessageId === message.id}
             showAssistantProfile={isScreen}
           />
         ))}

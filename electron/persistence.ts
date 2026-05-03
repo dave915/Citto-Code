@@ -81,6 +81,8 @@ function normalizeSecretarySearchResults(value: unknown): SecretarySearchResult[
         excerpt: typeof record.excerpt === 'string' && record.excerpt.trim() ? record.excerpt.trim() : undefined,
         route: isCittoRoute(record.route) ? record.route : undefined,
         sessionId: typeof record.sessionId === 'string' && record.sessionId.trim() ? record.sessionId.trim() : undefined,
+        messageId: typeof record.messageId === 'string' && record.messageId.trim() ? record.messageId.trim() : undefined,
+        conversationId: typeof record.conversationId === 'string' && record.conversationId.trim() ? record.conversationId.trim() : undefined,
         updatedAt: typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt) ? record.updatedAt : undefined,
       }
     })
@@ -821,6 +823,8 @@ export class AppPersistence {
             type: '비서 대화',
             excerpt: buildConversationSearchExcerpt(row.content, terms),
             route: 'secretary' as const,
+            messageId: `secretary-history-${row.id}`,
+            conversationId: row.conversation_id,
             updatedAt: Number(row.created_at),
           },
         }
@@ -838,6 +842,7 @@ export class AppPersistence {
             excerpt: buildConversationSearchExcerpt(row.text, terms),
             route: 'chat' as const,
             sessionId: row.session_id,
+            messageId: row.id,
             updatedAt: Number(row.created_at ?? row.updated_at ?? 0),
           },
         }

@@ -13,6 +13,7 @@ import type {
   SecretaryFloatingPlacement,
   SecretaryHistoryEntry,
   SecretaryProcessResult,
+  SecretarySearchResult,
 } from '../../electron/preload'
 import { SecretaryCharacter } from '../components/secretary/SecretaryCharacter'
 import { SecretaryMessage, type SecretaryUiMessage } from '../components/secretary/SecretaryMessage'
@@ -49,7 +50,7 @@ function buildGreetingMessage(): SecretaryUiMessage {
 
 function buildHistoryMessage(entry: SecretaryHistoryEntry): SecretaryUiMessage {
   return {
-    id: `secretary-floating-history-${entry.id}`,
+    id: `secretary-history-${entry.id}`,
     role: entry.role,
     content: entry.content,
     action: entry.action,
@@ -90,6 +91,7 @@ export function SecretaryFloating() {
   const [appModel, setAppModel] = useState<string | null>(null)
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const [placement, setPlacement] = useState<SecretaryFloatingPlacement>({ horizontal: 'left', vertical: 'top' })
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const requestSeqRef = useRef(0)
@@ -168,17 +170,36 @@ export function SecretaryFloating() {
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [expanded])
 
+  const focusMessageById = (messageId: string) => {
+    setFocusedMessageId(messageId)
+    window.setTimeout(() => {
+      document.getElementById(`secretary-message-${messageId}`)?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth',
+      })
+    }, 0)
+  }
+
+  const loadConversation = async (conversation: SecretaryConversation, focusMessageId?: string) => {
+    setActiveConversation(conversation)
+    const history = await window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT)
+    const chronologicalHistory = [...history].reverse()
+    setMessages(chronologicalHistory.length > 0
+      ? chronologicalHistory.map(buildHistoryMessage)
+      : [buildGreetingMessage()])
+    if (focusMessageId) {
+      focusMessageById(focusMessageId)
+    } else {
+      setFocusedMessageId(null)
+    }
+    const context = await window.secretary.getActiveContext()
+    setAppModel(context.currentModel ?? null)
+  }
+
   const loadActiveConversation = async () => {
     try {
       const conversation = await window.secretary.getActiveConversation()
-      setActiveConversation(conversation)
-      const history = await window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT)
-      const chronologicalHistory = [...history].reverse()
-      setMessages(chronologicalHistory.length > 0
-        ? chronologicalHistory.map(buildHistoryMessage)
-        : [buildGreetingMessage()])
-      const context = await window.secretary.getActiveContext()
-      setAppModel(context.currentModel ?? null)
+      await loadConversation(conversation)
     } catch {
       setMessages((current) => current.length > 0 ? current : [buildGreetingMessage()])
     }
@@ -290,6 +311,7 @@ export function SecretaryFloating() {
   const handleCreateConversation = async () => {
     const conversation = await window.secretary.createConversation()
     setActiveConversation(conversation)
+    setFocusedMessageId(null)
     setMessages([buildGreetingMessage()])
   }
 
@@ -301,6 +323,7 @@ export function SecretaryFloating() {
     requestSeqRef.current = requestId
     setDraft('')
     setSending(true)
+    setFocusedMessageId(null)
     setBotState('working')
     setMessages((current) => [...current, { id: createMessageId(), role: 'user', content: input }])
 
@@ -355,6 +378,72 @@ export function SecretaryFloating() {
           id: createMessageId(),
           role: 'secretary',
           content: error instanceof Error ? error.message : '실행하지 못했어요.',
+        },
+      ])
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleSelectSearchResult = async (result: SecretarySearchResult) => {
+    if (sending) return
+
+    if (result.route === 'secretary' && result.conversationId) {
+      const switched = await window.secretary.switchConversation(result.conversationId)
+      if (switched.ok && switched.conversation) {
+        await loadConversation(switched.conversation, result.messageId ?? result.id)
+        return
+      }
+      setBotState('error')
+      setMessages((current) => [
+        ...current,
+        {
+          id: createMessageId(),
+          role: 'secretary',
+          content: switched.error ?? '대화 위치로 이동하지 못했어요.',
+        },
+      ])
+      return
+    }
+
+    const sessionMessageId = result.sessionId
+      ? result.messageId ?? result.id.replace(/^session-message-/, '')
+      : null
+    const action: SecretaryAction | null = result.sessionId
+      ? {
+          type: 'openSession',
+          sessionId: result.sessionId,
+          messageId: sessionMessageId || undefined,
+        }
+      : result.route
+      ? { type: 'navigate', route: result.route }
+      : null
+
+    if (!action) return
+
+    setSending(true)
+    setBotState('working')
+    try {
+      const actionResult = await window.secretary.executeAction(action)
+      setBotState(actionResult.ok ? 'done' : 'error')
+      setMessages((current) => [
+        ...current,
+        {
+          id: createMessageId(),
+          role: 'secretary',
+          content: actionResult.ok
+            ? actionResult.message ?? '검색 결과 위치로 이동했어요.'
+            : actionResult.error ?? actionResult.message ?? '검색 결과 위치로 이동하지 못했어요.',
+        },
+      ])
+    } catch (error) {
+      setBotState('error')
+      setMessages((current) => [
+        ...current,
+        {
+          id: createMessageId(),
+          role: 'secretary',
+          content: error instanceof Error ? error.message : '검색 결과 위치로 이동하지 못했어요.',
         },
       ])
     } finally {
@@ -429,6 +518,8 @@ export function SecretaryFloating() {
               message={message}
               onConfirmAction={handleConfirmAction}
               onDenyAction={(messageId) => updateMessage(messageId, { actionState: 'denied' })}
+              onSelectSearchResult={(result) => void handleSelectSearchResult(result)}
+              highlighted={focusedMessageId === message.id}
             />
           ))}
           {sending && <SecretaryThinkingIndicator variant="dots" />}

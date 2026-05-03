@@ -3,7 +3,9 @@ import type {
   CittoRoute,
   SecretaryAction,
   SecretaryActiveContext,
+  SecretaryActionResult,
   SecretaryRecentSession,
+  SecretaryRendererActionRequest,
 } from '../../../electron/preload'
 import type { AppOverlayPanel } from '../../hooks/useAppPanels'
 import type { Session } from '../../store/sessions'
@@ -26,12 +28,12 @@ type Params = {
   sidebarCollapsed: boolean
   settingsTab: string | null
   onNavigate: (route: CittoRoute) => void
-  onStartChat: (initialPrompt?: string) => Promise<void>
-  onOpenSession: (sessionId: string) => void
-  onDraftWorkflow: (action: DraftWorkflowAction) => Promise<void>
-  onCreateWorkflow: (action: CreateWorkflowAction) => Promise<void>
-  onDraftSkill: (action: DraftSkillAction) => Promise<void>
-  onCreateSkill: (action: CreateSkillAction) => Promise<void>
+  onStartChat: (initialPrompt?: string) => Promise<SecretaryActionResult>
+  onOpenSession: (sessionId: string, messageId?: string) => SecretaryActionResult
+  onDraftWorkflow: (action: DraftWorkflowAction) => Promise<SecretaryActionResult>
+  onCreateWorkflow: (action: CreateWorkflowAction) => Promise<SecretaryActionResult>
+  onDraftSkill: (action: DraftSkillAction) => Promise<SecretaryActionResult>
+  onCreateSkill: (action: CreateSkillAction) => Promise<SecretaryActionResult>
 }
 
 function resolveActiveRoute(activePanel: AppOverlayPanel, session: Session | null): CittoRoute {
@@ -98,29 +100,46 @@ export function useSecretaryAppBridge({
   }, [handleNavigate])
 
   useEffect(() => {
-    const handleAction = (action: SecretaryAction) => {
+    const reportActionResult = async (
+      request: SecretaryRendererActionRequest,
+      run: () => SecretaryActionResult | Promise<SecretaryActionResult>,
+    ) => {
+      const result = await Promise.resolve()
+        .then(run)
+        .catch((error): SecretaryActionResult => ({
+          ok: false,
+          error: error instanceof Error && error.message.trim()
+            ? error.message
+            : '작업을 처리하지 못했어요.',
+        }))
+
+      await window.secretary.reportRendererActionResult(request.requestId, result).catch(() => undefined)
+    }
+
+    const handleAction = (request: SecretaryRendererActionRequest) => {
+      const action = request.action
       if (action.type === 'startChat') {
-        void onStartChat(action.initialPrompt)
+        void reportActionResult(request, () => onStartChat(action.initialPrompt))
         return
       }
       if (action.type === 'openSession') {
-        onOpenSession(action.sessionId)
+        void reportActionResult(request, () => onOpenSession(action.sessionId, action.messageId))
         return
       }
       if (action.type === 'draftWorkflow') {
-        void onDraftWorkflow(action)
+        void reportActionResult(request, () => onDraftWorkflow(action))
         return
       }
       if (action.type === 'createWorkflow') {
-        void onCreateWorkflow(action)
+        void reportActionResult(request, () => onCreateWorkflow(action))
         return
       }
       if (action.type === 'draftSkill') {
-        void onDraftSkill(action)
+        void reportActionResult(request, () => onDraftSkill(action))
         return
       }
       if (action.type === 'createSkill') {
-        void onCreateSkill(action)
+        void reportActionResult(request, () => onCreateSkill(action))
       }
     }
 

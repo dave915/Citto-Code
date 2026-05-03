@@ -675,6 +675,12 @@
   min-width: 0;
 }
 
+.secretary-chat-row-highlighted .secretary-message-card {
+  border-radius: 8px;
+  outline: 2px solid rgb(var(--claude-orange) / 0.55);
+  outline-offset: 4px;
+}
+
 .secretary-message-profile {
   width: 28px;
   height: 28px;
@@ -1013,10 +1019,26 @@
 }
 
 .secretary-search-result-card {
+  width: 100%;
   border: 1px solid rgb(var(--claude-border));
   border-radius: 8px;
   background: rgb(var(--claude-surface));
   padding: 8px 9px;
+  text-align: left;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.secretary-search-result-card:not(:disabled) {
+  cursor: pointer;
+}
+
+.secretary-search-result-card:not(:disabled):hover {
+  border-color: rgb(var(--claude-orange) / 0.45);
+  background: rgb(var(--claude-surface-2));
+}
+
+.secretary-search-result-card:disabled {
+  cursor: default;
 }
 
 .secretary-search-result-card span {

@@ -32,6 +32,8 @@ function normalizeSearchResults(value: unknown): SecretarySearchResult[] {
         excerpt: typeof entry.excerpt === 'string' && entry.excerpt.trim() ? entry.excerpt.trim() : undefined,
         route: isCittoRoute(entry.route) ? entry.route : undefined,
         sessionId: typeof entry.sessionId === 'string' && entry.sessionId.trim() ? entry.sessionId.trim() : undefined,
+        messageId: typeof entry.messageId === 'string' && entry.messageId.trim() ? entry.messageId.trim() : undefined,
+        conversationId: typeof entry.conversationId === 'string' && entry.conversationId.trim() ? entry.conversationId.trim() : undefined,
         updatedAt: typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt) ? entry.updatedAt : undefined,
       }
     })

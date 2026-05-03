@@ -1,24 +1,67 @@
 import { CITTO_ROUTES, isCittoRoute, type CittoRoute } from './routes'
-import type { PermissionMode } from '../persistence-types'
+import type {
+  PermissionMode,
+  WorkflowConditionOperator,
+  WorkflowTriggerFrequency,
+} from '../persistence-types'
 
-export type SecretaryWorkflowDraftStep = {
+export type SecretaryWorkflowDraftTrigger =
+  | { type: 'manual' }
+  | {
+      type: 'schedule'
+      frequency: WorkflowTriggerFrequency
+      hour?: number
+      minute?: number
+      dayOfWeek?: number
+    }
+
+export type SecretaryWorkflowBreakConditionDraft = {
+  operator?: WorkflowConditionOperator
+  value?: string
+}
+
+export type SecretaryWorkflowAgentDraftStep = {
+  type?: 'agent'
   label?: string
   prompt: string
   cwd?: string
   systemPrompt?: string
 }
 
+export type SecretaryWorkflowConditionDraftStep = {
+  type: 'condition'
+  label?: string
+  operator?: WorkflowConditionOperator
+  value?: string
+  trueBranchStepIndex?: number
+  falseBranchStepIndex?: number
+}
+
+export type SecretaryWorkflowLoopDraftStep = {
+  type: 'loop'
+  label?: string
+  maxIterations?: number
+  bodySteps?: SecretaryWorkflowAgentDraftStep[]
+  breakCondition?: SecretaryWorkflowBreakConditionDraft | null
+}
+
+export type SecretaryWorkflowDraftStep =
+  | SecretaryWorkflowAgentDraftStep
+  | SecretaryWorkflowConditionDraftStep
+  | SecretaryWorkflowLoopDraftStep
+
 export type SecretaryAction =
   | { type: 'navigate'; route: CittoRoute }
   | { type: 'startChat'; initialPrompt?: string }
   | { type: 'openRoundTable'; presetId?: string }
-  | { type: 'openSession'; sessionId: string }
+  | { type: 'openSession'; sessionId: string; messageId?: string }
   | { type: 'runWorkflow'; workflowId: string; params?: Record<string, unknown> }
   | {
       type: 'draftWorkflow'
       name: string
       summary?: string
       steps?: SecretaryWorkflowDraftStep[]
+      trigger?: SecretaryWorkflowDraftTrigger
       initialPrompt?: string
     }
   | {
@@ -28,6 +71,7 @@ export type SecretaryAction =
       cwd?: string
       prompt?: string
       steps?: SecretaryWorkflowDraftStep[]
+      trigger?: SecretaryWorkflowDraftTrigger
       permissionMode?: PermissionMode
     }
   | {
@@ -73,8 +117,8 @@ const ACTION_CAPABILITIES: ActionCapability[] = [
   },
   {
     type: 'openSession',
-    description: '기존 세션 열기. sessionId 필수.',
-    schema: '{ "type": "openSession", "sessionId": "..." }',
+    description: '기존 세션 열기. sessionId 필수, 검색 결과 메시지로 이동할 때는 messageId 선택.',
+    schema: '{ "type": "openSession", "sessionId": "...", "messageId": "..." }',
   },
   {
     type: 'runWorkflow',
@@ -83,13 +127,13 @@ const ACTION_CAPABILITIES: ActionCapability[] = [
   },
   {
     type: 'draftWorkflow',
-    description: '1차: 워크플로우 초안을 새 프로젝트 세션으로 넘겨 구체화. name 필수, initialPrompt 또는 steps 권장.',
-    schema: '{ "type": "draftWorkflow", "name": "daily-review", "summary": "...", "steps": [{ "label": "검토", "prompt": "..." }] }',
+    description: '1차: 워크플로우 초안을 새 프로젝트 세션으로 넘겨 구체화. 반복/조건/예약이 보이면 loop/condition/schedule도 담음.',
+    schema: '{ "type": "draftWorkflow", "name": "daily-review", "summary": "...", "trigger": { "type": "schedule", "frequency": "daily", "hour": 9, "minute": 0 }, "steps": [{ "type": "agent", "label": "검토", "prompt": "..." }] }',
   },
   {
     type: 'createWorkflow',
-    description: '2차: 워크플로우를 앱에 저장. name 필수, prompt 또는 steps 필수. cwd는 선택.',
-    schema: '{ "type": "createWorkflow", "name": "daily-review", "description": "...", "steps": [{ "label": "검토", "prompt": "..." }] }',
+    description: '2차: 워크플로우를 앱에 저장. 매일/매주/매시간은 trigger, 반복은 loop, 조건부 분기는 condition step으로 표현.',
+    schema: '{ "type": "createWorkflow", "name": "daily-review", "description": "...", "trigger": { "type": "schedule", "frequency": "daily", "hour": 9, "minute": 0 }, "steps": [{ "type": "agent", "label": "검토", "prompt": "..." }, { "type": "condition", "label": "실패 확인", "operator": "contains", "value": "fail" }] }',
   },
   {
     type: 'draftSkill',
@@ -141,21 +185,109 @@ function normalizePermissionMode(value: unknown): PermissionMode | undefined {
     : undefined
 }
 
+function normalizeConditionOperator(value: unknown): WorkflowConditionOperator | undefined {
+  return (
+    value === 'contains'
+    || value === 'not_contains'
+    || value === 'equals'
+    || value === 'not_equals'
+    || value === 'always_true'
+  )
+    ? value
+    : undefined
+}
+
+function normalizeWorkflowTriggerFrequency(value: unknown): WorkflowTriggerFrequency | undefined {
+  return value === 'hourly' || value === 'daily' || value === 'weekdays' || value === 'weekly'
+    ? value
+    : undefined
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function optionalNonNegativeInteger(value: unknown): number | undefined {
+  const numberValue = optionalFiniteNumber(value)
+  return numberValue === undefined ? undefined : Math.max(0, Math.floor(numberValue))
+}
+
+function normalizeWorkflowDraftTrigger(value: unknown): SecretaryWorkflowDraftTrigger | undefined {
+  if (!isRecord(value)) return undefined
+  if (value.type === 'manual') return { type: 'manual' }
+  if (value.type !== 'schedule') return undefined
+
+  const frequency = normalizeWorkflowTriggerFrequency(value.frequency)
+  if (!frequency) return undefined
+
+  return {
+    type: 'schedule',
+    frequency,
+    hour: optionalNonNegativeInteger(value.hour),
+    minute: optionalNonNegativeInteger(value.minute),
+    dayOfWeek: optionalNonNegativeInteger(value.dayOfWeek),
+  }
+}
+
+function normalizeWorkflowAgentDraftStep(entry: Record<string, unknown>): SecretaryWorkflowAgentDraftStep | null {
+  const prompt = optionalText(entry.prompt)
+  if (!prompt) return null
+
+  return {
+    type: 'agent',
+    prompt,
+    label: optionalText(entry.label),
+    cwd: optionalText(entry.cwd),
+    systemPrompt: optionalText(entry.systemPrompt),
+  }
+}
+
+function normalizeWorkflowConditionDraftStep(entry: Record<string, unknown>): SecretaryWorkflowConditionDraftStep | null {
+  if (entry.type !== 'condition') return null
+
+  return {
+    type: 'condition',
+    label: optionalText(entry.label),
+    operator: normalizeConditionOperator(entry.operator),
+    value: optionalText(entry.value),
+    trueBranchStepIndex: optionalNonNegativeInteger(entry.trueBranchStepIndex),
+    falseBranchStepIndex: optionalNonNegativeInteger(entry.falseBranchStepIndex),
+  }
+}
+
+function normalizeWorkflowLoopDraftStep(entry: Record<string, unknown>): SecretaryWorkflowLoopDraftStep | null {
+  if (entry.type !== 'loop') return null
+  const bodySteps = normalizeWorkflowDraftSteps(entry.bodySteps)
+    .filter((step): step is SecretaryWorkflowAgentDraftStep => step.type === 'agent' || step.type === undefined)
+    .slice(0, 8)
+  const breakConditionOperator = isRecord(entry.breakCondition)
+    ? normalizeConditionOperator(entry.breakCondition.operator)
+    : undefined
+  const breakConditionValue = isRecord(entry.breakCondition)
+    ? optionalText(entry.breakCondition.value)
+    : undefined
+  const breakCondition = breakConditionOperator || breakConditionValue
+    ? { operator: breakConditionOperator, value: breakConditionValue }
+    : null
+
+  return {
+    type: 'loop',
+    label: optionalText(entry.label),
+    maxIterations: optionalNonNegativeInteger(entry.maxIterations),
+    bodySteps: bodySteps.length > 0 ? bodySteps : undefined,
+    breakCondition,
+  }
+}
+
 function normalizeWorkflowDraftSteps(value: unknown): SecretaryWorkflowDraftStep[] {
   if (!Array.isArray(value)) return []
 
   return value
     .map((entry): SecretaryWorkflowDraftStep | null => {
       if (!isRecord(entry)) return null
-      const prompt = optionalText(entry.prompt)
-      if (!prompt) return null
-
-      return {
-        prompt,
-        label: optionalText(entry.label),
-        cwd: optionalText(entry.cwd),
-        systemPrompt: optionalText(entry.systemPrompt),
-      }
+      if (entry.type === 'condition') return normalizeWorkflowConditionDraftStep(entry)
+      if (entry.type === 'loop') return normalizeWorkflowLoopDraftStep(entry)
+      return normalizeWorkflowAgentDraftStep(entry)
     })
     .filter((entry): entry is SecretaryWorkflowDraftStep => Boolean(entry))
     .slice(0, 12)
@@ -184,7 +316,9 @@ export function normalizeSecretaryAction(value: unknown): SecretaryAction | null
 
   if (type === 'openSession') {
     const sessionId = optionalText(value.sessionId)
-    return sessionId ? { type: 'openSession', sessionId } : null
+    return sessionId
+      ? { type: 'openSession', sessionId, messageId: optionalText(value.messageId) }
+      : null
   }
 
   if (type === 'runWorkflow') {
@@ -203,6 +337,7 @@ export function normalizeSecretaryAction(value: unknown): SecretaryAction | null
       name,
       summary: optionalText(value.summary),
       steps: steps.length > 0 ? steps : undefined,
+      trigger: normalizeWorkflowDraftTrigger(value.trigger),
       initialPrompt: optionalText(value.initialPrompt),
     }
   }
@@ -220,6 +355,7 @@ export function normalizeSecretaryAction(value: unknown): SecretaryAction | null
       cwd: optionalText(value.cwd),
       prompt,
       steps: steps.length > 0 ? steps : undefined,
+      trigger: normalizeWorkflowDraftTrigger(value.trigger),
       permissionMode: normalizePermissionMode(value.permissionMode),
     }
   }

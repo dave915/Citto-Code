@@ -39,6 +39,7 @@ export default function App() {
           composerCwd={controller.activeSession?.cwd ?? controller.defaultProjectPath}
           sidebarWidth={controller.sidebarWidth}
           onSidebarResizeStart={controller.handleSidebarResizeStart}
+          onSelectSearchResult={controller.handleSecretarySelectSearchResult}
           onClose={controller.closeSecretaryPanel}
         />
 

@@ -9,6 +9,7 @@ type ActionHandlerOptions = {
   showMainWindow: () => BrowserWindow
   sendWhenRendererReady: (window: BrowserWindow, channel: string, payload?: unknown) => void
   runWorkflowNow: (workflowId: string) => Promise<{ ok: boolean; error?: string }>
+  runRendererAction: (action: SecretaryAction) => Promise<SecretaryActionResult>
 }
 
 export function createSecretaryActionHandlers({
@@ -17,21 +18,8 @@ export function createSecretaryActionHandlers({
   showMainWindow,
   sendWhenRendererReady,
   runWorkflowNow,
+  runRendererAction,
 }: ActionHandlerOptions) {
-  const getRendererActionMessage = (action: SecretaryAction) => {
-    if (action.type === 'draftWorkflow') return '워크플로우 초안을 새 세션으로 넘겼어요.'
-    if (action.type === 'createWorkflow') return '워크플로우 생성 요청을 Citto에 전달했어요.'
-    if (action.type === 'draftSkill') return '스킬 초안을 새 세션으로 넘겼어요.'
-    if (action.type === 'createSkill') return '스킬 생성 요청을 Citto에 전달했어요.'
-    return '요청한 작업을 Citto에서 열었어요.'
-  }
-
-  const emitRendererAction = (action: SecretaryAction): SecretaryActionResult => {
-    const window = showMainWindow()
-    sendWhenRendererReady(window, 'secretary:renderer-action', action)
-    return { ok: true, message: getRendererActionMessage(action) }
-  }
-
   const navigate = (route: keyof typeof CITTO_ROUTES): SecretaryActionResult => {
     const window = showMainWindow()
     sendWhenRendererReady(window, 'citto:navigate', {
@@ -62,7 +50,7 @@ export function createSecretaryActionHandlers({
       || action.type === 'draftSkill'
       || action.type === 'createSkill'
     ) {
-      return emitRendererAction(action)
+      return await runRendererAction(action)
     }
 
     if (action.type === 'runWorkflow') {
@@ -74,7 +62,7 @@ export function createSecretaryActionHandlers({
 
     if (action.type === 'runClaudeCode') {
       if (action.mode === 'interactive') {
-        return emitRendererAction({
+        return await runRendererAction({
           type: 'startChat',
           initialPrompt: action.prompt,
         })

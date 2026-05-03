@@ -15,6 +15,8 @@ type Props = {
   message: SecretaryUiMessage
   onConfirmAction: (messageId: string, action: SecretaryAction) => void
   onDenyAction: (messageId: string) => void
+  onSelectSearchResult?: (result: SecretarySearchResult) => void
+  highlighted?: boolean
   showAssistantProfile?: boolean
 }
 
@@ -50,7 +52,11 @@ function getActionPreview(action: SecretaryAction) {
   if (action.type === 'runClaudeCode') return action.prompt
   if (action.type === 'startChat') return action.initialPrompt
   if (action.type === 'runWorkflow') return `workflowId: ${action.workflowId}`
-  if (action.type === 'openSession') return `sessionId: ${action.sessionId}`
+  if (action.type === 'openSession') {
+    return action.messageId
+      ? `sessionId: ${action.sessionId}\nmessageId: ${action.messageId}`
+      : `sessionId: ${action.sessionId}`
+  }
   if (action.type === 'draftWorkflow') return action.initialPrompt ?? action.summary ?? action.name
   if (action.type === 'createWorkflow') return action.prompt ?? action.description ?? action.name
   if (action.type === 'draftSkill') return action.initialPrompt ?? action.description ?? action.name
@@ -62,6 +68,8 @@ export function SecretaryMessage({
   message,
   onConfirmAction,
   onDenyAction,
+  onSelectSearchResult,
+  highlighted = false,
   showAssistantProfile = false,
 }: Props) {
   const isUser = message.role === 'user'
@@ -70,7 +78,10 @@ export function SecretaryMessage({
   const actionPreview = message.action ? getActionPreview(message.action) : null
 
   return (
-    <div className={`secretary-chat-row ${isUser ? 'secretary-chat-row-user' : 'secretary-chat-row-assistant'}${showProfile ? ' secretary-chat-row-with-profile' : ''}`}>
+    <div
+      id={`secretary-message-${message.id}`}
+      className={`secretary-chat-row ${isUser ? 'secretary-chat-row-user' : 'secretary-chat-row-assistant'}${showProfile ? ' secretary-chat-row-with-profile' : ''}${highlighted ? ' secretary-chat-row-highlighted' : ''}`}
+    >
       {showProfile && (
         <img
           className="secretary-message-profile"
@@ -119,13 +130,19 @@ export function SecretaryMessage({
         {message.searchResults && message.searchResults.length > 0 && (
           <div className="secretary-search-results" aria-label="검색 결과">
             {message.searchResults.map((result) => (
-              <div key={`${result.type}-${result.id}`} className="secretary-search-result-card">
+              <button
+                key={`${result.type}-${result.id}`}
+                type="button"
+                className="secretary-search-result-card"
+                onClick={() => onSelectSearchResult?.(result)}
+                disabled={!onSelectSearchResult}
+              >
                 <div>
                   <span>{result.type}</span>
                   <p>{result.label}</p>
                   {result.excerpt && <small>{result.excerpt}</small>}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

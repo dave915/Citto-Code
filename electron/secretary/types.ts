@@ -80,7 +80,14 @@ export type SecretarySearchResult = {
   excerpt?: string
   route?: CittoRoute
   sessionId?: string
+  messageId?: string
+  conversationId?: string
   updatedAt?: number
+}
+
+export type SecretaryRendererActionRequest = {
+  requestId: string
+  action: SecretaryAction
 }
 
 export type SecretaryActiveContext = {

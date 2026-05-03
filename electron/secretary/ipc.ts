@@ -24,6 +24,7 @@ type RegisterSecretaryIpcHandlersOptions = {
 
 const SECRETARY_PENDING_ACTION_TTL_MS = 10 * 60 * 1000
 const SECRETARY_PROCESS_IPC_TIMEOUT_MS = 70_000
+const SECRETARY_RENDERER_ACTION_TIMEOUT_MS = 20_000
 
 function createActionKey(action: SecretaryAction): string {
   return JSON.stringify(action)
@@ -44,6 +45,25 @@ function withProcessTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeActionResult(value: unknown): SecretaryActionResult {
+  if (!isRecord(value)) return { ok: false, error: '렌더러 작업 결과를 읽지 못했어요.' }
+
+  const ok = Boolean(value.ok)
+  const message = typeof value.message === 'string' && value.message.trim()
+    ? value.message.trim()
+    : undefined
+  const error = typeof value.error === 'string' && value.error.trim()
+    ? value.error.trim()
+    : undefined
+
+  return {
+    ok,
+    message,
+    payload: value.payload,
+    error,
+  }
 }
 
 function normalizeRuntimePayload(value: unknown): SecretaryRuntimeConfig | null {
@@ -135,6 +155,11 @@ export function registerSecretaryIpcHandlers({
 }: RegisterSecretaryIpcHandlersOptions) {
   let activeConversationId: string | null = null
   const pendingActions = new Map<string, number>()
+  const pendingRendererActions = new Map<string, {
+    resolve: (result: SecretaryActionResult) => void
+    timer: NodeJS.Timeout
+  }>()
+  let rendererActionSeq = 0
 
   const prunePendingActions = () => {
     const now = Date.now()
@@ -170,12 +195,30 @@ export function registerSecretaryIpcHandlers({
     ))
   }
 
+  const createRendererActionRequestId = () => {
+    rendererActionSeq += 1
+    return `secretary-renderer-action-${Date.now()}-${rendererActionSeq}`
+  }
+
+  const runRendererAction = (action: SecretaryAction) => new Promise<SecretaryActionResult>((resolve) => {
+    const window = showMainWindow()
+    const requestId = createRendererActionRequestId()
+    const timer = setTimeout(() => {
+      pendingRendererActions.delete(requestId)
+      resolve({ ok: false, error: '앱에서 작업 결과를 확인하지 못했어요. 다시 시도해 주세요.' })
+    }, SECRETARY_RENDERER_ACTION_TIMEOUT_MS)
+
+    pendingRendererActions.set(requestId, { resolve, timer })
+    sendWhenRendererReady(window, 'secretary:renderer-action', { requestId, action })
+  })
+
   const executeSecretaryAction = createSecretaryActionHandlers({
     service,
     getActiveConversationId: () => activeConversationId,
     showMainWindow,
     sendWhenRendererReady,
     runWorkflowNow,
+    runRendererAction,
   })
 
   ipcMain.handle('secretary:toggle-panel', () => {
@@ -281,6 +324,18 @@ export function registerSecretaryIpcHandlers({
       sendWhenRendererReady(window, 'secretary:action-result', result)
       return result
     }
+  })
+
+  ipcMain.handle('secretary:renderer-action-result', (_event, payload: unknown) => {
+    if (!isRecord(payload)) return { ok: false, error: '렌더러 작업 결과가 올바르지 않아요.' }
+    const requestId = typeof payload.requestId === 'string' ? payload.requestId : ''
+    const pending = pendingRendererActions.get(requestId)
+    if (!pending) return { ok: false, error: '대기 중인 렌더러 작업을 찾지 못했어요.' }
+
+    pendingRendererActions.delete(requestId)
+    clearTimeout(pending.timer)
+    pending.resolve(normalizeActionResult(payload.result))
+    return { ok: true }
   })
 
   ipcMain.handle('secretary:list-conversations', () => memory.listConversations())

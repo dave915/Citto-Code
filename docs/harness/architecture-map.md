@@ -70,6 +70,7 @@
 6. `src/App.tsx`가 사이드바 entry에서 앱 내 전체 비서 화면을 렌더링하고, `src/components/secretary/SecretaryPanel.tsx`와 `ConversationList.tsx`가 채팅 목록, 새 채팅/전환/보관 UI를 렌더링한다.
 7. `src/secretary-panel/SecretaryFloating.tsx`는 별도 renderer entry인 `secretary-panel.html`에서 축소/확장 플로팅 대화창을 렌더링하고, 같은 `window.secretary` IPC와 공통 `SecretaryMessage`/`SecretaryMarkdown` 표현 규칙을 사용한다.
 8. `src/components/secretary/useSecretaryAppBridge.ts`가 메인 창의 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
+9. 렌더러에서 실제로 완료되는 비서 액션은 `secretary:renderer-action` request와 `secretary:renderer-action-result` response로 완료/실패 메시지를 메인 IPC에 되돌린다. 검색 결과 이동은 `sessionId`와 선택 `messageId`를 같은 액션 경로로 전달한다.
 
 ### Scheduled Tasks
 

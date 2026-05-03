@@ -14,6 +14,7 @@ import type {
   SecretaryHistoryEntry,
   SecretaryProcessResult,
   SecretaryProfile,
+  SecretaryRendererActionRequest,
   SecretarySearchResult,
   SecretaryRuntimeConfig,
 } from '../secretary/types'
@@ -32,6 +33,7 @@ export type {
   SecretaryProcessResult,
   SecretaryProfile,
   SecretaryRecentSession,
+  SecretaryRendererActionRequest,
   SecretaryRuntimeConfig,
   SecretarySearchResult,
   SecretaryWorkflowRef,
@@ -384,7 +386,8 @@ export type SecretaryAPI = {
   executeAction: (action: SecretaryAction) => Promise<SecretaryActionResult>
   onNavigate: (handler: (event: SecretaryNavigateEvent) => void) => () => void
   onActionResult: (handler: (result: SecretaryActionResult) => void) => () => void
-  onRendererAction: (handler: (action: SecretaryAction) => void) => () => void
+  onRendererAction: (handler: (request: SecretaryRendererActionRequest) => void) => () => void
+  reportRendererActionResult: (requestId: string, result: SecretaryActionResult) => Promise<{ ok: boolean; error?: string }>
   listConversations: () => Promise<SecretaryConversation[]>
   getActiveConversation: () => Promise<SecretaryConversation>
   createConversation: () => Promise<SecretaryConversation>
