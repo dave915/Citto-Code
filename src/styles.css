@@ -43,6 +43,17 @@
   }
 }
 
+@keyframes secretary-thinking-dot {
+  0%, 80%, 100% {
+    opacity: 0.42;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
 .secretary-character {
   display: inline-flex;
   flex-shrink: 0;
@@ -193,48 +204,96 @@
   white-space: nowrap;
 }
 
-.secretary-history-sidebar-header > div {
+.secretary-history-sidebar-actions {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
-.secretary-history-sidebar-header select {
-  height: 28px;
-  border: 1px solid rgb(var(--claude-border));
-  border-radius: 7px;
-  background: rgb(var(--claude-panel));
-  color: rgb(var(--claude-muted));
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1;
-  outline: none;
-  padding: 0 7px;
+.secretary-sidebar-sort-menu-root {
+  position: relative;
 }
 
-.secretary-sidebar-new-button {
+.secretary-sidebar-icon-button {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgb(var(--claude-border));
-  border-radius: 7px;
-  background: rgb(var(--claude-panel));
-  color: rgb(var(--claude-muted));
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--claude-muted) / 0.7);
+  outline: none;
   transition: background-color 140ms ease, color 140ms ease;
 }
 
-.secretary-sidebar-new-button:hover {
-  background: rgb(var(--claude-sidebar-hover));
+.secretary-sidebar-icon-button:hover,
+.secretary-sidebar-icon-button[aria-expanded='true'] {
+  background: rgb(255 255 255 / 0.04);
+  color: rgb(var(--claude-text));
+}
+
+.secretary-sidebar-sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 160px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--claude-border));
+  border-radius: 14px;
+  background: rgb(var(--claude-panel));
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.32);
+}
+
+.secretary-sidebar-sort-menu-title {
+  border-bottom: 1px solid rgb(var(--claude-border));
+  color: rgb(var(--claude-muted) / 0.7);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 10px 12px;
+  text-transform: uppercase;
+}
+
+.secretary-sidebar-sort-menu-items {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+}
+
+.secretary-sidebar-sort-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  color: rgb(var(--claude-muted));
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 8px 10px;
+  text-align: left;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.secretary-sidebar-sort-option span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.secretary-sidebar-sort-option:hover,
+.secretary-sidebar-sort-option.active {
+  background: rgb(var(--claude-surface));
   color: rgb(var(--claude-text));
 }
 
 .secretary-history-sidebar .secretary-conversation-list {
   max-height: none;
   flex: 1 1 auto;
-  gap: 1px;
+  gap: 0;
   border: 0;
   background: transparent;
   padding: 0 10px 10px;
@@ -268,8 +327,7 @@
   gap: 10px;
 }
 
-.secretary-session-title h2,
-.secretary-session-title p {
+.secretary-session-title h2 {
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -281,13 +339,6 @@
   font-size: 13px;
   font-weight: 650;
   line-height: 1.2;
-}
-
-.secretary-session-title p {
-  margin-top: 2px;
-  color: rgb(var(--claude-muted));
-  font-size: 11px;
-  font-weight: 500;
 }
 
 .secretary-session-close-button {
@@ -354,17 +405,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.secretary-card-title-row span {
-  border: 1px solid rgb(var(--claude-border));
-  border-radius: 6px;
-  background: rgb(var(--claude-surface));
-  color: rgb(var(--claude-muted));
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1;
-  padding: 4px 6px;
 }
 
 .secretary-card-header p {
@@ -453,9 +493,9 @@
   position: relative;
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
-  min-height: 42px;
+  min-height: 30px;
   border-color: transparent;
-  border-radius: 12px;
+  border-radius: 9px;
   padding: 0;
 }
 
@@ -483,8 +523,8 @@
   width: 100%;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 4px 10px;
 }
 
 .secretary-conversation-select span,
@@ -626,6 +666,24 @@
   justify-content: flex-start;
 }
 
+.secretary-chat-row-with-profile {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.secretary-chat-row-with-profile .secretary-message-card {
+  min-width: 0;
+}
+
+.secretary-message-profile {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
 .secretary-message-card {
   max-width: 92%;
   color: rgb(var(--claude-text));
@@ -716,8 +774,72 @@
   color: rgb(var(--claude-muted));
 }
 
+.secretary-thinking-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 2px;
+  font-weight: 620;
+}
+
+.secretary-thinking-card::before {
+  display: none;
+}
+
+.secretary-thinking-character {
+  width: 40px;
+  height: 28px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.secretary-thinking-dots-card {
+  min-width: 42px;
+  padding: 8px 2px;
+}
+
+.secretary-thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.secretary-thinking-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  animation: secretary-thinking-dot 920ms ease-in-out infinite;
+  background: rgb(var(--claude-muted));
+}
+
+.secretary-thinking-dots span:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.secretary-thinking-dots span:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secretary-thinking-dots span {
+    animation: none;
+    opacity: 0.72;
+  }
+}
+
 .secretary-session-transcript .secretary-chat-row {
   margin-bottom: 12px;
+}
+
+.secretary-session-transcript .secretary-chat-row-with-profile {
+  gap: 12px;
+}
+
+.secretary-session-transcript .secretary-message-profile {
+  width: 30px;
+  height: 30px;
+  margin-top: 1px;
 }
 
 .secretary-session-transcript .secretary-message-card {

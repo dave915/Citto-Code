@@ -17,6 +17,7 @@ import type {
 import { SecretaryCharacter } from '../components/secretary/SecretaryCharacter'
 import { SecretaryMessage, type SecretaryUiMessage } from '../components/secretary/SecretaryMessage'
 import { SecretaryModelPicker } from '../components/secretary/SecretaryModelPicker'
+import { SecretaryThinkingIndicator } from '../components/secretary/SecretaryThinkingIndicator'
 import { useInputModelData } from '../hooks/useInputModelData'
 import { applyTheme, type ThemeId } from '../lib/theme'
 
@@ -430,13 +431,7 @@ export function SecretaryFloating() {
               onDenyAction={(messageId) => updateMessage(messageId, { actionState: 'denied' })}
             />
           ))}
-          {sending && (
-            <div className="secretary-chat-row secretary-chat-row-assistant">
-              <div className="secretary-message-card secretary-message-card-assistant secretary-message-card-pending">
-                확인 중...
-              </div>
-            </div>
-          )}
+          {sending && <SecretaryThinkingIndicator variant="dots" />}
         </div>
 
         <form

@@ -23,6 +23,7 @@
     "src/components/secretary/SecretaryMessage.tsx",
     "src/components/secretary/SecretaryMarkdown.tsx",
     "src/components/secretary/SecretaryModelPicker.tsx",
+    "src/components/secretary/SecretaryThinkingIndicator.tsx",
     "src/components/secretary/ConversationList.tsx",
     "src/components/secretary/useSecretaryAppBridge.ts",
     "src/secretary-panel/SecretaryFloating.tsx",

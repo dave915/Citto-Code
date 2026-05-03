@@ -1,4 +1,5 @@
 import type { SecretaryAction, SecretarySearchResult } from '../../../electron/preload'
+import cittoAppIcon from '../../assets/agent-icons/citto-app-icon.png'
 import { SecretaryMarkdown } from './SecretaryMarkdown'
 
 type SecretaryUiMessage = {
@@ -14,6 +15,7 @@ type Props = {
   message: SecretaryUiMessage
   onConfirmAction: (messageId: string, action: SecretaryAction) => void
   onDenyAction: (messageId: string) => void
+  showAssistantProfile?: boolean
 }
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -48,13 +50,27 @@ function getActionPreview(action: SecretaryAction) {
   return null
 }
 
-export function SecretaryMessage({ message, onConfirmAction, onDenyAction }: Props) {
+export function SecretaryMessage({
+  message,
+  onConfirmAction,
+  onDenyAction,
+  showAssistantProfile = false,
+}: Props) {
   const isUser = message.role === 'user'
+  const showProfile = showAssistantProfile && !isUser
   const actionPending = message.action && message.actionState !== 'accepted' && message.actionState !== 'denied'
   const actionPreview = message.action ? getActionPreview(message.action) : null
 
   return (
-    <div className={`secretary-chat-row ${isUser ? 'secretary-chat-row-user' : 'secretary-chat-row-assistant'}`}>
+    <div className={`secretary-chat-row ${isUser ? 'secretary-chat-row-user' : 'secretary-chat-row-assistant'}${showProfile ? ' secretary-chat-row-with-profile' : ''}`}>
+      {showProfile && (
+        <img
+          className="secretary-message-profile"
+          src={cittoAppIcon}
+          alt=""
+          aria-hidden="true"
+        />
+      )}
       <div className={`secretary-message-card ${isUser ? 'secretary-message-card-user' : 'secretary-message-card-assistant'}`}>
         <SecretaryMarkdown text={message.content} />
 

@@ -16,6 +16,7 @@ import { InputArea } from '../InputArea'
 import { ConversationList } from './ConversationList'
 import { SecretaryCharacter } from './SecretaryCharacter'
 import { SecretaryMessage, type SecretaryUiMessage } from './SecretaryMessage'
+import { SecretaryThinkingIndicator } from './SecretaryThinkingIndicator'
 
 type Props = {
   open: boolean
@@ -29,6 +30,13 @@ type Props = {
 
 const SECRETARY_HISTORY_LIMIT = 80
 const SECRETARY_RESPONSE_TIMEOUT_MS = 75_000
+type SecretarySortMode = 'updated' | 'created' | 'title'
+
+const SECRETARY_SORT_OPTIONS: Array<{ value: SecretarySortMode; label: string }> = [
+  { value: 'updated', label: '최근순' },
+  { value: 'created', label: '생성순' },
+  { value: 'title', label: '이름순' },
+]
 
 function createMessageId() {
   return `secretary-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -90,11 +98,13 @@ export function SecretaryPanel({
   const [conversations, setConversations] = useState<SecretaryConversation[]>([])
   const [activeConversation, setActiveConversation] = useState<SecretaryConversation | null>(null)
   const [conversationListOpen, setConversationListOpen] = useState(false)
-  const [sortMode, setSortMode] = useState<'updated' | 'created' | 'title'>('updated')
+  const [sortMode, setSortMode] = useState<SecretarySortMode>('updated')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default')
   const [planMode, setPlanMode] = useState(false)
   const [composerModel, setComposerModel] = useState<string | null>(runtimeConfig?.defaultModel ?? null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const sortMenuRef = useRef<HTMLDivElement | null>(null)
   const submittedDuringHistoryLoadRef = useRef(false)
   const requestSeqRef = useRef(0)
   const isScreen = mode === 'screen'
@@ -111,13 +121,7 @@ export function SecretaryPanel({
       return right.updatedAt - left.updatedAt
     })
   }, [conversations, sortMode])
-
-  const stateLabel = useMemo(() => {
-    if (botState === 'working') return '생각 중'
-    if (botState === 'done') return '제안 준비됨'
-    if (botState === 'error') return '확인 필요'
-    return '대기 중'
-  }, [botState])
+  const sortLabel = SECRETARY_SORT_OPTIONS.find((option) => option.value === sortMode)?.label ?? '최근순'
 
   useEffect(() => {
     setComposerModel(runtimeConfig?.defaultModel ?? null)
@@ -185,10 +189,28 @@ export function SecretaryPanel({
   }, [messages, open])
 
   useEffect(() => {
+    if (!sortMenuOpen) return undefined
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (sortMenuRef.current?.contains(event.target as Node)) return
+      setSortMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [sortMenuOpen])
+
+  useEffect(() => {
     if (!open) return undefined
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (sortMenuOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        setSortMenuOpen(false)
+        return
+      }
       event.preventDefault()
       event.stopPropagation()
       onClose()
@@ -196,7 +218,7 @@ export function SecretaryPanel({
 
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose, open])
+  }, [onClose, open, sortMenuOpen])
 
   const updateMessage = (messageId: string, patch: Partial<SecretaryUiMessage>) => {
     setMessages((current) => current.map((message) => (
@@ -372,15 +394,10 @@ export function SecretaryPanel({
             message={message}
             onConfirmAction={handleConfirmAction}
             onDenyAction={(messageId) => updateMessage(messageId, { actionState: 'denied' })}
+            showAssistantProfile={isScreen}
           />
         ))}
-        {sending && (
-          <div className="secretary-chat-row secretary-chat-row-assistant">
-            <div className="secretary-message-card secretary-message-card-assistant secretary-message-card-pending">
-              확인 중...
-            </div>
-          </div>
-        )}
+        {sending && <SecretaryThinkingIndicator />}
       </div>
     </div>
   )
@@ -422,7 +439,6 @@ export function SecretaryPanel({
         <div>
           <div className="secretary-card-title-row">
             <h2>{activeConversation?.title ?? '기본 씨토'}</h2>
-            <span>{stateLabel}</span>
           </div>
           <p>Citto 세션과 워크플로우를 보고 제안합니다</p>
         </div>
@@ -471,24 +487,63 @@ export function SecretaryPanel({
           <div className="secretary-sidebar-drag-region draggable-region" />
           <div className="secretary-history-sidebar-header">
             <p>채팅</p>
-            <div>
-              <select
-                value={sortMode}
-                onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
-                aria-label="대화 정렬"
-              >
-                <option value="updated">최근순</option>
-                <option value="created">생성순</option>
-                <option value="title">이름순</option>
-              </select>
+            <div className="secretary-history-sidebar-actions">
+              <div ref={sortMenuRef} className="secretary-sidebar-sort-menu-root">
+                <button
+                  type="button"
+                  onClick={() => setSortMenuOpen((current) => !current)}
+                  className="secretary-sidebar-icon-button"
+                  aria-label={`대화 정렬: ${sortLabel}`}
+                  aria-expanded={sortMenuOpen}
+                  aria-haspopup="menu"
+                  title={`대화 정렬: ${sortLabel}`}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 12h10" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 17h4" />
+                  </svg>
+                </button>
+
+                {sortMenuOpen && (
+                  <div className="secretary-sidebar-sort-menu" role="menu" aria-label="대화 정렬">
+                    <div className="secretary-sidebar-sort-menu-title">정렬</div>
+                    <div className="secretary-sidebar-sort-menu-items">
+                      {SECRETARY_SORT_OPTIONS.map((option) => {
+                        const active = sortMode === option.value
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={active}
+                            onClick={() => {
+                              setSortMode(option.value)
+                              setSortMenuOpen(false)
+                            }}
+                            className={`secretary-sidebar-sort-option${active ? ' active' : ''}`}
+                          >
+                            <span>{option.label}</span>
+                            {active && (
+                              <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => void handleCreateConversation()}
-                className="secretary-sidebar-new-button"
+                className="secretary-sidebar-icon-button"
                 aria-label="새 대화"
                 title="새 대화"
               >
-                <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </button>
@@ -512,11 +567,7 @@ export function SecretaryPanel({
         <main className="secretary-session-main" aria-label="기본 씨토 비서">
           <header className="secretary-session-header draggable-region">
             <div className="secretary-session-title">
-              <SecretaryCharacter state={botState} size={26} />
-              <div>
-                <h2>{activeConversation?.title ?? '기본 씨토'}</h2>
-                <p>씨토 비서 · {stateLabel}</p>
-              </div>
+              <h2>{activeConversation?.title ?? '기본 씨토'}</h2>
             </div>
             <button
               type="button"
