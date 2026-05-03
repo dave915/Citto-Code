@@ -7,6 +7,7 @@ import type {
   SecretaryProcessResult,
   SecretaryRuntimeConfig,
 } from './types'
+import type { PermissionMode } from '../persistence-types'
 
 type SecretaryServiceOptions = {
   memory: SecretaryMemory
@@ -25,6 +26,14 @@ const DEFAULT_SECRETARY_CONTEXT: SecretaryActiveContext = {
   isTaskRunning: false,
   recentSessions: [],
   recentArtifacts: [],
+}
+
+type NormalizedSecretaryRuntimeConfig = {
+  claudePath?: string
+  envVars?: Record<string, string>
+  defaultModel: string | null
+  permissionMode: PermissionMode
+  planMode: boolean
 }
 
 function createTimeoutSignal(timeoutMs: number) {
@@ -70,7 +79,8 @@ function buildSystemPrompt(context: SecretaryActiveContext, memory: {
     '{',
     '  "reply": "사용자에게 보여줄 짧은 한국어 메시지",',
     '  "intent": "chat" | "navigate" | "execute" | "recall",',
-    '  "action": SecretaryAction | null',
+    '  "action": SecretaryAction | null,',
+    '  "searchResults": []',
     '}',
     '',
     '사용 가능한 액션. 이 외의 action.type은 절대 만들지 마세요.',
@@ -106,10 +116,11 @@ function buildUserPrompt(input: string) {
   ].join('\n')
 }
 
-function normalizeRuntimeConfig(config: SecretaryRuntimeConfig): Required<Pick<SecretaryRuntimeConfig, 'defaultModel'>> & {
-  claudePath?: string
-  envVars?: Record<string, string>
-} {
+function normalizePermissionMode(value: unknown): PermissionMode {
+  return value === 'acceptEdits' || value === 'bypassPermissions' ? value : 'default'
+}
+
+function normalizeRuntimeConfig(config: SecretaryRuntimeConfig = {}): NormalizedSecretaryRuntimeConfig {
   return {
     claudePath: typeof config.claudePath === 'string' && config.claudePath.trim()
       ? config.claudePath.trim()
@@ -120,6 +131,8 @@ function normalizeRuntimeConfig(config: SecretaryRuntimeConfig): Required<Pick<S
     defaultModel: typeof config.defaultModel === 'string' && config.defaultModel.trim()
       ? config.defaultModel.trim()
       : null,
+    permissionMode: normalizePermissionMode(config.permissionMode),
+    planMode: Boolean(config.planMode),
   }
 }
 
@@ -155,7 +168,21 @@ export class SecretaryService {
     this.runtimeConfig = normalizeRuntimeConfig(config)
   }
 
-  async process(input: string, conversationId: string, context = DEFAULT_SECRETARY_CONTEXT): Promise<SecretaryProcessResult> {
+  private resolveRuntimeConfig(override?: SecretaryRuntimeConfig | null): NormalizedSecretaryRuntimeConfig {
+    if (!override) return normalizeRuntimeConfig(this.runtimeConfig)
+    return normalizeRuntimeConfig({
+      ...this.runtimeConfig,
+      ...override,
+      envVars: override.envVars ?? this.runtimeConfig.envVars,
+    })
+  }
+
+  async process(
+    input: string,
+    conversationId: string,
+    context = DEFAULT_SECRETARY_CONTEXT,
+    runtimeOverride?: SecretaryRuntimeConfig | null,
+  ): Promise<SecretaryProcessResult> {
     const trimmedInput = input.trim()
     if (!trimmedInput) {
       return {
@@ -173,13 +200,14 @@ export class SecretaryService {
     })
 
     try {
-      const runtime = normalizeRuntimeConfig(this.runtimeConfig)
+      const runtime = this.resolveRuntimeConfig(runtimeOverride)
       const timeout = createTimeoutSignal(SECRETARY_PROCESS_TIMEOUT_MS)
       const result = await spawnClaudeProcess({
         prompt: buildUserPrompt(trimmedInput),
         cwd: '~',
         model: runtime.defaultModel,
-        permissionMode: 'default',
+        permissionMode: runtime.permissionMode,
+        planMode: runtime.planMode,
         systemPrompt: buildSystemPrompt(context, {
           profile: this.options.memory.getProfile(),
           recentHistory: this.options.memory.loadRecentHistory(conversationId, 20),
@@ -187,8 +215,6 @@ export class SecretaryService {
         }),
         claudePath: runtime.claudePath,
         envVars: runtime.envVars,
-        inputFormat: 'text',
-        outputFormat: 'text',
         abortSignal: timeout.signal,
         getUserHomePath: this.options.getUserHomePath,
         resolveTargetPath: this.options.resolveTargetPath,
@@ -202,6 +228,8 @@ export class SecretaryService {
             role: 'secretary',
             content: parsed.reply,
             intent: parsed.intent,
+            action: parsed.action,
+            searchResults: parsed.searchResults,
           })
           return parsed
         }
@@ -220,6 +248,8 @@ export class SecretaryService {
         role: 'secretary',
         content: parsed.reply,
         intent: parsed.intent,
+        action: parsed.action,
+        searchResults: parsed.searchResults,
       })
 
       if (parsed.action?.type === 'navigate') {
@@ -261,18 +291,17 @@ export class SecretaryService {
     }
 
     try {
-      const runtime = normalizeRuntimeConfig(this.runtimeConfig)
+      const runtime = this.resolveRuntimeConfig()
       const timeout = createTimeoutSignal(SECRETARY_EXECUTE_TIMEOUT_MS)
       const result = await spawnClaudeProcess({
         prompt: trimmedPrompt,
         cwd: '~',
         model: runtime.defaultModel,
-        permissionMode: 'default',
+        permissionMode: runtime.permissionMode,
+        planMode: runtime.planMode,
         systemPrompt: 'Citto 비서가 사용자 확인 후 위임한 작업입니다. 특정 프로젝트 디렉토리를 자동으로 가정하지 말고, 필요한 대상이 불명확하면 결과에서 명확히 알려 주세요.',
         claudePath: runtime.claudePath,
         envVars: runtime.envVars,
-        inputFormat: 'text',
-        outputFormat: 'text',
         abortSignal: timeout.signal,
         getUserHomePath: this.options.getUserHomePath,
         resolveTargetPath: this.options.resolveTargetPath,
@@ -314,7 +343,7 @@ export class SecretaryService {
 
   private async generateConversationTitle(conversationId: string, input: string, reply: string): Promise<void> {
     try {
-      const runtime = normalizeRuntimeConfig(this.runtimeConfig)
+      const runtime = this.resolveRuntimeConfig()
       const timeout = createTimeoutSignal(SECRETARY_TITLE_TIMEOUT_MS)
       const result = await spawnClaudeProcess({
         prompt: buildTitlePrompt(input, reply),
@@ -323,8 +352,6 @@ export class SecretaryService {
         permissionMode: 'default',
         claudePath: runtime.claudePath,
         envVars: runtime.envVars,
-        inputFormat: 'text',
-        outputFormat: 'text',
         abortSignal: timeout.signal,
         getUserHomePath: this.options.getUserHomePath,
         resolveTargetPath: this.options.resolveTargetPath,

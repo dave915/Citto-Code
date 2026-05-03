@@ -1,5 +1,6 @@
 import { normalizeSecretaryAction } from './actions'
-import type { SecretaryIntent, SecretaryProcessResult } from './types'
+import { isCittoRoute } from './routes'
+import type { SecretaryIntent, SecretaryProcessResult, SecretarySearchResult } from './types'
 
 const INTENTS: SecretaryIntent[] = ['chat', 'navigate', 'execute', 'recall']
 
@@ -11,6 +12,31 @@ function normalizeIntent(value: unknown): SecretaryIntent {
   return typeof value === 'string' && INTENTS.includes(value as SecretaryIntent)
     ? value as SecretaryIntent
     : 'chat'
+}
+
+function normalizeSearchResults(value: unknown): SecretarySearchResult[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((entry): SecretarySearchResult | null => {
+      if (!isRecord(entry)) return null
+      const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : null
+      const label = typeof entry.label === 'string' && entry.label.trim() ? entry.label.trim() : null
+      const type = typeof entry.type === 'string' && entry.type.trim() ? entry.type.trim() : null
+      if (!id || !label || !type) return null
+
+      return {
+        id,
+        label,
+        type,
+        excerpt: typeof entry.excerpt === 'string' && entry.excerpt.trim() ? entry.excerpt.trim() : undefined,
+        route: isCittoRoute(entry.route) ? entry.route : undefined,
+        sessionId: typeof entry.sessionId === 'string' && entry.sessionId.trim() ? entry.sessionId.trim() : undefined,
+        updatedAt: typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt) ? entry.updatedAt : undefined,
+      }
+    })
+    .filter((entry): entry is SecretarySearchResult => Boolean(entry))
+    .slice(0, 6)
 }
 
 export function normalizeSecretaryResult(value: unknown): SecretaryProcessResult {
@@ -27,8 +53,11 @@ export function normalizeSecretaryResult(value: unknown): SecretaryProcessResult
     : '다음에 할 일을 조금 더 구체적으로 말해 주세요.'
   const action = normalizeSecretaryAction(value.action)
   const intent = action?.type === 'navigate' ? 'navigate' : normalizeIntent(value.intent)
+  const searchResults = normalizeSearchResults(value.searchResults)
 
-  return { reply, intent, action }
+  return searchResults.length > 0
+    ? { reply, intent, action, searchResults }
+    : { reply, intent, action }
 }
 
 export function extractJsonObject(text: string): unknown {

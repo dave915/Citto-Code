@@ -49,6 +49,21 @@ const ACTION_CAPABILITIES: ActionCapability[] = [
     description: "Claude Code 실행. prompt 필수, mode는 'print' 또는 'interactive'.",
     schema: '{ "type": "runClaudeCode", "prompt": "...", "mode": "print" }',
   },
+  {
+    type: 'openRoundTable',
+    description: '라운드테이블 화면 열기. presetId는 선택.',
+    schema: '{ "type": "openRoundTable" }',
+  },
+  {
+    type: 'openSettings',
+    description: '설정 화면 열기. section은 선택.',
+    schema: '{ "type": "openSettings", "section": "general" }',
+  },
+  {
+    type: 'cancelActiveTask',
+    description: '진행 중 작업 취소 제안. 실제 취소 연결이 없으면 실패할 수 있음.',
+    schema: '{ "type": "cancelActiveTask" }',
+  },
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,6 +115,18 @@ export function normalizeSecretaryAction(value: unknown): SecretaryAction | null
     const prompt = optionalText(value.prompt)
     const mode = value.mode === 'interactive' ? 'interactive' : 'print'
     return prompt ? { type: 'runClaudeCode', prompt, mode } : null
+  }
+
+  if (type === 'openRoundTable') {
+    return { type: 'openRoundTable', presetId: optionalText(value.presetId) }
+  }
+
+  if (type === 'openSettings') {
+    return { type: 'openSettings', section: optionalText(value.section) }
+  }
+
+  if (type === 'cancelActiveTask') {
+    return { type: 'cancelActiveTask' }
   }
 
   return null

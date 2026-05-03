@@ -14,6 +14,7 @@ import type {
   SecretaryHistoryEntry,
   SecretaryProcessResult,
   SecretaryProfile,
+  SecretarySearchResult,
   SecretaryRuntimeConfig,
 } from '../secretary/types'
 
@@ -32,6 +33,8 @@ export type {
   SecretaryProfile,
   SecretaryRecentSession,
   SecretaryRuntimeConfig,
+  SecretarySearchResult,
+  SecretaryWorkflowRef,
 } from '../secretary/types'
 
 type ClaudeStreamEventMeta = {
@@ -360,11 +363,20 @@ export type SecretaryNavigateEvent = {
   path: string
 }
 
+export type SecretaryFloatingPlacement = {
+  horizontal: 'left' | 'right'
+  vertical: 'top' | 'bottom'
+}
+
 export type SecretaryAPI = {
   togglePanel: () => Promise<{ ok: boolean }>
   getPanelOpen: () => Promise<boolean>
   setPanelOpen: (open: boolean) => Promise<{ ok: boolean }>
+  setFloatingExpanded: (expanded: boolean) => Promise<{ ok: boolean }>
+  moveFloatingBy: (deltaX: number, deltaY: number) => void
+  openMainWindow: () => Promise<{ ok: boolean }>
   onPanelToggle: (handler: (open: boolean) => void) => () => void
+  onFloatingPlacement: (handler: (placement: SecretaryFloatingPlacement) => void) => () => void
   process: (input: string, runtime?: SecretaryRuntimeConfig) => Promise<SecretaryProcessResult>
   onBotState: (handler: (state: SecretaryBotState) => void) => () => void
   getActiveContext: () => Promise<SecretaryActiveContext>

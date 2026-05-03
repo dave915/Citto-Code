@@ -1,7 +1,7 @@
 import dittoCriticIcon from '../../assets/agent-icons/ditto-critic.png'
 import dittoDefaultIcon from '../../assets/agent-icons/ditto-default.png'
-import dittoDeveloperIcon from '../../assets/agent-icons/ditto-developer.png'
 import customGreenIcon from '../../assets/agent-icons/custom-green.png'
+import welcomeTypingGif from '../../assets/mascot/welcome-typing-transparent.gif'
 import type { SecretaryBotState } from '../../../electron/preload'
 
 type Props = {
@@ -11,7 +11,7 @@ type Props = {
 
 const CHARACTER_BY_STATE: Record<SecretaryBotState, string> = {
   idle: dittoDefaultIcon,
-  working: dittoDeveloperIcon,
+  working: welcomeTypingGif,
   done: customGreenIcon,
   error: dittoCriticIcon,
 }

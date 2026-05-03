@@ -21,7 +21,10 @@ import type {
   SecretaryPattern,
   SecretaryPatternType,
   SecretaryProfile,
+  SecretarySearchResult,
 } from './secretary/types'
+import { normalizeSecretaryAction } from './secretary/actions'
+import { isCittoRoute } from './secretary/routes'
 import { DB_FILE_NAME, SCHEMA_SQL } from './persistence/dbSchema'
 import {
   normalizeScheduledTasks,
@@ -57,6 +60,32 @@ const SCHEDULED_TASK_DAY_TO_INDEX: Record<string, number> = {
   thu: 4,
   fri: 5,
   sat: 6,
+}
+
+function normalizeSecretarySearchResults(value: unknown): SecretarySearchResult[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((entry): SecretarySearchResult | null => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
+      const record = entry as Record<string, unknown>
+      const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : null
+      const label = typeof record.label === 'string' && record.label.trim() ? record.label.trim() : null
+      const type = typeof record.type === 'string' && record.type.trim() ? record.type.trim() : null
+      if (!id || !label || !type) return null
+
+      return {
+        id,
+        label,
+        type,
+        excerpt: typeof record.excerpt === 'string' && record.excerpt.trim() ? record.excerpt.trim() : undefined,
+        route: isCittoRoute(record.route) ? record.route : undefined,
+        sessionId: typeof record.sessionId === 'string' && record.sessionId.trim() ? record.sessionId.trim() : undefined,
+        updatedAt: typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt) ? record.updatedAt : undefined,
+      }
+    })
+    .filter((entry): entry is SecretarySearchResult => Boolean(entry))
+    .slice(0, 6)
 }
 
 const REQUIRED_TABLES = [
@@ -510,6 +539,8 @@ export class AppPersistence {
     role: SecretaryHistoryRole
     content: string
     intent?: SecretaryIntent | null
+    action?: SecretaryHistoryEntry['action']
+    searchResults?: SecretarySearchResult[]
   }): void {
     const content = entry.content.trim()
     if (!content) return
@@ -519,12 +550,16 @@ export class AppPersistence {
         role,
         content,
         intent,
+        action_json,
+        search_results_json,
         created_at
       ) VALUES (
         :conversationId,
         :role,
         :content,
         :intent,
+        :actionJson,
+        :searchResultsJson,
         :createdAt
       )`,
       {
@@ -532,6 +567,8 @@ export class AppPersistence {
         ':role': entry.role,
         ':content': content,
         ':intent': entry.intent ?? null,
+        ':actionJson': stringifyJson(entry.action ?? null),
+        ':searchResultsJson': stringifyJson(entry.searchResults ?? []),
         ':createdAt': Date.now(),
       },
     )
@@ -547,6 +584,8 @@ export class AppPersistence {
       role: SecretaryHistoryRole
       content: string
       intent: SecretaryIntent | null
+      action_json: string | null
+      search_results_json: string | null
       created_at: number
     }>(
       `SELECT *
@@ -566,6 +605,8 @@ export class AppPersistence {
       role: row.role,
       content: row.content,
       intent: row.intent ?? null,
+      action: normalizeSecretaryAction(parseJsonValue(row.action_json)),
+      searchResults: normalizeSecretarySearchResults(parseJsonValue(row.search_results_json)),
       createdAt: Number(row.created_at),
     }))
   }
@@ -717,6 +758,14 @@ export class AppPersistence {
 
     if (!columns.has('conversation_id')) {
       this.run('ALTER TABLE secretary_history ADD COLUMN conversation_id TEXT')
+    }
+
+    if (!columns.has('action_json')) {
+      this.run('ALTER TABLE secretary_history ADD COLUMN action_json TEXT')
+    }
+
+    if (!columns.has('search_results_json')) {
+      this.run('ALTER TABLE secretary_history ADD COLUMN search_results_json TEXT')
     }
 
     this.run(

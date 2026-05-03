@@ -67,6 +67,7 @@
 ### Citto Secretary
 
 - 글로벌 단축키로 열기/닫기
+- 플로팅 씨토 축소/확장, 캐릭터 드래그 이동, 앱 열기, 모델 override, ESC 2단계 닫기
 - 사이드바에서 앱 내 비서 대화 화면 열기/닫기
 - ESC로 닫기
 - 현재 route/session이 `getActiveContext`에 반영되고, 비서 자체가 특정 project cwd에 묶이지 않는지 확인

@@ -24,6 +24,7 @@
 - `src/main.tsx`
 - `src/App.tsx`
 - `src/components/secretary/SecretaryPanel.tsx`
+- `src/secretary-panel/SecretaryFloating.tsx`
 - 역할: 상태 초기화, 메인 앱 렌더링, 비서 활성 시 전체 비서 화면 렌더링
 
 ## Core Flows
@@ -62,12 +63,13 @@
 ### Citto Secretary
 
 1. `src/hooks/useAppDesktopEffects.ts`가 비서 단축키 설정을 메인 프로세스로 동기화한다.
-2. `electron/main/windowController.ts`가 글로벌 단축키 등록과 `secretary:panel-toggle` 이벤트 전송을 담당한다.
-3. `electron/secretary/ipc.ts`와 `electron/preload/secretaryApi.ts`가 패널 토글, 비서 채팅 CRUD, LLM JSON intent 처리, 액션 실행, 현재 Citto 컨텍스트 동기화를 브리지한다.
+2. `electron/main/windowController.ts`가 글로벌 단축키 등록, 플로팅 비서 `BrowserWindow` 생명주기, `secretary:panel-toggle` 이벤트 전송을 담당한다.
+3. `electron/secretary/ipc.ts`와 `electron/preload/secretaryApi.ts`가 플로팅 창 토글/크기/위치 이동, 메인 앱 focus, 비서 채팅 CRUD, LLM JSON intent 처리, 액션 실행, 현재 Citto 컨텍스트 동기화를 브리지한다.
 4. `electron/secretary/actions.ts`, `electron/secretary/intent-router.ts`, `electron/secretary/action-handlers.ts`가 allowlist 액션 정의, JSON action 검증, 확인 후 실행 dispatch를 담당한다.
-5. `electron/secretary/secretary-service.ts`가 기존 `electron/services/claude-spawn.ts`를 재사용해 Gateway/env 설정을 따르고, 활성 비서 채팅 history만 컨텍스트로 주입한다.
-6. `src/App.tsx`가 비서 활성 상태에서는 기존 앱 사이드바까지 덮는 전체 비서 화면을 렌더링하고, `src/components/secretary/SecretaryPanel.tsx`와 `ConversationList.tsx`가 채팅 목록, 새 채팅/전환/보관 UI를 렌더링한다.
-7. `src/components/secretary/useSecretaryAppBridge.ts`가 메인 창의 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
+5. `electron/secretary/secretary-service.ts`가 기존 `electron/services/claude-spawn.ts`를 stream-json 경로로 재사용해 Gateway/env/model/permission/plan 설정을 따르고, 활성 비서 채팅 history만 컨텍스트로 주입한다.
+6. `src/App.tsx`가 사이드바 entry에서 앱 내 전체 비서 화면을 렌더링하고, `src/components/secretary/SecretaryPanel.tsx`와 `ConversationList.tsx`가 채팅 목록, 새 채팅/전환/보관 UI를 렌더링한다.
+7. `src/secretary-panel/SecretaryFloating.tsx`는 별도 renderer entry인 `secretary-panel.html`에서 축소/확장 플로팅 대화창을 렌더링하고, 같은 `window.secretary` IPC와 공통 `SecretaryMessage`/`SecretaryMarkdown` 표현 규칙을 사용한다.
+8. `src/components/secretary/useSecretaryAppBridge.ts`가 메인 창의 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
 
 ### Scheduled Tasks
 
@@ -111,7 +113,7 @@
 - 워크플로우 빌더: `src/components/WorkflowsView.tsx`, `src/components/workflow/*`, `src/store/workflowStore.ts`, `src/store/workflowTypes.ts`, `electron/workflow-executor.ts`, `electron/services/claude-spawn.ts`
 - 입력/멘션/첨부: `src/components/InputArea.tsx`, `src/components/input/*`, `src/components/input/useInputAreaController.ts`, `src/hooks/useInput*`
 - 파일/OS 브리지: `src/hooks/useFileExplorer.ts`, `src/hooks/useChatOpenWith.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`, `src/components/toolcalls/useHtmlPreviewController.ts`, `electron/ipc/files.ts`, `electron/services/previewProxyService.ts`, `electron/services/fileService.ts`
-- 씨토 비서: `src/components/secretary/*`, `src/App.tsx`, `src/components/Sidebar.tsx`, `src/hooks/useAppPanels.ts`, `src/hooks/useAppDesktopEffects.ts`, `src/components/settings/general/SecretarySection.tsx`, `electron/main/windowController.ts`, `electron/secretary/*`, `electron/preload/secretaryApi.ts`, `electron/persistence.ts`
+- 씨토 비서: `src/components/secretary/*`, `src/secretary-panel/*`, `secretary-panel.html`, `src/App.tsx`, `src/components/Sidebar.tsx`, `src/hooks/useAppPanels.ts`, `src/hooks/useAppDesktopEffects.ts`, `src/components/settings/general/SecretarySection.tsx`, `electron/main/windowController.ts`, `electron/secretary/*`, `electron/preload/secretaryApi.ts`, `electron/persistence.ts`
 - 세션 상태/검색/직렬화: `src/store/*`, `src/lib/sessionUtils.ts`, `src/lib/sessionExport.ts`
 - 팀/서브에이전트: `src/components/team/*`, `src/components/team/TeamViewHeader.tsx`, `src/components/team/TeamViewWorkspace.tsx`, `src/components/team/TeamViewComposer.tsx`, `src/components/team/TeamAgentSeat.tsx`, `src/components/team/TeamSelectedAgentPanel.tsx`, `src/components/team/TeamSelectedAgentMessageCard.tsx`, `src/components/team/TeamSelectedAgentMessagePopup.tsx`, `src/components/team/TeamTaskPopover.tsx`, `src/components/team/teamSelectedAgentShared.tsx`, `src/components/team/teamOverlayShared.tsx`, `src/components/team/TeamViewParts.tsx`, `src/components/team/TeamSetupSelectionPane.tsx`, `src/components/team/TeamSetupCustomAgentForm.tsx`, `src/components/team/TeamSetupPreviewPane.tsx`, `src/components/team/teamSetupShared.ts`, `src/components/team/TeamSetupModalParts.tsx`, `src/components/team/useTeamViewController.ts`, `src/hooks/useAgentTeam.ts`, `src/hooks/team/*`, `src/hooks/useSubagentStreams.ts`
 - 파일 탐색/미리보기: `src/hooks/useFileExplorer.ts`, `src/components/chat/FilePanel.tsx`, `src/components/chat/PreviewPane.tsx`

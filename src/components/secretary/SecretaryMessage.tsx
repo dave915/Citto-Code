@@ -1,10 +1,12 @@
-import type { SecretaryAction } from '../../../electron/preload'
+import type { SecretaryAction, SecretarySearchResult } from '../../../electron/preload'
+import { SecretaryMarkdown } from './SecretaryMarkdown'
 
 type SecretaryUiMessage = {
   id: string
   role: 'user' | 'secretary'
   content: string
   action?: SecretaryAction | null
+  searchResults?: SecretarySearchResult[]
   actionState?: 'pending' | 'accepted' | 'denied'
 }
 
@@ -54,7 +56,7 @@ export function SecretaryMessage({ message, onConfirmAction, onDenyAction }: Pro
   return (
     <div className={`secretary-chat-row ${isUser ? 'secretary-chat-row-user' : 'secretary-chat-row-assistant'}`}>
       <div className={`secretary-message-card ${isUser ? 'secretary-message-card-user' : 'secretary-message-card-assistant'}`}>
-        <p>{message.content}</p>
+        <SecretaryMarkdown text={message.content} />
 
         {actionPending && message.action && (
           <div className="secretary-action-row">
@@ -88,6 +90,20 @@ export function SecretaryMessage({ message, onConfirmAction, onDenyAction }: Pro
         )}
         {message.actionState === 'denied' && (
           <p className="secretary-action-note">실행하지 않았어요.</p>
+        )}
+
+        {message.searchResults && message.searchResults.length > 0 && (
+          <div className="secretary-search-results" aria-label="검색 결과">
+            {message.searchResults.map((result) => (
+              <div key={`${result.type}-${result.id}`} className="secretary-search-result-card">
+                <div>
+                  <span>{result.type}</span>
+                  <p>{result.label}</p>
+                  {result.excerpt && <small>{result.excerpt}</small>}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

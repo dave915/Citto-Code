@@ -14,6 +14,8 @@ type RegisterSecretaryIpcHandlersOptions = {
   toggleSecretaryPanel: () => void
   setSecretaryPanelOpen: (open: boolean) => void
   getSecretaryPanelOpen: () => boolean
+  setSecretaryFloatingExpanded: (expanded: boolean) => void
+  moveSecretaryFloatingBy: (deltaX: number, deltaY: number) => void
   updateSecretaryShortcut: (accelerator: string, enabled: boolean) => void
   showMainWindow: () => BrowserWindow
   sendWhenRendererReady: (window: BrowserWindow, channel: string, payload?: unknown) => void
@@ -47,6 +49,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeRuntimePayload(value: unknown): SecretaryRuntimeConfig | null {
   if (!isRecord(value)) return null
 
+  const runtime: SecretaryRuntimeConfig = {}
   const envVars = isRecord(value.envVars)
     ? Object.fromEntries(
         Object.entries(value.envVars).filter((entry): entry is [string, string] => (
@@ -56,11 +59,23 @@ function normalizeRuntimePayload(value: unknown): SecretaryRuntimeConfig | null 
       )
     : undefined
 
-  return {
-    claudePath: typeof value.claudePath === 'string' ? value.claudePath : null,
-    envVars,
-    defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel : null,
+  if ('claudePath' in value) {
+    runtime.claudePath = typeof value.claudePath === 'string' ? value.claudePath : null
   }
+  if (envVars) runtime.envVars = envVars
+  if ('defaultModel' in value) {
+    runtime.defaultModel = typeof value.defaultModel === 'string' ? value.defaultModel : null
+  }
+  if ('permissionMode' in value) {
+    runtime.permissionMode = value.permissionMode === 'acceptEdits' || value.permissionMode === 'bypassPermissions'
+      ? value.permissionMode
+      : 'default'
+  }
+  if ('planMode' in value) {
+    runtime.planMode = Boolean(value.planMode)
+  }
+
+  return runtime
 }
 
 function normalizeActiveContext(value: unknown, fallback: SecretaryActiveContext): SecretaryActiveContext {
@@ -74,9 +89,32 @@ function normalizeActiveContext(value: unknown, fallback: SecretaryActiveContext
     currentProjectId: typeof record.currentProjectId === 'string' && record.currentProjectId.trim()
       ? record.currentProjectId.trim()
       : null,
+    currentSessionName: typeof record.currentSessionName === 'string' && record.currentSessionName.trim()
+      ? record.currentSessionName.trim()
+      : null,
+    currentProjectPath: typeof record.currentProjectPath === 'string' && record.currentProjectPath.trim()
+      ? record.currentProjectPath.trim()
+      : null,
+    currentModel: typeof record.currentModel === 'string' && record.currentModel.trim()
+      ? record.currentModel.trim()
+      : null,
+    permissionMode: record.permissionMode === 'acceptEdits' || record.permissionMode === 'bypassPermissions'
+      ? record.permissionMode
+      : 'default',
+    planMode: Boolean(record.planMode),
+    themeId: typeof record.themeId === 'string' && record.themeId.trim() ? record.themeId.trim() : null,
+    uiFontSize: typeof record.uiFontSize === 'number' && Number.isFinite(record.uiFontSize)
+      ? record.uiFontSize
+      : null,
+    sidebarCollapsed: Boolean(record.sidebarCollapsed),
+    settingsTab: typeof record.settingsTab === 'string' && record.settingsTab.trim() ? record.settingsTab.trim() : null,
+    selectedFileNames: Array.isArray(record.selectedFileNames)
+      ? record.selectedFileNames.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 12)
+      : [],
     isTaskRunning: Boolean(record.isTaskRunning),
     recentSessions: Array.isArray(record.recentSessions) ? record.recentSessions.slice(0, 8) : [],
     recentArtifacts: Array.isArray(record.recentArtifacts) ? record.recentArtifacts.slice(0, 8) : [],
+    recentWorkflows: Array.isArray(record.recentWorkflows) ? record.recentWorkflows.slice(0, 8) : [],
   }
 }
 
@@ -88,6 +126,8 @@ export function registerSecretaryIpcHandlers({
   toggleSecretaryPanel,
   setSecretaryPanelOpen,
   getSecretaryPanelOpen,
+  setSecretaryFloatingExpanded,
+  moveSecretaryFloatingBy,
   updateSecretaryShortcut,
   showMainWindow,
   sendWhenRendererReady,
@@ -118,6 +158,18 @@ export function registerSecretaryIpcHandlers({
     return true
   }
 
+  const hasStoredPendingAction = (action: SecretaryAction) => {
+    const conversationId = activeConversationId
+    if (!conversationId) return false
+    const key = createActionKey(action)
+    const now = Date.now()
+    return memory.loadHistory(conversationId, 80).some((entry) => (
+      entry.action
+      && createActionKey(entry.action) === key
+      && now - entry.createdAt <= SECRETARY_PENDING_ACTION_TTL_MS
+    ))
+  }
+
   const executeSecretaryAction = createSecretaryActionHandlers({
     service,
     getActiveConversationId: () => activeConversationId,
@@ -135,6 +187,24 @@ export function registerSecretaryIpcHandlers({
 
   ipcMain.handle('secretary:set-panel-open', (_event, { open }: { open: boolean }) => {
     setSecretaryPanelOpen(Boolean(open))
+    return { ok: true }
+  })
+
+  ipcMain.handle('secretary:set-floating-expanded', (_event, { expanded }: { expanded: boolean }) => {
+    setSecretaryFloatingExpanded(Boolean(expanded))
+    return { ok: true }
+  })
+
+  ipcMain.on('secretary:move-floating-by', (_event, payload: unknown) => {
+    if (!isRecord(payload)) return
+    const deltaX = typeof payload.deltaX === 'number' ? payload.deltaX : Number(payload.deltaX)
+    const deltaY = typeof payload.deltaY === 'number' ? payload.deltaY : Number(payload.deltaY)
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return
+    moveSecretaryFloatingBy(deltaX, deltaY)
+  })
+
+  ipcMain.handle('secretary:open-main-window', () => {
+    showMainWindow()
     return { ok: true }
   })
 
@@ -157,14 +227,11 @@ export function registerSecretaryIpcHandlers({
     try {
       const input = isRecord(payload) ? payload.input : payload
       const runtime = isRecord(payload) ? normalizeRuntimePayload(payload.runtime) : null
-      if (runtime) {
-        service.syncClaudeRuntime(runtime)
-      }
 
       const conversation = memory.getActiveConversation(getActiveContext())
       activeConversationId = conversation.id
       const result = await withProcessTimeout(
-        service.process(String(input ?? ''), conversation.id, getActiveContext()),
+        service.process(String(input ?? ''), conversation.id, getActiveContext(), runtime),
         SECRETARY_PROCESS_IPC_TIMEOUT_MS,
       )
       if (result.action) rememberPendingAction(result.action)
@@ -192,7 +259,7 @@ export function registerSecretaryIpcHandlers({
       return { ok: false, error: '지원하지 않는 액션입니다.' }
     }
 
-    if (!consumePendingAction(normalizedAction)) {
+    if (!consumePendingAction(normalizedAction) && !hasStoredPendingAction(normalizedAction)) {
       sendWhenRendererReady(window, 'secretary:bot-state', 'error')
       return { ok: false, error: '확인 가능한 액션이 아닙니다. 씨토에게 다시 제안받아 주세요.' }
     }

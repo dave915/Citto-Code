@@ -207,6 +207,8 @@ app.whenReady().then(async () => {
     toggleSecretaryPanel: windowController.toggleSecretaryPanel,
     setSecretaryPanelOpen: windowController.setSecretaryPanelOpen,
     getSecretaryPanelOpen: windowController.getSecretaryPanelOpen,
+    setSecretaryFloatingExpanded: windowController.setSecretaryFloatingExpanded,
+    moveSecretaryFloatingBy: windowController.moveSecretaryFloatingBy,
     updateSecretaryShortcut: windowController.updateSecretaryShortcut,
     showMainWindow: windowController.showMainWindow,
     sendWhenRendererReady: windowController.sendWhenRendererReady,

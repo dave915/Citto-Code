@@ -1,34 +1,53 @@
 import { useI18n } from '../../hooks/useI18n'
+import { SecretaryCharacter } from '../secretary/SecretaryCharacter'
 
 type Props = {
+  secretaryOpen: boolean
   settingsOpen: boolean
   settingsShortcutLabel: string
+  onOpenSecretary: () => void
   onOpenSettings: () => void
 }
 
 export function SidebarFooter({
+  secretaryOpen,
   settingsOpen,
   settingsShortcutLabel,
+  onOpenSecretary,
   onOpenSettings,
 }: Props) {
   const { t } = useI18n()
   return (
     <div className="mt-auto border-t border-white/5 px-2.5 py-2">
-      <button
-        onClick={onOpenSettings}
-        className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
-          settingsOpen
-            ? 'bg-claude-surface text-claude-text'
-            : 'text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
-        }`}
-        title={t('sidebar.settingsTitle', { shortcut: settingsShortcutLabel })}
-      >
-        <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="3" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-        </svg>
-        <span className="min-w-0 truncate text-left">{t('sidebar.settings')}</span>
-      </button>
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={onOpenSecretary}
+          className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-2 text-sm outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+            secretaryOpen
+              ? 'bg-claude-surface text-claude-text'
+              : 'text-claude-text hover:bg-claude-sidebar-hover hover:text-claude-text'
+          }`}
+          title={t('sidebar.secretary')}
+        >
+          <SecretaryCharacter state="idle" size={22} />
+          <span className="min-w-0 truncate text-left">씨토</span>
+        </button>
+        <button
+          onClick={onOpenSettings}
+          className={`inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl outline-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/10 ${
+            settingsOpen
+              ? 'bg-claude-surface text-claude-text'
+              : 'text-claude-muted hover:bg-claude-sidebar-hover hover:text-claude-text'
+          }`}
+          title={t('sidebar.settingsTitle', { shortcut: settingsShortcutLabel })}
+          aria-label={t('sidebar.settings')}
+        >
+          <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }

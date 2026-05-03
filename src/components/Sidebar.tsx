@@ -230,17 +230,6 @@ export function Sidebar({
             </svg>
           )}
         />
-        <SidebarActionButton
-          label={t('sidebar.secretary')}
-          active={secretaryOpen}
-          onClick={onOpenSecretary}
-          icon={(
-            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8m-8 4h5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 18l-3 3v-4.5A8 8 0 0 1 4 6.5C4 3.5 7.6 2 12 2s8 1.5 8 4.5v4c0 3-3.6 4.5-8 4.5h-1.5" />
-            </svg>
-          )}
-        />
       </div>
 
       <SidebarContent
@@ -273,8 +262,10 @@ export function Sidebar({
       />
 
       <SidebarFooter
+        secretaryOpen={secretaryOpen}
         settingsOpen={settingsOpen}
         settingsShortcutLabel={settingsShortcutLabel}
+        onOpenSecretary={onOpenSecretary}
         onOpenSettings={onOpenSettings}
       />
     </aside>

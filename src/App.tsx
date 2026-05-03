@@ -37,6 +37,8 @@ export default function App() {
           open
           runtimeConfig={controller.secretaryRuntimeConfig}
           composerCwd={controller.activeSession?.cwd ?? controller.defaultProjectPath}
+          sidebarWidth={controller.sidebarWidth}
+          onSidebarResizeStart={controller.handleSidebarResizeStart}
           onClose={controller.closeSecretaryPanel}
         />
 

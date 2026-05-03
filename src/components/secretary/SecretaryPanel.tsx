@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEventHandler } from 'react'
 import type {
   SecretaryAction,
   SecretaryBotState,
@@ -23,6 +23,8 @@ type Props = {
   mode?: 'overlay' | 'screen'
   runtimeConfig?: SecretaryRuntimeConfig
   composerCwd?: string
+  sidebarWidth?: number
+  onSidebarResizeStart?: MouseEventHandler<HTMLDivElement>
 }
 
 const SECRETARY_HISTORY_LIMIT = 80
@@ -45,6 +47,9 @@ function buildHistoryMessage(entry: SecretaryHistoryEntry): SecretaryUiMessage {
     id: `secretary-history-${entry.id}`,
     role: entry.role,
     content: entry.content,
+    action: entry.action,
+    searchResults: entry.searchResults,
+    actionState: entry.action ? 'pending' : undefined,
   }
 }
 
@@ -54,6 +59,7 @@ function buildAssistantMessage(result: SecretaryProcessResult): SecretaryUiMessa
     role: 'secretary',
     content: result.reply,
     action: result.action,
+    searchResults: result.searchResults,
     actionState: result.action ? 'pending' : undefined,
   }
 }
@@ -68,7 +74,15 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
   })
 }
 
-export function SecretaryPanel({ open, onClose, mode = 'overlay', runtimeConfig, composerCwd }: Props) {
+export function SecretaryPanel({
+  open,
+  onClose,
+  mode = 'overlay',
+  runtimeConfig,
+  composerCwd,
+  sidebarWidth,
+  onSidebarResizeStart,
+}: Props) {
   const { language } = useI18n()
   const [sending, setSending] = useState(false)
   const [botState, setBotState] = useState<SecretaryBotState>('idle')
@@ -76,6 +90,7 @@ export function SecretaryPanel({ open, onClose, mode = 'overlay', runtimeConfig,
   const [conversations, setConversations] = useState<SecretaryConversation[]>([])
   const [activeConversation, setActiveConversation] = useState<SecretaryConversation | null>(null)
   const [conversationListOpen, setConversationListOpen] = useState(false)
+  const [sortMode, setSortMode] = useState<'updated' | 'created' | 'title'>('updated')
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default')
   const [planMode, setPlanMode] = useState(false)
   const [composerModel, setComposerModel] = useState<string | null>(runtimeConfig?.defaultModel ?? null)
@@ -89,6 +104,13 @@ export function SecretaryPanel({ open, onClose, mode = 'overlay', runtimeConfig,
       .map((message) => message.content),
     [messages],
   )
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((left, right) => {
+      if (sortMode === 'created') return right.createdAt - left.createdAt
+      if (sortMode === 'title') return left.title.localeCompare(right.title)
+      return right.updatedAt - left.updatedAt
+    })
+  }, [conversations, sortMode])
 
   const stateLabel = useMemo(() => {
     if (botState === 'working') return '생각 중'
@@ -189,6 +211,8 @@ export function SecretaryPanel({ open, onClose, mode = 'overlay', runtimeConfig,
       ...runtimeConfig,
       defaultModel: selectedModel,
       envVars,
+      permissionMode,
+      planMode,
     }
   }
 
@@ -330,7 +354,7 @@ export function SecretaryPanel({ open, onClose, mode = 'overlay', runtimeConfig,
 
   const conversationList = (
     <ConversationList
-      conversations={conversations}
+      conversations={sortedConversations}
       activeConversationId={activeConversation?.id ?? null}
       onSelect={(id) => void handleSwitchConversation(id)}
       onRename={(id, title) => void handleRenameConversation(id, title)}
@@ -439,27 +463,51 @@ export function SecretaryPanel({ open, onClose, mode = 'overlay', runtimeConfig,
 
   if (isScreen) {
     return (
-      <div className="secretary-screen-root">
+      <div
+        className="secretary-screen-root"
+        style={sidebarWidth ? { gridTemplateColumns: `${sidebarWidth}px 1.5px minmax(0, 1fr)` } : undefined}
+      >
         <aside className="secretary-history-sidebar" aria-label="씨토 채팅">
           <div className="secretary-sidebar-drag-region draggable-region" />
-          <div className="secretary-sidebar-primary-actions">
-            <button
-              type="button"
-              onClick={() => void handleCreateConversation()}
-              className="secretary-sidebar-action-button"
-            >
-              <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>새 채팅</span>
-            </button>
-          </div>
           <div className="secretary-history-sidebar-header">
             <p>채팅</p>
-            <span>{conversations.length}</span>
+            <div>
+              <select
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+                aria-label="대화 정렬"
+              >
+                <option value="updated">최근순</option>
+                <option value="created">생성순</option>
+                <option value="title">이름순</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => void handleCreateConversation()}
+                className="secretary-sidebar-new-button"
+                aria-label="새 대화"
+                title="새 대화"
+              >
+                <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
           </div>
-          {conversationList}
+          <ConversationList
+            conversations={sortedConversations}
+            activeConversationId={activeConversation?.id ?? null}
+            onSelect={(id) => void handleSwitchConversation(id)}
+            onRename={(id, title) => void handleRenameConversation(id, title)}
+            onArchive={(id) => void handleArchiveConversation(id)}
+            variant="sidebar"
+          />
         </aside>
+        <div
+          className="secretary-sidebar-resize-handle"
+          onMouseDown={onSidebarResizeStart}
+          aria-hidden="true"
+        />
 
         <main className="secretary-session-main" aria-label="기본 씨토 비서">
           <header className="secretary-session-header draggable-region">

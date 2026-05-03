@@ -153,6 +153,10 @@ export function useAppController() {
     () => workflows.map((workflow) => ({ ...workflow })),
     [workflows],
   )
+  const secretaryRecentWorkflows = useMemo(
+    () => workflows.map((workflow) => ({ id: workflow.id, name: workflow.name })).slice(0, 8),
+    [workflows],
+  )
   const activeSessionConflict = activeSessionId ? sessionFileLockState[activeSessionId] : null
   const activeSessionConflictDetails = activeSessionConflict?.hasConflict
     ? {
@@ -410,14 +414,6 @@ export function useAppController() {
     }
   }, [activeSessionId, panels, sessions, setActiveSession])
 
-  const handleSecretaryPanelToggle = useCallback((open: boolean) => {
-    if (open) {
-      panels.openSecretaryPanel()
-      return
-    }
-    panels.closeSecretaryPanel()
-  }, [panels])
-
   const handleSecretaryStartChat = useCallback(async (initialPrompt?: string) => {
     panels.closeOverlayPanels()
     setMessageJumpTarget(null)
@@ -447,10 +443,14 @@ export function useAppController() {
     activePanel: panels.activePanel,
     activeSession,
     recentSessions: secretaryRecentSessions,
+    recentWorkflows: secretaryRecentWorkflows,
     sessionViewSession,
     isTaskRunning: hasUnsafeReloadState,
+    themeId,
+    uiFontSize,
+    sidebarCollapsed,
+    settingsTab: panels.settingsInitialTab,
     onNavigate: handleSecretaryNavigate,
-    onPanelToggle: handleSecretaryPanelToggle,
     onStartChat: handleSecretaryStartChat,
     onOpenSession: handleSecretaryOpenSession,
   })

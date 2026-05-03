@@ -176,6 +176,8 @@ CREATE TABLE IF NOT EXISTS secretary_history (
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   intent TEXT,
+  action_json TEXT,
+  search_results_json TEXT,
   created_at INTEGER NOT NULL,
   FOREIGN KEY(conversation_id) REFERENCES secretary_conversations(id)
 );

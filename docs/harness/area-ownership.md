@@ -157,8 +157,14 @@
   - `src/components/secretary/SecretaryPanel.tsx`
   - `src/components/secretary/SecretaryCharacter.tsx`
   - `src/components/secretary/SecretaryMessage.tsx`
+  - `src/components/secretary/SecretaryMarkdown.tsx`
+  - `src/components/secretary/SecretaryModelPicker.tsx`
   - `src/components/secretary/ConversationList.tsx`
   - `src/components/secretary/useSecretaryAppBridge.ts`
+  - `src/secretary-panel/SecretaryFloating.tsx`
+  - `src/secretary-panel/main.tsx`
+  - `src/secretary-panel/styles.css`
+  - `secretary-panel.html`
   - `src/App.tsx`
   - `src/components/Sidebar.tsx`
   - `src/hooks/useAppPanels.ts`
@@ -170,7 +176,8 @@
   - `electron/main/windowController.ts`
   - `electron/persistence.ts`
 - 책임:
-  - 글로벌 단축키 등록과 메인 창 내장 비서 패널 토글
+  - 글로벌 단축키 등록과 앱 밖 플로팅 비서 창 토글
+  - 캐릭터 드래그 기반 플로팅 비서 창 위치 이동
   - 사이드바에서 진입하는 앱 내 비서 대화 화면
   - `window.secretary` preload 브리지와 `secretary:*` IPC 계약
   - LLM JSON intent 처리, 키워드 매칭 fallback 금지
@@ -182,6 +189,7 @@
   - `src/components/secretary/useSecretaryAppBridge.ts`는 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
   - `src/App.tsx`는 비서 활성 상태에서 기존 사이드바와 메인 화면을 모두 덮는 전체 비서 화면을 렌더링한다.
   - `src/components/secretary/SecretaryPanel.tsx`는 캐릭터, 비서 채팅 목록, 메시지, 일반 세션 입력창 기반 composer, 액션 확인 버튼, ESC 닫기를 렌더링한다.
+  - `src/secretary-panel/SecretaryFloating.tsx`는 별도 Electron 창에서 축소 캐릭터/확장 대화창, 앱 열기, 플로팅 전용 모델 override를 렌더링한다.
 - 흔한 회귀:
   - 단축키 토글 또는 ESC 닫기 누락
   - `getActiveContext`가 현재 route/session을 반영하지 않음
@@ -194,6 +202,7 @@
   - `isTaskRunning` 컨텍스트 누락으로 중복 실행 제안
   - `secretary` route가 사이드바 active state 또는 `handleSecretaryNavigate`와 불일치함
   - 새 history/pattern 저장이 기존 sqlite 스냅샷을 깨뜨림
+  - 플로팅 창 resize/drag/escape 흐름이 창 위치·크기와 UI 상태를 다르게 유지함
   - `window.quickPanel`, `quick-panel:*` 채널 재도입
 
 ## Team And Subagents

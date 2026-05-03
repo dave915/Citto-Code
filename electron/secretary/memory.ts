@@ -115,6 +115,8 @@ export class SecretaryMemory {
     role: SecretaryHistoryRole
     content: string
     intent?: SecretaryIntent | null
+    action?: SecretaryHistoryEntry['action']
+    searchResults?: SecretaryHistoryEntry['searchResults']
   }): void {
     this.persistence.addSecretaryHistory(entry)
   }

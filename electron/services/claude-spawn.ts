@@ -18,6 +18,7 @@ type SpawnClaudeProcessOptions = {
   bare?: boolean
   inputFormat?: 'stream-json' | 'text'
   outputFormat?: 'stream-json' | 'json' | 'text'
+  planMode?: boolean
   abortSignal?: AbortSignal
   getUserHomePath: (env?: NodeJS.ProcessEnv) => string
   resolveTargetPath: (targetPath: string) => string
@@ -60,6 +61,7 @@ export async function spawnClaudeProcess({
   bare = false,
   inputFormat = 'stream-json',
   outputFormat = 'stream-json',
+  planMode = false,
   abortSignal,
   getUserHomePath,
   resolveTargetPath,
@@ -72,7 +74,7 @@ export async function spawnClaudeProcess({
       cwd,
       claudePath,
       permissionMode,
-      planMode: false,
+      planMode,
       model: model ?? undefined,
       envVars,
       bare,

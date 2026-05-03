@@ -5,6 +5,7 @@ import type {
   SecretaryAction,
   SecretaryActionResult,
   SecretaryBotState,
+  SecretaryFloatingPlacement,
   SecretaryNavigateEvent,
 } from './types'
 
@@ -12,10 +13,21 @@ export const secretaryAPI: SecretaryAPI = {
   togglePanel: () => ipcRenderer.invoke('secretary:toggle-panel'),
   getPanelOpen: () => ipcRenderer.invoke('secretary:get-panel-open'),
   setPanelOpen: (open) => ipcRenderer.invoke('secretary:set-panel-open', { open }),
+  setFloatingExpanded: (expanded) => ipcRenderer.invoke('secretary:set-floating-expanded', { expanded }),
+  moveFloatingBy: (deltaX, deltaY) => ipcRenderer.send('secretary:move-floating-by', { deltaX, deltaY }),
+  openMainWindow: () => ipcRenderer.invoke('secretary:open-main-window'),
   onPanelToggle: (handler) => {
     const listener = (_: Electron.IpcRendererEvent, open: boolean) => handler(Boolean(open))
     ipcRenderer.on('secretary:panel-toggle', listener)
     return () => ipcRenderer.removeListener('secretary:panel-toggle', listener)
+  },
+  onFloatingPlacement: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, placement: SecretaryFloatingPlacement) => handler({
+      horizontal: placement?.horizontal === 'right' ? 'right' : 'left',
+      vertical: placement?.vertical === 'bottom' ? 'bottom' : 'top',
+    })
+    ipcRenderer.on('secretary:floating-placement', listener)
+    return () => ipcRenderer.removeListener('secretary:floating-placement', listener)
   },
   process: (input, runtime) => ipcRenderer.invoke('secretary:process', { input, runtime }),
   onBotState: (handler) => {

@@ -108,13 +108,25 @@
 
 .secretary-screen-root {
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: 292px 1.5px minmax(0, 1fr);
   width: 100%;
   height: 100vh;
   min-height: 0;
   overflow: hidden;
   background: rgb(var(--claude-sidebar));
   color: rgb(var(--claude-text));
+}
+
+.secretary-sidebar-resize-handle {
+  min-width: 1.5px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 140ms ease;
+}
+
+.secretary-sidebar-resize-handle:hover {
+  background: rgb(var(--claude-border) / 0.85);
 }
 
 .secretary-history-sidebar {
@@ -181,15 +193,42 @@
   white-space: nowrap;
 }
 
-.secretary-history-sidebar-header span {
+.secretary-history-sidebar-header > div {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.secretary-history-sidebar-header select {
+  height: 28px;
   border: 1px solid rgb(var(--claude-border));
-  border-radius: 999px;
+  border-radius: 7px;
   background: rgb(var(--claude-panel));
   color: rgb(var(--claude-muted));
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 650;
   line-height: 1;
-  padding: 4px 8px;
+  outline: none;
+  padding: 0 7px;
+}
+
+.secretary-sidebar-new-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--claude-border));
+  border-radius: 7px;
+  background: rgb(var(--claude-panel));
+  color: rgb(var(--claude-muted));
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.secretary-sidebar-new-button:hover {
+  background: rgb(var(--claude-sidebar-hover));
+  color: rgb(var(--claude-text));
 }
 
 .secretary-history-sidebar .secretary-conversation-list {
@@ -492,6 +531,11 @@
   opacity: 1;
 }
 
+.secretary-conversation-list-sidebar .secretary-conversation-item:hover time,
+.secretary-conversation-list-sidebar .secretary-conversation-item:focus-within time {
+  opacity: 0;
+}
+
 .secretary-conversation-actions button {
   border: 1px solid rgb(var(--claude-border));
   border-radius: 6px;
@@ -508,10 +552,15 @@
 }
 
 .secretary-conversation-list-sidebar .secretary-conversation-actions button {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: rgb(var(--claude-sidebar-active));
   font-size: 10px;
-  padding: 5px 6px;
+  padding: 0;
 }
 
 .secretary-transcript {
@@ -588,7 +637,57 @@
 .secretary-message-card p {
   margin: 0;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+}
+
+.secretary-markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.secretary-markdown p,
+.secretary-markdown ul,
+.secretary-markdown ol,
+.secretary-markdown pre,
+.secretary-markdown blockquote {
+  margin: 0;
+}
+
+.secretary-markdown p + p,
+.secretary-markdown p + ul,
+.secretary-markdown p + ol,
+.secretary-markdown ul + p,
+.secretary-markdown ol + p,
+.secretary-markdown .secretary-markdown-code-shell {
+  margin-top: 8px;
+}
+
+.secretary-markdown ul,
+.secretary-markdown ol {
+  padding-left: 1.25rem;
+}
+
+.secretary-markdown li + li {
+  margin-top: 3px;
+}
+
+.secretary-markdown strong {
+  color: rgb(var(--claude-text));
+  font-weight: 760;
+}
+
+.secretary-markdown-inline-code {
+  border: 1px solid rgb(var(--claude-border) / 0.7);
+  border-radius: 6px;
+  background: rgb(var(--claude-surface-2));
+  color: rgb(var(--claude-text));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86em;
+  padding: 0.12em 0.35em;
+}
+
+.secretary-markdown-code-shell {
+  max-width: min(100%, 680px);
+  border-radius: 8px;
 }
 
 .secretary-message-card-user {
@@ -671,6 +770,10 @@
   .secretary-screen-root {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(132px, 30vh) minmax(0, 1fr);
+  }
+
+  .secretary-sidebar-resize-handle {
+    display: none;
   }
 
   .secretary-history-sidebar {
@@ -779,6 +882,42 @@
 
 .secretary-action-note {
   margin-top: 8px;
+}
+
+.secretary-search-results {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.secretary-search-result-card {
+  border: 1px solid rgb(var(--claude-border));
+  border-radius: 8px;
+  background: rgb(var(--claude-surface));
+  padding: 8px 9px;
+}
+
+.secretary-search-result-card span {
+  color: rgb(var(--claude-muted));
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.secretary-search-result-card p {
+  margin-top: 4px;
+  color: rgb(var(--claude-text));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.secretary-search-result-card small {
+  display: block;
+  margin-top: 4px;
+  color: rgb(var(--claude-muted));
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .secretary-character-stage {

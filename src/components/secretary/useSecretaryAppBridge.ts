@@ -7,15 +7,20 @@ import type {
 } from '../../../electron/preload'
 import type { AppOverlayPanel } from '../../hooks/useAppPanels'
 import type { Session } from '../../store/sessions'
+import type { ThemeId } from '../../lib/theme'
 
 type Params = {
   activePanel: AppOverlayPanel
   activeSession: Session | null
   sessionViewSession: Session | null
   recentSessions: SecretaryRecentSession[]
+  recentWorkflows: { id: string; name: string }[]
   isTaskRunning: boolean
+  themeId: ThemeId
+  uiFontSize: number
+  sidebarCollapsed: boolean
+  settingsTab: string | null
   onNavigate: (route: CittoRoute) => void
-  onPanelToggle: (open: boolean) => void
   onStartChat: (initialPrompt?: string) => Promise<void>
   onOpenSession: (sessionId: string) => void
 }
@@ -34,9 +39,13 @@ export function useSecretaryAppBridge({
   activeSession,
   sessionViewSession,
   recentSessions,
+  recentWorkflows,
   isTaskRunning,
+  themeId,
+  uiFontSize,
+  sidebarCollapsed,
+  settingsTab,
   onNavigate,
-  onPanelToggle,
   onStartChat,
   onOpenSession,
 }: Params) {
@@ -45,10 +54,20 @@ export function useSecretaryAppBridge({
     activeRoute: resolveActiveRoute(activePanel, displaySession),
     currentSessionId: displaySession?.id ?? null,
     currentProjectId: displaySession?.cwd ?? null,
+    currentSessionName: displaySession?.name ?? null,
+    currentProjectPath: displaySession?.cwd ?? null,
+    currentModel: displaySession?.model ?? null,
+    permissionMode: displaySession?.permissionMode ?? null,
+    planMode: displaySession?.planMode ?? false,
+    themeId,
+    uiFontSize,
+    sidebarCollapsed,
+    settingsTab,
     isTaskRunning,
     recentSessions,
     recentArtifacts: [],
-  }), [activePanel, displaySession, isTaskRunning, recentSessions])
+    recentWorkflows,
+  }), [activePanel, displaySession, isTaskRunning, recentSessions, recentWorkflows, settingsTab, sidebarCollapsed, themeId, uiFontSize])
 
   const handleNavigate = useCallback((route: CittoRoute) => {
     onNavigate(route)
@@ -57,17 +76,6 @@ export function useSecretaryAppBridge({
   useEffect(() => {
     void window.secretary.updateActiveContext(activeContext).catch(() => undefined)
   }, [activeContext])
-
-  useEffect(() => {
-    void window.secretary.setPanelOpen(activePanel === 'secretary').catch(() => undefined)
-  }, [activePanel])
-
-  useEffect(() => {
-    const cleanup = window.secretary.onPanelToggle((open) => {
-      onPanelToggle(open)
-    })
-    return cleanup
-  }, [onPanelToggle])
 
   useEffect(() => {
     const cleanup = window.secretary.onNavigate((event) => {

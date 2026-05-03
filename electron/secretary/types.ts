@@ -1,5 +1,6 @@
 import type { SecretaryAction } from './actions'
 import type { CittoRoute } from './routes'
+import type { PermissionMode } from '../persistence-types'
 
 export type SecretaryBotState = 'idle' | 'working' | 'done' | 'error'
 
@@ -9,6 +10,7 @@ export type SecretaryProcessResult = {
   reply: string
   intent: SecretaryIntent
   action: SecretaryAction | null
+  searchResults?: SecretarySearchResult[]
 }
 
 export type SecretaryExecuteResult = {
@@ -36,6 +38,8 @@ export type SecretaryHistoryEntry = {
   role: SecretaryHistoryRole
   content: string
   intent: SecretaryIntent | null
+  action: SecretaryAction | null
+  searchResults: SecretarySearchResult[]
   createdAt: number
 }
 
@@ -64,17 +68,45 @@ export type SecretaryArtifactRef = {
   updatedAt: number
 }
 
+export type SecretaryWorkflowRef = {
+  id: string
+  name: string
+}
+
+export type SecretarySearchResult = {
+  id: string
+  label: string
+  type: string
+  excerpt?: string
+  route?: CittoRoute
+  sessionId?: string
+  updatedAt?: number
+}
+
 export type SecretaryActiveContext = {
   activeRoute: CittoRoute
   currentSessionId: string | null
   currentProjectId: string | null
+  currentSessionName?: string | null
+  currentProjectPath?: string | null
+  currentModel?: string | null
+  permissionMode?: PermissionMode | null
+  planMode?: boolean
+  themeId?: string | null
+  uiFontSize?: number | null
+  sidebarCollapsed?: boolean
+  settingsTab?: string | null
+  selectedFileNames?: string[]
   isTaskRunning: boolean
   recentSessions: SecretaryRecentSession[]
   recentArtifacts: SecretaryArtifactRef[]
+  recentWorkflows?: SecretaryWorkflowRef[]
 }
 
 export type SecretaryRuntimeConfig = {
   claudePath?: string | null
   envVars?: Record<string, string>
   defaultModel?: string | null
+  permissionMode?: PermissionMode | null
+  planMode?: boolean | null
 }
