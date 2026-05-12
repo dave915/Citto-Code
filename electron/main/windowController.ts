@@ -14,6 +14,8 @@ export function createWindowController({
 }: CreateWindowControllerOptions) {
   let mainWindow: BrowserWindow | null = null
   let secretaryFloatingWindow: BrowserWindow | null = null
+  let virtualMouseWindow: BrowserWindow | null = null
+  let virtualMouseHideTimer: NodeJS.Timeout | null = null
   let secretaryAccelerator = process.platform === 'darwin' ? 'Option+Space' : 'Alt+Space'
   let secretaryEnabled = true
   let secretaryPanelOpen = false
@@ -36,6 +38,8 @@ export function createWindowController({
     height: secretaryExpandedContentSize.height + secretaryCharacterSlotSize + secretaryFloatingGap,
   }
 
+  const virtualMouseSize = { width: 164, height: 82 }
+
   type SecretaryFloatingPlacement = {
     horizontal: 'left' | 'right'
     vertical: 'top' | 'bottom'
@@ -56,6 +60,112 @@ export function createWindowController({
       event.preventDefault()
       void shell.openExternal(url)
     })
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+  }
+
+  function buildVirtualMouseHtml(label: string, mode: string) {
+    const safeLabel = label
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+    const accent = mode === 'clicking' ? '#f5b94e' : mode === 'typing' ? '#62c4ff' : '#80d98b'
+
+    return [
+      '<!doctype html><html><head><meta charset="utf-8" />',
+      '<style>',
+      'html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;}',
+      '.root{position:relative;width:100%;height:100%;}',
+      '.pulse{position:absolute;left:13px;top:12px;width:42px;height:42px;border-radius:999px;border:2px solid rgba(245,185,78,.78);animation:pulse .72s ease-out infinite;}',
+      '.pointer{position:absolute;left:22px;top:18px;width:27px;height:32px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.42));}',
+      '.pointer svg{display:block;width:100%;height:100%;}',
+      '.pointer path{fill:#fff7e8;stroke:#1f1a12;stroke-width:1.35;stroke-linejoin:round;}',
+      '.badge{position:absolute;left:52px;top:15px;max-width:104px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(20,22,26,.84);color:#fff7e8;padding:6px 10px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 10px 28px rgba(0,0,0,.28);}',
+      `.dot{display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:999px;background:${accent};box-shadow:0 0 0 4px color-mix(in srgb, ${accent} 24%, transparent);}`,
+      '@keyframes pulse{0%{transform:scale(.62);opacity:.95}100%{transform:scale(1.38);opacity:0}}',
+      '</style></head><body>',
+      `<div class="root"><div class="pulse"></div><div class="pointer"><svg viewBox="0 0 24 28" aria-hidden="true"><path d="M4.6 2.7l14.8 9.7-7.05 1.72-3.62 6.72L4.6 2.7z"/></svg></div><div class="badge"><span class="dot"></span>${safeLabel}</div></div>`,
+      '</body></html>',
+    ].join('')
+  }
+
+  function createVirtualMouseWindow() {
+    const window = new BrowserWindow({
+      width: virtualMouseSize.width,
+      height: virtualMouseSize.height,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      focusable: false,
+      resizable: false,
+      movable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      show: false,
+      title: 'Citto Visual Cursor',
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    })
+
+    window.setIgnoreMouseEvents(true, { forward: true })
+    window.setAlwaysOnTop(true, 'screen-saver')
+    window.on('closed', () => {
+      if (virtualMouseWindow === window) virtualMouseWindow = null
+      if (virtualMouseHideTimer) {
+        clearTimeout(virtualMouseHideTimer)
+        virtualMouseHideTimer = null
+      }
+    })
+    return window
+  }
+
+  function showVirtualMouseOverlay(event: unknown) {
+    const record = isRecord(event) ? event : {}
+    const screenRecord = isRecord(record.screen) ? record.screen : {}
+    const cursorRecord = isRecord(record.cursor) ? record.cursor : {}
+    const x = typeof screenRecord.x === 'number' ? screenRecord.x : Number(screenRecord.x)
+    const y = typeof screenRecord.y === 'number' ? screenRecord.y : Number(screenRecord.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return
+
+    const window = virtualMouseWindow && !virtualMouseWindow.isDestroyed()
+      ? virtualMouseWindow
+      : createVirtualMouseWindow()
+    virtualMouseWindow = window
+
+    const label = typeof cursorRecord.label === 'string' && cursorRecord.label.trim()
+      ? cursorRecord.label.trim()
+      : '조작'
+    const mode = typeof cursorRecord.mode === 'string' ? cursorRecord.mode : 'moving'
+    const display = screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) })
+    const bounds = {
+      x: Math.min(
+        Math.max(Math.round(x) - 20, display.bounds.x),
+        display.bounds.x + display.bounds.width - virtualMouseSize.width,
+      ),
+      y: Math.min(
+        Math.max(Math.round(y) - 18, display.bounds.y),
+        display.bounds.y + display.bounds.height - virtualMouseSize.height,
+      ),
+      width: virtualMouseSize.width,
+      height: virtualMouseSize.height,
+    }
+
+    window.setBounds(bounds)
+    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildVirtualMouseHtml(label, mode))}`).then(() => {
+      if (!window.isDestroyed()) window.showInactive()
+    })
+    if (virtualMouseHideTimer) clearTimeout(virtualMouseHideTimer)
+    virtualMouseHideTimer = setTimeout(() => {
+      virtualMouseHideTimer = null
+      if (!window.isDestroyed()) window.hide()
+    }, 1500)
   }
 
   function focusWindow(window: BrowserWindow) {
@@ -429,6 +539,7 @@ export function createWindowController({
     sendWhenRendererReady,
     setSecretaryFloatingExpanded,
     setSecretaryPanelOpen,
+    showVirtualMouseOverlay,
     showMainWindow,
     showSecretaryFloatingWindow,
     toggleSecretaryPanel,

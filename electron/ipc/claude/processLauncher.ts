@@ -15,7 +15,15 @@ type LaunchClaudeProcessOptions = {
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
   planMode?: boolean
   model?: string
+  systemPrompt?: string
+  systemPromptMode?: 'system' | 'append'
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  tools?: string[] | 'none'
+  settingSources?: Array<'user' | 'project' | 'local'>
   envVars?: Record<string, string>
+  mcpConfig?: Record<string, unknown> | null
+  strictMcpConfig?: boolean
+  allowedTools?: string[]
   getUserHomePath: (env?: NodeJS.ProcessEnv) => string
   resolveTargetPath: (targetPath: string) => string
 }
@@ -27,9 +35,17 @@ function buildClaudeArgs({
   outputFormat,
   includePartialMessages,
   model,
+  systemPrompt,
+  systemPromptMode,
+  effort,
+  tools,
+  settingSources,
   permissionMode,
   planMode,
-}: Pick<LaunchClaudeProcessOptions, 'sessionId' | 'bare' | 'inputFormat' | 'outputFormat' | 'includePartialMessages' | 'model' | 'permissionMode' | 'planMode'>) {
+  mcpConfig,
+  strictMcpConfig,
+  allowedTools,
+}: Pick<LaunchClaudeProcessOptions, 'sessionId' | 'bare' | 'inputFormat' | 'outputFormat' | 'includePartialMessages' | 'model' | 'systemPrompt' | 'systemPromptMode' | 'effort' | 'tools' | 'settingSources' | 'permissionMode' | 'planMode' | 'mcpConfig' | 'strictMcpConfig' | 'allowedTools'>) {
   const resolvedInputFormat = inputFormat ?? 'stream-json'
   const resolvedOutputFormat = outputFormat ?? 'stream-json'
   const args: string[] = [
@@ -45,6 +61,20 @@ function buildClaudeArgs({
   }
   if (sessionId) args.unshift('--resume', sessionId)
   if (model) args.push('--model', model)
+  if (systemPrompt?.trim()) {
+    args.push(systemPromptMode === 'append' ? '--append-system-prompt' : '--system-prompt', systemPrompt.trim())
+  }
+  if (effort) args.push('--effort', effort)
+  const hasAllowedTools = Boolean(allowedTools?.length)
+  if (tools === 'none' && !hasAllowedTools) {
+    args.push('--tools', '')
+  } else if (Array.isArray(tools) && tools.length > 0) {
+    args.push('--tools', tools.join(','))
+  }
+  if (settingSources?.length) args.push('--setting-sources', settingSources.join(','))
+  if (mcpConfig) args.push('--mcp-config', JSON.stringify(mcpConfig))
+  if (strictMcpConfig) args.push('--strict-mcp-config')
+  if (allowedTools?.length) args.push('--allowedTools', allowedTools.join(','))
   if (bare) args.push('--bare')
   if (planMode) {
     args.push('--permission-mode', 'plan')
@@ -68,7 +98,15 @@ export function launchClaudeProcess({
   permissionMode,
   planMode,
   model,
+  systemPrompt,
+  systemPromptMode,
+  effort,
+  tools,
+  settingSources,
   envVars,
+  mcpConfig,
+  strictMcpConfig,
+  allowedTools,
   getUserHomePath,
   resolveTargetPath,
 }: LaunchClaudeProcessOptions): { proc: ChildProcess; tempKey: string } {
@@ -84,8 +122,16 @@ export function launchClaudeProcess({
     outputFormat,
     includePartialMessages,
     model: cliModel,
+    systemPrompt,
+    systemPromptMode,
+    effort,
+    tools,
+    settingSources,
     permissionMode,
     planMode,
+    mcpConfig,
+    strictMcpConfig,
+    allowedTools,
   })
 
   const { CLAUDECODE: _ignoredClaudeCode, ...cleanEnv } = process.env

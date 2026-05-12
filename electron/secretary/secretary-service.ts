@@ -1,5 +1,12 @@
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { spawnClaudeProcess } from '../services/claude-spawn'
 import { buildCapabilityManifest } from './actions'
+import {
+  COMPUTER_USE_EXECUTION_POLICY,
+  COMPUTER_USE_OBSERVATION_POLICY,
+} from './computer-use-policy'
 import { extractJsonObject, normalizeSecretaryResult } from './intent-router'
 import type { SecretaryMemory } from './memory'
 import type {
@@ -14,11 +21,21 @@ type SecretaryServiceOptions = {
   memory: SecretaryMemory
   getUserHomePath: (env?: NodeJS.ProcessEnv) => string
   resolveTargetPath: (targetPath: string) => string
+  getComputerUseMcpConfig?: () => Record<string, unknown> | null
+  getComputerUseAllowedAllTools?: () => string[]
+  getComputerUseStatus?: () => { available: boolean; detail: string; setupCommand?: string }
+  installComputerUse?: () => Promise<{ available: boolean; detail: string; setupCommand?: string }>
 }
 
-const SECRETARY_PROCESS_TIMEOUT_MS = 60_000
-const SECRETARY_EXECUTE_TIMEOUT_MS = 60_000
-const SECRETARY_TITLE_TIMEOUT_MS = 20_000
+type SecretaryRunClaudeCodeHooks = {
+  onComputerUseEvent?: (event: unknown) => void
+}
+
+const SECRETARY_PROCESS_TIMEOUT_MS = 180_000
+const SECRETARY_EXECUTE_TIMEOUT_MS = 90_000
+const SECRETARY_TITLE_TIMEOUT_MS = 30_000
+const EMPTY_MCP_CONFIG = { mcpServers: {} } as const
+const COMPUTER_USE_EVENT_POLL_MS = 120
 
 const DEFAULT_SECRETARY_CONTEXT: SecretaryActiveContext = {
   activeRoute: 'home',
@@ -42,8 +59,81 @@ function createTimeoutSignal(timeoutMs: number) {
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   return {
+    controller,
     signal: controller.signal,
     clear: () => clearTimeout(timeout),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function attachMcpServerEnv(config: Record<string, unknown>, envPatch: Record<string, string>): Record<string, unknown> {
+  const servers = isRecord(config.mcpServers) ? config.mcpServers : {}
+  return {
+    ...config,
+    mcpServers: Object.fromEntries(
+      Object.entries(servers).map(([name, server]) => {
+        if (!isRecord(server)) return [name, server]
+        const env = isRecord(server.env) ? server.env : {}
+        return [name, {
+          ...server,
+          env: {
+            ...env,
+            ...envPatch,
+          },
+        }]
+      }),
+    ),
+  }
+}
+
+async function createComputerUseEventReader(onEvent?: (event: unknown) => void) {
+  if (!onEvent) return null
+
+  const dir = await mkdtemp(join(tmpdir(), 'citto-computer-use-events-'))
+  const eventFilePath = join(dir, 'events.ndjson')
+  await writeFile(eventFilePath, '', 'utf-8')
+
+  let offset = 0
+  let disposed = false
+  let reading = false
+
+  const drain = async () => {
+    if (disposed || reading) return
+    reading = true
+    try {
+      const text = await readFile(eventFilePath, 'utf-8').catch(() => '')
+      if (text.length <= offset) return
+      const chunk = text.slice(offset)
+      offset = text.length
+      for (const line of chunk.split(/\r?\n/)) {
+        const trimmed = line.trim()
+        if (!trimmed) continue
+        try {
+          onEvent(JSON.parse(trimmed))
+        } catch {
+          // Ignore malformed event lines. The MCP result remains authoritative.
+        }
+      }
+    } finally {
+      reading = false
+    }
+  }
+
+  const timer = setInterval(() => {
+    void drain()
+  }, COMPUTER_USE_EVENT_POLL_MS)
+
+  return {
+    eventFilePath,
+    async dispose() {
+      clearInterval(timer)
+      await drain()
+      disposed = true
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+    },
   }
 }
 
@@ -67,15 +157,25 @@ function buildSystemPrompt(context: SecretaryActiveContext, memory: {
   recentHistory: unknown[]
   patterns: unknown[]
   conversationSearchResults: SecretarySearchResult[]
-}) {
+}, computerUseStatus: { available: boolean; detail: string; setupCommand?: string }) {
   return [
     '당신은 Citto의 비서 "기본 씨토"입니다.',
-    '당신은 OpenClona나 Hermes처럼 사용자의 작업 맥락을 찾아 적절한 다음 장소와 실행 경로로 연결하는 프로젝트 조율자입니다.',
-    'Citto의 세션, 결과물, 워크플로우를 참조해 다음 작업을 제안하는 얇은 대화 레이어입니다.',
+    '당신은 사용자의 실제 마우스를 빼앗지 않고, 플로팅 비서 UI와 가상 포인터 상태로 다음 실행 지점을 보여주는 데스크탑 AI 비서입니다.',
+    'Citto의 세션, 결과물, 워크플로우를 참조해 다음 작업을 제안하고 안전한 실행 경로로 연결하는 조율자입니다.',
     '당신의 핵심 역할은 직접 긴 프로젝트 작업을 수행하는 것이 아니라, 관련 맥락을 찾고 사용자가 기존 흐름에서 이어서 일하도록 안내하는 것입니다.',
     '비서 자체는 특정 프로젝트 디렉토리에 종속되지 않습니다. 프로젝트 경로가 보이더라도 참고 정보로만 사용하세요.',
     '현재 비서 채팅의 기록만 대화 컨텍스트로 사용하세요. 다른 비서 채팅의 내용을 아는 척하지 마세요.',
     '추상적인 장기 기억을 아는 척하지 말고, 제공된 컨텍스트와 실제 참조만 사용하세요.',
+    '실행 원칙:',
+    '- 기본은 Level 2 관전 모드입니다. 사용자가 언제든 중단할 수 있다는 전제로 말하세요.',
+    `- 현재 computer-use 실행기 상태: ${computerUseStatus.available ? '사용 가능' : '사용 불가'}. ${computerUseStatus.detail}`,
+    computerUseStatus.available
+      ? '- OS UI 접근이 필요한 요청은 runClaudeCode 액션으로 제안할 수 있습니다.'
+      : '- OS UI 접근이 필요한 요청은 runClaudeCode 액션을 제안하지 말고, installComputerUse 액션으로 Cua Driver 설치 승인을 먼저 받으세요.',
+    COMPUTER_USE_OBSERVATION_POLICY,
+    '- 액션이 필요하면 먼저 이유와 다음 위치를 짧게 설명하고, action은 하나만 제안하세요.',
+    '- 발송, 삭제, 저장, 업로드, 설정 변경, 장시간 실행처럼 위험하거나 되돌리기 어려운 일은 사용자 확인 전에는 절대 완료했다고 말하지 마세요.',
+    '- 도구 선택을 설명해야 할 때는 공식 API, DOM/브라우저 자동화, 접근성 트리, 화면 분석, OS 입력 순서로 안정적인 경로를 선호한다고 말하세요.',
     '',
     '반드시 JSON 객체 하나만 응답하세요. 마크다운 코드블록과 설명 문장은 금지입니다.',
     '',
@@ -146,6 +246,14 @@ function buildUserPrompt(input: string) {
     input,
     '',
     '위 입력에 대해 Citto 비서로 응답하세요.',
+  ].join('\n')
+}
+
+function buildDelegatedExecutionSystemPrompt() {
+  return [
+    'Citto 비서가 사용자 확인 후 위임한 작업입니다.',
+    '특정 프로젝트 디렉토리를 자동으로 가정하지 말고, 필요한 대상이 불명확하면 결과에서 명확히 알려 주세요.',
+    COMPUTER_USE_EXECUTION_POLICY,
   ].join('\n')
 }
 
@@ -235,6 +343,8 @@ function attachConversationSearchResults(
 
 export class SecretaryService {
   private runtimeConfig: SecretaryRuntimeConfig = {}
+  private activeProcessControllers = new Map<string, Set<AbortController>>()
+  private cancelledProcessCounts = new Map<string, number>()
 
   constructor(private readonly options: SecretaryServiceOptions) {}
 
@@ -249,6 +359,108 @@ export class SecretaryService {
       ...override,
       envVars: override.envVars ?? this.runtimeConfig.envVars,
     })
+  }
+
+  private getComputerUseMcpConfig(): Record<string, unknown> | null {
+    return this.options.getComputerUseMcpConfig?.() ?? null
+  }
+
+  private getComputerUseAllowedAllTools(): string[] | undefined {
+    const tools = this.options.getComputerUseAllowedAllTools?.() ?? []
+    return tools.length > 0 ? tools : undefined
+  }
+
+  private getComputerUseStatus(): { available: boolean; detail: string; setupCommand?: string } {
+    return this.options.getComputerUseStatus?.() ?? {
+      available: false,
+      detail: 'computer-use 실행기 상태를 확인할 수 없습니다.',
+    }
+  }
+
+  async installComputerUse() {
+    if (!this.options.installComputerUse) {
+      return {
+        ok: false,
+        error: 'Cua Driver 설치 기능이 연결되어 있지 않습니다.',
+      }
+    }
+
+    try {
+      const status = await this.options.installComputerUse()
+      return status.available
+        ? {
+            ok: true,
+            output: `${status.detail}\n\n이제 macOS 권한 팝업에서 Accessibility와 Screen Recording을 허용한 뒤 다시 computer-use 작업을 요청해 주세요.`,
+          }
+        : {
+            ok: false,
+            error: status.setupCommand
+              ? `${status.detail}\n설치 명령: ${status.setupCommand}`
+              : status.detail,
+          }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  private addActiveProcessController(conversationId: string, controller: AbortController): void {
+    const controllers = this.activeProcessControllers.get(conversationId) ?? new Set<AbortController>()
+    controllers.add(controller)
+    this.activeProcessControllers.set(conversationId, controllers)
+  }
+
+  private removeActiveProcessController(conversationId: string, controller: AbortController): void {
+    const controllers = this.activeProcessControllers.get(conversationId)
+    if (!controllers) return
+    controllers.delete(controller)
+    if (controllers.size === 0) {
+      this.activeProcessControllers.delete(conversationId)
+    }
+  }
+
+  private markCancelledProcess(conversationId: string, count: number): void {
+    if (count <= 0) return
+    this.cancelledProcessCounts.set(
+      conversationId,
+      (this.cancelledProcessCounts.get(conversationId) ?? 0) + count,
+    )
+  }
+
+  private consumeCancelledProcess(conversationId: string): boolean {
+    const count = this.cancelledProcessCounts.get(conversationId) ?? 0
+    if (count <= 0) return false
+    if (count === 1) {
+      this.cancelledProcessCounts.delete(conversationId)
+    } else {
+      this.cancelledProcessCounts.set(conversationId, count - 1)
+    }
+    return true
+  }
+
+  cancelActiveProcess(conversationId?: string | null): boolean {
+    if (conversationId) {
+      const controllers = this.activeProcessControllers.get(conversationId)
+      if (!controllers?.size) return false
+      this.markCancelledProcess(conversationId, controllers.size)
+      for (const controller of controllers) {
+        controller.abort()
+      }
+      this.activeProcessControllers.delete(conversationId)
+      return true
+    }
+
+    if (this.activeProcessControllers.size === 0) return false
+    for (const [id, controllers] of this.activeProcessControllers) {
+      this.markCancelledProcess(id, controllers.size)
+      for (const controller of controllers) {
+        controller.abort()
+      }
+    }
+    this.activeProcessControllers.clear()
+    return true
   }
 
   async process(
@@ -278,6 +490,7 @@ export class SecretaryService {
     try {
       const runtime = this.resolveRuntimeConfig(runtimeOverride)
       const timeout = createTimeoutSignal(SECRETARY_PROCESS_TIMEOUT_MS)
+      this.addActiveProcessController(conversationId, timeout.controller)
       const result = await spawnClaudeProcess({
         prompt: buildUserPrompt(trimmedInput),
         cwd: '~',
@@ -286,16 +499,33 @@ export class SecretaryService {
         planMode: runtime.planMode,
         systemPrompt: buildSystemPrompt(context, {
           profile: this.options.memory.getProfile(),
-          recentHistory: this.options.memory.loadRecentHistory(conversationId, 20),
-          patterns: this.options.memory.loadPatterns(8),
-          conversationSearchResults,
-        }),
+          recentHistory: this.options.memory.loadRecentHistory(conversationId, 8),
+          patterns: this.options.memory.loadPatterns(4),
+          conversationSearchResults: conversationSearchResults.slice(0, 4),
+        }, this.getComputerUseStatus()),
+        systemPromptMode: 'system',
+        effort: 'low',
+        tools: 'none',
+        settingSources: ['local'],
         claudePath: runtime.claudePath,
         envVars: runtime.envVars,
+        mcpConfig: EMPTY_MCP_CONFIG,
+        strictMcpConfig: true,
         abortSignal: timeout.signal,
         getUserHomePath: this.options.getUserHomePath,
         resolveTargetPath: this.options.resolveTargetPath,
-      }).finally(timeout.clear)
+      }).finally(() => {
+        timeout.clear()
+        this.removeActiveProcessController(conversationId, timeout.controller)
+      })
+
+      if (this.consumeCancelledProcess(conversationId)) {
+        return {
+          reply: '이번 요청은 중단했어요. 필요하면 이어서 다시 요청해 주세요.',
+          intent: 'chat',
+          action: null,
+        }
+      }
 
       if (result.isError) {
         if (timeout.signal.aborted && result.output.trim()) {
@@ -352,6 +582,13 @@ export class SecretaryService {
 
       return parsed
     } catch (error) {
+      if (this.consumeCancelledProcess(conversationId)) {
+        return {
+          reply: '이번 요청은 중단했어요. 필요하면 이어서 다시 요청해 주세요.',
+          intent: 'chat',
+          action: null,
+        }
+      }
       const timedOut = error instanceof Error && error.message === 'Secretary LLM request timed out.'
       const reply = buildProcessFallbackReply(error, timedOut)
       const fallback: SecretaryProcessResult = {
@@ -369,28 +606,64 @@ export class SecretaryService {
     }
   }
 
-  async runClaudeCode(prompt: string, conversationId?: string) {
+  async runClaudeCode(prompt: string, conversationId?: string, hooks: SecretaryRunClaudeCodeHooks = {}) {
     const trimmedPrompt = prompt.trim()
     if (!trimmedPrompt) {
       return { ok: false, error: '실행할 내용이 없습니다.' }
     }
+    const processId = conversationId ?? `secretary-execution-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     try {
       const runtime = this.resolveRuntimeConfig()
+      const computerUseMcpConfig = this.getComputerUseMcpConfig()
+      if (!computerUseMcpConfig) {
+        const status = this.getComputerUseStatus()
+        return {
+          ok: false,
+          error: status.setupCommand
+            ? `computer-use를 실행하려면 Cua Driver 설치가 필요합니다. 설치 명령: ${status.setupCommand}`
+            : status.detail,
+        }
+      }
+
+      const eventReader = await createComputerUseEventReader(hooks.onComputerUseEvent)
+      const computerUseMcpConfigWithEvents = eventReader
+        ? attachMcpServerEnv(computerUseMcpConfig, { CITTO_VISUAL_EVENT_FILE: eventReader.eventFilePath })
+        : computerUseMcpConfig
       const timeout = createTimeoutSignal(SECRETARY_EXECUTE_TIMEOUT_MS)
+      this.addActiveProcessController(processId, timeout.controller)
       const result = await spawnClaudeProcess({
         prompt: trimmedPrompt,
         cwd: '~',
         model: runtime.defaultModel,
-        permissionMode: runtime.permissionMode,
+        permissionMode: computerUseMcpConfig ? 'bypassPermissions' : runtime.permissionMode,
         planMode: runtime.planMode,
-        systemPrompt: 'Citto 비서가 사용자 확인 후 위임한 작업입니다. 특정 프로젝트 디렉토리를 자동으로 가정하지 말고, 필요한 대상이 불명확하면 결과에서 명확히 알려 주세요.',
+        systemPrompt: buildDelegatedExecutionSystemPrompt(),
+        systemPromptMode: 'system',
+        effort: 'low',
+        tools: 'none',
+        settingSources: ['local'],
         claudePath: runtime.claudePath,
         envVars: runtime.envVars,
+        mcpConfig: computerUseMcpConfigWithEvents ?? EMPTY_MCP_CONFIG,
+        strictMcpConfig: true,
+        allowedTools: computerUseMcpConfig ? this.getComputerUseAllowedAllTools() : undefined,
         abortSignal: timeout.signal,
         getUserHomePath: this.options.getUserHomePath,
         resolveTargetPath: this.options.resolveTargetPath,
-      }).finally(timeout.clear)
+      }).finally(() => {
+        timeout.clear()
+        this.removeActiveProcessController(processId, timeout.controller)
+        void eventReader?.dispose()
+      })
+
+      if (this.consumeCancelledProcess(processId)) {
+        return {
+          ok: false,
+          output: result.output,
+          error: '사용자가 작업을 중단했어요.',
+        }
+      }
 
       if (result.isError) {
         if (timeout.signal.aborted) {
@@ -419,6 +692,12 @@ export class SecretaryService {
 
       return { ok: true, output }
     } catch (error) {
+      if (this.consumeCancelledProcess(processId)) {
+        return {
+          ok: false,
+          error: '사용자가 작업을 중단했어요.',
+        }
+      }
       return {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
@@ -437,6 +716,11 @@ export class SecretaryService {
         permissionMode: 'default',
         claudePath: runtime.claudePath,
         envVars: runtime.envVars,
+        effort: 'low',
+        tools: 'none',
+        settingSources: ['local'],
+        mcpConfig: EMPTY_MCP_CONFIG,
+        strictMcpConfig: true,
         abortSignal: timeout.signal,
         getUserHomePath: this.options.getUserHomePath,
         resolveTargetPath: this.options.resolveTargetPath,

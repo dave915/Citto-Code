@@ -7,6 +7,7 @@ import type {
   SecretaryProcessResult,
   SecretaryRuntimeConfig,
   SecretarySearchResult,
+  SecretaryTaskSnapshot,
   SelectedFile,
 } from '../../../electron/preload'
 import { useI18n } from '../../hooks/useI18n'
@@ -17,6 +18,7 @@ import { InputArea } from '../InputArea'
 import { ConversationList } from './ConversationList'
 import { SecretaryCharacter } from './SecretaryCharacter'
 import { SecretaryMessage, type SecretaryUiMessage } from './SecretaryMessage'
+import { SecretaryTaskHud } from './SecretaryTaskHud'
 import { SecretaryThinkingIndicator } from './SecretaryThinkingIndicator'
 
 type Props = {
@@ -59,7 +61,7 @@ function buildHistoryMessage(entry: SecretaryHistoryEntry): SecretaryUiMessage {
     content: entry.content,
     action: entry.action,
     searchResults: entry.searchResults,
-    actionState: entry.action ? 'pending' : undefined,
+    actionState: entry.action ? 'expired' : undefined,
   }
 }
 
@@ -72,6 +74,56 @@ function buildAssistantMessage(result: SecretaryProcessResult): SecretaryUiMessa
     searchResults: result.searchResults,
     actionState: result.action ? 'pending' : undefined,
   }
+}
+
+function expirePendingActionMessages(messages: SecretaryUiMessage[]): SecretaryUiMessage[] {
+  return messages.map((message) => (
+    message.action && (!message.actionState || message.actionState === 'pending')
+      ? { ...message, actionState: 'expired' as const }
+      : message
+  ))
+}
+
+function createActionKey(action: SecretaryAction): string {
+  return JSON.stringify(action)
+}
+
+function syncSnapshotApprovalMessages(
+  messages: SecretaryUiMessage[],
+  snapshot: SecretaryTaskSnapshot | null,
+): SecretaryUiMessage[] {
+  const approval = snapshot?.task?.status === 'waiting_approval'
+    ? snapshot.task.approvalRequest
+    : null
+  if (!approval) return expirePendingActionMessages(messages)
+
+  let hasCurrentApprovalMessage = false
+  let changed = false
+  const nextMessages = messages.map((message) => {
+    if (!message.action) return message
+    const messageActionKey = createActionKey(message.action)
+    if (messageActionKey === approval.actionKey && message.actionState !== 'expired') {
+      hasCurrentApprovalMessage = true
+      return message
+    }
+    if (!message.actionState || message.actionState === 'pending') {
+      changed = true
+      return { ...message, actionState: 'expired' as const }
+    }
+    return message
+  })
+
+  if (hasCurrentApprovalMessage) return changed ? nextMessages : messages
+  return [
+    ...nextMessages,
+    {
+      id: `secretary-approval-${approval.id}`,
+      role: 'secretary',
+      content: `승인이 필요한 작업이에요. ${approval.description}`,
+      action: approval.action,
+      actionState: 'pending',
+    },
+  ]
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -104,6 +156,8 @@ export function SecretaryPanel({
   const [sortMode, setSortMode] = useState<SecretarySortMode>('updated')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
+  const [taskActivity, setTaskActivity] = useState<'planning' | 'running' | null>(null)
+  const [taskSnapshot, setTaskSnapshot] = useState<SecretaryTaskSnapshot | null>(null)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default')
   const [planMode, setPlanMode] = useState(false)
   const [composerModel, setComposerModel] = useState<string | null>(runtimeConfig?.defaultModel ?? null)
@@ -125,6 +179,17 @@ export function SecretaryPanel({
       return right.updatedAt - left.updatedAt
     })
   }, [conversations, sortMode])
+  const activeApprovalActionKey = taskSnapshot?.task?.status === 'waiting_approval'
+    ? taskSnapshot.task.approvalRequest?.actionKey ?? null
+    : null
+  const pendingActionMessage = useMemo(() => {
+    return [...messages].reverse().find((message) => (
+      message.action
+      && (!message.actionState || message.actionState === 'pending')
+      && (!activeApprovalActionKey || createActionKey(message.action) === activeApprovalActionKey)
+    )) ?? null
+  }, [activeApprovalActionKey, messages])
+  const pendingAction = pendingActionMessage?.action ?? null
   const sortLabel = SECRETARY_SORT_OPTIONS.find((option) => option.value === sortMode)?.label ?? '최근순'
 
   useEffect(() => {
@@ -137,6 +202,30 @@ export function SecretaryPanel({
     })
     return cleanup
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.secretary.getTaskSnapshot()
+      .then((snapshot) => {
+        if (!cancelled) setTaskSnapshot(snapshot)
+      })
+      .catch(() => undefined)
+    const cleanup = window.secretary.onTaskSnapshot((snapshot) => {
+      setTaskSnapshot(snapshot)
+    })
+    return () => {
+      cancelled = true
+      cleanup()
+    }
+  }, [])
+
+  useEffect(() => {
+    setMessages((current) => syncSnapshotApprovalMessages(current, taskSnapshot))
+  }, [
+    activeApprovalActionKey,
+    taskSnapshot?.task?.approvalRequest?.id,
+    taskSnapshot?.task?.status,
+  ])
 
   const refreshConversations = async () => {
     const list = await window.secretary.listConversations()
@@ -161,9 +250,12 @@ export function SecretaryPanel({
       refreshConversations(),
     ])
     const chronologicalHistory = [...history].reverse()
-    setMessages(chronologicalHistory.length > 0
+    const snapshot = await window.secretary.getTaskSnapshot().catch(() => taskSnapshot)
+    if (snapshot) setTaskSnapshot(snapshot)
+    const historyMessages = chronologicalHistory.length > 0
       ? chronologicalHistory.map(buildHistoryMessage)
-      : [buildGreetingMessage()])
+      : [buildGreetingMessage()]
+    setMessages(syncSnapshotApprovalMessages(historyMessages, snapshot ?? taskSnapshot))
     if (focusMessageId) {
       focusMessageById(focusMessageId)
     } else {
@@ -187,14 +279,22 @@ export function SecretaryPanel({
         const history = await window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT)
         if (cancelled || submittedDuringHistoryLoadRef.current) return
         const chronologicalHistory = [...history].reverse()
-        setMessages(chronologicalHistory.length > 0
+        const snapshot = await window.secretary.getTaskSnapshot().catch(() => taskSnapshot)
+        if (cancelled || submittedDuringHistoryLoadRef.current) return
+        if (snapshot) setTaskSnapshot(snapshot)
+        const historyMessages = chronologicalHistory.length > 0
           ? chronologicalHistory.map(buildHistoryMessage)
-          : [buildGreetingMessage()])
+          : [buildGreetingMessage()]
+        setMessages(syncSnapshotApprovalMessages(historyMessages, snapshot ?? taskSnapshot))
         setFocusedMessageId(null)
       })
       .catch(() => {
         if (!cancelled) {
-          setMessages((current) => current.length > 0 ? current : [buildGreetingMessage()])
+          setMessages((current) => (
+            current.length > 0
+              ? current
+              : syncSnapshotApprovalMessages([buildGreetingMessage()], taskSnapshot)
+          ))
         }
       })
 
@@ -276,9 +376,10 @@ export function SecretaryPanel({
     submittedDuringHistoryLoadRef.current = true
     setFocusedMessageId(null)
     setSending(true)
+    setTaskActivity('planning')
     setBotState('working')
     setMessages((current) => [
-      ...current,
+      ...expirePendingActionMessages(current),
       { id: createMessageId(), role: 'user', content: visibleUserContent },
     ])
 
@@ -309,6 +410,7 @@ export function SecretaryPanel({
     } finally {
       if (requestSeqRef.current === requestId) {
         setSending(false)
+        setTaskActivity(null)
       }
     }
   }
@@ -321,7 +423,9 @@ export function SecretaryPanel({
     if (!sending) return
     requestSeqRef.current += 1
     setSending(false)
+    setTaskActivity(null)
     setBotState('idle')
+    void window.secretary.controlTask('cancel').catch(() => undefined)
     setMessages((current) => [
       ...current,
       {
@@ -333,7 +437,12 @@ export function SecretaryPanel({
   }
 
   const handleConfirmAction = async (messageId: string, action: SecretaryAction) => {
+    if (pendingActionMessage?.id !== messageId) {
+      updateMessage(messageId, { actionState: 'expired' })
+      return
+    }
     updateMessage(messageId, { actionState: 'accepted' })
+    setTaskActivity('running')
     setBotState('working')
     setSending(true)
 
@@ -362,6 +471,18 @@ export function SecretaryPanel({
       ])
     } finally {
       setSending(false)
+      setTaskActivity(null)
+    }
+  }
+
+  const handleDenyAction = (messageId: string) => {
+    if (pendingActionMessage?.id !== messageId) {
+      updateMessage(messageId, { actionState: 'expired' })
+      return
+    }
+    updateMessage(messageId, { actionState: 'denied' })
+    if (taskSnapshot?.task?.status === 'waiting_approval') {
+      void window.secretary.controlTask('cancel').catch(() => undefined)
     }
   }
 
@@ -426,7 +547,7 @@ export function SecretaryPanel({
             key={message.id}
             message={message}
             onConfirmAction={handleConfirmAction}
-            onDenyAction={(messageId) => updateMessage(messageId, { actionState: 'denied' })}
+            onDenyAction={handleDenyAction}
             onSelectSearchResult={(result) => void handleSelectSearchResult(result)}
             highlighted={focusedMessageId === message.id}
             showAssistantProfile={isScreen}
@@ -506,6 +627,16 @@ export function SecretaryPanel({
       </div>
 
       {!isScreen && conversationListOpen && conversationList}
+
+      <SecretaryTaskHud
+        botState={botState}
+        sending={sending}
+        pendingAction={pendingAction}
+        activity={taskActivity}
+        snapshot={taskSnapshot}
+        compact
+        onAbort={handleAbort}
+      />
 
       {transcript}
       {composer}
@@ -614,6 +745,16 @@ export function SecretaryPanel({
               ×
             </button>
           </header>
+          <div className="secretary-session-hud-shell">
+            <SecretaryTaskHud
+              botState={botState}
+              sending={sending}
+              pendingAction={pendingAction}
+              activity={taskActivity}
+              snapshot={taskSnapshot}
+              onAbort={handleAbort}
+            />
+          </div>
           {transcript}
           {composer}
         </main>

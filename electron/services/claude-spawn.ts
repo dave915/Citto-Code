@@ -13,8 +13,15 @@ type SpawnClaudeProcessOptions = {
   model: string | null
   permissionMode: PermissionMode
   systemPrompt?: string
+  systemPromptMode?: 'user-reminder' | 'system' | 'append'
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  tools?: string[] | 'none'
+  settingSources?: Array<'user' | 'project' | 'local'>
   claudePath?: string
   envVars?: Record<string, string>
+  mcpConfig?: Record<string, unknown> | null
+  strictMcpConfig?: boolean
+  allowedTools?: string[]
   bare?: boolean
   inputFormat?: 'stream-json' | 'text'
   outputFormat?: 'stream-json' | 'json' | 'text'
@@ -37,9 +44,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function buildPrompt(prompt: string, systemPrompt?: string) {
+function buildPrompt(prompt: string, systemPrompt?: string, systemPromptMode: SpawnClaudeProcessOptions['systemPromptMode'] = 'user-reminder') {
   const trimmedSystemPrompt = systemPrompt?.trim()
-  if (!trimmedSystemPrompt) return prompt
+  if (!trimmedSystemPrompt || systemPromptMode !== 'user-reminder') return prompt
 
   return [
     '<system-reminder>',
@@ -56,8 +63,15 @@ export async function spawnClaudeProcess({
   model,
   permissionMode,
   systemPrompt,
+  systemPromptMode = 'user-reminder',
+  effort,
+  tools,
+  settingSources,
   claudePath,
   envVars,
+  mcpConfig,
+  strictMcpConfig,
+  allowedTools,
   bare = false,
   inputFormat = 'stream-json',
   outputFormat = 'stream-json',
@@ -76,7 +90,15 @@ export async function spawnClaudeProcess({
       permissionMode,
       planMode,
       model: model ?? undefined,
+      systemPrompt: systemPromptMode === 'user-reminder' ? undefined : systemPrompt,
+      systemPromptMode: systemPromptMode === 'append' ? 'append' : 'system',
+      effort,
+      tools,
+      settingSources,
       envVars,
+      mcpConfig,
+      strictMcpConfig,
+      allowedTools,
       bare,
       inputFormat,
       outputFormat,
@@ -85,7 +107,7 @@ export async function spawnClaudeProcess({
       resolveTargetPath,
     })
 
-    const fullPrompt = buildPrompt(prompt, systemPrompt)
+    const fullPrompt = buildPrompt(prompt, systemPrompt, systemPromptMode)
     const usesStreamJson = outputFormat === 'stream-json'
     let settled = false
     let aborted = false

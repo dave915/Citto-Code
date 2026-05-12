@@ -159,6 +159,7 @@
   - `src/components/secretary/SecretaryMessage.tsx`
   - `src/components/secretary/SecretaryMarkdown.tsx`
   - `src/components/secretary/SecretaryModelPicker.tsx`
+  - `src/components/secretary/SecretaryTaskHud.tsx`
   - `src/components/secretary/SecretaryThinkingIndicator.tsx`
   - `src/components/secretary/ConversationList.tsx`
   - `src/components/secretary/useSecretaryAppBridge.ts`
@@ -173,6 +174,9 @@
   - `src/components/settings/general/SecretarySection.tsx`
   - `src/store/sessionStoreState.ts`
   - `electron/secretary/*`
+  - `electron/secretary/computer-use-policy.ts`
+  - `electron/services/computerUseMcpService.ts`
+  - `electron/services/cittoVisualMcpServer.mjs`
   - `electron/preload/secretaryApi.ts`
   - `electron/main/windowController.ts`
   - `electron/persistence.ts`
@@ -183,6 +187,11 @@
   - `window.secretary` preload 브리지와 `secretary:*` IPC 계약
   - LLM JSON intent 처리, 키워드 매칭 fallback 금지
   - 액션 레지스트리/핸들러와 allowlist 기반 액션 검증
+  - `electron/secretary/task-orchestrator.ts`는 비서 작업 상태, 단계, 로그, 가상 커서, 승인 요청 snapshot을 메인 프로세스 메모리에서 관리한다.
+  - `electron/secretary/computer-use-policy.ts`는 native visual computer-use MCP 사용 시 읽기/실행 도구 구분, Cua opt-in fallback, 위험 행동 직전 확인 정책을 정의한다.
+  - `electron/services/computerUseMcpService.ts`는 씨토 전용 strict MCP config를 만들고 기본으로 `citto-visual-use` native MCP만 주입한다. `CITTO_VISUAL_USE_DRIVER=cua` opt-in일 때만 Cua Driver 설치/daemon 상태를 감지하고, 승인된 설치 액션에서 공식 설치 스크립트를 실행한다. 전역 Claude/Cua MCP 설정 파일은 수정하지 않는다.
+  - `electron/services/cittoVisualMcpServer.mjs`는 macOS `screencapture`, Vision OCR, foreground activation, 실제 마우스/키보드 이벤트, tool-call 이벤트를 묶은 범용 visual/coordinate MCP를 제공한다.
+  - `electron/main/windowController.ts`는 computer-use tool-call 이벤트의 화면 좌표를 실제 화면 위 투명 가상 마우스 오버레이로 표시한다.
   - 현재 Citto 컨텍스트 동기화와 확인 후 화면 이동
   - `AppPersistence` 기반 비서 profile/conversations/history/patterns 저장
   - 비서 채팅 CRUD와 채팅별 history 격리
@@ -197,6 +206,7 @@
   - `src/components/secretary/useSecretaryAppBridge.ts`는 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
   - `src/App.tsx`는 비서 활성 상태에서 기존 사이드바와 메인 화면을 모두 덮는 전체 비서 화면을 렌더링한다.
   - `src/components/secretary/SecretaryPanel.tsx`는 캐릭터, 비서 채팅 목록, 메시지, 일반 세션 입력창 기반 composer, 액션 확인 버튼, ESC 닫기를 렌더링한다.
+  - `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창에서 공유하는 관전 모드 상태, 가상 포인터 미리보기, 단계 표시, 승인 대기 상태를 담당한다.
   - `src/secretary-panel/SecretaryFloating.tsx`는 별도 Electron 창에서 축소 캐릭터/확장 대화창, 앱 열기, 플로팅 전용 모델 override를 렌더링한다.
 - 흔한 회귀:
   - 단축키 토글 또는 ESC 닫기 누락
@@ -210,6 +220,7 @@
   - `isTaskRunning` 컨텍스트 누락으로 중복 실행 제안
   - `secretary` route가 사이드바 active state 또는 `handleSecretaryNavigate`와 불일치함
   - 새 history/pattern 저장이 기존 sqlite 스냅샷을 깨뜨림
+  - native visual MCP 권한 부족 상태에서 실행 액션을 제안하거나, 씨토 외 Claude 실행에 computer-use MCP/allowlist가 새는 문제
   - 플로팅 창 resize/drag/escape 흐름이 창 위치·크기와 UI 상태를 다르게 유지함
   - `window.quickPanel`, `quick-panel:*` 채널 재도입
 

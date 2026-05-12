@@ -14,10 +14,12 @@ import type {
   SecretaryHistoryEntry,
   SecretaryProcessResult,
   SecretarySearchResult,
+  SecretaryTaskSnapshot,
 } from '../../electron/preload'
 import { SecretaryCharacter } from '../components/secretary/SecretaryCharacter'
 import { SecretaryMessage, type SecretaryUiMessage } from '../components/secretary/SecretaryMessage'
 import { SecretaryModelPicker } from '../components/secretary/SecretaryModelPicker'
+import { SecretaryTaskHud } from '../components/secretary/SecretaryTaskHud'
 import { SecretaryThinkingIndicator } from '../components/secretary/SecretaryThinkingIndicator'
 import { useInputModelData } from '../hooks/useInputModelData'
 import { applyTheme, type ThemeId } from '../lib/theme'
@@ -55,7 +57,7 @@ function buildHistoryMessage(entry: SecretaryHistoryEntry): SecretaryUiMessage {
     content: entry.content,
     action: entry.action,
     searchResults: entry.searchResults,
-    actionState: entry.action ? 'pending' : undefined,
+    actionState: entry.action ? 'expired' : undefined,
   }
 }
 
@@ -68,6 +70,56 @@ function buildAssistantMessage(result: SecretaryProcessResult): SecretaryUiMessa
     searchResults: result.searchResults,
     actionState: result.action ? 'pending' : undefined,
   }
+}
+
+function expirePendingActionMessages(messages: SecretaryUiMessage[]): SecretaryUiMessage[] {
+  return messages.map((message) => (
+    message.action && (!message.actionState || message.actionState === 'pending')
+      ? { ...message, actionState: 'expired' as const }
+      : message
+  ))
+}
+
+function createActionKey(action: SecretaryAction): string {
+  return JSON.stringify(action)
+}
+
+function syncSnapshotApprovalMessages(
+  messages: SecretaryUiMessage[],
+  snapshot: SecretaryTaskSnapshot | null,
+): SecretaryUiMessage[] {
+  const approval = snapshot?.task?.status === 'waiting_approval'
+    ? snapshot.task.approvalRequest
+    : null
+  if (!approval) return expirePendingActionMessages(messages)
+
+  let hasCurrentApprovalMessage = false
+  let changed = false
+  const nextMessages = messages.map((message) => {
+    if (!message.action) return message
+    const messageActionKey = createActionKey(message.action)
+    if (messageActionKey === approval.actionKey && message.actionState !== 'expired') {
+      hasCurrentApprovalMessage = true
+      return message
+    }
+    if (!message.actionState || message.actionState === 'pending') {
+      changed = true
+      return { ...message, actionState: 'expired' as const }
+    }
+    return message
+  })
+
+  if (hasCurrentApprovalMessage) return changed ? nextMessages : messages
+  return [
+    ...nextMessages,
+    {
+      id: `secretary-floating-approval-${approval.id}`,
+      role: 'secretary',
+      content: `승인이 필요한 작업이에요. ${approval.description}`,
+      action: approval.action,
+      actionState: 'pending',
+    },
+  ]
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -90,6 +142,8 @@ export function SecretaryFloating() {
   const [activeConversation, setActiveConversation] = useState<SecretaryConversation | null>(null)
   const [appModel, setAppModel] = useState<string | null>(null)
   const [modelOverride, setModelOverride] = useState<string | null>(null)
+  const [taskActivity, setTaskActivity] = useState<'planning' | 'running' | null>(null)
+  const [taskSnapshot, setTaskSnapshot] = useState<SecretaryTaskSnapshot | null>(null)
   const [placement, setPlacement] = useState<SecretaryFloatingPlacement>({ horizontal: 'left', vertical: 'top' })
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -103,6 +157,17 @@ export function SecretaryFloating() {
     const last = [...messages].reverse().find((message) => message.role === 'secretary' && message.content.trim())
     return last?.content.replace(/\s+/g, ' ').trim() || '무엇을 도와드릴까요?'
   }, [messages])
+  const activeApprovalActionKey = taskSnapshot?.task?.status === 'waiting_approval'
+    ? taskSnapshot.task.approvalRequest?.actionKey ?? null
+    : null
+  const pendingActionMessage = useMemo(() => {
+    return [...messages].reverse().find((message) => (
+      message.action
+      && (!message.actionState || message.actionState === 'pending')
+      && (!activeApprovalActionKey || createActionKey(message.action) === activeApprovalActionKey)
+    )) ?? null
+  }, [activeApprovalActionKey, messages])
+  const pendingAction = pendingActionMessage?.action ?? null
 
   useEffect(() => {
     const cleanup = window.secretary.onBotState((state) => {
@@ -110,6 +175,30 @@ export function SecretaryFloating() {
     })
     return cleanup
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.secretary.getTaskSnapshot()
+      .then((snapshot) => {
+        if (!cancelled) setTaskSnapshot(snapshot)
+      })
+      .catch(() => undefined)
+    const cleanup = window.secretary.onTaskSnapshot((snapshot) => {
+      setTaskSnapshot(snapshot)
+    })
+    return () => {
+      cancelled = true
+      cleanup()
+    }
+  }, [])
+
+  useEffect(() => {
+    setMessages((current) => syncSnapshotApprovalMessages(current, taskSnapshot))
+  }, [
+    activeApprovalActionKey,
+    taskSnapshot?.task?.approvalRequest?.id,
+    taskSnapshot?.task?.status,
+  ])
 
   useEffect(() => {
     const cleanup = window.secretary.onFloatingPlacement((nextPlacement) => {
@@ -184,9 +273,12 @@ export function SecretaryFloating() {
     setActiveConversation(conversation)
     const history = await window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT)
     const chronologicalHistory = [...history].reverse()
-    setMessages(chronologicalHistory.length > 0
+    const snapshot = await window.secretary.getTaskSnapshot().catch(() => taskSnapshot)
+    if (snapshot) setTaskSnapshot(snapshot)
+    const historyMessages = chronologicalHistory.length > 0
       ? chronologicalHistory.map(buildHistoryMessage)
-      : [buildGreetingMessage()])
+      : [buildGreetingMessage()]
+    setMessages(syncSnapshotApprovalMessages(historyMessages, snapshot ?? taskSnapshot))
     if (focusMessageId) {
       focusMessageById(focusMessageId)
     } else {
@@ -201,7 +293,11 @@ export function SecretaryFloating() {
       const conversation = await window.secretary.getActiveConversation()
       await loadConversation(conversation)
     } catch {
-      setMessages((current) => current.length > 0 ? current : [buildGreetingMessage()])
+      setMessages((current) => (
+        current.length > 0
+          ? current
+          : syncSnapshotApprovalMessages([buildGreetingMessage()], taskSnapshot)
+      ))
     }
   }
 
@@ -310,9 +406,11 @@ export function SecretaryFloating() {
 
   const handleCreateConversation = async () => {
     const conversation = await window.secretary.createConversation()
+    const snapshot = await window.secretary.getTaskSnapshot().catch(() => taskSnapshot)
+    if (snapshot) setTaskSnapshot(snapshot)
     setActiveConversation(conversation)
     setFocusedMessageId(null)
-    setMessages([buildGreetingMessage()])
+    setMessages(syncSnapshotApprovalMessages([buildGreetingMessage()], snapshot ?? taskSnapshot))
   }
 
   const handleSend = async () => {
@@ -323,9 +421,13 @@ export function SecretaryFloating() {
     requestSeqRef.current = requestId
     setDraft('')
     setSending(true)
+    setTaskActivity('planning')
     setFocusedMessageId(null)
     setBotState('working')
-    setMessages((current) => [...current, { id: createMessageId(), role: 'user', content: input }])
+    setMessages((current) => [
+      ...expirePendingActionMessages(current),
+      { id: createMessageId(), role: 'user', content: input },
+    ])
 
     try {
       const result = await withTimeout(
@@ -349,13 +451,38 @@ export function SecretaryFloating() {
         },
       ])
     } finally {
-      if (requestSeqRef.current === requestId) setSending(false)
+      if (requestSeqRef.current === requestId) {
+        setSending(false)
+        setTaskActivity(null)
+      }
     }
   }
 
+  const handleAbort = () => {
+    if (!sending) return
+    requestSeqRef.current += 1
+    setSending(false)
+    setTaskActivity(null)
+    setBotState('idle')
+    void window.secretary.controlTask('cancel').catch(() => undefined)
+    setMessages((current) => [
+      ...current,
+      {
+        id: createMessageId(),
+        role: 'secretary',
+        content: '이번 요청은 중단했어요. 필요하면 이어서 다시 맡겨 주세요.',
+      },
+    ])
+  }
+
   const handleConfirmAction = async (messageId: string, action: SecretaryAction) => {
+    if (pendingActionMessage?.id !== messageId) {
+      updateMessage(messageId, { actionState: 'expired' })
+      return
+    }
     updateMessage(messageId, { actionState: 'accepted' })
     setSending(true)
+    setTaskActivity('running')
     setBotState('working')
     try {
       const result = await window.secretary.executeAction(action)
@@ -382,6 +509,18 @@ export function SecretaryFloating() {
       ])
     } finally {
       setSending(false)
+      setTaskActivity(null)
+    }
+  }
+
+  const handleDenyAction = (messageId: string) => {
+    if (pendingActionMessage?.id !== messageId) {
+      updateMessage(messageId, { actionState: 'expired' })
+      return
+    }
+    updateMessage(messageId, { actionState: 'denied' })
+    if (taskSnapshot?.task?.status === 'waiting_approval') {
+      void window.secretary.controlTask('cancel').catch(() => undefined)
     }
   }
 
@@ -406,25 +545,10 @@ export function SecretaryFloating() {
       return
     }
 
-    const sessionMessageId = result.sessionId
-      ? result.messageId ?? result.id.replace(/^session-message-/, '')
-      : null
-    const action: SecretaryAction | null = result.sessionId
-      ? {
-          type: 'openSession',
-          sessionId: result.sessionId,
-          messageId: sessionMessageId || undefined,
-        }
-      : result.route
-      ? { type: 'navigate', route: result.route }
-      : null
-
-    if (!action) return
-
     setSending(true)
     setBotState('working')
     try {
-      const actionResult = await window.secretary.executeAction(action)
+      const actionResult = await window.secretary.openSearchResult(result)
       setBotState(actionResult.ok ? 'done' : 'error')
       setMessages((current) => [
         ...current,
@@ -512,12 +636,21 @@ export function SecretaryFloating() {
         </header>
 
         <div ref={scrollRef} className="secretary-floating-transcript">
+          <SecretaryTaskHud
+            botState={botState}
+            sending={sending}
+            pendingAction={pendingAction}
+            activity={taskActivity}
+            snapshot={taskSnapshot}
+            compact
+            onAbort={handleAbort}
+          />
           {messages.map((message) => (
             <SecretaryMessage
               key={message.id}
               message={message}
               onConfirmAction={handleConfirmAction}
-              onDenyAction={(messageId) => updateMessage(messageId, { actionState: 'denied' })}
+              onDenyAction={handleDenyAction}
               onSelectSearchResult={(result) => void handleSelectSearchResult(result)}
               highlighted={focusedMessageId === message.id}
             />

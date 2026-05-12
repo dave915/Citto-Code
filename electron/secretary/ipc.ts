@@ -2,9 +2,16 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { normalizeSecretaryAction, type SecretaryAction, type SecretaryActionResult } from './actions'
 import { createSecretaryActionHandlers } from './action-handlers'
 import { isCittoRoute } from './routes'
+import { SecretaryTaskOrchestrator } from './task-orchestrator'
 import type { SecretaryMemory } from './memory'
 import type { SecretaryService } from './secretary-service'
-import type { SecretaryActiveContext, SecretaryProcessResult, SecretaryRuntimeConfig } from './types'
+import type {
+  SecretaryActiveContext,
+  SecretaryProcessResult,
+  SecretaryRuntimeConfig,
+  SecretaryTaskControlCommand,
+  SecretaryTaskSnapshot,
+} from './types'
 
 type RegisterSecretaryIpcHandlersOptions = {
   memory: SecretaryMemory
@@ -19,12 +26,14 @@ type RegisterSecretaryIpcHandlersOptions = {
   updateSecretaryShortcut: (accelerator: string, enabled: boolean) => void
   showMainWindow: () => BrowserWindow
   sendWhenRendererReady: (window: BrowserWindow, channel: string, payload?: unknown) => void
+  showVirtualMouseOverlay?: (event: unknown) => void
   runWorkflowNow: (workflowId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 const SECRETARY_PENDING_ACTION_TTL_MS = 10 * 60 * 1000
-const SECRETARY_PROCESS_IPC_TIMEOUT_MS = 70_000
+const SECRETARY_PROCESS_IPC_TIMEOUT_MS = 200_000
 const SECRETARY_RENDERER_ACTION_TIMEOUT_MS = 20_000
+const SECRETARY_RENDERER_ACTION_RETRY_MS = 250
 
 function createActionKey(action: SecretaryAction): string {
   return JSON.stringify(action)
@@ -151,6 +160,7 @@ export function registerSecretaryIpcHandlers({
   updateSecretaryShortcut,
   showMainWindow,
   sendWhenRendererReady,
+  showVirtualMouseOverlay,
   runWorkflowNow,
 }: RegisterSecretaryIpcHandlersOptions) {
   let activeConversationId: string | null = null
@@ -158,8 +168,21 @@ export function registerSecretaryIpcHandlers({
   const pendingRendererActions = new Map<string, {
     resolve: (result: SecretaryActionResult) => void
     timer: NodeJS.Timeout
+    retryTimer: NodeJS.Timeout
   }>()
   let rendererActionSeq = 0
+
+  const broadcastTaskSnapshot = (snapshot: SecretaryTaskSnapshot) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        sendWhenRendererReady(window, 'secretary:task-snapshot', snapshot)
+      }
+    }
+  }
+
+  const taskOrchestrator = new SecretaryTaskOrchestrator({
+    onSnapshot: broadcastTaskSnapshot,
+  })
 
   const prunePendingActions = () => {
     const now = Date.now()
@@ -183,18 +206,6 @@ export function registerSecretaryIpcHandlers({
     return true
   }
 
-  const hasStoredPendingAction = (action: SecretaryAction) => {
-    const conversationId = activeConversationId
-    if (!conversationId) return false
-    const key = createActionKey(action)
-    const now = Date.now()
-    return memory.loadHistory(conversationId, 80).some((entry) => (
-      entry.action
-      && createActionKey(entry.action) === key
-      && now - entry.createdAt <= SECRETARY_PENDING_ACTION_TTL_MS
-    ))
-  }
-
   const createRendererActionRequestId = () => {
     rendererActionSeq += 1
     return `secretary-renderer-action-${Date.now()}-${rendererActionSeq}`
@@ -203,13 +214,25 @@ export function registerSecretaryIpcHandlers({
   const runRendererAction = (action: SecretaryAction) => new Promise<SecretaryActionResult>((resolve) => {
     const window = showMainWindow()
     const requestId = createRendererActionRequestId()
+    let attempts = 0
+    const sendRequest = () => {
+      attempts += 1
+      sendWhenRendererReady(window, 'secretary:renderer-action', { requestId, action })
+      if (attempts >= 8) {
+        const pending = pendingRendererActions.get(requestId)
+        if (pending) clearInterval(pending.retryTimer)
+      }
+    }
     const timer = setTimeout(() => {
+      const pending = pendingRendererActions.get(requestId)
+      if (pending) clearInterval(pending.retryTimer)
       pendingRendererActions.delete(requestId)
       resolve({ ok: false, error: '앱에서 작업 결과를 확인하지 못했어요. 다시 시도해 주세요.' })
     }, SECRETARY_RENDERER_ACTION_TIMEOUT_MS)
+    const retryTimer = setInterval(sendRequest, SECRETARY_RENDERER_ACTION_RETRY_MS)
 
-    pendingRendererActions.set(requestId, { resolve, timer })
-    sendWhenRendererReady(window, 'secretary:renderer-action', { requestId, action })
+    pendingRendererActions.set(requestId, { resolve, timer, retryTimer })
+    sendRequest()
   })
 
   const executeSecretaryAction = createSecretaryActionHandlers({
@@ -219,6 +242,10 @@ export function registerSecretaryIpcHandlers({
     sendWhenRendererReady,
     runWorkflowNow,
     runRendererAction,
+    onComputerUseEvent: (event) => {
+      taskOrchestrator.applyComputerUseEvent(event)
+      showVirtualMouseOverlay?.(event)
+    },
   })
 
   ipcMain.handle('secretary:toggle-panel', () => {
@@ -263,9 +290,79 @@ export function registerSecretaryIpcHandlers({
     return { ok: true }
   })
 
+  ipcMain.handle('secretary:get-task-snapshot', () => taskOrchestrator.getSnapshot())
+
+  ipcMain.handle('secretary:control-task', (_event, payload: unknown) => {
+    const command = isRecord(payload) ? payload.command : payload
+    if (command !== 'pause' && command !== 'resume' && command !== 'cancel') {
+      return { ok: false, error: '지원하지 않는 작업 제어입니다.' }
+    }
+
+    const snapshot = taskOrchestrator.control(command as SecretaryTaskControlCommand)
+    if (command === 'cancel') {
+      pendingActions.clear()
+      service.cancelActiveProcess()
+      for (const [requestId, pending] of pendingRendererActions) {
+        pendingRendererActions.delete(requestId)
+        clearTimeout(pending.timer)
+        clearInterval(pending.retryTimer)
+        pending.resolve({ ok: false, error: '사용자가 작업을 중단했어요.' })
+      }
+    }
+    return { ok: true, snapshot }
+  })
+
+  ipcMain.handle('secretary:open-search-result', async (_event, payload: unknown): Promise<SecretaryActionResult> => {
+    if (!isRecord(payload)) return { ok: false, error: '검색 결과를 읽지 못했어요.' }
+    const sessionId = typeof payload.sessionId === 'string' && payload.sessionId.trim()
+      ? payload.sessionId.trim()
+      : null
+    const messageId = typeof payload.messageId === 'string' && payload.messageId.trim()
+      ? payload.messageId.trim()
+      : typeof payload.id === 'string'
+        ? payload.id.replace(/^session-message-/, '').trim()
+        : null
+    const route = isCittoRoute(payload.route) ? payload.route : null
+    const action: SecretaryAction | null = sessionId
+      ? { type: 'openSession', sessionId, messageId: messageId || undefined }
+      : route
+        ? { type: 'navigate', route }
+        : null
+
+    if (!action) return { ok: false, error: '열 수 있는 검색 결과가 아니에요.' }
+
+    sendWhenRendererReady(showMainWindow(), 'secretary:bot-state', 'working')
+    const startedTaskId = taskOrchestrator.startExecution(action).task?.id ?? null
+    try {
+      const result = await executeSecretaryAction(action)
+      const currentTask = taskOrchestrator.getSnapshot().task
+      if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
+        taskOrchestrator.completeExecution(result)
+      }
+      sendWhenRendererReady(showMainWindow(), 'secretary:bot-state', result.ok ? 'done' : 'error')
+      sendWhenRendererReady(showMainWindow(), 'secretary:action-result', result)
+      return result
+    } catch (error) {
+      const result = {
+        ok: false,
+        error: error instanceof Error && error.message.trim()
+          ? `검색 결과 위치로 이동하지 못했어요. ${error.message}`
+          : '검색 결과 위치로 이동하지 못했어요.',
+      }
+      const currentTask = taskOrchestrator.getSnapshot().task
+      if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
+        taskOrchestrator.completeExecution(result)
+      }
+      sendWhenRendererReady(showMainWindow(), 'secretary:bot-state', 'error')
+      sendWhenRendererReady(showMainWindow(), 'secretary:action-result', result)
+      return result
+    }
+  })
+
   ipcMain.handle('secretary:process', async (event, payload: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender) ?? showMainWindow()
     sendWhenRendererReady(window, 'secretary:bot-state', 'working')
+    let startedTaskId: string | null = null
 
     try {
       const input = isRecord(payload) ? payload.input : payload
@@ -273,14 +370,26 @@ export function registerSecretaryIpcHandlers({
 
       const conversation = memory.getActiveConversation(getActiveContext())
       activeConversationId = conversation.id
+      startedTaskId = taskOrchestrator.startPlanning(String(input ?? ''), conversation.id).task?.id ?? null
+      taskOrchestrator.markPlanningWaiting(runtime?.defaultModel ?? null)
       const result = await withProcessTimeout(
         service.process(String(input ?? ''), conversation.id, getActiveContext(), runtime),
         SECRETARY_PROCESS_IPC_TIMEOUT_MS,
       )
-      if (result.action) rememberPendingAction(result.action)
+      const currentTask = taskOrchestrator.getSnapshot().task
+      if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
+        if (result.action) rememberPendingAction(result.action)
+        taskOrchestrator.completePlanning(result)
+      }
       sendWhenRendererReady(window, 'secretary:bot-state', result.action ? 'done' : 'idle')
       return result
     } catch (error) {
+      const currentTask = taskOrchestrator.getSnapshot().task
+      if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
+        taskOrchestrator.failPlanning(error instanceof Error && error.message.trim()
+          ? error.message
+          : '비서 응답을 처리하지 못했어요.')
+      }
       sendWhenRendererReady(window, 'secretary:bot-state', 'error')
       return {
         reply: error instanceof Error && error.message === 'Secretary IPC process timed out.'
@@ -299,17 +408,29 @@ export function registerSecretaryIpcHandlers({
     const normalizedAction = normalizeSecretaryAction(action)
     if (!normalizedAction) {
       sendWhenRendererReady(window, 'secretary:bot-state', 'error')
+      taskOrchestrator.completeExecution({ ok: false, error: '지원하지 않는 액션입니다.' })
       return { ok: false, error: '지원하지 않는 액션입니다.' }
     }
 
-    if (!consumePendingAction(normalizedAction) && !hasStoredPendingAction(normalizedAction)) {
+    if (!taskOrchestrator.canApproveAction(normalizedAction)) {
       sendWhenRendererReady(window, 'secretary:bot-state', 'error')
+      return { ok: false, error: '현재 승인 대기 중인 액션이 아닙니다. 씨토에게 다시 제안받아 주세요.' }
+    }
+
+    if (!consumePendingAction(normalizedAction)) {
+      sendWhenRendererReady(window, 'secretary:bot-state', 'error')
+      taskOrchestrator.completeExecution({ ok: false, error: '확인 가능한 액션이 아닙니다. 씨토에게 다시 제안받아 주세요.' })
       return { ok: false, error: '확인 가능한 액션이 아닙니다. 씨토에게 다시 제안받아 주세요.' }
     }
 
     sendWhenRendererReady(window, 'secretary:bot-state', 'working')
+    const startedTaskId = taskOrchestrator.startExecution(normalizedAction).task?.id ?? null
     try {
       const result = await executeSecretaryAction(normalizedAction)
+      const currentTask = taskOrchestrator.getSnapshot().task
+      if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
+        taskOrchestrator.completeExecution(result)
+      }
       sendWhenRendererReady(window, 'secretary:bot-state', result.ok ? 'done' : 'error')
       sendWhenRendererReady(window, 'secretary:action-result', result)
       return result
@@ -320,6 +441,10 @@ export function registerSecretaryIpcHandlers({
         error: error instanceof Error && error.message.trim()
           ? `실행 결과를 처리하지 못했어요. ${error.message}`
           : '실행 결과를 처리하지 못했어요.',
+      }
+      const currentTask = taskOrchestrator.getSnapshot().task
+      if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
+        taskOrchestrator.completeExecution(result)
       }
       sendWhenRendererReady(window, 'secretary:action-result', result)
       return result
@@ -334,6 +459,7 @@ export function registerSecretaryIpcHandlers({
 
     pendingRendererActions.delete(requestId)
     clearTimeout(pending.timer)
+    clearInterval(pending.retryTimer)
     pending.resolve(normalizeActionResult(payload.result))
     return { ok: true }
   })

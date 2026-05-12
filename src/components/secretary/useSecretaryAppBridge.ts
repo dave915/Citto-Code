@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type {
   CittoRoute,
   SecretaryAction,
@@ -64,6 +64,8 @@ export function useSecretaryAppBridge({
   onDraftSkill,
   onCreateSkill,
 }: Params) {
+  const inFlightRendererActionIdsRef = useRef<Set<string>>(new Set())
+  const completedRendererActionIdsRef = useRef<Set<string>>(new Set())
   const displaySession = sessionViewSession ?? activeSession
   const activeContext = useMemo<SecretaryActiveContext>(() => ({
     activeRoute: resolveActiveRoute(activePanel, displaySession),
@@ -104,6 +106,14 @@ export function useSecretaryAppBridge({
       request: SecretaryRendererActionRequest,
       run: () => SecretaryActionResult | Promise<SecretaryActionResult>,
     ) => {
+      if (
+        inFlightRendererActionIdsRef.current.has(request.requestId)
+        || completedRendererActionIdsRef.current.has(request.requestId)
+      ) {
+        return
+      }
+      inFlightRendererActionIdsRef.current.add(request.requestId)
+
       const result = await Promise.resolve()
         .then(run)
         .catch((error): SecretaryActionResult => ({
@@ -113,7 +123,16 @@ export function useSecretaryAppBridge({
             : '작업을 처리하지 못했어요.',
         }))
 
-      await window.secretary.reportRendererActionResult(request.requestId, result).catch(() => undefined)
+      try {
+        await window.secretary.reportRendererActionResult(request.requestId, result).catch(() => undefined)
+      } finally {
+        inFlightRendererActionIdsRef.current.delete(request.requestId)
+        completedRendererActionIdsRef.current.add(request.requestId)
+        if (completedRendererActionIdsRef.current.size > 80) {
+          const first = completedRendererActionIdsRef.current.values().next().value
+          if (first) completedRendererActionIdsRef.current.delete(first)
+        }
+      }
     }
 
     const handleAction = (request: SecretaryRendererActionRequest) => {

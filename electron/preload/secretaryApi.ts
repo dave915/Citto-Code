@@ -7,6 +7,7 @@ import type {
   SecretaryFloatingPlacement,
   SecretaryNavigateEvent,
   SecretaryRendererActionRequest,
+  SecretaryTaskSnapshot,
 } from './types'
 
 function isRendererActionRequest(value: unknown): value is SecretaryRendererActionRequest {
@@ -68,6 +69,14 @@ export const secretaryAPI: SecretaryAPI = {
     return () => ipcRenderer.removeListener('secretary:renderer-action', listener)
   },
   reportRendererActionResult: (requestId, result) => ipcRenderer.invoke('secretary:renderer-action-result', { requestId, result }),
+  getTaskSnapshot: () => ipcRenderer.invoke('secretary:get-task-snapshot'),
+  onTaskSnapshot: (handler) => {
+    const listener = (_: Electron.IpcRendererEvent, snapshot: SecretaryTaskSnapshot) => handler(snapshot)
+    ipcRenderer.on('secretary:task-snapshot', listener)
+    return () => ipcRenderer.removeListener('secretary:task-snapshot', listener)
+  },
+  controlTask: (command) => ipcRenderer.invoke('secretary:control-task', { command }),
+  openSearchResult: (result) => ipcRenderer.invoke('secretary:open-search-result', result),
   listConversations: () => ipcRenderer.invoke('secretary:list-conversations'),
   getActiveConversation: () => ipcRenderer.invoke('secretary:get-active-conversation'),
   createConversation: () => ipcRenderer.invoke('secretary:create-conversation'),

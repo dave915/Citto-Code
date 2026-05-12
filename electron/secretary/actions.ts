@@ -88,6 +88,7 @@ export type SecretaryAction =
       instructions: string
     }
   | { type: 'runClaudeCode'; prompt: string; mode?: 'print' | 'interactive' }
+  | { type: 'installComputerUse' }
   | { type: 'openSettings'; section?: string }
   | { type: 'cancelActiveTask' }
 
@@ -149,6 +150,11 @@ const ACTION_CAPABILITIES: ActionCapability[] = [
     type: 'runClaudeCode',
     description: "Claude Code 실행. prompt 필수, mode는 'print' 또는 'interactive'.",
     schema: '{ "type": "runClaudeCode", "prompt": "...", "mode": "print" }',
+  },
+  {
+    type: 'installComputerUse',
+    description: 'Cua Driver computer-use 실행기 설치. OS UI 자동화가 필요하지만 실행기가 없을 때만 제안.',
+    schema: '{ "type": "installComputerUse" }',
   },
   {
     type: 'openRoundTable',
@@ -385,6 +391,10 @@ export function normalizeSecretaryAction(value: unknown): SecretaryAction | null
     const prompt = optionalText(value.prompt)
     const mode = value.mode === 'interactive' ? 'interactive' : 'print'
     return prompt ? { type: 'runClaudeCode', prompt, mode } : null
+  }
+
+  if (type === 'installComputerUse') {
+    return { type: 'installComputerUse' }
   }
 
   if (type === 'openRoundTable') {

@@ -68,6 +68,10 @@
       {
         "from": "build/tray-icon.png",
         "to": "build/tray-icon.png"
+      },
+      {
+        "from": "electron/services/cittoVisualMcpServer.mjs",
+        "to": "mcp/cittoVisualMcpServer.mjs"
       }
     ],
     "mac": {

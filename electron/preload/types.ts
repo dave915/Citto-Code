@@ -16,6 +16,8 @@ import type {
   SecretaryProfile,
   SecretaryRendererActionRequest,
   SecretarySearchResult,
+  SecretaryTaskControlCommand,
+  SecretaryTaskSnapshot,
   SecretaryRuntimeConfig,
 } from '../secretary/types'
 
@@ -36,6 +38,14 @@ export type {
   SecretaryRendererActionRequest,
   SecretaryRuntimeConfig,
   SecretarySearchResult,
+  SecretaryTask,
+  SecretaryTaskControlCommand,
+  SecretaryTaskLog,
+  SecretaryTaskSnapshot,
+  SecretaryTaskStatus,
+  SecretaryTaskStep,
+  SecretaryToolLane,
+  SecretaryVirtualCursorState,
   SecretaryWorkflowRef,
 } from '../secretary/types'
 
@@ -388,6 +398,10 @@ export type SecretaryAPI = {
   onActionResult: (handler: (result: SecretaryActionResult) => void) => () => void
   onRendererAction: (handler: (request: SecretaryRendererActionRequest) => void) => () => void
   reportRendererActionResult: (requestId: string, result: SecretaryActionResult) => Promise<{ ok: boolean; error?: string }>
+  getTaskSnapshot: () => Promise<SecretaryTaskSnapshot>
+  onTaskSnapshot: (handler: (snapshot: SecretaryTaskSnapshot) => void) => () => void
+  controlTask: (command: SecretaryTaskControlCommand) => Promise<{ ok: boolean; snapshot?: SecretaryTaskSnapshot; error?: string }>
+  openSearchResult: (result: SecretarySearchResult) => Promise<SecretaryActionResult>
   listConversations: () => Promise<SecretaryConversation[]>
   getActiveConversation: () => Promise<SecretaryConversation>
   createConversation: () => Promise<SecretaryConversation>

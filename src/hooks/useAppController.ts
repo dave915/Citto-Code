@@ -582,8 +582,9 @@ export function useAppController() {
       || sessions.some((session) =>
         session.messages.some((message) => message.btwCards?.some((card) => card.isStreaming)),
       )
+      || agentTeams.some((team) => team.status === 'running')
     ),
-    [sessions],
+    [agentTeams, sessions],
   )
 
   const teamStream = useAgentTeamStream(

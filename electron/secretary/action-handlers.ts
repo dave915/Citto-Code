@@ -10,6 +10,7 @@ type ActionHandlerOptions = {
   sendWhenRendererReady: (window: BrowserWindow, channel: string, payload?: unknown) => void
   runWorkflowNow: (workflowId: string) => Promise<{ ok: boolean; error?: string }>
   runRendererAction: (action: SecretaryAction) => Promise<SecretaryActionResult>
+  onComputerUseEvent?: (event: unknown) => void
 }
 
 export function createSecretaryActionHandlers({
@@ -19,6 +20,7 @@ export function createSecretaryActionHandlers({
   sendWhenRendererReady,
   runWorkflowNow,
   runRendererAction,
+  onComputerUseEvent,
 }: ActionHandlerOptions) {
   const navigate = (route: keyof typeof CITTO_ROUTES): SecretaryActionResult => {
     const window = showMainWindow()
@@ -68,10 +70,19 @@ export function createSecretaryActionHandlers({
         })
       }
 
-      const result = await service.runClaudeCode(action.prompt, getActiveConversationId() ?? undefined)
+      const result = await service.runClaudeCode(action.prompt, getActiveConversationId() ?? undefined, {
+        onComputerUseEvent,
+      })
       return result.ok
         ? { ok: true, message: result.output ?? '실행이 완료되었습니다.', payload: { output: result.output } }
         : { ok: false, error: result.error ?? result.output ?? 'Claude Code 실행이 실패했습니다.' }
+    }
+
+    if (action.type === 'installComputerUse') {
+      const result = await service.installComputerUse()
+      return result.ok
+        ? { ok: true, message: result.output ?? 'Cua Driver 설치를 완료했어요.', payload: { output: result.output } }
+        : { ok: false, error: result.error ?? result.output ?? 'Cua Driver를 설치하지 못했어요.' }
     }
 
     if (action.type === 'cancelActiveTask') {

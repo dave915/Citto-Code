@@ -18,6 +18,7 @@ import {
   readSelectedFile,
 } from './services/fileService'
 import { fetchModelsFromApi } from './services/modelService'
+import { createComputerUseMcpService } from './services/computerUseMcpService'
 import { createGitHeadWatchService } from './services/gitHeadWatchService'
 import {
   commitGit,
@@ -62,10 +63,15 @@ const windowController = createWindowController({
 
 const appPersistence = new AppPersistence()
 const secretaryMemory = new SecretaryMemory(appPersistence)
+const computerUseMcpService = createComputerUseMcpService()
 const secretaryService = new SecretaryService({
   memory: secretaryMemory,
   getUserHomePath,
   resolveTargetPath,
+  getComputerUseMcpConfig: computerUseMcpService.getClaudeMcpConfig,
+  getComputerUseAllowedAllTools: computerUseMcpService.getAllowedAllTools,
+  getComputerUseStatus: computerUseMcpService.getStatus,
+  installComputerUse: computerUseMcpService.install,
 })
 let secretaryActiveContext: SecretaryActiveContext = {
   activeRoute: 'home',
@@ -155,6 +161,9 @@ app.whenReady().then(async () => {
   importShellEnvironmentVars()
   installDevLogForwarding(IS_DEV)
   await appPersistence.initialize(app.getPath('userData'))
+  await computerUseMcpService.start().catch((error) => {
+    console.error('[computer-use-mcp] failed to prepare Cua Driver MCP', error)
+  })
   workflowExecutor.syncWorkflows(appPersistence.loadWorkflows())
 
   const appIconPath = resolveAppIconPath()
@@ -212,6 +221,7 @@ app.whenReady().then(async () => {
     updateSecretaryShortcut: windowController.updateSecretaryShortcut,
     showMainWindow: windowController.showMainWindow,
     sendWhenRendererReady: windowController.sendWhenRendererReady,
+    showVirtualMouseOverlay: windowController.showVirtualMouseOverlay,
     runWorkflowNow: workflowExecutor.runNow,
   })
 
@@ -315,6 +325,7 @@ app.on('will-quit', () => {
   gitHeadWatchService.dispose()
   previewProxyService.dispose()
   previewWatchService.dispose()
+  computerUseMcpService.dispose()
   subagentWatchService.dispose()
   killAllClaudeProcesses()
   globalShortcut.unregisterAll()

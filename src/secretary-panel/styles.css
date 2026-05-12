@@ -234,6 +234,10 @@ body {
   margin-bottom: 10px;
 }
 
+.secretary-floating-transcript .secretary-task-hud {
+  margin-bottom: 12px;
+}
+
 .secretary-floating-transcript .secretary-message-card {
   max-width: 94%;
   font-size: 13px;
