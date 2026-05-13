@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { SecretaryAction, SecretarySearchResult } from '../../../electron/preload'
 import cittoAppIcon from '../../assets/agent-icons/citto-app-icon.png'
 import { SecretaryMarkdown } from './SecretaryMarkdown'
@@ -19,6 +20,7 @@ type Props = {
   onSelectSearchResult?: (result: SecretarySearchResult) => void
   highlighted?: boolean
   showAssistantProfile?: boolean
+  taskStatus?: ReactNode
 }
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -97,6 +99,7 @@ export function SecretaryMessage({
   onSelectSearchResult,
   highlighted = false,
   showAssistantProfile = false,
+  taskStatus,
 }: Props) {
   const isUser = message.role === 'user'
   const showProfile = showAssistantProfile && !isUser
@@ -117,71 +120,75 @@ export function SecretaryMessage({
           aria-hidden="true"
         />
       )}
-      <div className={`secretary-message-card ${isUser ? 'secretary-message-card-user' : 'secretary-message-card-assistant'}`}>
-        <SecretaryMarkdown text={message.content} />
+      <div className="secretary-message-stack">
+        <div className={`secretary-message-card ${isUser ? 'secretary-message-card-user' : 'secretary-message-card-assistant'}`}>
+          <SecretaryMarkdown text={message.content} />
 
-        {actionPending && message.action && (
-          <div className={`secretary-action-row secretary-approval-card secretary-approval-card-${approvalCopy?.risk ?? 'low'}`}>
-            <div className="secretary-action-stack">
-              {approvalCopy && (
-                <div className="secretary-approval-header">
-                  <span>{approvalCopy.label}</span>
-                  <p>{approvalCopy.detail}</p>
-                </div>
-              )}
-              {actionPreview && (
-                <div className="secretary-execute-preview">
-                  <span>실행 전 미리보기</span>
-                  <p>{actionPreview}</p>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => onConfirmAction(message.id, message.action as SecretaryAction)}
-                className="secretary-button secretary-button-primary"
-              >
-                승인하고 {getActionLabel(message.action)}
-              </button>
-              <button
-                type="button"
-                onClick={() => onDenyAction(message.id)}
-                className="secretary-button"
-              >
-                취소
-              </button>
+          {actionPending && message.action && (
+            <div className={`secretary-action-row secretary-approval-card secretary-approval-card-${approvalCopy?.risk ?? 'low'}`}>
+              <div className="secretary-action-stack">
+                {approvalCopy && (
+                  <div className="secretary-approval-header">
+                    <span>{approvalCopy.label}</span>
+                    <p>{approvalCopy.detail}</p>
+                  </div>
+                )}
+                {actionPreview && (
+                  <div className="secretary-execute-preview">
+                    <span>실행 전 미리보기</span>
+                    <p>{actionPreview}</p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onConfirmAction(message.id, message.action as SecretaryAction)}
+                  className="secretary-button secretary-button-primary"
+                >
+                  승인하고 {getActionLabel(message.action)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDenyAction(message.id)}
+                  className="secretary-button"
+                >
+                  취소
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {message.actionState === 'accepted' && (
-          <p className="secretary-action-note">확인했어요.</p>
-        )}
-        {message.actionState === 'denied' && (
-          <p className="secretary-action-note">실행하지 않았어요.</p>
-        )}
-        {message.actionState === 'expired' && (
-          <p className="secretary-action-note">이전 제안은 다시 확인을 받아야 실행할 수 있어요.</p>
-        )}
+          {message.actionState === 'accepted' && (
+            <p className="secretary-action-note">확인했어요.</p>
+          )}
+          {message.actionState === 'denied' && (
+            <p className="secretary-action-note">실행하지 않았어요.</p>
+          )}
+          {message.actionState === 'expired' && (
+            <p className="secretary-action-note">이전 제안은 다시 확인을 받아야 실행할 수 있어요.</p>
+          )}
 
-        {message.searchResults && message.searchResults.length > 0 && (
-          <div className="secretary-search-results" aria-label="검색 결과">
-            {message.searchResults.map((result) => (
-              <button
-                key={`${result.type}-${result.id}`}
-                type="button"
-                className="secretary-search-result-card"
-                onClick={() => onSelectSearchResult?.(result)}
-                disabled={!onSelectSearchResult}
-              >
-                <div>
-                  <span>{result.type}</span>
-                  <p>{result.label}</p>
-                  {result.excerpt && <small>{result.excerpt}</small>}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+          {message.searchResults && message.searchResults.length > 0 && (
+            <div className="secretary-search-results" aria-label="검색 결과">
+              {message.searchResults.map((result) => (
+                <button
+                  key={`${result.type}-${result.id}`}
+                  type="button"
+                  className="secretary-search-result-card"
+                  onClick={() => onSelectSearchResult?.(result)}
+                  disabled={!onSelectSearchResult}
+                >
+                  <div>
+                    <span>{result.type}</span>
+                    <p>{result.label}</p>
+                    {result.excerpt && <small>{result.excerpt}</small>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!isUser && taskStatus}
       </div>
     </div>
   )

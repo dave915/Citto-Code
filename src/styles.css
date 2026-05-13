@@ -379,16 +379,6 @@
   color: rgb(var(--claude-text));
 }
 
-.secretary-session-hud-shell {
-  flex: 0 0 auto;
-  padding: 14px 24px 0;
-}
-
-.secretary-session-hud-shell .secretary-task-hud {
-  max-width: 860px;
-  margin: 0 auto;
-}
-
 .secretary-conversation-card {
   position: relative;
   display: flex;
@@ -1045,6 +1035,7 @@
   gap: 10px;
 }
 
+.secretary-chat-row-with-profile .secretary-message-stack,
 .secretary-chat-row-with-profile .secretary-message-card {
   min-width: 0;
 }
@@ -1064,8 +1055,25 @@
   image-rendering: pixelated;
 }
 
-.secretary-message-card {
+.secretary-message-stack {
+  display: flex;
   max-width: 92%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.secretary-chat-row-user .secretary-message-stack {
+  align-items: flex-end;
+}
+
+.secretary-chat-row-with-profile .secretary-message-stack {
+  max-width: 88%;
+}
+
+.secretary-message-card {
+  max-width: 100%;
   color: rgb(var(--claude-text));
   font-size: 14px;
   font-weight: 500;
@@ -1235,8 +1243,15 @@
   line-height: 1.5;
 }
 
-.secretary-session-transcript .secretary-message-card-user {
+.secretary-session-transcript .secretary-chat-row-user .secretary-message-stack {
   max-width: 78%;
+}
+
+.secretary-session-transcript .secretary-chat-row-assistant .secretary-message-stack {
+  max-width: 88%;
+}
+
+.secretary-session-transcript .secretary-message-card-user {
   padding: 6px 12px;
   border-color: rgb(var(--claude-user-bubble-border));
   border-radius: 18px 6px 18px 18px;
@@ -1244,7 +1259,6 @@
 }
 
 .secretary-session-transcript .secretary-message-card-assistant {
-  max-width: 88%;
   padding: 4px 2px;
 }
 
@@ -1434,6 +1448,123 @@
 
 .secretary-action-note {
   margin-top: 8px;
+}
+
+.secretary-task-inline {
+  display: grid;
+  width: min(100%, 520px);
+  gap: 5px;
+  color: rgb(var(--claude-muted));
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.secretary-task-inline-summary {
+  display: flex;
+  min-height: 24px;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: rgb(var(--claude-muted));
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  padding: 0;
+  text-align: left;
+}
+
+.secretary-task-inline-summary svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: rgb(var(--claude-muted) / 0.72);
+  transition: transform 140ms ease;
+}
+
+.secretary-task-inline-summary svg.expanded {
+  transform: rotate(90deg);
+}
+
+.secretary-task-inline-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgb(var(--claude-muted) / 0.7);
+}
+
+.secretary-task-inline-dot-planning,
+.secretary-task-inline-dot-running {
+  background: rgb(243 191 96);
+  box-shadow: 0 0 0 4px rgb(243 191 96 / 0.11);
+}
+
+.secretary-task-inline-dot-waiting_approval {
+  background: rgb(var(--claude-orange));
+  box-shadow: 0 0 0 4px rgb(var(--claude-orange) / 0.12);
+}
+
+.secretary-task-inline-dot-completed {
+  background: rgb(89 191 159);
+}
+
+.secretary-task-inline-dot-failed,
+.secretary-task-inline-dot-cancelled {
+  background: rgb(237 105 105);
+}
+
+.secretary-task-inline-title {
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(var(--claude-muted));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secretary-task-inline-meta {
+  flex: 0 0 auto;
+  color: rgb(var(--claude-muted) / 0.82);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.secretary-task-inline-body {
+  display: grid;
+  gap: 7px;
+  margin-left: 19px;
+  border-left: 1px solid rgb(var(--claude-border) / 0.72);
+  padding-left: 12px;
+}
+
+.secretary-task-inline-body p {
+  margin: 0;
+  color: rgb(var(--claude-muted));
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.secretary-task-inline-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.secretary-task-inline .secretary-task-step {
+  min-height: 22px;
+  justify-content: flex-start;
+  padding: 0 7px;
+}
+
+.secretary-thinking-task,
+.secretary-session-thinking-task,
+.secretary-floating-thinking-task {
+  margin-top: -2px;
+}
+
+.secretary-session-thinking-task {
+  margin-left: 42px;
 }
 
 .secretary-search-results {

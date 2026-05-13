@@ -23,6 +23,10 @@ type Props = {
   onAbort?: () => void
 }
 
+type TaskPresentationProps = Props & {
+  showIdle?: boolean
+}
+
 type StatusCopy = {
   title: string
   detail: string
@@ -169,67 +173,14 @@ function mapSnapshotStatus(snapshot?: SecretaryTaskSnapshot | null): SecretaryTa
   return status
 }
 
-function VirtualCursorPreview({
-  mode,
-  copy,
-  snapshot,
-}: {
-  mode: SecretaryTaskMode
-  copy: StatusCopy
-  snapshot?: SecretaryTaskSnapshot | null
-}) {
-  const cursor = snapshot?.cursor
-  const cursorStyle = cursor
-    ? ({
-        left: `${Math.min(82, Math.max(8, cursor.x))}%`,
-        top: `${Math.min(78, Math.max(12, cursor.y))}%`,
-        bottom: 'auto',
-        transform: 'translate(-20%, -20%)',
-      } satisfies CSSProperties)
-    : undefined
-  const targetStyle = cursor
-    ? ({
-        left: `${Math.min(72, Math.max(8, cursor.x + 10))}%`,
-        top: `${Math.min(70, Math.max(10, cursor.y - 22))}%`,
-        right: 'auto',
-      } satisfies CSSProperties)
-    : undefined
-  const targetLabel = cursor?.targetLabel ?? copy.targetLabel
-  const cursorLabel = cursor?.label ?? copy.cursorLabel
-  const cursorMode = cursor?.mode
-
-  return (
-    <div className={`secretary-virtual-cursor secretary-virtual-cursor-${mode}${cursorMode ? ` secretary-virtual-cursor-mode-${cursorMode}` : ''}`} aria-hidden="true">
-      <div className="secretary-virtual-target" style={targetStyle}>
-        <span>{targetLabel}</span>
-      </div>
-      <div className="secretary-virtual-pointer" style={cursorStyle}>
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M5 3.75l13.2 8.1-6.05 1.66-3.18 5.52L5 3.75z" />
-        </svg>
-        <span>{cursorLabel}</span>
-      </div>
-      {(mode === 'planning' || mode === 'running') && (
-        <div className="secretary-virtual-loading">
-          <i />
-          <i />
-          <i />
-        </div>
-      )}
-      {mode === 'completed' && <div className="secretary-virtual-check">✓</div>}
-    </div>
-  )
-}
-
-export function SecretaryTaskHud({
+function useSecretaryTaskPresentation({
   botState,
   sending,
   pendingAction,
   activity = null,
   snapshot = null,
-  compact = false,
-  onAbort,
-}: Props) {
+  showIdle = false,
+}: TaskPresentationProps) {
   const snapshotMode = mapSnapshotStatus(snapshot)
   const snapshotApprovalActionKey = snapshot?.task?.approvalRequest?.actionKey ?? null
   const pendingActionMatchesSnapshot = Boolean(
@@ -300,6 +251,105 @@ export function SecretaryTaskHud({
     return recentLog
   }, [elapsedMs, isLiveTask, mode, recentLog, task])
 
+  return {
+    copy,
+    currentStep,
+    effectiveSnapshot,
+    elapsedText,
+    isLiveTask,
+    liveLog,
+    mode,
+    risk,
+    shouldRender: showIdle || Boolean(task || pendingAction || sending),
+    statusDetail,
+    task,
+    toolLanes,
+  }
+}
+
+function VirtualCursorPreview({
+  mode,
+  copy,
+  snapshot,
+}: {
+  mode: SecretaryTaskMode
+  copy: StatusCopy
+  snapshot?: SecretaryTaskSnapshot | null
+}) {
+  const cursor = snapshot?.cursor
+  const cursorStyle = cursor
+    ? ({
+        left: `${Math.min(82, Math.max(8, cursor.x))}%`,
+        top: `${Math.min(78, Math.max(12, cursor.y))}%`,
+        bottom: 'auto',
+        transform: 'translate(-20%, -20%)',
+      } satisfies CSSProperties)
+    : undefined
+  const targetStyle = cursor
+    ? ({
+        left: `${Math.min(72, Math.max(8, cursor.x + 10))}%`,
+        top: `${Math.min(70, Math.max(10, cursor.y - 22))}%`,
+        right: 'auto',
+      } satisfies CSSProperties)
+    : undefined
+  const targetLabel = cursor?.targetLabel ?? copy.targetLabel
+  const cursorLabel = cursor?.label ?? copy.cursorLabel
+  const cursorMode = cursor?.mode
+
+  return (
+    <div className={`secretary-virtual-cursor secretary-virtual-cursor-${mode}${cursorMode ? ` secretary-virtual-cursor-mode-${cursorMode}` : ''}`} aria-hidden="true">
+      <div className="secretary-virtual-target" style={targetStyle}>
+        <span>{targetLabel}</span>
+      </div>
+      <div className="secretary-virtual-pointer" style={cursorStyle}>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 3.75l13.2 8.1-6.05 1.66-3.18 5.52L5 3.75z" />
+        </svg>
+        <span>{cursorLabel}</span>
+      </div>
+      {(mode === 'planning' || mode === 'running') && (
+        <div className="secretary-virtual-loading">
+          <i />
+          <i />
+          <i />
+        </div>
+      )}
+      {mode === 'completed' && <div className="secretary-virtual-check">✓</div>}
+    </div>
+  )
+}
+
+export function SecretaryTaskHud({
+  botState,
+  sending,
+  pendingAction,
+  activity = null,
+  snapshot = null,
+  compact = false,
+  onAbort,
+}: Props) {
+  const {
+    copy,
+    currentStep,
+    effectiveSnapshot,
+    elapsedText,
+    liveLog,
+    mode,
+    risk,
+    statusDetail,
+    task,
+    toolLanes,
+  } = useSecretaryTaskPresentation({
+    botState,
+    sending,
+    pendingAction,
+    activity,
+    snapshot,
+    compact,
+    onAbort,
+    showIdle: true,
+  })
+
   return (
     <section className={`secretary-task-hud secretary-task-hud-${mode}${compact ? ' secretary-task-hud-compact' : ''}`} aria-label="씨토 작업 상태">
       <div className="secretary-task-hud-main">
@@ -357,5 +407,106 @@ export function SecretaryTaskHud({
         </div>
       )}
     </section>
+  )
+}
+
+export function SecretaryTaskInline({
+  botState,
+  sending,
+  pendingAction,
+  activity = null,
+  snapshot = null,
+  onAbort,
+}: Props) {
+  const {
+    copy,
+    elapsedText,
+    isLiveTask,
+    liveLog,
+    mode,
+    risk,
+    shouldRender,
+    statusDetail,
+    task,
+    toolLanes,
+  } = useSecretaryTaskPresentation({
+    botState,
+    sending,
+    pendingAction,
+    activity,
+    snapshot,
+    onAbort,
+  })
+  const [expanded, setExpanded] = useState(() => (
+    isLiveTask || mode === 'waiting_approval' || mode === 'failed'
+  ))
+  const currentStep = task?.steps[task.currentStepIndex] ?? null
+  const previewSteps = task?.steps.length ? task.steps.slice(0, 4) : []
+
+  useEffect(() => {
+    if (isLiveTask || mode === 'waiting_approval' || mode === 'failed') setExpanded(true)
+  }, [isLiveTask, mode, task?.id])
+
+  if (!shouldRender) return null
+
+  return (
+    <div className={`secretary-task-inline secretary-task-inline-${mode}`} aria-label="씨토 작업 내역">
+      <button
+        type="button"
+        className="secretary-task-inline-summary"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+      >
+        <svg className={expanded ? 'expanded' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+        </svg>
+        <span className={`secretary-task-inline-dot secretary-task-inline-dot-${mode}`} />
+        <span className="secretary-task-inline-title">{currentStep?.label ?? copy.title}</span>
+        {elapsedText && <span className="secretary-task-inline-meta">경과 {elapsedText}</span>}
+        {risk && (
+          <span className={`secretary-risk-chip secretary-risk-chip-${risk}`}>
+            {risk === 'high' ? '위험 확인' : risk === 'medium' ? '확인 필요' : '낮은 위험'}
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="secretary-task-inline-body">
+          <p>{statusDetail}</p>
+
+          {toolLanes.length > 0 && (
+            <div className="secretary-task-tools" aria-label="선택된 실행 경로">
+              {toolLanes.map((tool) => (
+                <span key={tool}>{TOOL_LABELS[tool] ?? tool}</span>
+              ))}
+            </div>
+          )}
+
+          {previewSteps.length > 0 && (
+            <div className="secretary-task-inline-steps" aria-label="작업 단계">
+              {previewSteps.map((step) => (
+                <span key={step.id} className={`secretary-task-step secretary-task-step-${step.status === 'running' ? 'active' : step.status === 'failed' ? 'failed' : step.status === 'done' ? 'done' : 'pending'}`}>
+                  {step.label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {liveLog && (
+            <div className={`secretary-task-log secretary-task-log-${liveLog.level}`}>
+              {liveLog.message}
+            </div>
+          )}
+
+          {sending && onAbort && (
+            <div className="secretary-task-controls">
+              <button type="button" className="secretary-task-control-button" onClick={onAbort}>
+                중단
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

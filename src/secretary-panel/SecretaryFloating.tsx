@@ -19,7 +19,7 @@ import type {
 import { SecretaryCharacter } from '../components/secretary/SecretaryCharacter'
 import { SecretaryMessage, type SecretaryUiMessage } from '../components/secretary/SecretaryMessage'
 import { SecretaryModelPicker } from '../components/secretary/SecretaryModelPicker'
-import { SecretaryTaskHud } from '../components/secretary/SecretaryTaskHud'
+import { SecretaryTaskInline } from '../components/secretary/SecretaryTaskHud'
 import { SecretaryThinkingIndicator } from '../components/secretary/SecretaryThinkingIndicator'
 import { useInputModelData } from '../hooks/useInputModelData'
 import { applyTheme, type ThemeId } from '../lib/theme'
@@ -168,6 +168,12 @@ export function SecretaryFloating() {
     )) ?? null
   }, [activeApprovalActionKey, messages])
   const pendingAction = pendingActionMessage?.action ?? null
+  const taskInlineMessageId = useMemo(() => {
+    if (sending) return null
+    return pendingActionMessage?.id
+      ?? [...messages].reverse().find((message) => message.role === 'secretary')?.id
+      ?? null
+  }, [messages, pendingActionMessage?.id, sending])
 
   useEffect(() => {
     const cleanup = window.secretary.onBotState((state) => {
@@ -636,15 +642,6 @@ export function SecretaryFloating() {
         </header>
 
         <div ref={scrollRef} className="secretary-floating-transcript">
-          <SecretaryTaskHud
-            botState={botState}
-            sending={sending}
-            pendingAction={pendingAction}
-            activity={taskActivity}
-            snapshot={taskSnapshot}
-            compact
-            onAbort={handleAbort}
-          />
           {messages.map((message) => (
             <SecretaryMessage
               key={message.id}
@@ -653,9 +650,33 @@ export function SecretaryFloating() {
               onDenyAction={handleDenyAction}
               onSelectSearchResult={(result) => void handleSelectSearchResult(result)}
               highlighted={focusedMessageId === message.id}
+              taskStatus={message.id === taskInlineMessageId ? (
+                <SecretaryTaskInline
+                  botState={botState}
+                  sending={sending}
+                  pendingAction={pendingAction}
+                  activity={taskActivity}
+                  snapshot={taskSnapshot}
+                  onAbort={handleAbort}
+                />
+              ) : undefined}
             />
           ))}
-          {sending && <SecretaryThinkingIndicator variant="dots" />}
+          {sending && (
+            <>
+              <SecretaryThinkingIndicator variant="dots" />
+              <div className="secretary-floating-thinking-task">
+                <SecretaryTaskInline
+                  botState={botState}
+                  sending={sending}
+                  pendingAction={pendingAction}
+                  activity={taskActivity}
+                  snapshot={taskSnapshot}
+                  onAbort={handleAbort}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <form

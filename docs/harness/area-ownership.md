@@ -206,7 +206,7 @@
   - `src/components/secretary/useSecretaryAppBridge.ts`는 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
   - `src/App.tsx`는 비서 활성 상태에서 기존 사이드바와 메인 화면을 모두 덮는 전체 비서 화면을 렌더링한다.
   - `src/components/secretary/SecretaryPanel.tsx`는 캐릭터, 비서 채팅 목록, 메시지, 일반 세션 입력창 기반 composer, 액션 확인 버튼, ESC 닫기를 렌더링한다.
-  - `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창에서 공유하는 관전 모드 상태, 가상 포인터 미리보기, 단계 표시, 승인 대기 상태를 담당한다.
+  - `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창에서 공유하는 작업 상태 계산, 단계 표시, 승인 대기 상태, 씨토 말풍선 아래 인라인 작업 내역 표시를 담당한다.
   - `src/secretary-panel/SecretaryFloating.tsx`는 별도 Electron 창에서 축소 캐릭터/확장 대화창, 앱 열기, 플로팅 전용 모델 override를 렌더링한다.
 - 흔한 회귀:
   - 단축키 토글 또는 ESC 닫기 누락

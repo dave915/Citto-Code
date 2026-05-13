@@ -18,7 +18,7 @@ import { InputArea } from '../InputArea'
 import { ConversationList } from './ConversationList'
 import { SecretaryCharacter } from './SecretaryCharacter'
 import { SecretaryMessage, type SecretaryUiMessage } from './SecretaryMessage'
-import { SecretaryTaskHud } from './SecretaryTaskHud'
+import { SecretaryTaskInline } from './SecretaryTaskHud'
 import { SecretaryThinkingIndicator } from './SecretaryThinkingIndicator'
 
 type Props = {
@@ -190,6 +190,12 @@ export function SecretaryPanel({
     )) ?? null
   }, [activeApprovalActionKey, messages])
   const pendingAction = pendingActionMessage?.action ?? null
+  const taskInlineMessageId = useMemo(() => {
+    if (sending) return null
+    return pendingActionMessage?.id
+      ?? [...messages].reverse().find((message) => message.role === 'secretary')?.id
+      ?? null
+  }, [messages, pendingActionMessage?.id, sending])
   const sortLabel = SECRETARY_SORT_OPTIONS.find((option) => option.value === sortMode)?.label ?? '최근순'
 
   useEffect(() => {
@@ -551,9 +557,33 @@ export function SecretaryPanel({
             onSelectSearchResult={(result) => void handleSelectSearchResult(result)}
             highlighted={focusedMessageId === message.id}
             showAssistantProfile={isScreen}
+            taskStatus={message.id === taskInlineMessageId ? (
+              <SecretaryTaskInline
+                botState={botState}
+                sending={sending}
+                pendingAction={pendingAction}
+                activity={taskActivity}
+                snapshot={taskSnapshot}
+                onAbort={handleAbort}
+              />
+            ) : undefined}
           />
         ))}
-        {sending && <SecretaryThinkingIndicator />}
+        {sending && (
+          <>
+            <SecretaryThinkingIndicator />
+            <div className={isScreen ? 'secretary-session-thinking-task' : 'secretary-thinking-task'}>
+              <SecretaryTaskInline
+                botState={botState}
+                sending={sending}
+                pendingAction={pendingAction}
+                activity={taskActivity}
+                snapshot={taskSnapshot}
+                onAbort={handleAbort}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -627,16 +657,6 @@ export function SecretaryPanel({
       </div>
 
       {!isScreen && conversationListOpen && conversationList}
-
-      <SecretaryTaskHud
-        botState={botState}
-        sending={sending}
-        pendingAction={pendingAction}
-        activity={taskActivity}
-        snapshot={taskSnapshot}
-        compact
-        onAbort={handleAbort}
-      />
 
       {transcript}
       {composer}
@@ -745,16 +765,6 @@ export function SecretaryPanel({
               ×
             </button>
           </header>
-          <div className="secretary-session-hud-shell">
-            <SecretaryTaskHud
-              botState={botState}
-              sending={sending}
-              pendingAction={pendingAction}
-              activity={taskActivity}
-              snapshot={taskSnapshot}
-              onAbort={handleAbort}
-            />
-          </div>
           {transcript}
           {composer}
         </main>

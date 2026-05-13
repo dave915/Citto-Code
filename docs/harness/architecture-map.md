@@ -72,8 +72,8 @@
 8. `electron/secretary/computer-use-policy.ts`가 native visual computer-use MCP 관찰/실행 확인 정책과 Cua opt-in fallback 정책을 담고, `electron/secretary/secretary-service.ts`가 이를 Claude 실행 프롬프트에 주입한다.
 9. `electron/secretary/secretary-service.ts`가 기존 `electron/services/claude-spawn.ts`를 stream-json 경로로 재사용해 Gateway/env/model/permission/plan/MCP 설정을 따르고, 활성 비서 채팅 history만 컨텍스트로 주입한다.
 10. `src/App.tsx`가 사이드바 entry에서 앱 내 전체 비서 화면을 렌더링하고, `src/components/secretary/SecretaryPanel.tsx`와 `ConversationList.tsx`가 채팅 목록, 새 채팅/전환/보관 UI를 렌더링한다.
-11. `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창이 공유하는 MVP 작업 상태, 관전 모드, 가상 포인터 미리보기, 승인 대기 표시를 렌더링한다.
-12. `src/secretary-panel/SecretaryFloating.tsx`는 별도 renderer entry인 `secretary-panel.html`에서 축소/확장 플로팅 대화창을 렌더링하고, 같은 `window.secretary` IPC와 공통 `SecretaryMessage`/`SecretaryMarkdown`/`SecretaryTaskHud` 표현 규칙을 사용한다.
+11. `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창이 공유하는 작업 상태 계산과 씨토 말풍선 아래 인라인 작업 내역 표시를 담당한다.
+12. `src/secretary-panel/SecretaryFloating.tsx`는 별도 renderer entry인 `secretary-panel.html`에서 축소/확장 플로팅 대화창을 렌더링하고, 같은 `window.secretary` IPC와 공통 `SecretaryMessage`/`SecretaryMarkdown`/인라인 작업 내역 표현 규칙을 사용한다.
 13. `src/components/secretary/useSecretaryAppBridge.ts`가 메인 창의 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
 14. 렌더러에서 실제로 완료되는 비서 액션은 `secretary:renderer-action` request와 `secretary:renderer-action-result` response로 완료/실패 메시지를 메인 IPC에 되돌린다. 검색 결과 이동은 `sessionId`와 선택 `messageId`를 같은 액션 경로로 전달한다.
 

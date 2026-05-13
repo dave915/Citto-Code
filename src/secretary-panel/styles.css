@@ -234,13 +234,20 @@ body {
   margin-bottom: 10px;
 }
 
-.secretary-floating-transcript .secretary-task-hud {
-  margin-bottom: 12px;
+.secretary-floating-transcript .secretary-message-card {
+  font-size: 13px;
 }
 
-.secretary-floating-transcript .secretary-message-card {
+.secretary-floating-transcript .secretary-message-stack {
   max-width: 94%;
-  font-size: 13px;
+}
+
+.secretary-floating-transcript .secretary-chat-row-user .secretary-message-stack {
+  max-width: 82%;
+}
+
+.secretary-floating-transcript .secretary-task-inline {
+  width: min(100%, 390px);
 }
 
 .secretary-floating-transcript .secretary-message-card-user {
