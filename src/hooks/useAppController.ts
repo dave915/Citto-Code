@@ -13,7 +13,7 @@ import { buildSecretaryRecentSessions, normalizeSelectedFolder, resolveEnvVarsFo
 import { getCurrentPlatform } from '../lib/shortcuts'
 import { buildSessionFileLockState } from '../lib/sessionLocks'
 import { useWorkflowStore } from '../store/workflowStore'
-import type { WorkflowConditionOperator, WorkflowInput, WorkflowStep, WorkflowTrigger } from '../store/workflowTypes'
+import type { WorkflowConditionOperator, WorkflowInput, WorkflowStep, WorkflowTrigger, WorkflowTriggerFrequency } from '../store/workflowTypes'
 import { summarizeSessionTitleFromPrompt } from '../lib/sessionUtils'
 import { normalizeConfiguredModelSelection } from '../lib/modelSelection'
 import { nanoid } from '../store/nanoid'
@@ -43,6 +43,7 @@ type WorkflowDraftStep = NonNullable<CreateWorkflowAction['steps']>[number]
 type WorkflowAgentDraftStep = Extract<WorkflowDraftStep, { type?: 'agent' }>
 type WorkflowConditionDraftStep = Extract<WorkflowDraftStep, { type: 'condition' }>
 type WorkflowLoopDraftStep = Extract<WorkflowDraftStep, { type: 'loop' }>
+type ScheduledWorkflowTrigger = Extract<WorkflowTrigger, { type: 'schedule' }>
 
 function normalizeProjectKey(path: string): string {
   const trimmed = path.trim()
@@ -60,47 +61,93 @@ function formatSecretaryWorkflowSteps(steps: DraftWorkflowAction['steps'] | Crea
     .map((step, index) => {
       const label = step.label?.trim() || `단계 ${index + 1}`
       if (step.type === 'condition') {
-        return `${index + 1}. ${label}: 조건 ${step.operator ?? 'always_true'} ${step.value ?? ''}`.trim()
+        return [
+          `${index + 1}. ${label}: 조건 ${step.operator ?? 'always_true'} ${step.value ?? ''}`.trim(),
+          step.trueBranchStepIndex !== undefined ? `true -> ${step.trueBranchStepIndex + 1}` : null,
+          step.falseBranchStepIndex !== undefined ? `false -> ${step.falseBranchStepIndex + 1}` : null,
+        ].filter(Boolean).join(' · ')
       }
       if (step.type === 'loop') {
         const body = step.bodySteps?.map((bodyStep) => bodyStep.prompt).join(' / ') || '반복 본문'
-        return `${index + 1}. ${label}: 최대 ${step.maxIterations ?? 3}회 반복 · ${body}`
+        const breakCondition = step.breakCondition
+          ? `중단 조건 ${step.breakCondition.operator ?? 'always_true'} ${step.breakCondition.value ?? ''}`.trim()
+          : null
+        return [
+          `${index + 1}. ${label}: 최대 ${step.maxIterations ?? 3}회 반복`,
+          body,
+          breakCondition,
+        ].filter(Boolean).join(' · ')
       }
-      return `${index + 1}. ${label}: ${step.prompt}`
+      return [
+        `${index + 1}. ${label}: ${step.prompt}`,
+        step.cwd ? `cwd=${step.cwd}` : null,
+        step.systemPrompt ? `system=${step.systemPrompt}` : null,
+      ].filter(Boolean).join(' · ')
     })
     .join('\n')
 }
 
+function formatSecretaryWorkflowTrigger(trigger: DraftWorkflowAction['trigger'] | CreateWorkflowAction['trigger']) {
+  if (!trigger || trigger.type === 'manual') return '수동 실행'
+  const time = trigger.hour === undefined
+    ? null
+    : `${String(trigger.hour).padStart(2, '0')}:${String(trigger.minute ?? 0).padStart(2, '0')}`
+  const frequencyLabel = {
+    hourly: '매시간',
+    daily: '매일',
+    weekdays: '평일',
+    weekly: '매주',
+  }[trigger.frequency]
+  const dayLabel = trigger.frequency === 'weekly'
+    ? ['일', '월', '화', '수', '목', '금', '토'][trigger.dayOfWeek ?? 1]
+    : null
+  return [
+    frequencyLabel,
+    dayLabel ? `${dayLabel}요일` : null,
+    time,
+  ].filter(Boolean).join(' ')
+}
+
 function buildWorkflowDraftSessionPrompt(action: DraftWorkflowAction) {
   const initialPrompt = action.initialPrompt?.trim()
-  if (initialPrompt) return initialPrompt
 
   const steps = formatSecretaryWorkflowSteps(action.steps)
   return [
-    '씨토 비서가 워크플로우 초안으로 넘긴 작업입니다.',
+    '씨토 비서가 워크플로우 초안으로 넘긴 작업입니다. 저장 가능한 자동화로 정리해 주세요.',
     '',
     `이름: ${action.name}`,
     action.summary ? `요약: ${action.summary}` : null,
+    initialPrompt ? `원본 요청:\n${initialPrompt}` : null,
+    `트리거: ${formatSecretaryWorkflowTrigger(action.trigger)}`,
     steps ? `초안 단계:\n${steps}` : null,
     '',
-    '이 초안을 실제로 저장 가능한 워크플로우로 다듬어 주세요.',
-    '필요한 단계, 실행 프롬프트, 작업 디렉터리, 검증 기준을 정리하고 구현이 필요하면 이어서 진행해 주세요.',
+    '다듬을 때 포함할 항목:',
+    '- 목표와 완료 기준',
+    '- 필요한 입력값과 기본값',
+    '- 각 agent/condition/loop 단계의 실행 프롬프트',
+    '- 예약 실행이면 시간대와 누락/실패 시 동작',
+    '- 검증 방법과 실패 보고 방식',
+    '',
+    '완성된 설계가 명확하면 씨토 비서가 createWorkflow 액션으로 저장할 수 있는 형태의 이름, 설명, trigger, steps를 함께 제안해 주세요.',
   ].filter((line): line is string => Boolean(line)).join('\n')
 }
 
 function buildSkillDraftSessionPrompt(action: DraftSkillAction) {
   const initialPrompt = action.initialPrompt?.trim()
-  if (initialPrompt) return initialPrompt
 
   return [
-    '씨토 비서가 스킬 초안으로 넘긴 작업입니다.',
+    '씨토 비서가 스킬 초안으로 넘긴 작업입니다. 재사용 가능한 SKILL.md로 정리해 주세요.',
     '',
     `이름: ${action.name}`,
     action.description ? `설명: ${action.description}` : null,
+    initialPrompt ? `원본 요청:\n${initialPrompt}` : null,
     action.instructions ? `초안 지침:\n${action.instructions}` : null,
     '',
-    '~/.claude/skills/<name>/SKILL.md 형식에 맞게 스킬을 다듬어 주세요.',
-    '트리거 설명은 명확하게 쓰고, 본문은 실제 작업 절차만 간결하게 남겨 주세요.',
+    '작성 기준:',
+    '- frontmatter의 name은 짧은 kebab-case, description은 언제 이 스킬을 써야 하는지 한 문장',
+    '- 본문은 목적, 사용 조건, 작업 절차, 검증 기준 순서',
+    '- 저장소/앱 전용 규칙이 있으면 명시하고, 일반론은 줄이기',
+    '- 민감하거나 외부 효과가 있는 행동은 사용자 확인 단계를 포함',
   ].filter((line): line is string => Boolean(line)).join('\n')
 }
 
@@ -193,30 +240,106 @@ function clampScheduleDay(value: number | undefined) {
   return Math.max(0, Math.min(6, Math.floor(value ?? 1)))
 }
 
-function resolveWorkflowTrigger(action: CreateWorkflowAction): WorkflowTrigger {
-  if (action.trigger?.type === 'manual') return { type: 'manual' }
-  if (action.trigger?.type === 'schedule') {
+function hasWeeklyDayText(actionText: string) {
+  return /(?:^|[\s,.(])(?:일|월|화|수|목|금|토)(?:요일|마다|[\s,.)]|$)/.test(actionText)
+    || /(sundays?|mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|\bsun\b|\bmon\b|\btue\b|\bwed\b|\bthu\b|\bfri\b|\bsat\b)/i.test(actionText)
+}
+
+function parseScheduleTime(actionText: string) {
+  const koreanMatch = actionText.match(/(오전|오후)?\s*(\d{1,2})\s*시(?!간)(?:\s*(\d{1,2})\s*분)?/i)
+  if (koreanMatch) {
+    const meridiem = koreanMatch[1]
+    let hour = Number(koreanMatch[2])
+    const minute = koreanMatch[3] ? Number(koreanMatch[3]) : 0
+    if (hour > 23) return { hour: 9, minute: 0 }
+    if (meridiem === '오후' && hour < 12) hour += 12
+    if (meridiem === '오전' && hour === 12) hour = 0
+    return { hour: clampScheduleHour(hour), minute: clampScheduleMinute(minute) }
+  }
+
+  const englishMatch = actionText.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  if (englishMatch) {
+    const meridiem = englishMatch[3].toLowerCase()
+    let hour = Number(englishMatch[1])
+    const minute = englishMatch[2] ? Number(englishMatch[2]) : 0
+    if (meridiem === 'pm' && hour < 12) hour += 12
+    if (meridiem === 'am' && hour === 12) hour = 0
+    return { hour: clampScheduleHour(hour), minute: clampScheduleMinute(minute) }
+  }
+
+  const clockMatch = actionText.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)
+  if (clockMatch) {
     return {
-      type: 'schedule',
-      frequency: action.trigger.frequency,
-      hour: clampScheduleHour(action.trigger.hour),
-      minute: clampScheduleMinute(action.trigger.minute),
-      dayOfWeek: clampScheduleDay(action.trigger.dayOfWeek),
+      hour: clampScheduleHour(Number(clockMatch[1])),
+      minute: clampScheduleMinute(Number(clockMatch[2])),
     }
   }
 
+  if (/(저녁|퇴근|evening)/i.test(actionText)) return { hour: 18, minute: 0 }
+  if (/(아침|오전|morning)/i.test(actionText)) return { hour: 9, minute: 0 }
+  return { hour: 9, minute: 0 }
+}
+
+function parseScheduleMinute(actionText: string) {
+  const minuteMatch = actionText.match(/(?:매시|매 시간|every hour|hourly)[^\d]*(\d{1,2})\s*분/i)
+  if (minuteMatch) return clampScheduleMinute(Number(minuteMatch[1]))
+  const englishMinuteMatch = actionText.match(/(?:every hour|hourly).*?(?::(\d{1,2})|(\d{1,2})\s*(?:minutes?\s*past|mins?\s*past|past))/i)
+  if (englishMinuteMatch) return clampScheduleMinute(Number(englishMinuteMatch[1] ?? englishMinuteMatch[2]))
+  return parseScheduleTime(actionText).minute
+}
+
+function parseScheduleDay(actionText: string) {
+  const dayMap: Array<[RegExp, number]> = [
+    [/(?:일요일|(?:^|[\s,.(])일(?:요일|마다|[\s,.)]|$)|sundays?|\bsun\b)/i, 0],
+    [/(?:월요일|(?:^|[\s,.(])월(?:요일|마다|[\s,.)]|$)|mondays?|\bmon\b)/i, 1],
+    [/(?:화요일|(?:^|[\s,.(])화(?:요일|마다|[\s,.)]|$)|tuesdays?|\btue\b)/i, 2],
+    [/(?:수요일|(?:^|[\s,.(])수(?:요일|마다|[\s,.)]|$)|wednesdays?|\bwed\b)/i, 3],
+    [/(?:목요일|(?:^|[\s,.(])목(?:요일|마다|[\s,.)]|$)|thursdays?|\bthu\b)/i, 4],
+    [/(?:금요일|(?:^|[\s,.(])금(?:요일|마다|[\s,.)]|$)|fridays?|\bfri\b)/i, 5],
+    [/(?:토요일|(?:^|[\s,.(])토(?:요일|마다|[\s,.)]|$)|saturdays?|\bsat\b)/i, 6],
+  ]
+  return dayMap.find(([pattern]) => pattern.test(actionText))?.[1] ?? 1
+}
+
+function buildScheduleTrigger(frequency: WorkflowTriggerFrequency, actionText: string): ScheduledWorkflowTrigger {
+  const time = parseScheduleTime(actionText)
+  return {
+    type: 'schedule',
+    frequency,
+    hour: time.hour,
+    minute: frequency === 'hourly' ? parseScheduleMinute(actionText) : time.minute,
+    dayOfWeek: frequency === 'weekly' ? parseScheduleDay(actionText) : 1,
+  }
+}
+
+function resolveWorkflowTrigger(action: CreateWorkflowAction): WorkflowTrigger {
   const actionText = buildWorkflowActionText(action)
+  if (action.trigger?.type === 'manual') return { type: 'manual' }
+  if (action.trigger?.type === 'schedule') {
+    const inferred = buildScheduleTrigger(action.trigger.frequency, actionText)
+    return {
+      type: 'schedule',
+      frequency: action.trigger.frequency,
+      hour: clampScheduleHour(action.trigger.hour ?? inferred.hour),
+      minute: clampScheduleMinute(action.trigger.minute ?? inferred.minute),
+      dayOfWeek: clampScheduleDay(action.trigger.dayOfWeek ?? inferred.dayOfWeek),
+    }
+  }
+
   if (/(매시간|매 시간|hourly|every hour)/i.test(actionText)) {
-    return { type: 'schedule', frequency: 'hourly', hour: 9, minute: 0, dayOfWeek: 1 }
+    return buildScheduleTrigger('hourly', actionText)
   }
-  if (/(평일|weekdays|weekday)/i.test(actionText)) {
-    return { type: 'schedule', frequency: 'weekdays', hour: 9, minute: 0, dayOfWeek: 1 }
+  if (/(평일|주중|weekdays|weekday|business day)/i.test(actionText)) {
+    return buildScheduleTrigger('weekdays', actionText)
   }
-  if (/(매주|weekly|every week)/i.test(actionText)) {
-    return { type: 'schedule', frequency: 'weekly', hour: 9, minute: 0, dayOfWeek: 1 }
+  if (/(매주|주간|weekly|every week)/i.test(actionText)) {
+    return buildScheduleTrigger('weekly', actionText)
   }
-  if (/(매일|매일마다|daily|every day)/i.test(actionText)) {
-    return { type: 'schedule', frequency: 'daily', hour: 9, minute: 0, dayOfWeek: 1 }
+  if (hasWeeklyDayText(actionText) && /(마다|every|each|on|at|오전|오후|\d{1,2}:\d{2})/i.test(actionText)) {
+    return buildScheduleTrigger('weekly', actionText)
+  }
+  if (/(매일|매일마다|하루마다|daily|every day|each day)/i.test(actionText)) {
+    return buildScheduleTrigger('daily', actionText)
   }
   return { type: 'manual' }
 }
@@ -398,9 +521,27 @@ function buildSkillContent(action: CreateSkillAction, skillName: string) {
   const body = action.instructions
     .replace(/^---[\s\S]*?---\s*/m, '')
     .trim()
-  const contentBody = body.startsWith('#')
-    ? body
-    : [`# ${action.name.trim() || skillName}`, '', body].join('\n')
+  const heading = action.name.trim() || skillName
+  const hasRequiredSections = ['Purpose', 'When To Use', 'Workflow', 'Validation']
+    .every((section) => new RegExp(`^##\\s+${section}\\b`, 'im').test(body))
+  const bodyWithoutTitle = body.replace(/^#\s+.+\n+/, '').trim()
+  const contentBody = hasRequiredSections
+    ? (body.startsWith('#') ? body : [`# ${heading}`, '', body].join('\n'))
+    : [
+        `# ${heading}`,
+        '',
+        '## Purpose',
+        description || 'Reusable workflow guidance for Citto.',
+        '',
+        '## When To Use',
+        description || 'Use when the user asks for this recurring procedure.',
+        '',
+        '## Workflow',
+        bodyWithoutTitle || '1. Confirm the target outcome and constraints.\n2. Execute the procedure.\n3. Verify the result and report remaining risk.',
+        '',
+        '## Validation',
+        'Check the concrete output or affected app surface before responding.',
+      ].join('\n')
 
   return [
     '---',

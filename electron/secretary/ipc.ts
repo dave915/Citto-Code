@@ -1,12 +1,14 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { normalizeSecretaryAction, type SecretaryAction, type SecretaryActionResult } from './actions'
 import { createSecretaryActionHandlers } from './action-handlers'
+import { buildLearningCandidateAction } from './learning'
 import { isCittoRoute } from './routes'
 import { SecretaryTaskOrchestrator } from './task-orchestrator'
 import type { SecretaryMemory } from './memory'
 import type { SecretaryService } from './secretary-service'
 import type {
   SecretaryActiveContext,
+  SecretaryLearningPromotionTarget,
   SecretaryProcessResult,
   SecretaryRuntimeConfig,
   SecretaryTaskControlCommand,
@@ -73,6 +75,10 @@ function normalizeActionResult(value: unknown): SecretaryActionResult {
     payload: value.payload,
     error,
   }
+}
+
+function normalizeLearningPromotionTarget(value: unknown): SecretaryLearningPromotionTarget | null {
+  return value === 'memory' || value === 'skill' || value === 'workflow' ? value : null
 }
 
 function normalizeRuntimePayload(value: unknown): SecretaryRuntimeConfig | null {
@@ -170,6 +176,7 @@ export function registerSecretaryIpcHandlers({
     timer: NodeJS.Timeout
     retryTimer: NodeJS.Timeout
   }>()
+  const pendingLearningPromotions = new Map<string, string>()
   let rendererActionSeq = 0
 
   const broadcastTaskSnapshot = (snapshot: SecretaryTaskSnapshot) => {
@@ -301,6 +308,7 @@ export function registerSecretaryIpcHandlers({
     const snapshot = taskOrchestrator.control(command as SecretaryTaskControlCommand)
     if (command === 'cancel') {
       pendingActions.clear()
+      pendingLearningPromotions.clear()
       service.cancelActiveProcess()
       for (const [requestId, pending] of pendingRendererActions) {
         pendingRendererActions.delete(requestId)
@@ -430,11 +438,24 @@ export function registerSecretaryIpcHandlers({
       const currentTask = taskOrchestrator.getSnapshot().task
       if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
         taskOrchestrator.completeExecution(result)
+        if (result.ok) {
+          try {
+            memory.recordLearningCandidateFromAction(normalizedAction, result)
+            const promotedCandidateId = pendingLearningPromotions.get(createActionKey(normalizedAction))
+            if (promotedCandidateId) {
+              memory.dismissLearningCandidate(promotedCandidateId)
+            }
+          } catch (error) {
+            console.warn('Failed to record secretary retrospective learning:', error)
+          }
+        }
       }
+      pendingLearningPromotions.delete(createActionKey(normalizedAction))
       sendWhenRendererReady(window, 'secretary:bot-state', result.ok ? 'done' : 'error')
       sendWhenRendererReady(window, 'secretary:action-result', result)
       return result
     } catch (error) {
+      pendingLearningPromotions.delete(createActionKey(normalizedAction))
       sendWhenRendererReady(window, 'secretary:bot-state', 'error')
       const result = {
         ok: false,
@@ -513,5 +534,72 @@ export function registerSecretaryIpcHandlers({
   ipcMain.handle('secretary:update-profile', (_event, { key, value }: { key: string; value: string }) => {
     memory.updateProfile(String(key ?? ''), String(value ?? ''))
     return { ok: true }
+  })
+
+  ipcMain.handle('secretary:list-memories', () => memory.listMemories())
+
+  ipcMain.handle('secretary:update-memory', (_event, payload: unknown) => {
+    if (!isRecord(payload)) return { ok: false, error: '수정할 기억 정보를 읽지 못했어요.' }
+    return memory.updateMemory(String(payload.key ?? ''), String(payload.value ?? ''))
+  })
+
+  ipcMain.handle('secretary:delete-memory', (_event, payload: unknown) => {
+    if (!isRecord(payload)) return { ok: false, error: '삭제할 기억 정보를 읽지 못했어요.' }
+    return memory.deleteMemory(String(payload.key ?? ''))
+  })
+
+  ipcMain.handle('secretary:list-learning-candidates', () => memory.loadLearningCandidates(12))
+
+  ipcMain.handle('secretary:dismiss-learning-candidate', (_event, { id }: { id: string }) => {
+    const dismissed = memory.dismissLearningCandidate(String(id ?? ''))
+    return dismissed
+      ? { ok: true }
+      : { ok: false, error: '삭제할 학습 후보를 찾지 못했어요.' }
+  })
+
+  ipcMain.handle('secretary:promote-learning-candidate', (event, payload: unknown): SecretaryProcessResult => {
+    const window = BrowserWindow.fromWebContents(event.sender) ?? showMainWindow()
+    if (!isRecord(payload)) {
+      sendWhenRendererReady(window, 'secretary:bot-state', 'error')
+      return {
+        reply: '학습 후보 정보를 읽지 못했어요.',
+        intent: 'chat',
+        action: null,
+      }
+    }
+
+    const candidate = memory.getLearningCandidate(String(payload.id ?? ''))
+    const target = normalizeLearningPromotionTarget(payload.target)
+    if (!candidate || !target) {
+      sendWhenRendererReady(window, 'secretary:bot-state', 'error')
+      return {
+        reply: '승격할 학습 후보를 찾지 못했어요.',
+        intent: 'chat',
+        action: null,
+      }
+    }
+
+    const action = normalizeSecretaryAction(buildLearningCandidateAction(candidate, target))
+    if (!action) {
+      sendWhenRendererReady(window, 'secretary:bot-state', 'error')
+      return {
+        reply: '학습 후보를 실행 가능한 액션으로 바꾸지 못했어요.',
+        intent: 'chat',
+        action: null,
+      }
+    }
+    const conversation = memory.getActiveConversation(getActiveContext())
+    activeConversationId = conversation.id
+    taskOrchestrator.startPlanning(`학습 후보 승격: ${candidate.title}`, conversation.id)
+    rememberPendingAction(action)
+    pendingLearningPromotions.set(createActionKey(action), candidate.id)
+    const result = {
+      reply: `${candidate.title} 후보를 ${target === 'memory' ? '기억' : target === 'skill' ? '스킬 초안' : '워크플로우 초안'}으로 승격할 준비를 했어요. 아래 확인 카드에서 실행을 승인해 주세요.`,
+      intent: 'execute',
+      action,
+    } satisfies SecretaryProcessResult
+    taskOrchestrator.completePlanning(result)
+    sendWhenRendererReady(window, 'secretary:bot-state', 'done')
+    return result
   })
 }

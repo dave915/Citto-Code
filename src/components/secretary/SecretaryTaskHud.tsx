@@ -130,6 +130,7 @@ export function getSecretaryActionRisk(action: SecretaryAction): SecretaryAction
   if (
     action.type === 'draftWorkflow'
     || action.type === 'draftSkill'
+    || action.type === 'saveMemory'
     || action.type === 'startChat'
     || action.type === 'openSession'
   ) {

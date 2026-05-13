@@ -159,6 +159,7 @@
   - `src/components/secretary/SecretaryMessage.tsx`
   - `src/components/secretary/SecretaryMarkdown.tsx`
   - `src/components/secretary/SecretaryModelPicker.tsx`
+  - `src/components/secretary/SecretaryLearningPanel.tsx`
   - `src/components/secretary/SecretaryTaskHud.tsx`
   - `src/components/secretary/SecretaryThinkingIndicator.tsx`
   - `src/components/secretary/ConversationList.tsx`
@@ -175,11 +176,14 @@
   - `src/store/sessionStoreState.ts`
   - `electron/secretary/*`
   - `electron/secretary/computer-use-policy.ts`
+  - `electron/secretary/learning.ts`
+  - `electron/secretary/execution-guardrail.ts`
   - `electron/services/computerUseMcpService.ts`
   - `electron/services/cittoVisualMcpServer.mjs`
   - `electron/preload/secretaryApi.ts`
   - `electron/main/windowController.ts`
   - `electron/persistence.ts`
+  - `docs/harness/secretary-automation-profiles.md`
 - 책임:
   - 글로벌 단축키 등록과 앱 밖 플로팅 비서 창 토글
   - 캐릭터 드래그 기반 플로팅 비서 창 위치 이동
@@ -198,6 +202,9 @@
   - 이전 주제 회상 요청 시 비서 대화 history와 일반 프로젝트 세션 messages 통합 검색
   - 프로젝트 진행 요청은 비서가 직접 장시간 수행하기보다 기존/새 프로젝트 세션으로 이어가도록 안내
   - 반복 작업/관례는 1차 `draftWorkflow`/`draftSkill`로 새 프로젝트 세션에 초안을 넘기고, 2차 `createWorkflow`/`createSkill`로 사용자 확인 후 실제 저장한다.
+  - 사용자 선호/규칙은 `saveMemory` 승인 액션으로 `memory.*` profile key에 저장하고, 자동 감지된 반복/스킬/기억 후보는 `secretary.learningCandidates` profile slot에 보관해 다음 제안 근거로만 사용한다.
+  - `src/components/secretary/SecretaryLearningPanel.tsx`는 학습 후보 inbox와 장기 기억 검색/수정/삭제 UI를 담당하고, renderer는 `window.secretary` memory/learning IPC만 호출한다.
+  - 앱별 어댑터 없는 메신저/앱 자동화는 `docs/harness/secretary-automation-profiles.md`의 profile-backed accessibility-first 구조를 따른다.
   - 워크플로우 생성은 렌더러 `useWorkflowStore` 경계를 통해 처리하고, 스킬 생성은 렌더러에서 `window.claude.writeClaudeFile`로 `~/.claude/skills/<name>/SKILL.md`를 작성한다.
   - 렌더러 처리 액션은 `secretary:renderer-action-result`로 실제 생성 성공/실패를 되돌려 비서 메시지에 정확히 표시한다.
   - 워크플로우 생성 액션은 manual agent 단계뿐 아니라 schedule trigger, condition step, loop step을 생성할 수 있어야 한다.
@@ -206,6 +213,7 @@
   - `src/components/secretary/useSecretaryAppBridge.ts`는 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
   - `src/App.tsx`는 비서 활성 상태에서 기존 사이드바와 메인 화면을 모두 덮는 전체 비서 화면을 렌더링한다.
   - `src/components/secretary/SecretaryPanel.tsx`는 캐릭터, 비서 채팅 목록, 메시지, 일반 세션 입력창 기반 composer, 액션 확인 버튼, ESC 닫기를 렌더링한다.
+  - `src/secretary-panel/SecretaryFloating.tsx`는 학습 후보/기억 전체 관리는 하지 않고 후보·기억 개수와 메인 비서 화면 진입만 제공한다.
   - `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창에서 공유하는 작업 상태 계산, 단계 표시, 승인 대기 상태, 씨토 말풍선 아래 인라인 작업 내역 표시를 담당한다.
   - `src/secretary-panel/SecretaryFloating.tsx`는 별도 Electron 창에서 축소 캐릭터/확장 대화창, 앱 열기, 플로팅 전용 모델 override를 렌더링한다.
 - 흔한 회귀:
@@ -221,6 +229,8 @@
   - `secretary` route가 사이드바 active state 또는 `handleSecretaryNavigate`와 불일치함
   - 새 history/pattern 저장이 기존 sqlite 스냅샷을 깨뜨림
   - native visual MCP 권한 부족 상태에서 실행 액션을 제안하거나, 씨토 외 Claude 실행에 computer-use MCP/allowlist가 새는 문제
+  - computer-use 실행이 tool 이벤트 없이 오래 멈추거나 같은 화면 조작을 반복해 사용자에게 진행이 보이지 않는 문제
+  - 메신저 자동화가 accessibility/profile 경로를 건너뛰고 OCR/좌표 입력부터 시도하는 문제
   - 플로팅 창 resize/drag/escape 흐름이 창 위치·크기와 UI 상태를 다르게 유지함
   - `window.quickPanel`, `quick-panel:*` 채널 재도입
 

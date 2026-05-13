@@ -4,6 +4,9 @@ import type {
   SecretaryBotState,
   SecretaryConversation,
   SecretaryHistoryEntry,
+  SecretaryLearningCandidate,
+  SecretaryLearningPromotionTarget,
+  SecretaryMemoryEntry,
   SecretaryProcessResult,
   SecretaryRuntimeConfig,
   SecretarySearchResult,
@@ -17,6 +20,7 @@ import type { PermissionMode } from '../../store/sessions'
 import { InputArea } from '../InputArea'
 import { ConversationList } from './ConversationList'
 import { SecretaryCharacter } from './SecretaryCharacter'
+import { SecretaryLearningPanel } from './SecretaryLearningPanel'
 import { SecretaryMessage, type SecretaryUiMessage } from './SecretaryMessage'
 import { SecretaryTaskInline } from './SecretaryTaskHud'
 import { SecretaryThinkingIndicator } from './SecretaryThinkingIndicator'
@@ -152,6 +156,8 @@ export function SecretaryPanel({
   const [messages, setMessages] = useState<SecretaryUiMessage[]>(() => [buildGreetingMessage()])
   const [conversations, setConversations] = useState<SecretaryConversation[]>([])
   const [activeConversation, setActiveConversation] = useState<SecretaryConversation | null>(null)
+  const [learningCandidates, setLearningCandidates] = useState<SecretaryLearningCandidate[]>([])
+  const [memories, setMemories] = useState<SecretaryMemoryEntry[]>([])
   const [conversationListOpen, setConversationListOpen] = useState(false)
   const [sortMode, setSortMode] = useState<SecretarySortMode>('updated')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
@@ -239,6 +245,16 @@ export function SecretaryPanel({
     return list
   }
 
+  const refreshLearningState = async () => {
+    const [nextCandidates, nextMemories] = await Promise.all([
+      window.secretary.listLearningCandidates(),
+      window.secretary.listMemories(),
+    ])
+    setLearningCandidates(nextCandidates)
+    setMemories(nextMemories)
+    return { candidates: nextCandidates, memories: nextMemories }
+  }
+
   const focusMessageById = (messageId: string) => {
     setFocusedMessageId(messageId)
     window.setTimeout(() => {
@@ -254,6 +270,7 @@ export function SecretaryPanel({
     const [history] = await Promise.all([
       window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT),
       refreshConversations(),
+      refreshLearningState(),
     ])
     const chronologicalHistory = [...history].reverse()
     const snapshot = await window.secretary.getTaskSnapshot().catch(() => taskSnapshot)
@@ -277,11 +294,15 @@ export function SecretaryPanel({
     Promise.all([
       window.secretary.getActiveConversation(),
       window.secretary.listConversations(),
+      window.secretary.listLearningCandidates(),
+      window.secretary.listMemories(),
     ])
-      .then(async ([conversation, conversationList]) => {
+      .then(async ([conversation, conversationList, candidateList, memoryList]) => {
         if (cancelled || submittedDuringHistoryLoadRef.current) return
         setActiveConversation(conversation)
         setConversations(conversationList)
+        setLearningCandidates(candidateList)
+        setMemories(memoryList)
         const history = await window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT)
         if (cancelled || submittedDuringHistoryLoadRef.current) return
         const chronologicalHistory = [...history].reverse()
@@ -401,6 +422,7 @@ export function SecretaryPanel({
       void Promise.all([
         window.secretary.getActiveConversation().then(setActiveConversation),
         refreshConversations(),
+        refreshLearningState(),
       ]).catch(() => undefined)
     } catch (error) {
       if (requestSeqRef.current !== requestId) return
@@ -465,6 +487,7 @@ export function SecretaryPanel({
             : result.error ?? result.message ?? '실행하지 못했어요.',
         },
       ])
+      void refreshLearningState().catch(() => undefined)
     } catch (error) {
       setBotState('error')
       setMessages((current) => [
@@ -520,6 +543,82 @@ export function SecretaryPanel({
     }
   }
 
+  const handlePromoteLearningCandidate = async (
+    candidateId: string,
+    target: SecretaryLearningPromotionTarget,
+  ) => {
+    setBotState('working')
+    setTaskActivity('planning')
+    try {
+      const result = await window.secretary.promoteLearningCandidate(candidateId, target)
+      setMessages((current) => [...expirePendingActionMessages(current), buildAssistantMessage(result)])
+      setBotState(result.action ? 'done' : 'idle')
+      void refreshLearningState().catch(() => undefined)
+    } catch (error) {
+      setBotState('error')
+      setMessages((current) => [
+        ...current,
+        {
+          id: createMessageId(),
+          role: 'secretary',
+          content: error instanceof Error ? error.message : '학습 후보를 승격하지 못했어요.',
+        },
+      ])
+    } finally {
+      setTaskActivity(null)
+    }
+  }
+
+  const handleDismissLearningCandidate = async (candidateId: string) => {
+    const result = await window.secretary.dismissLearningCandidate(candidateId)
+    if (result.ok) {
+      await refreshLearningState()
+      return
+    }
+    setMessages((current) => [
+      ...current,
+      {
+        id: createMessageId(),
+        role: 'secretary',
+        content: result.error ?? '학습 후보를 삭제하지 못했어요.',
+      },
+    ])
+  }
+
+  const handleUpdateMemory = async (key: string, value: string) => {
+    const result = await window.secretary.updateMemory(key, value)
+    if (result.ok) {
+      await refreshLearningState()
+      return true
+    }
+    setMessages((current) => [
+      ...current,
+      {
+        id: createMessageId(),
+        role: 'secretary',
+        content: result.error ?? '기억을 수정하지 못했어요.',
+      },
+    ])
+    return false
+  }
+
+  const handleDeleteMemory = async (key: string) => {
+    if (!window.confirm(`${key} 기억을 삭제할까요?`)) return
+    const result = await window.secretary.deleteMemory(key)
+    if (result.ok) {
+      await refreshLearningState()
+      return
+    }
+    setMessages((current) => [
+      ...current,
+      {
+        id: createMessageId(),
+        role: 'secretary',
+        content: result.error ?? '기억을 삭제하지 못했어요.',
+      },
+    ])
+  }
+
   const handleSelectSearchResult = async (result: SecretarySearchResult) => {
     if (result.route === 'secretary' && result.conversationId) {
       const switched = await window.secretary.switchConversation(result.conversationId)
@@ -542,6 +641,19 @@ export function SecretaryPanel({
       onRename={(id, title) => void handleRenameConversation(id, title)}
       onArchive={(id) => void handleArchiveConversation(id)}
       variant={isScreen ? 'sidebar' : 'panel'}
+    />
+  )
+
+  const learningPanel = (
+    <SecretaryLearningPanel
+      candidates={learningCandidates}
+      memories={memories}
+      onPromoteCandidate={(candidateId, target) => void handlePromoteLearningCandidate(candidateId, target)}
+      onDismissCandidate={(candidateId) => void handleDismissLearningCandidate(candidateId)}
+      onUpdateMemory={handleUpdateMemory}
+      onDeleteMemory={(key) => void handleDeleteMemory(key)}
+      compact={!isScreen}
+      showMemories
     />
   )
 
@@ -657,6 +769,7 @@ export function SecretaryPanel({
       </div>
 
       {!isScreen && conversationListOpen && conversationList}
+      {!isScreen && (learningCandidates.length > 0 || memories.length > 0) && learningPanel}
 
       {transcript}
       {composer}
@@ -743,6 +856,7 @@ export function SecretaryPanel({
             onArchive={(id) => void handleArchiveConversation(id)}
             variant="sidebar"
           />
+          {learningPanel}
         </aside>
         <div
           className="secretary-sidebar-resize-handle"

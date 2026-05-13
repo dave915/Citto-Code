@@ -119,6 +119,26 @@ export type SecretaryExecuteResult = {
 
 export type SecretaryProfile = Record<string, string>
 
+export type SecretaryLearningCandidateKind = 'memory' | 'skill' | 'workflow'
+export type SecretaryLearningPromotionTarget = 'memory' | 'skill' | 'workflow'
+
+export type SecretaryLearningCandidate = {
+  id: string
+  kind: SecretaryLearningCandidateKind
+  title: string
+  summary: string
+  source: string
+  count: number
+  createdAt: number
+  lastSeenAt: number
+}
+
+export type SecretaryMemoryEntry = {
+  key: string
+  value: string
+  label: string
+}
+
 export type SecretaryConversation = {
   id: string
   title: string

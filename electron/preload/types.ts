@@ -12,6 +12,9 @@ import type {
   SecretaryConversation,
   SecretaryExecuteResult,
   SecretaryHistoryEntry,
+  SecretaryLearningCandidate,
+  SecretaryLearningPromotionTarget,
+  SecretaryMemoryEntry,
   SecretaryProcessResult,
   SecretaryProfile,
   SecretaryRendererActionRequest,
@@ -32,6 +35,9 @@ export type {
   SecretaryExecuteResult,
   SecretaryHistoryEntry,
   SecretaryIntent,
+  SecretaryLearningCandidate,
+  SecretaryLearningPromotionTarget,
+  SecretaryMemoryEntry,
   SecretaryProcessResult,
   SecretaryProfile,
   SecretaryRecentSession,
@@ -411,6 +417,15 @@ export type SecretaryAPI = {
   getHistory: (conversationId?: string, limit?: number) => Promise<SecretaryHistoryEntry[]>
   getProfile: () => Promise<SecretaryProfile>
   updateProfile: (key: string, value: string) => Promise<{ ok: boolean }>
+  listMemories: () => Promise<SecretaryMemoryEntry[]>
+  updateMemory: (key: string, value: string) => Promise<{ ok: boolean; error?: string }>
+  deleteMemory: (key: string) => Promise<{ ok: boolean; error?: string }>
+  listLearningCandidates: () => Promise<SecretaryLearningCandidate[]>
+  dismissLearningCandidate: (id: string) => Promise<{ ok: boolean; error?: string }>
+  promoteLearningCandidate: (
+    id: string,
+    target: SecretaryLearningPromotionTarget,
+  ) => Promise<SecretaryProcessResult>
 }
 
 export type PersistenceSnapshot = {

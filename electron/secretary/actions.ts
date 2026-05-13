@@ -87,6 +87,7 @@ export type SecretaryAction =
       description: string
       instructions: string
     }
+  | { type: 'saveMemory'; key: string; value: string; label?: string }
   | { type: 'runClaudeCode'; prompt: string; mode?: 'print' | 'interactive' }
   | { type: 'installComputerUse' }
   | { type: 'openSettings'; section?: string }
@@ -145,6 +146,11 @@ const ACTION_CAPABILITIES: ActionCapability[] = [
     type: 'createSkill',
     description: '2차: ~/.claude/skills/<name>/SKILL.md 파일로 스킬 생성. name, description, instructions 필수.',
     schema: '{ "type": "createSkill", "name": "review-helper", "description": "...", "instructions": "..." }',
+  },
+  {
+    type: 'saveMemory',
+    description: '사용자가 명시적으로 기억하라고 한 선호/규칙/사실을 비서 profile에 저장. key는 memory.<slug> 형태 권장, value 필수.',
+    schema: '{ "type": "saveMemory", "key": "memory.prefers-short-korean-updates", "value": "사용자는 짧은 한국어 진행 업데이트를 선호한다.", "label": "응답 스타일 선호" }',
   },
   {
     type: 'runClaudeCode',
@@ -385,6 +391,18 @@ export function normalizeSecretaryAction(value: unknown): SecretaryAction | null
     return name && description && instructions
       ? { type: 'createSkill', name, description, instructions }
       : null
+  }
+
+  if (type === 'saveMemory') {
+    const key = optionalText(value.key)
+    const memoryValue = optionalText(value.value)
+    if (!key || !memoryValue) return null
+    return {
+      type: 'saveMemory',
+      key,
+      value: memoryValue,
+      label: optionalText(value.label),
+    }
   }
 
   if (type === 'runClaudeCode') {

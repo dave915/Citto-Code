@@ -55,6 +55,13 @@ export function createSecretaryActionHandlers({
       return await runRendererAction(action)
     }
 
+    if (action.type === 'saveMemory') {
+      const result = await service.saveMemory(action.key, action.value, action.label)
+      return result.ok
+        ? { ok: true, message: result.output ?? '기억을 저장했어요.', payload: { output: result.output } }
+        : { ok: false, error: result.error ?? '기억을 저장하지 못했어요.' }
+    }
+
     if (action.type === 'runWorkflow') {
       const result = await runWorkflowNow(action.workflowId)
       return result.ok

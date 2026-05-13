@@ -60,6 +60,7 @@ function getActionRisk(action: SecretaryAction): SecretaryTaskRiskLevel {
   if (
     action.type === 'draftWorkflow'
     || action.type === 'draftSkill'
+    || action.type === 'saveMemory'
     || action.type === 'startChat'
     || action.type === 'openSession'
   ) {
@@ -79,6 +80,7 @@ function getActionLabel(action: SecretaryAction) {
   if (action.type === 'createWorkflow') return '워크플로우 저장'
   if (action.type === 'draftSkill') return '스킬 초안 작성'
   if (action.type === 'createSkill') return '스킬 생성'
+  if (action.type === 'saveMemory') return '기억 저장'
   if (action.type === 'runClaudeCode') return action.mode === 'interactive' ? '채팅에서 실행' : 'Claude Code 실행'
   if (action.type === 'installComputerUse') return 'Cua Driver 설치'
   if (action.type === 'openSettings') return '설정 열기'
@@ -97,6 +99,7 @@ function getActionPreview(action: SecretaryAction) {
   if (action.type === 'createWorkflow') return action.prompt ?? action.description ?? action.name
   if (action.type === 'draftSkill') return action.initialPrompt ?? action.description ?? action.name
   if (action.type === 'createSkill') return action.description
+  if (action.type === 'saveMemory') return `${action.key}\n${action.value}`
   if (action.type === 'navigate') return `route: ${action.route}`
   if (action.type === 'installComputerUse') return 'Cua Driver를 설치하고 daemon을 시작합니다. 설치 중 공식 스크립트를 다운로드합니다.'
   if (action.type === 'openSettings') return action.section ? `section: ${action.section}` : '설정 화면을 엽니다.'
@@ -119,6 +122,10 @@ function getToolLanesForAction(action: SecretaryAction): SecretaryToolLane[] {
   }
 
   if (action.type === 'draftSkill' || action.type === 'createSkill') {
+    return ['citto_renderer', 'file_system']
+  }
+
+  if (action.type === 'saveMemory') {
     return ['citto_renderer', 'file_system']
   }
 

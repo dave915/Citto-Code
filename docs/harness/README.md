@@ -15,7 +15,8 @@
 2. [Change Workflow](./change-workflow.md)
 3. [Quality Gates](./quality-gates.md)
 4. [Area Ownership](./area-ownership.md)
-5. [Task Template](./task-template.md)
+5. [Secretary Automation Profiles](./secretary-automation-profiles.md)
+6. [Task Template](./task-template.md)
 
 ## Repo Snapshot
 

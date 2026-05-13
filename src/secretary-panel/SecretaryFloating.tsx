@@ -142,6 +142,8 @@ export function SecretaryFloating() {
   const [activeConversation, setActiveConversation] = useState<SecretaryConversation | null>(null)
   const [appModel, setAppModel] = useState<string | null>(null)
   const [modelOverride, setModelOverride] = useState<string | null>(null)
+  const [learningCandidateCount, setLearningCandidateCount] = useState(0)
+  const [memoryCount, setMemoryCount] = useState(0)
   const [taskActivity, setTaskActivity] = useState<'planning' | 'running' | null>(null)
   const [taskSnapshot, setTaskSnapshot] = useState<SecretaryTaskSnapshot | null>(null)
   const [placement, setPlacement] = useState<SecretaryFloatingPlacement>({ horizontal: 'left', vertical: 'top' })
@@ -275,6 +277,15 @@ export function SecretaryFloating() {
     }, 0)
   }
 
+  const refreshLearningSummary = async () => {
+    const [candidates, memories] = await Promise.all([
+      window.secretary.listLearningCandidates(),
+      window.secretary.listMemories(),
+    ])
+    setLearningCandidateCount(candidates.length)
+    setMemoryCount(memories.length)
+  }
+
   const loadConversation = async (conversation: SecretaryConversation, focusMessageId?: string) => {
     setActiveConversation(conversation)
     const history = await window.secretary.getHistory(conversation.id, SECRETARY_HISTORY_LIMIT)
@@ -292,6 +303,7 @@ export function SecretaryFloating() {
     }
     const context = await window.secretary.getActiveContext()
     setAppModel(context.currentModel ?? null)
+    void refreshLearningSummary().catch(() => undefined)
   }
 
   const loadActiveConversation = async () => {
@@ -444,7 +456,10 @@ export function SecretaryFloating() {
       if (requestSeqRef.current !== requestId) return
       setMessages((current) => [...current, buildAssistantMessage(result)])
       setBotState(result.action ? 'done' : 'idle')
-      void window.secretary.getActiveConversation().then(setActiveConversation).catch(() => undefined)
+      void Promise.all([
+        window.secretary.getActiveConversation().then(setActiveConversation),
+        refreshLearningSummary(),
+      ]).catch(() => undefined)
     } catch (error) {
       if (requestSeqRef.current !== requestId) return
       setBotState('error')
@@ -503,6 +518,7 @@ export function SecretaryFloating() {
             : result.error ?? result.message ?? '실행하지 못했어요.',
         },
       ])
+      void refreshLearningSummary().catch(() => undefined)
     } catch (error) {
       setBotState('error')
       setMessages((current) => [
@@ -601,7 +617,11 @@ export function SecretaryFloating() {
           aria-label="씨토 열기"
         >
           <strong>{lastAssistantPreview}</strong>
-          <small>클릭해서 열기 · Esc 숨기기</small>
+          <small>
+            {learningCandidateCount > 0 || memoryCount > 0
+              ? `후보 ${learningCandidateCount} · 기억 ${memoryCount} · 클릭해서 열기`
+              : '클릭해서 열기 · Esc 숨기기'}
+          </small>
         </button>
       </div>
     )
@@ -613,6 +633,15 @@ export function SecretaryFloating() {
         <header className="secretary-floating-header">
           <div className="secretary-floating-title">
             <h1>{activeConversation?.title ?? '씨토'}</h1>
+            {(learningCandidateCount > 0 || memoryCount > 0) && (
+              <button
+                type="button"
+                className="secretary-floating-learning-pill"
+                onClick={() => void window.secretary.openMainWindow()}
+              >
+                후보 {learningCandidateCount} · 기억 {memoryCount}
+              </button>
+            )}
           </div>
           <div className="secretary-floating-actions no-drag">
             <SecretaryModelPicker

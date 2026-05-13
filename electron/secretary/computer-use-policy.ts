@@ -20,6 +20,7 @@ export const COMPUTER_USE_EXECUTION_POLICY = [
   '- 텍스트 입력과 키 입력은 대상 컨트롤을 click_window로 포커스한 뒤 citto-visual-use.type_text, press_key, hotkey를 우선 사용하세요. native 모드에서는 foreground 앱에 실제 키보드 이벤트를 보냅니다.',
   '- 접근성 element_index가 꼭 필요한 경우에만 cua-computer-use.get_window_state(pid, window_id)를 사용하세요. 이 호출이 느리거나 멈추면 즉시 citto-visual-use의 OCR/좌표 경로로 돌아가세요.',
   '- cua-computer-use.screenshot(window_id)은 citto-visual-use.capture_window_ocr(include_image=true)로 충분하지 않은 경우에만 사용하세요.',
+  '- 같은 화면 읽기/클릭/키 입력이 실패하거나 상태가 바뀌지 않으면 같은 인자로 세 번 이상 반복하지 말고, 다른 도구 경로를 선택하거나 막힌 이유를 결과로 반환하세요.',
   '- 사용자가 요청한 의도 안의 동작(앱 열기/활성화, 화면 읽기, 클릭, 입력, 스크롤, 클립보드 사용, URL 열기, 사용자가 지정한 앱의 실행)은 그대로 진행합니다.',
   '- 단, 사용자가 명시적으로 요청하지 않은 *새로운* 위험 동작이 발견되면 그 동작 직전에 멈추고, 무엇을 왜 위험하다고 보는지 한국어로 짧게 설명한 결과만 반환하세요. 도구는 호출하지 마세요.',
   '  여기에 해당하는 새 위험: 파일/계정 삭제, 결제/송금, 외부 메시지/댓글/메일 발송, 예약 생성/변경, 사용자가 지정하지 않은 파일 업로드, 민감정보(비밀번호/카드/주민번호 등) 입력, 권한/보안/시스템 설정 변경, 계정/API 키/비밀번호 생성 또는 저장, 사용자가 지정하지 않은 소프트웨어 설치.',

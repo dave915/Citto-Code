@@ -7,6 +7,7 @@ import {
   COMPUTER_USE_EXECUTION_POLICY,
   COMPUTER_USE_OBSERVATION_POLICY,
 } from './computer-use-policy'
+import { createSecretaryExecutionGuardrail } from './execution-guardrail'
 import { extractJsonObject, normalizeSecretaryResult } from './intent-router'
 import type { SecretaryMemory } from './memory'
 import type {
@@ -156,6 +157,7 @@ function buildSystemPrompt(context: SecretaryActiveContext, memory: {
   profile: Record<string, string>
   recentHistory: unknown[]
   patterns: unknown[]
+  learningCandidates: unknown[]
   conversationSearchResults: SecretarySearchResult[]
 }, computerUseStatus: { available: boolean; detail: string; setupCommand?: string }) {
   return [
@@ -195,6 +197,12 @@ function buildSystemPrompt(context: SecretaryActiveContext, memory: {
     '검색 결과의 type이 "비서 대화"면 씨토 비서와 나눈 대화이고, "세션 대화"면 프로젝트 세션에서 나눈 대화입니다.',
     '검색 결과가 비어 있는데 사용자가 과거 대화 검색을 요청했다면, 저장된 비서/세션 대화에서 찾지 못했다고 분명히 말하세요.',
     '검색 결과를 근거로 답할 때는 관련 항목을 searchResults에 포함하세요.',
+    '',
+    '장기 기억/학습 처리 원칙:',
+    '- 사용자가 "기억해", "앞으로는", "항상", "내 선호는"처럼 명시적으로 저장 의도를 말하면 saveMemory 액션을 제안하세요.',
+    '- saveMemory.key는 memory.<짧은-영어-slug> 형식으로 만들고, value에는 확인 가능한 사용자 선호/규칙/사실만 한 문장으로 저장하세요.',
+    '- 저장된 profile 값은 이미 승인된 기억이지만, learningCandidates는 자동 감지된 후보일 뿐입니다. 후보를 사실처럼 단정하지 말고, 필요할 때 저장/스킬/워크플로우 제안 근거로만 쓰세요.',
+    '- 반복 작업 후보가 보이면 draftWorkflow/createWorkflow, 절차나 스타일 후보가 보이면 draftSkill/createSkill, 사용자 선호 후보가 보이면 saveMemory를 제안하세요.',
     '',
     '프로젝트 진행 요청 처리 원칙:',
     '- 구현, 수정, 디자인 반영, 디버깅, 리팩터링, 문서화처럼 프로젝트 작업을 진행하려는 요청이면 비서 대화 안에서 길게 처리하지 말고 프로젝트 세션에서 이어가도록 안내하세요.',
@@ -285,6 +293,29 @@ function sanitizeTitle(text: string) {
     .trim()
   if (!title) return null
   return title.length > 36 ? title.slice(0, 36).trim() : title
+}
+
+function normalizeMemoryKey(key: string) {
+  const normalized = key
+    .trim()
+    .toLowerCase()
+    .replace(/^secretary\./, '')
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[._-]+|[._-]+$/g, '')
+    .slice(0, 80)
+  if (!normalized) return 'memory.note'
+  return normalized.startsWith('memory.') ? normalized : `memory.${normalized}`
+}
+
+function normalizeMemoryValue(value: string) {
+  return value.replace(/\s+/g, ' ').trim().slice(0, 500)
+}
+
+function buildPromptProfile(profile: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(profile).filter(([key]) => !key.startsWith('secretary.')),
+  )
 }
 
 function normalizeAssistantTextOutput(text: string): SecretaryProcessResult {
@@ -406,6 +437,23 @@ export class SecretaryService {
     }
   }
 
+  async saveMemory(key: string, value: string, label?: string) {
+    const normalizedKey = normalizeMemoryKey(key)
+    const normalizedValue = normalizeMemoryValue(value)
+    if (!normalizedValue) {
+      return {
+        ok: false,
+        error: '저장할 기억 내용이 비어 있습니다.',
+      }
+    }
+
+    this.options.memory.updateProfile(normalizedKey, normalizedValue)
+    return {
+      ok: true,
+      output: `${label?.trim() || normalizedKey} 기억을 저장했어요.`,
+    }
+  }
+
   private addActiveProcessController(conversationId: string, controller: AbortController): void {
     const controllers = this.activeProcessControllers.get(conversationId) ?? new Set<AbortController>()
     controllers.add(controller)
@@ -498,9 +546,10 @@ export class SecretaryService {
         permissionMode: runtime.permissionMode,
         planMode: runtime.planMode,
         systemPrompt: buildSystemPrompt(context, {
-          profile: this.options.memory.getProfile(),
+          profile: buildPromptProfile(this.options.memory.getProfile()),
           recentHistory: this.options.memory.loadRecentHistory(conversationId, 8),
           patterns: this.options.memory.loadPatterns(4),
+          learningCandidates: this.options.memory.loadLearningCandidates(6),
           conversationSearchResults: conversationSearchResults.slice(0, 4),
         }, this.getComputerUseStatus()),
         systemPromptMode: 'system',
@@ -534,6 +583,7 @@ export class SecretaryService {
             trimmedInput,
             conversationSearchResults,
           )
+          this.options.memory.recordLearningCandidateFromTurn(trimmedInput, parsed)
           this.options.memory.addHistory({
             conversationId,
             role: 'secretary',
@@ -558,6 +608,7 @@ export class SecretaryService {
         trimmedInput,
         conversationSearchResults,
       )
+      this.options.memory.recordLearningCandidateFromTurn(trimmedInput, parsed)
       this.options.memory.addHistory({
         conversationId,
         role: 'secretary',
@@ -612,6 +663,7 @@ export class SecretaryService {
       return { ok: false, error: '실행할 내용이 없습니다.' }
     }
     const processId = conversationId ?? `secretary-execution-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    let guardrailAbortReason: string | null = null
 
     try {
       const runtime = this.resolveRuntimeConfig()
@@ -626,11 +678,22 @@ export class SecretaryService {
         }
       }
 
-      const eventReader = await createComputerUseEventReader(hooks.onComputerUseEvent)
+      const timeout = createTimeoutSignal(SECRETARY_EXECUTE_TIMEOUT_MS)
+      const guardrail = createSecretaryExecutionGuardrail({
+        abort: (reason) => {
+          guardrailAbortReason = reason
+          timeout.controller.abort()
+        },
+        onWarning: hooks.onComputerUseEvent,
+      })
+      const eventReader = await createComputerUseEventReader((event) => {
+        guardrail.record(event)
+        hooks.onComputerUseEvent?.(event)
+      })
       const computerUseMcpConfigWithEvents = eventReader
         ? attachMcpServerEnv(computerUseMcpConfig, { CITTO_VISUAL_EVENT_FILE: eventReader.eventFilePath })
         : computerUseMcpConfig
-      const timeout = createTimeoutSignal(SECRETARY_EXECUTE_TIMEOUT_MS)
+      guardrail.start()
       this.addActiveProcessController(processId, timeout.controller)
       const result = await spawnClaudeProcess({
         prompt: trimmedPrompt,
@@ -653,6 +716,7 @@ export class SecretaryService {
         resolveTargetPath: this.options.resolveTargetPath,
       }).finally(() => {
         timeout.clear()
+        guardrail.dispose()
         this.removeActiveProcessController(processId, timeout.controller)
         void eventReader?.dispose()
       })
@@ -670,7 +734,7 @@ export class SecretaryService {
           return {
             ok: false,
             output: result.output,
-            error: '응답 시간이 너무 오래 걸려 실행을 중단했어요. 다시 시도해 주세요.',
+            error: guardrailAbortReason ?? '응답 시간이 너무 오래 걸려 실행을 중단했어요. 다시 시도해 주세요.',
           }
         }
         return {
@@ -700,7 +764,7 @@ export class SecretaryService {
       }
       return {
         ok: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: guardrailAbortReason ?? (error instanceof Error ? error.message : String(error)),
       }
     }
   }

@@ -526,6 +526,17 @@ export class AppPersistence {
     this.flush()
   }
 
+  deleteSecretaryProfile(key: string): void {
+    const normalizedKey = key.trim()
+    if (!normalizedKey) return
+
+    this.run(
+      'DELETE FROM secretary_profile WHERE key = :key',
+      { ':key': normalizedKey },
+    )
+    this.flush()
+  }
+
   listSecretaryConversations(limit = 50): SecretaryConversation[] {
     const boundedLimit = Math.max(1, Math.min(200, Math.floor(limit)))
     const rows = this.query<{

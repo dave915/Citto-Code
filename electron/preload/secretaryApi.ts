@@ -86,4 +86,10 @@ export const secretaryAPI: SecretaryAPI = {
   getHistory: (conversationId, limit) => ipcRenderer.invoke('secretary:get-history', { conversationId, limit }),
   getProfile: () => ipcRenderer.invoke('secretary:get-profile'),
   updateProfile: (key, value) => ipcRenderer.invoke('secretary:update-profile', { key, value }),
+  listMemories: () => ipcRenderer.invoke('secretary:list-memories'),
+  updateMemory: (key, value) => ipcRenderer.invoke('secretary:update-memory', { key, value }),
+  deleteMemory: (key) => ipcRenderer.invoke('secretary:delete-memory', { key }),
+  listLearningCandidates: () => ipcRenderer.invoke('secretary:list-learning-candidates'),
+  dismissLearningCandidate: (id) => ipcRenderer.invoke('secretary:dismiss-learning-candidate', { id }),
+  promoteLearningCandidate: (id, target) => ipcRenderer.invoke('secretary:promote-learning-candidate', { id, target }),
 }
