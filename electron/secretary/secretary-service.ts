@@ -2,7 +2,13 @@ import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { spawnClaudeProcess } from '../services/claude-spawn'
-import { buildCapabilityManifest } from './actions'
+import { buildCapabilityManifest, type SecretaryAction } from './actions'
+import {
+  buildRunAppAutomationPrompt,
+  buildRunAppAutomationResultSuffix,
+} from './automation-profile-prompts'
+import type { SecretaryAutomationProfileStore } from './automation-profile-store'
+import type { SecretaryAutomationProfile } from './automation-profile-types'
 import {
   COMPUTER_USE_EXECUTION_POLICY,
   COMPUTER_USE_OBSERVATION_POLICY,
@@ -20,6 +26,7 @@ import type { PermissionMode } from '../persistence-types'
 
 type SecretaryServiceOptions = {
   memory: SecretaryMemory
+  automationProfiles?: SecretaryAutomationProfileStore
   getUserHomePath: (env?: NodeJS.ProcessEnv) => string
   resolveTargetPath: (targetPath: string) => string
   getComputerUseMcpConfig?: () => Record<string, unknown> | null
@@ -30,6 +37,13 @@ type SecretaryServiceOptions = {
 
 type SecretaryRunClaudeCodeHooks = {
   onComputerUseEvent?: (event: unknown) => void
+}
+
+type RunAppAutomationAction = Extract<SecretaryAction, { type: 'runAppAutomation' }>
+type SecretaryDelegatedExecutionResult = {
+  ok: boolean
+  output?: string
+  error?: string
 }
 
 const SECRETARY_PROCESS_TIMEOUT_MS = 180_000
@@ -155,6 +169,12 @@ function buildProcessFallbackReply(error: unknown, timedOut: boolean) {
 
 function buildSystemPrompt(context: SecretaryActiveContext, memory: {
   profile: Record<string, string>
+  automationProfiles: Array<{
+    id: string
+    label: string
+    app: SecretaryAutomationProfile['app']
+    intents: string[]
+  }>
   recentHistory: unknown[]
   patterns: unknown[]
   learningCandidates: unknown[]
@@ -172,9 +192,13 @@ function buildSystemPrompt(context: SecretaryActiveContext, memory: {
     '- 기본은 Level 2 관전 모드입니다. 사용자가 언제든 중단할 수 있다는 전제로 말하세요.',
     `- 현재 computer-use 실행기 상태: ${computerUseStatus.available ? '사용 가능' : '사용 불가'}. ${computerUseStatus.detail}`,
     computerUseStatus.available
-      ? '- OS UI 접근이 필요한 요청은 runClaudeCode 액션으로 제안할 수 있습니다.'
+      ? '- OS UI 접근이 필요한 일반 요청은 runClaudeCode 액션으로 제안할 수 있고, 메신저 send_message 자동화는 runAppAutomation 액션으로 제안하세요.'
       : '- OS UI 접근이 필요한 요청은 runClaudeCode 액션을 제안하지 말고, installComputerUse 액션으로 Cua Driver 설치 승인을 먼저 받으세요.',
     COMPUTER_USE_OBSERVATION_POLICY,
+    '- 사용자가 메신저/대화방/채팅방에 메시지를 보내 달라고 했고 recipient와 message가 명확하면 runClaudeCode가 아니라 runAppAutomation(intent="send_message") 액션을 제안하세요.',
+    '- send_message는 항상 high risk 승인 카드가 필요합니다. recipient 또는 message가 비어 있으면 action을 만들지 말고 빠진 값을 사용자에게 물어보세요.',
+    '- runAppAutomation.confirmationSummary에는 수신자, 메시지 발송 앱, accessibility/profile 우선 경로, 좌표 fallback 사용 여부를 사용자가 승인 전에 볼 수 있게 적으세요.',
+    '- 좌표 fallback이 필요하다고 판단한 경우에만 allowCoordinateFallback=true를 넣고 confirmationSummary에도 "foreground/좌표 fallback 가능"을 명확히 쓰세요.',
     '- 액션이 필요하면 먼저 이유와 다음 위치를 짧게 설명하고, action은 하나만 제안하세요.',
     '- 발송, 삭제, 저장, 업로드, 설정 변경, 장시간 실행처럼 위험하거나 되돌리기 어려운 일은 사용자 확인 전에는 절대 완료했다고 말하지 마세요.',
     '- 도구 선택을 설명해야 할 때는 공식 API, DOM/브라우저 자동화, 접근성 트리, 화면 분석, OS 입력 순서로 안정적인 경로를 선호한다고 말하세요.',
@@ -318,6 +342,15 @@ function buildPromptProfile(profile: Record<string, string>) {
   )
 }
 
+function buildPromptAutomationProfiles(profiles: SecretaryAutomationProfile[] = []) {
+  return profiles.map((profile) => ({
+    id: profile.id,
+    label: profile.label,
+    app: profile.app,
+    intents: Object.keys(profile.intents),
+  }))
+}
+
 function normalizeAssistantTextOutput(text: string): SecretaryProcessResult {
   const trimmed = text.trim()
   const parsed = normalizeSecretaryResult(extractJsonObject(trimmed))
@@ -370,6 +403,51 @@ function attachConversationSearchResults(
     intent: result.intent === 'chat' ? 'recall' : result.intent,
     searchResults: mergeSearchResults(result.searchResults, conversationResults),
   }
+}
+
+function normalizeMatchText(value: string | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function scoreAutomationProfile(action: RunAppAutomationAction, profile: SecretaryAutomationProfile): number {
+  if (!profile.intents[action.intent]) return -1
+  const hint = normalizeMatchText(action.appHint)
+  if (!hint) return profile.id === 'generic-messenger' ? 4 : 1
+
+  const names = profile.app.names.map(normalizeMatchText)
+  const bundleIds = (profile.app.bundleIds ?? []).map(normalizeMatchText)
+  if (names.some((name) => name === hint) || bundleIds.some((bundleId) => bundleId === hint)) return 100
+  if (names.some((name) => name.includes(hint) || hint.includes(name))) return 70
+  if (bundleIds.some((bundleId) => bundleId.includes(hint) || hint.includes(bundleId))) return 70
+  return profile.id === 'generic-messenger' ? 2 : 0
+}
+
+function chooseAutomationProfile(
+  action: RunAppAutomationAction,
+  profiles: SecretaryAutomationProfile[],
+): { profile: SecretaryAutomationProfile | null; error?: string } {
+  if (action.profileId) {
+    const profile = profiles.find((entry) => entry.id === action.profileId) ?? null
+    if (!profile) return { profile: null, error: `자동화 프로필을 찾지 못했어요: ${action.profileId}` }
+    if (!profile.intents[action.intent]) return { profile: null, error: `선택한 프로필이 ${action.intent} intent를 지원하지 않아요.` }
+    return { profile }
+  }
+
+  const ranked = profiles
+    .map((profile) => ({ profile, score: scoreAutomationProfile(action, profile) }))
+    .filter((entry) => entry.score >= 0)
+    .sort((left, right) => right.score - left.score)
+  return { profile: ranked[0]?.profile ?? null }
+}
+
+function validateRunAppAutomationAction(action: RunAppAutomationAction): string | null {
+  if (action.intent !== 'send_message') return '지원하지 않는 앱 자동화 intent입니다.'
+  if (!action.slots.recipient?.trim()) return 'recipient slot이 비어 있어 실행하지 않았어요.'
+  if (!action.slots.message?.trim()) return 'message slot이 비어 있어 실행하지 않았어요.'
+  if (action.slots.attachmentPaths && action.slots.attachmentPaths.length > 0) {
+    return '첨부 파일 발송은 아직 지원하지 않아요. 메시지 본문만 보낼 수 있습니다.'
+  }
+  return null
 }
 
 export class SecretaryService {
@@ -547,6 +625,7 @@ export class SecretaryService {
         planMode: runtime.planMode,
         systemPrompt: buildSystemPrompt(context, {
           profile: buildPromptProfile(this.options.memory.getProfile()),
+          automationProfiles: buildPromptAutomationProfiles(this.options.automationProfiles?.listProfiles()),
           recentHistory: this.options.memory.loadRecentHistory(conversationId, 8),
           patterns: this.options.memory.loadPatterns(4),
           learningCandidates: this.options.memory.loadLearningCandidates(6),
@@ -657,12 +736,16 @@ export class SecretaryService {
     }
   }
 
-  async runClaudeCode(prompt: string, conversationId?: string, hooks: SecretaryRunClaudeCodeHooks = {}) {
+  private async runDelegatedComputerUse(
+    prompt: string,
+    processId: string,
+    conversationId: string | undefined,
+    hooks: SecretaryRunClaudeCodeHooks = {},
+  ): Promise<SecretaryDelegatedExecutionResult> {
     const trimmedPrompt = prompt.trim()
     if (!trimmedPrompt) {
       return { ok: false, error: '실행할 내용이 없습니다.' }
     }
-    const processId = conversationId ?? `secretary-execution-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     let guardrailAbortReason: string | null = null
 
     try {
@@ -766,6 +849,57 @@ export class SecretaryService {
         ok: false,
         error: guardrailAbortReason ?? (error instanceof Error ? error.message : String(error)),
       }
+    }
+  }
+
+  async runClaudeCode(
+    prompt: string,
+    conversationId?: string,
+    hooks: SecretaryRunClaudeCodeHooks = {},
+  ): Promise<SecretaryDelegatedExecutionResult> {
+    const processId = conversationId ?? `secretary-execution-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    return await this.runDelegatedComputerUse(prompt, processId, conversationId, hooks)
+  }
+
+  async runAppAutomation(
+    action: RunAppAutomationAction,
+    conversationId?: string,
+    hooks: SecretaryRunClaudeCodeHooks = {},
+  ): Promise<SecretaryDelegatedExecutionResult> {
+    const validationError = validateRunAppAutomationAction(action)
+    if (validationError) return { ok: false, error: validationError }
+
+    const profiles = this.options.automationProfiles?.listProfiles() ?? []
+    const selected = chooseAutomationProfile(action, profiles)
+    if (!selected.profile) {
+      return { ok: false, error: selected.error ?? '사용할 자동화 프로필을 찾지 못했어요.' }
+    }
+
+    const intentProfile = selected.profile.intents[action.intent]
+    if (!intentProfile) {
+      return { ok: false, error: `선택한 프로필이 ${action.intent} intent를 지원하지 않아요.` }
+    }
+
+    const coordinateFallbackAllowed = Boolean(intentProfile.fallback?.allowCoordinateInput && action.allowCoordinateFallback)
+    const prompt = buildRunAppAutomationPrompt({
+      action,
+      profile: selected.profile,
+      coordinateFallbackAllowed,
+    })
+    const processId = conversationId ?? `secretary-app-automation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const result = await this.runDelegatedComputerUse(prompt, processId, conversationId, hooks)
+    const suffix = buildRunAppAutomationResultSuffix(coordinateFallbackAllowed)
+
+    if (!result.ok) {
+      return {
+        ...result,
+        error: result.error ? `${result.error}\n\n${suffix}` : suffix,
+      }
+    }
+
+    return {
+      ...result,
+      output: result.output ? `${result.output}\n\n${suffix}` : suffix,
     }
   }
 

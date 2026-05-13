@@ -7,6 +7,10 @@ import type {
   SecretaryActionResult,
 } from '../secretary/actions'
 import type {
+  SecretaryAutomationProfile,
+  SecretaryAutomationProfileDraft,
+} from '../secretary/automation-profile-types'
+import type {
   SecretaryActiveContext,
   SecretaryBotState,
   SecretaryConversation,
@@ -27,6 +31,18 @@ import type {
 export type { LegacyScheduledTask, Session, Workflow, WorkflowExecution } from '../persistence-types'
 export type { CittoRoute } from '../secretary/routes'
 export type { SecretaryAction, SecretaryActionResult } from '../secretary/actions'
+export type {
+  SecretaryAutomationIntent,
+  SecretaryAutomationIntentProfile,
+  SecretaryAutomationPlatform,
+  SecretaryAutomationProfile,
+  SecretaryAutomationProfileDraft,
+  SecretaryAutomationSlot,
+  SecretaryAutomationTargetHint,
+  SecretaryAutomationTargetPreference,
+  SecretaryAutomationVerificationRule,
+  SecretaryAutomationWorkflowStep,
+} from '../secretary/automation-profile-types'
 export type {
   SecretaryActiveContext,
   SecretaryArtifactRef,
@@ -417,6 +433,11 @@ export type SecretaryAPI = {
   getHistory: (conversationId?: string, limit?: number) => Promise<SecretaryHistoryEntry[]>
   getProfile: () => Promise<SecretaryProfile>
   updateProfile: (key: string, value: string) => Promise<{ ok: boolean }>
+  listAutomationProfiles: () => Promise<SecretaryAutomationProfile[]>
+  saveAutomationProfile: (
+    profile: SecretaryAutomationProfileDraft,
+  ) => Promise<{ ok: boolean; profile?: SecretaryAutomationProfile; error?: string }>
+  deleteAutomationProfile: (id: string) => Promise<{ ok: boolean; error?: string }>
   listMemories: () => Promise<SecretaryMemoryEntry[]>
   updateMemory: (key: string, value: string) => Promise<{ ok: boolean; error?: string }>
   deleteMemory: (key: string) => Promise<{ ok: boolean; error?: string }>

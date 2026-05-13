@@ -4,6 +4,7 @@ import type {
   WorkflowConditionOperator,
   WorkflowTriggerFrequency,
 } from '../persistence-types'
+import type { SecretaryAutomationIntent } from './automation-profile-types'
 
 export type SecretaryWorkflowDraftTrigger =
   | { type: 'manual' }
@@ -50,6 +51,12 @@ export type SecretaryWorkflowDraftStep =
   | SecretaryWorkflowConditionDraftStep
   | SecretaryWorkflowLoopDraftStep
 
+export type SecretaryAppAutomationSlots = {
+  recipient?: string
+  message?: string
+  attachmentPaths?: string[]
+}
+
 export type SecretaryAction =
   | { type: 'navigate'; route: CittoRoute }
   | { type: 'startChat'; initialPrompt?: string }
@@ -89,6 +96,15 @@ export type SecretaryAction =
     }
   | { type: 'saveMemory'; key: string; value: string; label?: string }
   | { type: 'runClaudeCode'; prompt: string; mode?: 'print' | 'interactive' }
+  | {
+      type: 'runAppAutomation'
+      intent: SecretaryAutomationIntent
+      appHint?: string
+      profileId?: string
+      slots: SecretaryAppAutomationSlots
+      confirmationSummary: string
+      allowCoordinateFallback?: boolean
+    }
   | { type: 'installComputerUse' }
   | { type: 'openSettings'; section?: string }
   | { type: 'cancelActiveTask' }
@@ -158,6 +174,11 @@ const ACTION_CAPABILITIES: ActionCapability[] = [
     schema: '{ "type": "runClaudeCode", "prompt": "...", "mode": "print" }',
   },
   {
+    type: 'runAppAutomation',
+    description: '앱별 adapter 없이 automation profile로 앱 자동화 실행. send_message는 항상 high risk 승인 카드 이후에만 실행하며 recipient/message slot 필수.',
+    schema: '{ "type": "runAppAutomation", "intent": "send_message", "appHint": "KakaoTalk", "profileId": "generic-messenger", "slots": { "recipient": "홍길동", "message": "안녕하세요" }, "confirmationSummary": "KakaoTalk에서 홍길동에게 지정한 메시지를 보냅니다. 접근성 경로를 먼저 쓰고 좌표 fallback은 쓰지 않습니다." }',
+  },
+  {
     type: 'installComputerUse',
     description: 'Cua Driver computer-use 실행기 설치. OS UI 자동화가 필요하지만 실행기가 없을 때만 제안.',
     schema: '{ "type": "installComputerUse" }',
@@ -217,6 +238,27 @@ function normalizeWorkflowTriggerFrequency(value: unknown): WorkflowTriggerFrequ
 
 function optionalFiniteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function normalizeAttachmentPaths(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const paths = value
+    .map((item) => optionalText(item))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 8)
+  return paths.length > 0 ? paths : undefined
+}
+
+function normalizeAppAutomationSlots(value: unknown): SecretaryAppAutomationSlots | null {
+  if (!isRecord(value)) return null
+  const recipient = optionalText(value.recipient)
+  const message = optionalText(value.message)
+  if (!recipient || !message) return null
+  return {
+    recipient,
+    message,
+    attachmentPaths: normalizeAttachmentPaths(value.attachmentPaths),
+  }
 }
 
 function optionalNonNegativeInteger(value: unknown): number | undefined {
@@ -409,6 +451,24 @@ export function normalizeSecretaryAction(value: unknown): SecretaryAction | null
     const prompt = optionalText(value.prompt)
     const mode = value.mode === 'interactive' ? 'interactive' : 'print'
     return prompt ? { type: 'runClaudeCode', prompt, mode } : null
+  }
+
+  if (type === 'runAppAutomation') {
+    const intent = value.intent === 'send_message' ? value.intent : null
+    const slots = normalizeAppAutomationSlots(value.slots)
+    if (!intent || !slots) return null
+    const appHint = optionalText(value.appHint)
+    const confirmationSummary = optionalText(value.confirmationSummary)
+      ?? `${appHint ? `${appHint}에서 ` : ''}${slots.recipient}에게 지정한 메시지를 보냅니다. 접근성/profile 경로를 먼저 사용합니다.`
+    return {
+      type: 'runAppAutomation',
+      intent,
+      appHint,
+      profileId: optionalText(value.profileId),
+      slots,
+      confirmationSummary,
+      allowCoordinateFallback: value.allowCoordinateFallback === true || undefined,
+    }
   }
 
   if (type === 'installComputerUse') {

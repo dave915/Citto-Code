@@ -16,6 +16,7 @@
     "electron/preload/**/*.ts",
     "electron/persistence-types.ts",
     "electron/secretary/actions.ts",
+    "electron/secretary/automation-profile-types.ts",
     "electron/secretary/routes.ts",
     "electron/secretary/types.ts"
   ]

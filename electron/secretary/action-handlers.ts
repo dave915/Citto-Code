@@ -85,6 +85,15 @@ export function createSecretaryActionHandlers({
         : { ok: false, error: result.error ?? result.output ?? 'Claude Code 실행이 실패했습니다.' }
     }
 
+    if (action.type === 'runAppAutomation') {
+      const result = await service.runAppAutomation(action, getActiveConversationId() ?? undefined, {
+        onComputerUseEvent,
+      })
+      return result.ok
+        ? { ok: true, message: result.output ?? '앱 자동화가 완료되었습니다.', payload: { output: result.output } }
+        : { ok: false, error: result.error ?? result.output ?? '앱 자동화 실행이 실패했습니다.' }
+    }
+
     if (action.type === 'installComputerUse') {
       const result = await service.installComputerUse()
       return result.ok

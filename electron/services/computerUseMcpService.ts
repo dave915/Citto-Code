@@ -7,6 +7,7 @@ import { promisify } from 'util'
 const execFileAsync = promisify(execFile)
 
 const CUA_MCP_SERVER_NAME = 'cua-computer-use'
+const ACCESSIBILITY_MCP_SERVER_NAME = 'citto-accessibility-use'
 const VISUAL_MCP_SERVER_NAME = 'citto-visual-use'
 const CUA_ALLOWED_TOOL_NAMES = [
   'check_permissions',
@@ -41,6 +42,14 @@ const VISUAL_ALLOWED_TOOL_NAMES = [
   'press_key',
   'type_text',
 ] as const
+const ACCESSIBILITY_ALLOWED_TOOL_NAMES = [
+  'activate_app',
+  'find_ui_targets',
+  'get_ui_tree',
+  'list_apps',
+  'perform_ui_action',
+  'verify_ui_state',
+] as const
 const CUA_DRIVER_INSTALL_COMMAND =
   '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh)"'
 const CUA_DRIVER_MCP_ARGS = ['mcp', '--claude-code-computer-use-compat'] as const
@@ -52,7 +61,7 @@ const DAEMON_STATUS_POLL_MS = 250
 
 type ComputerUseStatus = {
   available: boolean
-  provider: 'cua-driver' | 'citto-visual-use'
+  provider: 'cua-driver' | 'citto-accessibility-use' | 'citto-visual-use'
   command: string | null
   detail: string
   setupCommand: string
@@ -271,11 +280,22 @@ function isNativeVisualMode(): boolean {
 function createNativeAvailableStatus(): ComputerUseStatus {
   return {
     available: true,
-    provider: 'citto-visual-use',
+    provider: 'citto-accessibility-use',
     command: null,
-    detail: 'citto-visual-use native 모드가 활성화되어 있습니다. Cua Driver 없이 macOS foreground 창 캡처/OCR/좌표 입력을 사용합니다.',
+    detail: 'citto-accessibility-use native 모드가 활성화되어 있습니다. AX element action을 우선 사용하고 citto-visual-use OCR/좌표 입력은 fallback으로 유지합니다.',
     setupCommand: CUA_DRIVER_INSTALL_COMMAND,
   }
+}
+
+function resolveAccessibilityMcpServerPath(): string {
+  const resourcesPath = typeof process.resourcesPath === 'string' ? process.resourcesPath : ''
+  const packagedPath = resourcesPath ? join(resourcesPath, 'mcp', 'cittoAccessibilityMcpServer.mjs') : ''
+  if (packagedPath && existsSync(packagedPath)) return packagedPath
+
+  const devPath = join(process.cwd(), 'electron', 'services', 'cittoAccessibilityMcpServer.mjs')
+  if (existsSync(devPath)) return devPath
+
+  return packagedPath || devPath
 }
 
 function resolveVisualMcpServerPath(): string {
@@ -290,22 +310,32 @@ function resolveVisualMcpServerPath(): string {
 }
 
 function buildMcpConfig(command: string | null): Record<string, unknown> {
+  const accessibilityMcpServerPath = resolveAccessibilityMcpServerPath()
   const visualMcpServerPath = resolveVisualMcpServerPath()
+  const nodeServerEnv = {
+    CUA_DRIVER_TELEMETRY_ENABLED: process.env.CUA_DRIVER_TELEMETRY_ENABLED ?? '0',
+    ELECTRON_RUN_AS_NODE: '1',
+    PATH: process.env.PATH ?? '/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin',
+  }
+  const accessibilityServer = {
+    command: process.execPath,
+    args: [accessibilityMcpServerPath],
+    env: nodeServerEnv,
+  }
   const visualServer = {
     command: process.execPath,
     args: [visualMcpServerPath],
     env: {
       ...(command ? { CUA_DRIVER_COMMAND: command } : {}),
       CITTO_VISUAL_USE_DRIVER: isNativeVisualMode() ? 'native' : 'cua',
-      CUA_DRIVER_TELEMETRY_ENABLED: process.env.CUA_DRIVER_TELEMETRY_ENABLED ?? '0',
-      ELECTRON_RUN_AS_NODE: '1',
-      PATH: process.env.PATH ?? '/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin',
+      ...nodeServerEnv,
     },
   }
 
   if (isNativeVisualMode()) {
     return {
       mcpServers: {
+        [ACCESSIBILITY_MCP_SERVER_NAME]: accessibilityServer,
         [VISUAL_MCP_SERVER_NAME]: visualServer,
       },
     }
@@ -320,6 +350,7 @@ function buildMcpConfig(command: string | null): Record<string, unknown> {
           CUA_DRIVER_TELEMETRY_ENABLED: process.env.CUA_DRIVER_TELEMETRY_ENABLED ?? '0',
         },
       },
+      [ACCESSIBILITY_MCP_SERVER_NAME]: accessibilityServer,
       [VISUAL_MCP_SERVER_NAME]: visualServer,
     },
   }
@@ -434,10 +465,14 @@ export function createComputerUseMcpService() {
     },
     getAllowedAllTools(): string[] {
       if (isNativeVisualMode()) {
-        return VISUAL_ALLOWED_TOOL_NAMES.map((toolName) => `mcp__${VISUAL_MCP_SERVER_NAME}__${toolName}`)
+        return [
+          ...ACCESSIBILITY_ALLOWED_TOOL_NAMES.map((toolName) => `mcp__${ACCESSIBILITY_MCP_SERVER_NAME}__${toolName}`),
+          ...VISUAL_ALLOWED_TOOL_NAMES.map((toolName) => `mcp__${VISUAL_MCP_SERVER_NAME}__${toolName}`),
+        ]
       }
       return [
         ...CUA_ALLOWED_TOOL_NAMES.map((toolName) => `mcp__${CUA_MCP_SERVER_NAME}__${toolName}`),
+        ...ACCESSIBILITY_ALLOWED_TOOL_NAMES.map((toolName) => `mcp__${ACCESSIBILITY_MCP_SERVER_NAME}__${toolName}`),
         ...VISUAL_ALLOWED_TOOL_NAMES.map((toolName) => `mcp__${VISUAL_MCP_SERVER_NAME}__${toolName}`),
       ]
     },

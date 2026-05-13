@@ -76,7 +76,7 @@ export function createSecretaryExecutionGuardrail(options: GuardrailOptions) {
       const idleMs = Date.now() - lastProgressAt
       if (idleMs < noProgressTimeoutMs) return
       abortOnce(
-        `화면 조작 도구가 ${Math.round(noProgressTimeoutMs / 1000)}초 동안 진행 이벤트를 내지 않아 중단했어요. 요청을 더 작은 단계로 나누거나 대상 앱/창 이름을 명확히 적어 다시 시도해 주세요.`,
+        `화면/접근성 조작 도구가 ${Math.round(noProgressTimeoutMs / 1000)}초 동안 진행 이벤트를 내지 않아 중단했어요. 요청을 더 작은 단계로 나누거나 대상 앱/창 이름을 명확히 적어 다시 시도해 주세요.`,
       )
     }, CHECK_INTERVAL_MS)
   }
@@ -99,7 +99,7 @@ export function createSecretaryExecutionGuardrail(options: GuardrailOptions) {
       }
 
       if (repeatedSignatureCount >= repeatedEventBlockAfter) {
-        abortOnce('같은 화면 조작이 반복되어 실행을 중단했어요. 화면을 다시 읽고 다른 좌표나 다른 도구 경로로 시도해 주세요.')
+        abortOnce('같은 화면/접근성 조작이 반복되어 실행을 중단했어요. 화면을 다시 읽고 다른 element나 다른 도구 경로로 시도해 주세요.')
       }
     },
     dispose() {

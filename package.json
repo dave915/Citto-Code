@@ -72,6 +72,10 @@
       {
         "from": "electron/services/cittoVisualMcpServer.mjs",
         "to": "mcp/cittoVisualMcpServer.mjs"
+      },
+      {
+        "from": "electron/services/cittoAccessibilityMcpServer.mjs",
+        "to": "mcp/cittoAccessibilityMcpServer.mjs"
       }
     ],
     "mac": {

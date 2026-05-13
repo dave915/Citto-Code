@@ -118,6 +118,7 @@ function formatElapsed(ms: number): string {
 export function getSecretaryActionRisk(action: SecretaryAction): SecretaryActionRisk {
   if (
     action.type === 'runClaudeCode'
+    || action.type === 'runAppAutomation'
     || action.type === 'runWorkflow'
     || action.type === 'createWorkflow'
     || action.type === 'createSkill'

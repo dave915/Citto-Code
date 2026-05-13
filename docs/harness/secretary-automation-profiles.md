@@ -20,11 +20,16 @@
 
 현재 Secretary 영역에는 다음 기반이 있다.
 
+- `electron/secretary/automation-profile-types.ts`: 선언형 automation profile 타입을 정의한다.
+- `electron/secretary/automation-profile-store.ts`: 기본 `generic-messenger` profile과 사용자 profile CRUD를 `secretary_profile` key/value 저장소에 보관한다.
 - `electron/secretary/learning.ts`: 학습 후보를 `saveMemory`, `draftSkill`, `draftWorkflow`로 승격한다.
 - `electron/secretary/memory.ts`: `memory.*`와 `secretary.learningCandidates`를 profile-backed context로 관리한다.
 - `electron/secretary/ipc.ts`와 `electron/preload/secretaryApi.ts`: memory/learning 후보를 renderer로 노출한다.
+- `electron/secretary/actions.ts`와 `electron/secretary/action-handlers.ts`: `runAppAutomation` action을 승인 후 실행 경로에 연결한다.
+- `electron/secretary/automation-profile-prompts.ts`: profile workflow/targets/verification과 slot 값을 delegated execution prompt로 직렬화한다.
 - `src/components/secretary/SecretaryLearningPanel.tsx`: 학습 후보와 기억을 표시하고 승격/삭제/수정을 요청한다.
-- `electron/services/cittoVisualMcpServer.mjs`: foreground window OCR, 좌표 클릭, 실제 키 입력을 제공한다.
+- `electron/services/cittoAccessibilityMcpServer.mjs`: macOS AX tree normalize, target hint ranking, element id 기반 `AXPress`/`AXValue` set을 제공한다.
+- `electron/services/cittoVisualMcpServer.mjs`: foreground window OCR, 좌표 클릭, 실제 키 입력을 fallback으로 제공한다.
 - `electron/main/windowController.ts`: tool event를 가상 마우스 overlay로 표시한다.
 
 중요한 제한:
@@ -67,6 +72,8 @@ src/components/secretary
 ## Data Model
 
 MVP에서는 migration 없이 `secretary_profile` key/value store를 재사용한다.
+
+Phase 1 구현 범위는 profile type/store와 Secretary IPC/preload 노출이다. Phase 2는 Accessibility MCP를 추가해 접근성 tree/element action을 기본 경로로 만들었다. Phase 3/4는 `runAppAutomation`으로 generic messenger `send_message` intent를 approval 이후 delegated execution에 연결하되, 앱별 adapter는 만들지 않는다.
 
 - profile list key: `secretary.automationProfiles`
 - profile value: JSON array
@@ -356,7 +363,7 @@ MVP 용어를 분리한다.
 
 현재 앱은 `coordinate-fallback`까지 구현되어 있다. 다음 목표는 `non-cursor-disruptive`다. `isolated-background`는 별도 실행 환경 설계가 필요하므로 이 문서의 MVP 범위 밖이다.
 
-UI 표시는 가상 마우스 overlay를 유지하되, AX action일 때는 실제 좌표가 아니라 target element의 bounds center를 "예정 위치"로 표시한다.
+UI 표시는 화면 전체 click-through 가상 마우스 overlay를 유지하되, AX action일 때는 실제 좌표가 아니라 target element의 bounds center를 "예정 위치"로 표시한다. 커서는 tool event 사이를 곡선으로 이동하고, 이동 방향에 맞춰 회전하며, 클릭/입력 상태를 별도 애니메이션으로 보여준다. 실행 중에는 자동으로 사라지지 않고 task 완료/실패/취소 이벤트에서만 숨긴다.
 
 ## Safety Rules
 
@@ -429,6 +436,12 @@ Done when:
 - `send_message` action은 high risk로 표시된다.
 - 실패 시 어떤 target을 찾지 못했는지 task log에 남는다.
 
+Implemented baseline:
+
+- `runAppAutomation`은 `electron/secretary/actions.ts`에서 recipient/message slot이 없으면 normalize되지 않는다.
+- `electron/secretary/secretary-service.ts`는 profileId/appHint로 profile을 선택하고, delegated execution prompt에 profile/slots/fallback policy를 포함한다.
+- `src/components/secretary/SecretaryMessage.tsx`와 `SecretaryTaskHud.tsx`는 `send_message`를 high risk approval로 표시한다.
+
 ### Phase 4: Generic Messenger MVP
 
 Files:
@@ -442,6 +455,12 @@ Done when:
 - Notes/TextEdit 같은 안전 앱에서 "대상 찾기 -> 입력 -> 검증" smoke가 가능하다.
 - 실제 메신저는 테스트 전용 대화방에서만 수동 smoke한다.
 - 좌표 fallback 없이 accessibility path로 성공한 케이스와 실패한 케이스를 구분해서 보고한다.
+
+Implemented baseline:
+
+- 기본 `generic-messenger` profile은 `KakaoTalk`, `카카오톡`, `LINE`, `Messages` 이름과 대표 bundle id를 포함한다.
+- `automation-profile-prompts.ts`는 accessibility MCP의 `get_ui_tree`/`find_ui_targets`/`perform_ui_action`을 우선하고, OCR/좌표는 profile fallback 조건에서만 쓰도록 지시한다.
+- 좌표 fallback은 action의 `allowCoordinateFallback`과 profile `fallback.allowCoordinateInput`이 모두 참일 때만 delegated prompt에서 허용된다.
 
 ### Phase 5: Learning Integration
 

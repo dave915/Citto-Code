@@ -175,10 +175,14 @@
   - `src/components/settings/general/SecretarySection.tsx`
   - `src/store/sessionStoreState.ts`
   - `electron/secretary/*`
+  - `electron/secretary/automation-profile-types.ts`
+  - `electron/secretary/automation-profile-store.ts`
+  - `electron/secretary/automation-profile-prompts.ts`
   - `electron/secretary/computer-use-policy.ts`
   - `electron/secretary/learning.ts`
   - `electron/secretary/execution-guardrail.ts`
   - `electron/services/computerUseMcpService.ts`
+  - `electron/services/cittoAccessibilityMcpServer.mjs`
   - `electron/services/cittoVisualMcpServer.mjs`
   - `electron/preload/secretaryApi.ts`
   - `electron/main/windowController.ts`
@@ -191,11 +195,13 @@
   - `window.secretary` preload 브리지와 `secretary:*` IPC 계약
   - LLM JSON intent 처리, 키워드 매칭 fallback 금지
   - 액션 레지스트리/핸들러와 allowlist 기반 액션 검증
+  - `runAppAutomation`은 메신저 `send_message`를 high risk approval card 이후에만 실행하고, recipient/message slot 검증과 profile 선택을 거친다.
   - `electron/secretary/task-orchestrator.ts`는 비서 작업 상태, 단계, 로그, 가상 커서, 승인 요청 snapshot을 메인 프로세스 메모리에서 관리한다.
-  - `electron/secretary/computer-use-policy.ts`는 native visual computer-use MCP 사용 시 읽기/실행 도구 구분, Cua opt-in fallback, 위험 행동 직전 확인 정책을 정의한다.
-  - `electron/services/computerUseMcpService.ts`는 씨토 전용 strict MCP config를 만들고 기본으로 `citto-visual-use` native MCP만 주입한다. `CITTO_VISUAL_USE_DRIVER=cua` opt-in일 때만 Cua Driver 설치/daemon 상태를 감지하고, 승인된 설치 액션에서 공식 설치 스크립트를 실행한다. 전역 Claude/Cua MCP 설정 파일은 수정하지 않는다.
-  - `electron/services/cittoVisualMcpServer.mjs`는 macOS `screencapture`, Vision OCR, foreground activation, 실제 마우스/키보드 이벤트, tool-call 이벤트를 묶은 범용 visual/coordinate MCP를 제공한다.
-  - `electron/main/windowController.ts`는 computer-use tool-call 이벤트의 화면 좌표를 실제 화면 위 투명 가상 마우스 오버레이로 표시한다.
+  - `electron/secretary/computer-use-policy.ts`는 accessibility-first computer-use MCP 사용 시 접근성 tree/element action 우선, visual/Cua fallback, 위험 행동 직전 확인 정책을 정의한다.
+  - `electron/services/computerUseMcpService.ts`는 씨토 전용 strict MCP config를 만들고 기본으로 `citto-accessibility-use` native MCP와 fallback `citto-visual-use` native MCP를 주입한다. `CITTO_VISUAL_USE_DRIVER=cua` opt-in일 때만 Cua Driver 설치/daemon 상태를 감지하고, 승인된 설치 액션에서 공식 설치 스크립트를 실행한다. 전역 Claude/Cua MCP 설정 파일은 수정하지 않는다.
+  - `electron/services/cittoAccessibilityMcpServer.mjs`는 macOS AX tree normalize, profile target hint ranking, element id 기반 `AXPress`/`AXValue` set, tool-call 이벤트를 제공한다.
+  - `electron/services/cittoVisualMcpServer.mjs`는 macOS `screencapture`, Vision OCR, foreground activation, 실제 마우스/키보드 이벤트, tool-call 이벤트를 묶은 범용 visual/coordinate fallback MCP를 제공한다.
+  - `electron/main/windowController.ts`는 computer-use tool-call 이벤트의 화면 좌표를 실제 화면 위 투명 가상 마우스 오버레이로 표시하고, 이동 방향/클릭/입력 상태를 애니메이션으로 보여준다.
   - 현재 Citto 컨텍스트 동기화와 확인 후 화면 이동
   - `AppPersistence` 기반 비서 profile/conversations/history/patterns 저장
   - 비서 채팅 CRUD와 채팅별 history 격리
@@ -205,6 +211,8 @@
   - 사용자 선호/규칙은 `saveMemory` 승인 액션으로 `memory.*` profile key에 저장하고, 자동 감지된 반복/스킬/기억 후보는 `secretary.learningCandidates` profile slot에 보관해 다음 제안 근거로만 사용한다.
   - `src/components/secretary/SecretaryLearningPanel.tsx`는 학습 후보 inbox와 장기 기억 검색/수정/삭제 UI를 담당하고, renderer는 `window.secretary` memory/learning IPC만 호출한다.
   - 앱별 어댑터 없는 메신저/앱 자동화는 `docs/harness/secretary-automation-profiles.md`의 profile-backed accessibility-first 구조를 따른다.
+  - `electron/secretary/automation-profile-prompts.ts`는 profile workflow/targets/verification을 delegated execution prompt로 직렬화하고, 좌표 fallback 허용 여부를 명시한다.
+  - automation profile Phase 1은 `secretary_profile`의 `secretary.automationProfiles` key/value JSON만 사용하고, 기본 `generic-messenger` profile은 코드 상수로 제공한다.
   - 워크플로우 생성은 렌더러 `useWorkflowStore` 경계를 통해 처리하고, 스킬 생성은 렌더러에서 `window.claude.writeClaudeFile`로 `~/.claude/skills/<name>/SKILL.md`를 작성한다.
   - 렌더러 처리 액션은 `secretary:renderer-action-result`로 실제 생성 성공/실패를 되돌려 비서 메시지에 정확히 표시한다.
   - 워크플로우 생성 액션은 manual agent 단계뿐 아니라 schedule trigger, condition step, loop step을 생성할 수 있어야 한다.
@@ -228,9 +236,10 @@
   - `isTaskRunning` 컨텍스트 누락으로 중복 실행 제안
   - `secretary` route가 사이드바 active state 또는 `handleSecretaryNavigate`와 불일치함
   - 새 history/pattern 저장이 기존 sqlite 스냅샷을 깨뜨림
-  - native visual MCP 권한 부족 상태에서 실행 액션을 제안하거나, 씨토 외 Claude 실행에 computer-use MCP/allowlist가 새는 문제
-  - computer-use 실행이 tool 이벤트 없이 오래 멈추거나 같은 화면 조작을 반복해 사용자에게 진행이 보이지 않는 문제
+  - accessibility/visual MCP 권한 부족 상태에서 실행 액션을 제안하거나, 씨토 외 Claude 실행에 computer-use MCP/allowlist가 새는 문제
+  - computer-use 실행이 tool 이벤트 없이 오래 멈추거나 같은 화면/접근성 조작을 반복해 사용자에게 진행이 보이지 않는 문제
   - 메신저 자동화가 accessibility/profile 경로를 건너뛰고 OCR/좌표 입력부터 시도하는 문제
+  - `runAppAutomation`이 recipient/message slot 없이 실행되거나, 좌표 fallback 가능성이 approval preview/result에 드러나지 않는 문제
   - 플로팅 창 resize/drag/escape 흐름이 창 위치·크기와 UI 상태를 다르게 유지함
   - `window.quickPanel`, `quick-panel:*` 채널 재도입
 

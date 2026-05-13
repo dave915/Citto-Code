@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { normalizeSecretaryAction, type SecretaryAction, type SecretaryActionResult } from './actions'
 import { createSecretaryActionHandlers } from './action-handlers'
+import type { SecretaryAutomationProfileStore } from './automation-profile-store'
 import { buildLearningCandidateAction } from './learning'
 import { isCittoRoute } from './routes'
 import { SecretaryTaskOrchestrator } from './task-orchestrator'
@@ -13,10 +14,12 @@ import type {
   SecretaryRuntimeConfig,
   SecretaryTaskControlCommand,
   SecretaryTaskSnapshot,
+  SecretaryVirtualCursorState,
 } from './types'
 
 type RegisterSecretaryIpcHandlersOptions = {
   memory: SecretaryMemory
+  automationProfiles: SecretaryAutomationProfileStore
   service: SecretaryService
   getActiveContext: () => SecretaryActiveContext
   setActiveContext: (context: SecretaryActiveContext) => void
@@ -155,6 +158,7 @@ function normalizeActiveContext(value: unknown, fallback: SecretaryActiveContext
 
 export function registerSecretaryIpcHandlers({
   memory,
+  automationProfiles,
   service,
   getActiveContext,
   setActiveContext,
@@ -190,6 +194,33 @@ export function registerSecretaryIpcHandlers({
   const taskOrchestrator = new SecretaryTaskOrchestrator({
     onSnapshot: broadcastTaskSnapshot,
   })
+
+  const shouldShowDesktopAutomationCursor = (action: SecretaryAction) => (
+    action.type === 'runAppAutomation'
+    || action.type === 'runClaudeCode'
+    || action.type === 'installComputerUse'
+  )
+
+  const showTaskCursorOverlay = (cursor: SecretaryVirtualCursorState, message = '작업 상태가 갱신되었습니다.') => {
+    showVirtualMouseOverlay?.({
+      type: 'secretary_task_cursor',
+      message,
+      cursor,
+    })
+  }
+
+  const showTaskEndCursorOverlay = (result: SecretaryActionResult) => {
+    showVirtualMouseOverlay?.({
+      type: 'secretary_task_completed',
+      message: result.ok ? result.message ?? '작업이 완료되었습니다.' : result.error ?? result.message ?? '작업이 실패했습니다.',
+      cursor: {
+        visible: true,
+        label: result.ok ? '완료' : '막힘',
+        targetLabel: result.ok ? '결과 보고' : '오류 지점',
+        mode: result.ok ? 'done' : 'failed',
+      },
+    })
+  }
 
   const prunePendingActions = () => {
     const now = Date.now()
@@ -307,6 +338,14 @@ export function registerSecretaryIpcHandlers({
 
     const snapshot = taskOrchestrator.control(command as SecretaryTaskControlCommand)
     if (command === 'cancel') {
+      showTaskCursorOverlay({
+        visible: false,
+        x: snapshot.cursor.x,
+        y: snapshot.cursor.y,
+        label: '중단됨',
+        targetLabel: '사용자 중단',
+        mode: 'idle',
+      }, '작업이 중단되었습니다.')
       pendingActions.clear()
       pendingLearningPromotions.clear()
       service.cancelActiveProcess()
@@ -432,12 +471,18 @@ export function registerSecretaryIpcHandlers({
     }
 
     sendWhenRendererReady(window, 'secretary:bot-state', 'working')
-    const startedTaskId = taskOrchestrator.startExecution(normalizedAction).task?.id ?? null
+    const startedSnapshot = taskOrchestrator.startExecution(normalizedAction)
+    const startedTaskId = startedSnapshot.task?.id ?? null
+    const showDesktopCursor = shouldShowDesktopAutomationCursor(normalizedAction)
+    if (showDesktopCursor) {
+      showTaskCursorOverlay(startedSnapshot.cursor, '승인된 작업 실행을 시작했습니다.')
+    }
     try {
       const result = await executeSecretaryAction(normalizedAction)
       const currentTask = taskOrchestrator.getSnapshot().task
       if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
         taskOrchestrator.completeExecution(result)
+        if (showDesktopCursor) showTaskEndCursorOverlay(result)
         if (result.ok) {
           try {
             memory.recordLearningCandidateFromAction(normalizedAction, result)
@@ -466,6 +511,7 @@ export function registerSecretaryIpcHandlers({
       const currentTask = taskOrchestrator.getSnapshot().task
       if (currentTask?.id === startedTaskId && currentTask.status !== 'cancelled') {
         taskOrchestrator.completeExecution(result)
+        if (showDesktopCursor) showTaskEndCursorOverlay(result)
       }
       sendWhenRendererReady(window, 'secretary:action-result', result)
       return result
@@ -534,6 +580,20 @@ export function registerSecretaryIpcHandlers({
   ipcMain.handle('secretary:update-profile', (_event, { key, value }: { key: string; value: string }) => {
     memory.updateProfile(String(key ?? ''), String(value ?? ''))
     return { ok: true }
+  })
+
+  ipcMain.handle('secretary:list-automation-profiles', () => automationProfiles.listProfiles())
+
+  ipcMain.handle('secretary:save-automation-profile', (_event, payload: unknown) => {
+    if (!isRecord(payload) || !isRecord(payload.profile)) {
+      return { ok: false, error: '저장할 자동화 프로필 정보를 읽지 못했어요.' }
+    }
+    return automationProfiles.saveProfile(payload.profile)
+  })
+
+  ipcMain.handle('secretary:delete-automation-profile', (_event, payload: unknown) => {
+    if (!isRecord(payload)) return { ok: false, error: '삭제할 자동화 프로필 정보를 읽지 못했어요.' }
+    return automationProfiles.deleteProfile(String(payload.id ?? ''))
   })
 
   ipcMain.handle('secretary:list-memories', () => memory.listMemories())

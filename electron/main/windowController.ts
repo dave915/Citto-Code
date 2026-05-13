@@ -15,7 +15,10 @@ export function createWindowController({
   let mainWindow: BrowserWindow | null = null
   let secretaryFloatingWindow: BrowserWindow | null = null
   let virtualMouseWindow: BrowserWindow | null = null
+  let virtualMouseReady: Promise<void> | null = null
   let virtualMouseHideTimer: NodeJS.Timeout | null = null
+  let virtualMouseCloseTimer: NodeJS.Timeout | null = null
+  let virtualMouseLastPoint: { x: number; y: number } | null = null
   let secretaryAccelerator = process.platform === 'darwin' ? 'Option+Space' : 'Alt+Space'
   let secretaryEnabled = true
   let secretaryPanelOpen = false
@@ -37,8 +40,6 @@ export function createWindowController({
     width: Math.max(secretaryExpandedContentSize.width, secretaryCharacterSlotSize),
     height: secretaryExpandedContentSize.height + secretaryCharacterSlotSize + secretaryFloatingGap,
   }
-
-  const virtualMouseSize = { width: 164, height: 82 }
 
   type SecretaryFloatingPlacement = {
     horizontal: 'left' | 'right'
@@ -66,36 +67,122 @@ export function createWindowController({
     return typeof value === 'object' && value !== null && !Array.isArray(value)
   }
 
-  function buildVirtualMouseHtml(label: string, mode: string) {
-    const safeLabel = label
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-    const accent = mode === 'clicking' ? '#f5b94e' : mode === 'typing' ? '#62c4ff' : '#80d98b'
-
+  function buildVirtualMouseHtml() {
     return [
       '<!doctype html><html><head><meta charset="utf-8" />',
       '<style>',
       'html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;}',
+      ':root{--accent:#80d98b;--angle:28deg;}',
       '.root{position:relative;width:100%;height:100%;}',
-      '.pulse{position:absolute;left:13px;top:12px;width:42px;height:42px;border-radius:999px;border:2px solid rgba(245,185,78,.78);animation:pulse .72s ease-out infinite;}',
-      '.pointer{position:absolute;left:22px;top:18px;width:27px;height:32px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.42));}',
+      '.cursor{position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;transition:opacity 160ms ease;will-change:transform,opacity;}',
+      '.cursor.visible{opacity:1;}',
+      '.pointer{position:absolute;left:-2px;top:-1px;width:31px;height:36px;transform:rotate(var(--angle));transform-origin:6px 5px;filter:drop-shadow(0 10px 16px rgba(0,0,0,.46));transition:transform 90ms linear;}',
       '.pointer svg{display:block;width:100%;height:100%;}',
-      '.pointer path{fill:#fff7e8;stroke:#1f1a12;stroke-width:1.35;stroke-linejoin:round;}',
-      '.badge{position:absolute;left:52px;top:15px;max-width:104px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(20,22,26,.84);color:#fff7e8;padding:6px 10px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 10px 28px rgba(0,0,0,.28);}',
-      `.dot{display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:999px;background:${accent};box-shadow:0 0 0 4px color-mix(in srgb, ${accent} 24%, transparent);}`,
-      '@keyframes pulse{0%{transform:scale(.62);opacity:.95}100%{transform:scale(1.38);opacity:0}}',
+      '.pointer path{fill:#fff8ea;stroke:#17130d;stroke-width:1.28;stroke-linejoin:round;}',
+      '.badge{position:absolute;left:30px;top:19px;max-width:190px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(18,20,24,.84);color:#fff8ea;padding:6px 10px;font-size:12px;font-weight:740;letter-spacing:0;line-height:1;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.30);backdrop-filter:blur(8px);}',
+      '.dot{display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 24%,transparent);}',
+      '.ring{position:absolute;left:-15px;top:-15px;width:42px;height:42px;border-radius:999px;border:2px solid var(--accent);opacity:0;transform:scale(.35);pointer-events:none;}',
+      '.target{position:absolute;left:-18px;top:-18px;width:46px;height:46px;border-radius:999px;border:1px dashed color-mix(in srgb,var(--accent) 72%,transparent);opacity:.58;transform:scale(.82);animation:targetBreath 1450ms ease-in-out infinite;}',
+      '.typing .target{border-radius:10px;width:9px;height:38px;left:5px;top:-13px;border:0;background:var(--accent);opacity:.92;animation:caretBlink 850ms steps(2,end) infinite;}',
+      '.clicking .ring{animation:clickRing 520ms ease-out 1;}',
+      '.clicking .pointer{animation:press 180ms ease-out 1;}',
+      '.done .target{border-style:solid;opacity:.82;}',
+      '.failed{--accent:#ff6b6b;}',
+      '.danger{--accent:#ffb454;}',
+      '.typing{--accent:#62c4ff;}',
+      '.clicking{--accent:#f5b94e;}',
+      '@keyframes targetBreath{0%,100%{transform:scale(.82);opacity:.38}50%{transform:scale(1.02);opacity:.68}}',
+      '@keyframes caretBlink{0%,49%{opacity:.94}50%,100%{opacity:.18}}',
+      '@keyframes clickRing{0%{transform:scale(.35);opacity:.95}100%{transform:scale(1.72);opacity:0}}',
+      '@keyframes press{0%,100%{transform:rotate(var(--angle)) scale(1)}50%{transform:rotate(var(--angle)) scale(.88)}}',
       '</style></head><body>',
-      `<div class="root"><div class="pulse"></div><div class="pointer"><svg viewBox="0 0 24 28" aria-hidden="true"><path d="M4.6 2.7l14.8 9.7-7.05 1.72-3.62 6.72L4.6 2.7z"/></svg></div><div class="badge"><span class="dot"></span>${safeLabel}</div></div>`,
+      '<div class="root"><div id="cursor" class="cursor"><div class="target"></div><div class="ring"></div><div id="pointer" class="pointer"><svg viewBox="0 0 24 28" aria-hidden="true"><path d="M4.6 2.7l14.8 9.7-7.05 1.72-3.62 6.72L4.6 2.7z"/></svg></div><div class="badge"><span class="dot"></span><span id="label">조작</span></div></div></div>',
+      '<script>',
+      '(() => {',
+      'const cursor = document.getElementById("cursor");',
+      'const label = document.getElementById("label");',
+      'let current = null;',
+      'let raf = 0;',
+      'let arcSign = 1;',
+      'const clamp = (value,min,max) => Math.min(max, Math.max(min, value));',
+      'const ease = (t) => 1 - Math.pow(1 - t, 3);',
+      'const modeClass = (mode) => ["moving","clicking","typing","waiting","danger","done","failed","idle"].includes(mode) ? mode : "moving";',
+      'const setPosition = (point, angle) => {',
+      '  cursor.style.transform = `translate3d(${point.x}px, ${point.y}px, 0)`;',
+      '  cursor.style.setProperty("--angle", `${angle}deg`);',
+      '};',
+      'const animateTo = (target, mode) => {',
+      '  const start = current ?? target;',
+      '  const dx = target.x - start.x;',
+      '  const dy = target.y - start.y;',
+      '  const distance = Math.hypot(dx, dy);',
+      '  const duration = clamp(distance * 1.15, 220, mode === "clicking" ? 560 : 920);',
+      '  const normal = distance > 0 ? { x: -dy / distance, y: dx / distance } : { x: 0, y: 0 };',
+      '  const arc = clamp(distance * 0.16, 14, 92) * arcSign;',
+      '  arcSign *= -1;',
+      '  const control = { x: (start.x + target.x) / 2 + normal.x * arc, y: (start.y + target.y) / 2 + normal.y * arc };',
+      '  const initialAngle = current ? Math.atan2(dy, dx) * 180 / Math.PI + 35 : 28;',
+      '  let previous = start;',
+      '  const began = performance.now();',
+      '  cancelAnimationFrame(raf);',
+      '  const tick = (now) => {',
+      '    const t = duration <= 0 ? 1 : clamp((now - began) / duration, 0, 1);',
+      '    const e = ease(t);',
+      '    const one = 1 - e;',
+      '    const point = {',
+      '      x: one * one * start.x + 2 * one * e * control.x + e * e * target.x,',
+      '      y: one * one * start.y + 2 * one * e * control.y + e * e * target.y,',
+      '    };',
+      '    const stepAngle = Math.hypot(point.x - previous.x, point.y - previous.y) > 0.2',
+      '      ? Math.atan2(point.y - previous.y, point.x - previous.x) * 180 / Math.PI + 35',
+      '      : initialAngle;',
+      '    setPosition(point, stepAngle);',
+      '    previous = point;',
+      '    if (t < 1) raf = requestAnimationFrame(tick);',
+      '    else current = target;',
+      '  };',
+      '  raf = requestAnimationFrame(tick);',
+      '};',
+      'window.CittoVirtualCursor = {',
+      '  update(payload) {',
+      '    const mode = modeClass(payload.mode);',
+      '    const x = Number(payload.x);',
+      '    const y = Number(payload.y);',
+      '    if (!Number.isFinite(x) || !Number.isFinite(y) || payload.visible === false) { this.hide(); return; }',
+      '    cursor.className = `cursor visible ${mode}`;',
+      '    label.textContent = String(payload.label || "조작").slice(0, 28);',
+      '    animateTo({ x, y }, mode);',
+      '  },',
+      '  hide() {',
+      '    cursor.classList.remove("visible");',
+      '    cancelAnimationFrame(raf);',
+      '  }',
+      '};',
+      '})();',
+      '</script>',
       '</body></html>',
     ].join('')
   }
 
+  function getVirtualMouseOverlayBounds() {
+    const displays = screen.getAllDisplays()
+    const bounds = displays.map((display) => display.bounds)
+    const minX = Math.min(...bounds.map((item) => item.x))
+    const minY = Math.min(...bounds.map((item) => item.y))
+    const maxX = Math.max(...bounds.map((item) => item.x + item.width))
+    const maxY = Math.max(...bounds.map((item) => item.y + item.height))
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(1, maxX - minX),
+      height: Math.max(1, maxY - minY),
+    }
+  }
+
   function createVirtualMouseWindow() {
+    const overlayBounds = getVirtualMouseOverlayBounds()
     const window = new BrowserWindow({
-      width: virtualMouseSize.width,
-      height: virtualMouseSize.height,
+      ...overlayBounds,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -118,21 +205,89 @@ export function createWindowController({
     window.setAlwaysOnTop(true, 'screen-saver')
     window.on('closed', () => {
       if (virtualMouseWindow === window) virtualMouseWindow = null
+      virtualMouseReady = null
       if (virtualMouseHideTimer) {
         clearTimeout(virtualMouseHideTimer)
         virtualMouseHideTimer = null
       }
+      if (virtualMouseCloseTimer) {
+        clearTimeout(virtualMouseCloseTimer)
+        virtualMouseCloseTimer = null
+      }
     })
+    virtualMouseReady = window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildVirtualMouseHtml())}`)
+      .catch((error) => {
+        console.warn('[window-controller] failed to load virtual cursor overlay', error)
+        if (virtualMouseWindow === window) virtualMouseReady = null
+      })
     return window
+  }
+
+  function clearVirtualMouseTimers() {
+    if (virtualMouseHideTimer) {
+      clearTimeout(virtualMouseHideTimer)
+      virtualMouseHideTimer = null
+    }
+    if (virtualMouseCloseTimer) {
+      clearTimeout(virtualMouseCloseTimer)
+      virtualMouseCloseTimer = null
+    }
+  }
+
+  function getVirtualMouseHideDelay(mode: string): number | null {
+    if (mode === 'done') return 5200
+    if (mode === 'failed') return 8000
+    if (mode === 'idle') return 5200
+    return null
+  }
+
+  function hideVirtualMouseOverlay() {
+    clearVirtualMouseTimers()
+    const window = virtualMouseWindow
+    if (!window || window.isDestroyed()) return
+    const ready = virtualMouseReady ?? Promise.resolve()
+    void ready.then(() => {
+      if (window.isDestroyed()) return
+      void window.webContents.executeJavaScript('window.CittoVirtualCursor?.hide();', true)
+      virtualMouseCloseTimer = setTimeout(() => {
+        virtualMouseCloseTimer = null
+        if (!window.isDestroyed()) window.hide()
+      }, 220)
+    })
+  }
+
+  function readFiniteNumber(value: unknown): number | null {
+    const number = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(number) ? number : null
+  }
+
+  function resolveVirtualMousePoint(screenRecord: Record<string, unknown>, cursorRecord: Record<string, unknown>) {
+    const screenX = readFiniteNumber(screenRecord.x)
+    const screenY = readFiniteNumber(screenRecord.y)
+    if (screenX !== null && screenY !== null) return { x: screenX, y: screenY }
+
+    const cursorX = readFiniteNumber(cursorRecord.x)
+    const cursorY = readFiniteNumber(cursorRecord.y)
+    if (cursorX === null || cursorY === null) return virtualMouseLastPoint
+
+    const display = screen.getPrimaryDisplay()
+    return {
+      x: display.bounds.x + display.bounds.width * Math.min(100, Math.max(0, cursorX)) / 100,
+      y: display.bounds.y + display.bounds.height * Math.min(100, Math.max(0, cursorY)) / 100,
+    }
   }
 
   function showVirtualMouseOverlay(event: unknown) {
     const record = isRecord(event) ? event : {}
     const screenRecord = isRecord(record.screen) ? record.screen : {}
     const cursorRecord = isRecord(record.cursor) ? record.cursor : {}
-    const x = typeof screenRecord.x === 'number' ? screenRecord.x : Number(screenRecord.x)
-    const y = typeof screenRecord.y === 'number' ? screenRecord.y : Number(screenRecord.y)
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return
+    if (cursorRecord.visible === false) {
+      hideVirtualMouseOverlay()
+      return
+    }
+    const point = resolveVirtualMousePoint(screenRecord, cursorRecord)
+    if (!point) return
+    virtualMouseLastPoint = point
 
     const window = virtualMouseWindow && !virtualMouseWindow.isDestroyed()
       ? virtualMouseWindow
@@ -143,29 +298,44 @@ export function createWindowController({
       ? cursorRecord.label.trim()
       : '조작'
     const mode = typeof cursorRecord.mode === 'string' ? cursorRecord.mode : 'moving'
-    const display = screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) })
-    const bounds = {
-      x: Math.min(
-        Math.max(Math.round(x) - 20, display.bounds.x),
-        display.bounds.x + display.bounds.width - virtualMouseSize.width,
-      ),
-      y: Math.min(
-        Math.max(Math.round(y) - 18, display.bounds.y),
-        display.bounds.y + display.bounds.height - virtualMouseSize.height,
-      ),
-      width: virtualMouseSize.width,
-      height: virtualMouseSize.height,
+    const overlayBounds = getVirtualMouseOverlayBounds()
+    const windowBounds = window.getBounds()
+    if (
+      windowBounds.x !== overlayBounds.x
+      || windowBounds.y !== overlayBounds.y
+      || windowBounds.width !== overlayBounds.width
+      || windowBounds.height !== overlayBounds.height
+    ) {
+      window.setBounds(overlayBounds)
     }
 
-    window.setBounds(bounds)
-    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildVirtualMouseHtml(label, mode))}`).then(() => {
-      if (!window.isDestroyed()) window.showInactive()
+    const payload = {
+      visible: true,
+      x: point.x - overlayBounds.x,
+      y: point.y - overlayBounds.y,
+      label,
+      mode,
+    }
+    const script = `window.CittoVirtualCursor?.update(${JSON.stringify(payload)});`
+    const ready = virtualMouseReady ?? Promise.resolve()
+    clearVirtualMouseTimers()
+    void ready.then(() => {
+      if (window.isDestroyed()) return
+      window.showInactive()
+      void window.webContents.executeJavaScript(script, true)
     })
-    if (virtualMouseHideTimer) clearTimeout(virtualMouseHideTimer)
-    virtualMouseHideTimer = setTimeout(() => {
-      virtualMouseHideTimer = null
-      if (!window.isDestroyed()) window.hide()
-    }, 1500)
+    const hideDelay = getVirtualMouseHideDelay(mode)
+    if (hideDelay !== null) {
+      virtualMouseHideTimer = setTimeout(() => {
+        virtualMouseHideTimer = null
+        if (window.isDestroyed()) return
+        void window.webContents.executeJavaScript('window.CittoVirtualCursor?.hide();', true)
+        virtualMouseCloseTimer = setTimeout(() => {
+          virtualMouseCloseTimer = null
+          if (!window.isDestroyed()) window.hide()
+        }, 220)
+      }, hideDelay)
+    }
   }
 
   function focusWindow(window: BrowserWindow) {

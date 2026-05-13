@@ -63,22 +63,23 @@
 ### Citto Secretary
 
 1. `src/hooks/useAppDesktopEffects.ts`가 비서 단축키 설정을 메인 프로세스로 동기화한다.
-2. `electron/main/windowController.ts`가 글로벌 단축키 등록, 플로팅 비서 `BrowserWindow` 생명주기, computer-use 화면 좌표를 보여주는 투명 가상 마우스 오버레이, `secretary:panel-toggle` 이벤트 전송을 담당한다.
+2. `electron/main/windowController.ts`가 글로벌 단축키 등록, 플로팅 비서 `BrowserWindow` 생명주기, computer-use 화면 좌표를 부드러운 투명 가상 마우스 오버레이로 보여주는 일, `secretary:panel-toggle` 이벤트 전송을 담당한다.
 3. `electron/secretary/ipc.ts`와 `electron/preload/secretaryApi.ts`가 플로팅 창 토글/크기/위치 이동, 메인 앱 focus, 비서 채팅 CRUD, LLM JSON intent 처리, 액션 실행, 현재 Citto 컨텍스트 동기화, 작업 snapshot 구독을 브리지한다.
-4. `electron/secretary/actions.ts`, `electron/secretary/intent-router.ts`, `electron/secretary/action-handlers.ts`가 allowlist 액션 정의, JSON action 검증, 확인 후 실행 dispatch를 담당한다.
+4. `electron/secretary/actions.ts`, `electron/secretary/intent-router.ts`, `electron/secretary/action-handlers.ts`가 allowlist 액션 정의, JSON action 검증, 확인 후 실행 dispatch를 담당한다. 메신저 `send_message`는 `runAppAutomation` high-risk action으로만 승인 후 실행한다.
 5. `electron/secretary/task-orchestrator.ts`가 MVP 작업 상태, 단계, 로그, 가상 커서, 승인 요청 snapshot을 관리하고 모든 비서 renderer surface로 브로드캐스트한다.
-6. `electron/secretary/learning.ts`와 `electron/secretary/memory.ts`가 사용자 승인형 `saveMemory` 저장과 자동 감지된 스킬/워크플로우/기억 후보를 profile-backed context로 관리한다.
-7. `electron/services/computerUseMcpService.ts`가 씨토 전용 strict `--mcp-config`로 기본 `citto-visual-use` native stdio MCP를 Claude CLI 실행에 주입한다. `CITTO_VISUAL_USE_DRIVER=cua`일 때만 Cua Driver 설치/daemon 상태를 감지하고 `cua-driver mcp --claude-code-computer-use-compat`를 함께 주입한다.
-8. `electron/services/cittoVisualMcpServer.mjs`가 macOS `screencapture`, Vision OCR, foreground activation, 좌표 입력, tool-call 이벤트를 묶은 범용 visual/coordinate MCP를 제공한다.
-9. `electron/secretary/computer-use-policy.ts`가 native visual computer-use MCP 관전/실행 확인 정책과 Cua opt-in fallback 정책을 담고, `electron/secretary/secretary-service.ts`가 이를 Claude 실행 프롬프트에 주입한다.
-10. `electron/secretary/execution-guardrail.ts`가 비서 위임 실행 중 tool 이벤트 정체와 같은 화면 조작 반복을 감지해 Claude 실행을 중단하고 task log/가상 포인터에 경고를 전달한다.
-11. 앱별 어댑터 없는 메신저/앱 자동화는 [Secretary Automation Profiles](./secretary-automation-profiles.md)의 profile-backed accessibility-first 구조를 따른다.
-12. `electron/secretary/secretary-service.ts`가 기존 `electron/services/claude-spawn.ts`를 stream-json 경로로 재사용해 Gateway/env/model/permission/plan/MCP 설정을 따르고, 활성 비서 채팅 history만 컨텍스트로 주입한다.
-13. `src/App.tsx`가 사이드바 entry에서 앱 내 전체 비서 화면을 렌더링하고, `src/components/secretary/SecretaryPanel.tsx`, `ConversationList.tsx`, `SecretaryLearningPanel.tsx`가 채팅 목록, 새 채팅/전환/보관 UI, 학습 후보 inbox, 장기 기억 검색/수정을 렌더링한다.
-14. `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창이 공유하는 작업 상태 계산과 씨토 말풍선 아래 인라인 작업 내역 표시를 담당한다.
-15. `src/secretary-panel/SecretaryFloating.tsx`는 별도 renderer entry인 `secretary-panel.html`에서 축소/확장 플로팅 대화창을 렌더링하고, 같은 `window.secretary` IPC와 공통 `SecretaryMessage`/`SecretaryMarkdown`/인라인 작업 내역 표현 규칙을 사용한다. 학습 후보와 기억은 count badge와 메인 창 진입으로만 노출한다.
-16. `src/components/secretary/useSecretaryAppBridge.ts`가 메인 창의 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
-17. 렌더러에서 실제로 완료되는 비서 액션은 `secretary:renderer-action` request와 `secretary:renderer-action-result` response로 완료/실패 메시지를 메인 IPC에 되돌린다. 검색 결과 이동은 `sessionId`와 선택 `messageId`를 같은 액션 경로로 전달한다.
+6. `electron/secretary/learning.ts`, `electron/secretary/memory.ts`, `electron/secretary/automation-profile-types.ts`, `electron/secretary/automation-profile-store.ts`, `electron/secretary/automation-profile-prompts.ts`가 사용자 승인형 `saveMemory`, 자동 감지된 스킬/워크플로우/기억 후보, automation profile과 profile 기반 delegated execution prompt를 관리한다.
+7. `electron/services/computerUseMcpService.ts`가 씨토 전용 strict `--mcp-config`로 기본 `citto-accessibility-use` native stdio MCP와 fallback `citto-visual-use` MCP를 Claude CLI 실행에 주입한다. `CITTO_VISUAL_USE_DRIVER=cua`일 때만 Cua Driver 설치/daemon 상태를 감지하고 `cua-driver mcp --claude-code-computer-use-compat`를 함께 주입한다.
+8. `electron/services/cittoAccessibilityMcpServer.mjs`가 macOS Accessibility tree normalize, profile hint target ranking, element id 기반 `AXPress`/`AXValue` set, tool-call 이벤트를 제공한다.
+9. `electron/services/cittoVisualMcpServer.mjs`가 macOS `screencapture`, Vision OCR, foreground activation, 좌표 입력, tool-call 이벤트를 묶은 범용 visual/coordinate fallback MCP를 제공한다.
+10. `electron/secretary/computer-use-policy.ts`가 accessibility-first computer-use MCP 관전/실행 확인 정책과 visual/Cua fallback 정책을 담고, `electron/secretary/secretary-service.ts`가 이를 Claude 실행 프롬프트에 주입한다.
+11. `electron/secretary/execution-guardrail.ts`가 비서 위임 실행 중 tool 이벤트 정체와 같은 화면/접근성 조작 반복을 감지해 Claude 실행을 중단하고 task log/가상 포인터에 경고를 전달한다.
+12. 앱별 어댑터 없는 메신저/앱 자동화는 [Secretary Automation Profiles](./secretary-automation-profiles.md)의 profile-backed accessibility-first 구조를 따른다. `SecretaryService.runAppAutomation`은 profile 선택, slot 검증, accessibility-first delegated prompt 생성을 담당하고 visual MCP는 fallback으로만 쓴다.
+13. `electron/secretary/secretary-service.ts`가 기존 `electron/services/claude-spawn.ts`를 stream-json 경로로 재사용해 Gateway/env/model/permission/plan/MCP 설정을 따르고, 활성 비서 채팅 history만 컨텍스트로 주입한다.
+14. `src/App.tsx`가 사이드바 entry에서 앱 내 전체 비서 화면을 렌더링하고, `src/components/secretary/SecretaryPanel.tsx`, `ConversationList.tsx`, `SecretaryLearningPanel.tsx`가 채팅 목록, 새 채팅/전환/보관 UI, 학습 후보 inbox, 장기 기억 검색/수정을 렌더링한다.
+15. `src/components/secretary/SecretaryTaskHud.tsx`는 앱 내 비서 화면과 플로팅 창이 공유하는 작업 상태 계산과 씨토 말풍선 아래 인라인 작업 내역 표시를 담당한다.
+16. `src/secretary-panel/SecretaryFloating.tsx`는 별도 renderer entry인 `secretary-panel.html`에서 축소/확장 플로팅 대화창을 렌더링하고, 같은 `window.secretary` IPC와 공통 `SecretaryMessage`/`SecretaryMarkdown`/인라인 작업 내역 표현 규칙을 사용한다. 학습 후보와 기억은 count badge와 메인 창 진입으로만 노출한다.
+17. `src/components/secretary/useSecretaryAppBridge.ts`가 메인 창의 active context sync, `citto:navigate`, 렌더러 처리 액션 라우팅을 담당한다.
+18. 렌더러에서 실제로 완료되는 비서 액션은 `secretary:renderer-action` request와 `secretary:renderer-action-result` response로 완료/실패 메시지를 메인 IPC에 되돌린다. 검색 결과 이동은 `sessionId`와 선택 `messageId`를 같은 액션 경로로 전달한다.
 
 ### Scheduled Tasks
 

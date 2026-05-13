@@ -48,6 +48,7 @@ function createLog(message: string, level: SecretaryTaskLog['level'] = 'info'): 
 function getActionRisk(action: SecretaryAction): SecretaryTaskRiskLevel {
   if (
     action.type === 'runClaudeCode'
+    || action.type === 'runAppAutomation'
     || action.type === 'runWorkflow'
     || action.type === 'createWorkflow'
     || action.type === 'createSkill'
@@ -82,6 +83,7 @@ function getActionLabel(action: SecretaryAction) {
   if (action.type === 'createSkill') return '스킬 생성'
   if (action.type === 'saveMemory') return '기억 저장'
   if (action.type === 'runClaudeCode') return action.mode === 'interactive' ? '채팅에서 실행' : 'Claude Code 실행'
+  if (action.type === 'runAppAutomation') return action.intent === 'send_message' ? '메시지 발송 자동화' : '앱 자동화 실행'
   if (action.type === 'installComputerUse') return 'Cua Driver 설치'
   if (action.type === 'openSettings') return '설정 열기'
   if (action.type === 'cancelActiveTask') return '진행 작업 취소'
@@ -90,6 +92,14 @@ function getActionLabel(action: SecretaryAction) {
 
 function getActionPreview(action: SecretaryAction) {
   if (action.type === 'runClaudeCode') return action.prompt
+  if (action.type === 'runAppAutomation') {
+    return [
+      action.confirmationSummary,
+      `recipient: ${action.slots.recipient ?? '(비어 있음)'}`,
+      `message: ${action.slots.message ?? '(비어 있음)'}`,
+      `coordinate fallback: ${action.allowCoordinateFallback ? '요청 시 foreground/좌표 fallback 가능' : '비허용'}`,
+    ].join('\n')
+  }
   if (action.type === 'startChat') return action.initialPrompt ?? '새 프로젝트 채팅을 엽니다.'
   if (action.type === 'runWorkflow') return `workflowId: ${action.workflowId}`
   if (action.type === 'openSession') return action.messageId
@@ -129,8 +139,12 @@ function getToolLanesForAction(action: SecretaryAction): SecretaryToolLane[] {
     return ['citto_renderer', 'file_system']
   }
 
-  if (action.type === 'runClaudeCode' || action.type === 'installComputerUse') {
-    return ['citto_renderer', 'file_system']
+  if (action.type === 'runClaudeCode' || action.type === 'runAppAutomation') {
+    return ['accessibility_tree', 'screenshot_vision', 'os_input']
+  }
+
+  if (action.type === 'installComputerUse') {
+    return ['citto_renderer', 'file_system', 'os_input']
   }
 
   return ['citto_renderer']

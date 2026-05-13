@@ -7,6 +7,7 @@ import { registerStorageIpcHandlers } from './ipc/storage'
 import { createWindowController } from './main/windowController'
 import { appendClaudeResponseLog, installDevLogForwarding } from './main/devLogger'
 import { AppPersistence } from './persistence'
+import { SecretaryAutomationProfileStore } from './secretary/automation-profile-store'
 import { registerSecretaryIpcHandlers } from './secretary/ipc'
 import { SecretaryMemory } from './secretary/memory'
 import { SecretaryService } from './secretary/secretary-service'
@@ -63,9 +64,11 @@ const windowController = createWindowController({
 
 const appPersistence = new AppPersistence()
 const secretaryMemory = new SecretaryMemory(appPersistence)
+const secretaryAutomationProfileStore = new SecretaryAutomationProfileStore(appPersistence)
 const computerUseMcpService = createComputerUseMcpService()
 const secretaryService = new SecretaryService({
   memory: secretaryMemory,
+  automationProfiles: secretaryAutomationProfileStore,
   getUserHomePath,
   resolveTargetPath,
   getComputerUseMcpConfig: computerUseMcpService.getClaudeMcpConfig,
@@ -208,6 +211,7 @@ app.whenReady().then(async () => {
 
   registerSecretaryIpcHandlers({
     memory: secretaryMemory,
+    automationProfiles: secretaryAutomationProfileStore,
     service: secretaryService,
     getActiveContext: () => secretaryActiveContext,
     setActiveContext: (context) => {
